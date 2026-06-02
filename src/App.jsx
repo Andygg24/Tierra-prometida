@@ -607,8 +607,8 @@ function PersonalDemo() {
               <select value={filtroTipoPago} onChange={e=>setFiltroTipoPago(e.target.value)} style={{...inp, flex:1, minWidth:100}}>
                 {["Todos","Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
               </select>
-              <input type="date" value={filtroPagoDesde} onChange={e=>setFiltroPagoDesde(e.target.value)} title="Desde" style={{...inp, width:120}} />
-              <input type="date" value={filtroPagoHasta} onChange={e=>setFiltroPagoHasta(e.target.value)} title="Hasta" style={{...inp, width:120}} />
+              <input type="date" value={filtroPagoDesde} onChange={e=>setFiltroPagoDesde(e.target.value)} title="Desde" style={{...inp, flex:1, minWidth:0}} />
+              <input type="date" value={filtroPagoHasta} onChange={e=>setFiltroPagoHasta(e.target.value)} title="Hasta" style={{...inp, flex:1, minWidth:0}} />
               {(filtroTipoPago!=="Todos"||filtroPagoDesde||filtroPagoHasta) && <button onClick={()=>{setFiltroTipoPago("Todos");setFiltroPagoDesde("");setFiltroPagoHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
             </div>
             <button onClick={()=>setShowFormPago(!showFormPago)}
@@ -3385,7 +3385,7 @@ function ContenedoresDemo() {
           </div>
           <div style={{display:"flex",gap:6,marginBottom:10}}>
             <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar contenedor..." style={{...inp,flex:1,width:"auto"}} />
-            <input type="month" value={filtroMes} onChange={e=>setFiltroMes(e.target.value)} style={{...inp,width:130}} />
+            <input type="month" value={filtroMes} onChange={e=>setFiltroMes(e.target.value)} style={{...inp,flex:1,minWidth:0}} />
             <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setForm(formDef);}}
               style={{background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"#6366F1",cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
               {showForm?"✕ Cerrar":"➕ Nuevo"}

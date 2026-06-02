@@ -36,6 +36,13 @@ input, textarea, select, button {
   font-family: inherit;
 }
 
+input[type="date"],
+input[type="month"] {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 input:focus, textarea:focus, select:focus {
   outline: none;
 }
