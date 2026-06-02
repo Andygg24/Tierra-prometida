@@ -3395,11 +3395,11 @@ function ContenedoresDemo() {
             <div style={{background:"rgba(99,102,241,0.07)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:12,padding:14,marginBottom:12}}>
               <div style={{fontSize:12,fontWeight:700,color:"#6366F1",marginBottom:10}}>🚢 {editIdx!==null?"Editar":"Registrar nuevo"} contenedor</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <div style={{display:"flex",gap:6}}>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Fecha *</div><input type="date" value={form.fecha} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>N° Contenedor *</div><input value={form.numContenedor} onChange={e=>setForm(p=>({...p,numContenedor:e.target.value}))} placeholder="Ej: MNBU3679199" style={inp} /></div>
                 </div>
-                <div style={{display:"flex",gap:6}}>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Proveedores de Limón</div><input value={form.proveedor} onChange={e=>setForm(p=>({...p,proveedor:e.target.value}))} placeholder="Ej: Menago, Juan García..." style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Tipo de caja</div>
                     <select value={form.producto} onChange={e=>setForm(p=>({...p,producto:e.target.value}))} style={inp}>
@@ -3410,7 +3410,7 @@ function ContenedoresDemo() {
                     </select>
                   </div>
                 </div>
-                <div style={{display:"flex",gap:6}}>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Cajas de salida</div><input type="number" min="0" value={form.cajasSalida} onChange={e=>setForm(p=>({...p,cajasSalida:e.target.value}))} style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Turno</div>
                     <select value={form.turno} onChange={e=>setForm(p=>({...p,turno:e.target.value}))} style={inp}>
@@ -3423,7 +3423,7 @@ function ContenedoresDemo() {
                     </select>
                   </div>
                 </div>
-                <div style={{display:"flex",gap:6}}>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Grupo Turno Día ☀️</div>
                     <select value={form.grupoDia} onChange={e=>setForm(p=>({...p,grupoDia:e.target.value}))} style={inp}>
                       <option value="" style={{background:"#1a1a2e"}}>— Sin asignar —</option>
@@ -3438,13 +3438,13 @@ function ContenedoresDemo() {
                   </div>
                 </div>
                 <div style={{fontSize:11,fontWeight:700,color:"rgba(99,102,241,0.8)",marginTop:4,marginBottom:2}}>Datos de exportación</div>
-                <div style={{display:"flex",gap:6}}>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Booking #</div><input value={form.booking} onChange={e=>setForm(p=>({...p,booking:e.target.value}))} placeholder="Ej: BK-20260312-01" style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Naviera</div><input value={form.naviera} onChange={e=>setForm(p=>({...p,naviera:e.target.value}))} placeholder="Ej: Maersk, MSC..." style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Destino</div><input value={form.destino} onChange={e=>setForm(p=>({...p,destino:e.target.value}))} placeholder="Miami, FL" style={inp} /></div>
                 </div>
                 <div><div style={lbl}>Supervisores a cargo</div><input value={form.operadores} onChange={e=>setForm(p=>({...p,operadores:e.target.value}))} placeholder="Ej: Jhair Andres Uribe..." style={inp} /></div>
-                <div style={{display:"flex",gap:6}}>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Empresa transporte</div><input value={form.transporte} onChange={e=>setForm(p=>({...p,transporte:e.target.value}))} placeholder="Ej: Transportes Rápido" style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Placa</div><input value={form.placa} onChange={e=>setForm(p=>({...p,placa:e.target.value.toUpperCase()}))} placeholder="ABC-123" style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Trailer</div><input value={form.trailer} onChange={e=>setForm(p=>({...p,trailer:e.target.value.toUpperCase()}))} placeholder="TRL-456" style={inp} /></div>
