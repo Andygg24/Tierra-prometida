@@ -1,8 +1,10 @@
 ﻿import { useState, useRef, useEffect, createContext, useContext } from "react";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
-const MobCtx = createContext(false);
+const MobCtx   = createContext(false);
+const SmallCtx = createContext(false);
 const useM = () => useContext(MobCtx);
+const useS = () => useContext(SmallCtx);
 
 // ─── UTILIDADES ──────────────────────────────────────────────
 const fmtCOP = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
@@ -6059,7 +6061,8 @@ function PedidosDemo() {
 
 // ─── MÓDULO INICIO — DASHBOARD EJECUTIVO ─────────────────────
 function InicioDemo({ onNavigate }) {
-  const mob = useM();
+  const mob   = useM();
+  const small = useS();
   const [hora,  setHora]  = useState(new Date());
   const [clima, setClima] = useState(null);
 
@@ -6214,8 +6217,8 @@ function InicioDemo({ onNavigate }) {
         </div>}
       </div>
 
-      {/* ── KPIs — 6 cards, 3 columnas (2 en móvil) ── */}
-      <div style={{ display:"grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap:8, marginBottom:14 }}>
+      {/* ── KPIs — 3 col desktop / 2 col móvil / 1 col < 480px ── */}
+      <div style={{ display:"grid", gridTemplateColumns: small ? "1fr" : mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap:8, marginBottom:14 }}>
 
         {/* Asistencia hoy */}
         <div style={{ background:"rgba(78,205,196,0.06)", border:`1px solid rgba(78,205,196,${asistHoy.total>0?0.28:0.1})`, borderRadius:12, padding:"12px 14px" }}>
@@ -7185,8 +7188,12 @@ export default function App() {
   }, []);
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [isSmall,  setIsSmall]  = useState(() => window.innerWidth < 480);
   useEffect(() => {
-    const h = () => setIsMobile(window.innerWidth < 768);
+    const h = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsSmall(window.innerWidth < 480);
+    };
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
@@ -7248,6 +7255,7 @@ export default function App() {
 
   return (
     <MobCtx.Provider value={isMobile}>
+    <SmallCtx.Provider value={isSmall}>
     <div className="tp-app" style={{ minHeight:"100vh", background:"#0D0F14", fontFamily:"'DM Sans',system-ui,sans-serif", color:"white", "--cp":colorPrincipal }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
@@ -7742,6 +7750,7 @@ export default function App() {
 
       </div>
     </div>
+    </SmallCtx.Provider>
     </MobCtx.Provider>
   );
 }
