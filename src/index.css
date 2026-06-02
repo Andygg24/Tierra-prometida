@@ -6,15 +6,22 @@
   padding: 0;
 }
 
-html, body {
+html {
   width: 100%;
   height: 100%;
+  /* clip en lugar de hidden: evita scrollbar sin bloquear scroll en hijos */
+  overflow-x: clip;
+}
+
+body {
+  width: 100%;
+  min-height: 100%;
   background: #0D0F14;
   color: white;
   font-family: 'DM Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 #root {

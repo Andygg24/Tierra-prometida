@@ -1,4 +1,8 @@
-﻿import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect, createContext, useContext } from "react";
+
+// ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
+const MobCtx = createContext(false);
+const useM = () => useContext(MobCtx);
 
 // ─── UTILIDADES ──────────────────────────────────────────────
 const fmtCOP = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
@@ -110,6 +114,7 @@ const DOC_TIPOS_PERS = [
 const CRITERIOS_DESEMP = ["puntualidad","calidad","actitud","productividad"];
 
 function PersonalDemo() {
+  const mob = useM();
   // ── Tab principal ──
   const [tabPers, setTabPers] = useState(0);
 
@@ -127,6 +132,18 @@ function PersonalDemo() {
   const [editForm, setEditForm] = useState({});
   const [baseEdits, setBaseEdits] = useState({});
   const pedir = (msg, fn) => setConfirm({ msg, fn });
+
+  // ── Filtros por tab ──
+  const [busqContrato,      setBusqContrato]      = useState("");
+  const [filtroContrato,    setFiltroContrato]    = useState("Todos");
+  const [filtroTipoPago,    setFiltroTipoPago]    = useState("Todos");
+  const [filtroPagoDesde,   setFiltroPagoDesde]   = useState("");
+  const [filtroPagoHasta,   setFiltroPagoHasta]   = useState("");
+  const [busqDoc,           setBusqDoc]           = useState("");
+  const [filtroDocEstado,   setFiltroDocEstado]   = useState("Todos");
+  const [filtroMesDesemp,   setFiltroMesDesemp]   = useState("");
+  const [busqSS,            setBusqSS]            = useState("");
+  const [filtroSS,          setFiltroSS]          = useState("Todos");
 
   // ── localStorage helpers ──
   const loadLS = (k, def) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):def; } catch { return def; } };
@@ -486,7 +503,7 @@ function PersonalDemo() {
         const sinCont    = empleados.filter(e=>!contratos[e.num]);
         return (
           <div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:8, marginBottom:12 }}>
               {[
                 { icon:"📄", l:"Con contrato",  v:Object.keys(contratos).length, c:"#00C9A7" },
                 { icon:"⏰", l:"Por vencer",    v:porVencer.length,               c:"#F9A826" },
@@ -500,8 +517,24 @@ function PersonalDemo() {
                 </div>
               ))}
             </div>
+            <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+              <input value={busqContrato} onChange={e=>setBusqContrato(e.target.value)} placeholder="🔍 Buscar empleado..." style={{...inp, flex:1}} />
+              <select value={filtroContrato} onChange={e=>setFiltroContrato(e.target.value)} style={{...inp, width:"auto"}}>
+                {["Todos","Con contrato","Por vencer","Vencidos","Sin contrato"].map(o=><option key={o} style={{background:"#1a1a2e"}}>{o}</option>)}
+              </select>
+            </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:480, overflowY:"auto" }}>
-              {empleados.map((emp,i)=>{
+              {empleados.filter(emp=>{
+                const c    = contratos[emp.num];
+                const dias = c?.fechaFin ? diasRestantes(c.fechaFin) : null;
+                const nombre = emp.nombre.toLowerCase().includes(busqContrato.toLowerCase());
+                if (!nombre) return false;
+                if (filtroContrato==="Con contrato") return !!c;
+                if (filtroContrato==="Por vencer") return dias!==null&&dias>=0&&dias<30;
+                if (filtroContrato==="Vencidos") return dias!==null&&dias<0;
+                if (filtroContrato==="Sin contrato") return !c;
+                return true;
+              }).map((emp,i)=>{
                 const c    = contratos[emp.num];
                 const dias = c?.fechaFin ? diasRestantes(c.fechaFin) : null;
                 const col  = contColor(dias);
@@ -539,8 +572,14 @@ function PersonalDemo() {
 
       {/* ══ TAB 2: HISTORIAL DE PAGOS ══ */}
       {tabPers===2 && (() => {
-        const histEmp    = pagosHist[selEmpPago] || [];
-        const totalPag   = histEmp.reduce((s,p)=>s+p.monto,0);
+        const histEmpRaw = pagosHist[selEmpPago] || [];
+        const histEmp    = histEmpRaw.filter(p=>{
+          if (filtroTipoPago!=="Todos" && p.tipo!==filtroTipoPago) return false;
+          if (filtroPagoDesde && p.fecha < filtroPagoDesde) return false;
+          if (filtroPagoHasta && p.fecha > filtroPagoHasta) return false;
+          return true;
+        });
+        const totalPag   = histEmp.reduce((s,p)=>s+Number(p.monto||0),0);
         const empSelObj  = empleados.find(e=>e.num===selEmpPago);
         return (
           <div>
@@ -551,7 +590,7 @@ function PersonalDemo() {
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
               </select>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:10 }}>
               {[
                 { icon:"💰", l:"Total pagado",   v:fmtCOP(totalPag), c:"#00C9A7" },
                 { icon:"🧾", l:"Pagos registr.", v:histEmp.length,                         c:"#845EF7" },
@@ -563,6 +602,14 @@ function PersonalDemo() {
                   <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:1, lineHeight:1.3 }}>{k.l}</div>
                 </div>
               ))}
+            </div>
+            <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+              <select value={filtroTipoPago} onChange={e=>setFiltroTipoPago(e.target.value)} style={{...inp, flex:1, minWidth:100}}>
+                {["Todos","Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
+              </select>
+              <input type="date" value={filtroPagoDesde} onChange={e=>setFiltroPagoDesde(e.target.value)} title="Desde" style={{...inp, width:120}} />
+              <input type="date" value={filtroPagoHasta} onChange={e=>setFiltroPagoHasta(e.target.value)} title="Hasta" style={{...inp, width:120}} />
+              {(filtroTipoPago!=="Todos"||filtroPagoDesde||filtroPagoHasta) && <button onClick={()=>{setFiltroTipoPago("Todos");setFiltroPagoDesde("");setFiltroPagoHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
             </div>
             <button onClick={()=>setShowFormPago(!showFormPago)}
               style={{ marginBottom:10, background:showFormPago?"rgba(132,94,247,0.2)":"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:8, padding:"6px 14px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>
@@ -632,7 +679,7 @@ function PersonalDemo() {
         const getN = emp => DOC_TIPOS_PERS.filter(t=>docs[emp.num]?.[t.key]).length;
         return (
           <div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:12 }}>
               {[
                 { icon:"✅", l:"Completos",     v:empleados.filter(e=>getN(e)===DOC_TIPOS_PERS.length).length,                c:"#00C9A7" },
                 { icon:"⚠️", l:"Incompletos",   v:empleados.filter(e=>{const n=getN(e);return n>0&&n<DOC_TIPOS_PERS.length;}).length, c:"#F9A826" },
@@ -645,8 +692,21 @@ function PersonalDemo() {
                 </div>
               ))}
             </div>
+            <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+              <input value={busqDoc} onChange={e=>setBusqDoc(e.target.value)} placeholder="🔍 Buscar empleado..." style={{...inp, flex:1}} />
+              <select value={filtroDocEstado} onChange={e=>setFiltroDocEstado(e.target.value)} style={{...inp, width:"auto"}}>
+                {["Todos","Completos","Incompletos","Sin documentos"].map(o=><option key={o} style={{background:"#1a1a2e"}}>{o}</option>)}
+              </select>
+            </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:500, overflowY:"auto" }}>
-              {empleados.map((emp,i)=>{
+              {empleados.filter(emp=>{
+                const n = getN(emp);
+                if (!emp.nombre.toLowerCase().includes(busqDoc.toLowerCase())) return false;
+                if (filtroDocEstado==="Completos") return n===DOC_TIPOS_PERS.length;
+                if (filtroDocEstado==="Incompletos") return n>0&&n<DOC_TIPOS_PERS.length;
+                if (filtroDocEstado==="Sin documentos") return n===0;
+                return true;
+              }).map((emp,i)=>{
                 const n   = getN(emp);
                 const pct = Math.round(n/DOC_TIPOS_PERS.length*100);
                 const col = pct===100?"#00C9A7":pct>0?"#F9A826":"#FF6B6B";
@@ -680,7 +740,8 @@ function PersonalDemo() {
 
       {/* ══ TAB 4: DESEMPEÑO ══ */}
       {tabPers===4 && (() => {
-        const histDesemp = desempeno[selEmpDesemp] || [];
+        const histDesempRaw = desempeno[selEmpDesemp] || [];
+        const histDesemp    = filtroMesDesemp ? histDesempRaw.filter(ev=>ev.fecha?.startsWith(filtroMesDesemp)) : histDesempRaw;
         const empSelObj  = empleados.find(e=>e.num===selEmpDesemp);
         const prom = histDesemp.length>0 ? histDesemp.reduce((s,ev)=>s+CRITERIOS_DESEMP.reduce((a,c)=>a+ev[c],0)/CRITERIOS_DESEMP.length,0)/histDesemp.length : null;
         return (
@@ -691,6 +752,10 @@ function PersonalDemo() {
                 style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
               </select>
+            </div>
+            <div style={{ display:"flex", gap:6, marginBottom:10, alignItems:"center" }}>
+              <input type="month" value={filtroMesDesemp} onChange={e=>setFiltroMesDesemp(e.target.value)} style={{...inp, flex:1}} placeholder="Filtrar por mes" />
+              {filtroMesDesemp && <button onClick={()=>setFiltroMesDesemp("")} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕ Todo</button>}
             </div>
             {prom !== null && (
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
@@ -793,7 +858,7 @@ function PersonalDemo() {
         const ambos  = empleados.filter(e=>seguridad[e.num]?.eps&&seguridad[e.num]?.arl);
         return (
           <div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:8, marginBottom:12 }}>
               {[
                 { icon:"✅", l:"Con EPS+ARL",   v:ambos.length,                          c:"#00C9A7" },
                 { icon:"🏥", l:"Sin EPS",        v:sinEPS.length,                         c:"#FF6B6B" },
@@ -807,8 +872,22 @@ function PersonalDemo() {
                 </div>
               ))}
             </div>
+            <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+              <input value={busqSS} onChange={e=>setBusqSS(e.target.value)} placeholder="🔍 Buscar empleado..." style={{...inp, flex:1}} />
+              <select value={filtroSS} onChange={e=>setFiltroSS(e.target.value)} style={{...inp, width:"auto"}}>
+                {["Todos","Con EPS+ARL","Sin EPS","Sin ARL","Sin registro"].map(o=><option key={o} style={{background:"#1a1a2e"}}>{o}</option>)}
+              </select>
+            </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:500, overflowY:"auto" }}>
-              {empleados.map((emp,i)=>{
+              {empleados.filter(emp=>{
+                const s = seguridad[emp.num];
+                if (!emp.nombre.toLowerCase().includes(busqSS.toLowerCase())) return false;
+                if (filtroSS==="Con EPS+ARL") return !!(s?.eps && s?.arl);
+                if (filtroSS==="Sin EPS") return !s?.eps;
+                if (filtroSS==="Sin ARL") return !s?.arl;
+                if (filtroSS==="Sin registro") return !s;
+                return true;
+              }).map((emp,i)=>{
                 const s      = seguridad[emp.num];
                 const ok     = s?.eps && s?.arl;
                 const parcial= s && (s.eps||s.arl) && !ok;
@@ -844,6 +923,7 @@ function PersonalDemo() {
 
 // ─── MÓDULO NÓMINA ────────────────────────────────────────────
 function NominaDemo() {
+  const mob = useM();
   const hoyNom = new Date().toISOString().split("T")[0];
   const mesHoy = hoyNom.slice(0,7);
   const loadLS = (k,d) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch { return d; } };
@@ -881,7 +961,9 @@ function NominaDemo() {
   const [selectedConts, setSelectedConts] = useState([]);
 
   // Tab 2 — Historial
-  const [histFiltEmp, setHistFiltEmp] = useState("");
+  const [histFiltEmp,   setHistFiltEmp]   = useState("");
+  const [histFiltDesde, setHistFiltDesde] = useState("");
+  const [histFiltHasta, setHistFiltHasta] = useState("");
 
   // Vista previa de documentos
   const [previewData, setPreviewData] = useState(null);
@@ -1053,10 +1135,10 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
       )}
 
       {/* Tabs */}
-      <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.07)",paddingBottom:10}}>
+      <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.07)",paddingBottom:10,overflowX:"auto",flexWrap:"nowrap",scrollbarWidth:"none"}}>
         {TABS_NOM.map((t,i)=>(
           <button key={i} onClick={()=>setTabNom(i)}
-            style={{background:tabNom===i?"rgba(249,168,38,0.2)":"transparent",border:tabNom===i?"1px solid rgba(249,168,38,0.5)":"1px solid transparent",borderRadius:8,padding:"6px 12px",fontSize:11,color:tabNom===i?"#F9A826":"rgba(255,255,255,0.4)",cursor:"pointer",fontWeight:tabNom===i?700:400}}>
+            style={{background:tabNom===i?"rgba(249,168,38,0.2)":"transparent",border:tabNom===i?"1px solid rgba(249,168,38,0.5)":"1px solid transparent",borderRadius:8,padding:"6px 12px",fontSize:11,color:tabNom===i?"#F9A826":"rgba(255,255,255,0.4)",cursor:"pointer",fontWeight:tabNom===i?700:400,whiteSpace:"nowrap",flexShrink:0}}>
             {t}
           </button>
         ))}
@@ -1551,15 +1633,22 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
       {/* ═══ TAB 3: HISTORIAL ═══ */}
       {tabNom === 3 && (
         <div>
-          <div style={{marginBottom:10}}>
-            <div style={lbl}>Filtrar por empleado</div>
-            <select value={histFiltEmp} onChange={e=>setHistFiltEmp(e.target.value)} style={inp}>
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            <select value={histFiltEmp} onChange={e=>setHistFiltEmp(e.target.value)} style={{...inp,flex:2,minWidth:120}}>
               <option value="" style={{background:"#1a1a2e"}}>— Todos los empleados —</option>
               {EMPLEADOS_DB.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
             </select>
+            <input type="month" value={histFiltDesde} onChange={e=>setHistFiltDesde(e.target.value)} title="Desde" style={{...inp,flex:1,minWidth:100}} />
+            <input type="month" value={histFiltHasta} onChange={e=>setHistFiltHasta(e.target.value)} title="Hasta" style={{...inp,flex:1,minWidth:100}} />
+            {(histFiltEmp||histFiltDesde||histFiltHasta) && <button onClick={()=>{setHistFiltEmp("");setHistFiltDesde("");setHistFiltHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
           </div>
           {(() => {
-            const hist = histFiltEmp ? liquidaciones.filter(l=>l.empNum===histFiltEmp) : liquidaciones;
+            const hist = liquidaciones.filter(l=>{
+              if (histFiltEmp && l.empNum!==histFiltEmp) return false;
+              if (histFiltDesde && l.periodo < histFiltDesde) return false;
+              if (histFiltHasta && l.periodo > histFiltHasta) return false;
+              return true;
+            });
             return hist.length===0?(
               <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>📜</div>
@@ -1640,7 +1729,7 @@ ${tabNomina}${tabCont}
                 <input type="month" value={periodoCtad} onChange={e=>setPeriodoCtad(e.target.value)} style={inp} />
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+            <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:8,marginBottom:12}}>
               {[{l:"Colillas",v:histMes.length,c:"#6366F1"},{l:"Total devengado",v:fmtCOP(totales.dev),c:"#F9A826"},{l:"Total neto",v:fmtCOP(totales.net),c:"#00C9A7"}].map((s,i)=>(
                 <div key={i} style={{background:`${s.c}12`,border:`1px solid ${s.c}30`,borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
                   <div style={{fontSize:14,fontWeight:800,color:s.c}}>{s.v}</div>
@@ -3188,6 +3277,7 @@ ${seccionObs}
 
 // ─── MÓDULO CONTENEDORES ─────────────────────────────────────
 function ContenedoresDemo() {
+  const mob = useM();
   const hoy = new Date().toISOString().split("T")[0];
   const loadLS = (k, def) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):def; } catch { return def; } };
   const saveLS = (k, v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch { /* ignore */ } };
@@ -3235,6 +3325,10 @@ function ContenedoresDemo() {
   const [editingRecId, setEditingRecId]       = useState(null);
   const [plantillaActiva, setPlantillaActiva] = useState(null);
   const [formExtras, setFormExtras]           = useState([]);
+  const [expandidos, setExpandidos]           = useState({});
+  const toggleExpandido = (id) => setExpandidos(prev => ({ ...prev, [id]: !prev[id] }));
+  const [busqGrupoList,  setBusqGrupoList]    = useState("");
+  const [filtroMesNom,   setFiltroMesNom]     = useState("");
 
   const filtrados = procesos.filter(p =>
     (p.numContenedor+p.proveedor+p.producto).toLowerCase().includes(busqueda.toLowerCase()) &&
@@ -3269,10 +3363,10 @@ function ContenedoresDemo() {
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={()=>{confirm.fn();setConfirm(null);}} onCancel={()=>setConfirm(null)} />}
 
       {/* Tabs */}
-      <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.07)",paddingBottom:10}}>
+      <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.07)",paddingBottom:10,overflowX:"auto",flexWrap:"nowrap",scrollbarWidth:"none"}}>
         {TAB_CONT.map((t,i)=>(
           <button key={i} onClick={()=>setTabCont(i)}
-            style={{background:tabCont===i?"rgba(99,102,241,0.2)":"transparent",border:tabCont===i?"1px solid rgba(99,102,241,0.5)":"1px solid transparent",borderRadius:8,padding:"6px 12px",fontSize:11,color:tabCont===i?"#a5b4fc":"rgba(255,255,255,0.4)",cursor:"pointer",fontWeight:tabCont===i?700:400}}>
+            style={{background:tabCont===i?"rgba(99,102,241,0.2)":"transparent",border:tabCont===i?"1px solid rgba(99,102,241,0.5)":"1px solid transparent",borderRadius:8,padding:"6px 12px",fontSize:11,color:tabCont===i?"#a5b4fc":"rgba(255,255,255,0.4)",cursor:"pointer",fontWeight:tabCont===i?700:400,whiteSpace:"nowrap",flexShrink:0}}>
             {t}
           </button>
         ))}
@@ -3281,7 +3375,7 @@ function ContenedoresDemo() {
       {/* ═══ TAB 0: CONTENEDORES ═══ */}
       {tabCont === 0 && (
         <div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:8,marginBottom:12}}>
             {[{i:"🚢",l:"Total",v:stats.total,c:"#6366F1"},{i:"✅",l:"Completados",v:stats.comp,c:"#00C9A7"},{i:"⏳",l:"En proceso",v:stats.enProc,c:"#F9A826"},{i:"📦",l:"Cajas",v:stats.cajas.toLocaleString("es-CO"),c:"#845EF7"}].map((s,i)=>(
               <div key={i} style={{background:`${s.c}12`,border:`1px solid ${s.c}30`,borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
                 <div style={{fontSize:16}}>{s.i}</div><div style={{fontSize:15,fontWeight:800,color:s.c}}>{s.v}</div>
@@ -3461,7 +3555,7 @@ function ContenedoresDemo() {
             ? grupos.map(g=>g.id===editGrupoId?{...formGrupo,id:editGrupoId}:g)
             : [{...formGrupo,id:Date.now()},...grupos];
           if (editGrupoId !== null) setEditGrupoId(null);
-          saveGrupos(next); setFormGrupo({nombre:"",turno:"Día",miembros:[]}); setShowFormGrupo(false);
+          saveGrupos(next); setFormGrupo({nombre:"",turno:"Día",miembros:[]}); setShowFormGrupo(false); setBusqGrupoList("");
         };
         return (
           <div>
@@ -3510,17 +3604,18 @@ function ContenedoresDemo() {
                     style={{flex:1,background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:8,padding:"9px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>
                     ✅ {editGrupoId!==null?"Guardar cambios":"Crear grupo"}
                   </button>
-                  <button onClick={()=>setShowFormGrupo(false)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 14px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer"}}>Cancelar</button>
+                  <button onClick={()=>{setShowFormGrupo(false);setBusqGrupoList("");}} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 14px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer"}}>Cancelar</button>
                 </div>
               </div>
             )}
+            <input value={busqGrupoList} onChange={e=>setBusqGrupoList(e.target.value)} placeholder="🔍 Buscar grupo por nombre o turno..." style={{...inp,marginBottom:8}} />
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {grupos.length === 0 ? (
                 <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
                   <div style={{fontSize:36,marginBottom:10}}>👥</div>
                   <div style={{fontSize:13}}>Sin grupos — crea el primero con ➕ Nuevo grupo</div>
                 </div>
-              ) : grupos.map(g => {
+              ) : grupos.filter(g=>!busqGrupoList||(g.nombre+g.turno).toLowerCase().includes(busqGrupoList.toLowerCase())).map(g => {
                 const turnoCol = g.turno==="Día"?"#F9A826":g.turno==="Noche"?"#845EF7":"#6366F1";
                 const miembrosInfo = g.miembros.map(num=>EMPLEADOS_DB.find(e=>e.num===num)).filter(Boolean);
                 const contsAsig = procesos.filter(p=>p.grupoDia===g.nombre||p.grupoNoche===g.nombre);
@@ -3562,22 +3657,27 @@ function ContenedoresDemo() {
       {/* ═══ TAB 2: NÓMINA ═══ */}
       {tabCont === 2 && (() => {
         const VALOR = 180000;
-        const totalGlobal = procesos.reduce((sum,p)=>{
+        const procesosFilt = filtroMesNom ? procesos.filter(p=>p.fecha.startsWith(filtroMesNom)) : procesos;
+        const totalGlobal = procesosFilt.reduce((sum,p)=>{
           const gD = grupos.find(g=>g.nombre===p.grupoDia);
           const gN = grupos.find(g=>g.nombre===p.grupoNoche);
           return sum + new Set([...(gD?gD.miembros:[]),...(gN?gN.miembros:[])]).size * VALOR;
         },0);
         return (
           <div>
+            <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:10}}>
+              <input type="month" value={filtroMesNom} onChange={e=>setFiltroMesNom(e.target.value)} style={{...inp,flex:1}} placeholder="Filtrar por mes" />
+              {filtroMesNom && <button onClick={()=>setFiltroMesNom("")} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕ Todo</button>}
+            </div>
             <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:12}}>
               Pago por contenedor procesado: <span style={{color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)} COP / persona</span>
             </div>
-            {procesos.length === 0 ? (
+            {procesosFilt.length === 0 ? (
               <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>💰</div>
-                <div style={{fontSize:13}}>Registra contenedores y asigna grupos para ver la nómina</div>
+                <div style={{fontSize:13}}>{procesos.length===0?"Registra contenedores y asigna grupos para ver la nómina":"Sin contenedores para el mes seleccionado"}</div>
               </div>
-            ) : procesos.map(p => {
+            ) : procesosFilt.map(p => {
               const gDia   = grupos.find(g=>g.nombre===p.grupoDia);
               const gNoche = grupos.find(g=>g.nombre===p.grupoNoche);
               const allNums = [...new Set([...(gDia?gDia.miembros:[]),...(gNoche?gNoche.miembros:[])])];
@@ -3594,25 +3694,33 @@ function ContenedoresDemo() {
                     {p.grupoNoche && <span style={{fontSize:10,background:"rgba(132,94,247,0.15)",color:"#a78bfa",borderRadius:6,padding:"2px 7px"}}>🌙 {p.grupoNoche}</span>}
                     <span style={{marginLeft:"auto",fontSize:12,fontWeight:800,color:"#00C9A7"}}>💰 {fmtCOP(totalNom)}</span>
                   </div>
-                  {miembros.length === 0 ? (
-                    <div style={{padding:"12px 14px",fontSize:11,color:"rgba(255,255,255,0.25)"}}>Sin grupo asignado — ve a Contenedores y asigna un grupo.</div>
-                  ) : (
-                    <div style={{padding:"10px 14px"}}>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-                        {miembros.map(e=>(
-                          <div key={e.num} style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div>
-                              <div style={{fontSize:11,color:"white",fontWeight:600}}>{e.nombre}</div>
-                              <div style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>{e.area}</div>
+                  <div style={{padding:"8px 14px",borderBottom:expandidos[p.id]?`1px solid ${col}15`:"none"}}>
+                    <button onClick={()=>toggleExpandido(p.id)}
+                      style={{background:expandidos[p.id]?"rgba(0,201,167,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${expandidos[p.id]?"rgba(0,201,167,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"6px 12px",fontSize:11,color:expandidos[p.id]?"#00C9A7":"rgba(255,255,255,0.45)",cursor:"pointer",fontWeight:600,width:"100%",textAlign:"left"}}>
+                      {expandidos[p.id]?"▲ Ocultar personal":"👥 Ver Personal del contenedor"}{miembros.length>0?` (${miembros.length} persona${miembros.length!==1?"s":""})`:""}
+                    </button>
+                  </div>
+                  {expandidos[p.id] && (
+                    miembros.length === 0 ? (
+                      <div style={{padding:"12px 14px",fontSize:11,color:"rgba(255,255,255,0.25)"}}>Sin grupo asignado — ve a Contenedores y asigna un grupo.</div>
+                    ) : (
+                      <div style={{padding:"10px 14px"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                          {miembros.map(e=>(
+                            <div key={e.num} style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                              <div>
+                                <div style={{fontSize:11,color:"white",fontWeight:600}}>{e.nombre}</div>
+                                <div style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>{e.area}</div>
+                              </div>
+                              <span style={{fontSize:11,color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)}</span>
                             </div>
-                            <span style={{fontSize:11,color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)}</span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        <div style={{marginTop:8,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.5)"}}>
+                          {miembros.length} persona{miembros.length!==1?"s":""} · Total: <span style={{color:"#00C9A7",fontWeight:800}}>{fmtCOP(totalNom)}</span>
+                        </div>
                       </div>
-                      <div style={{marginTop:8,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.5)"}}>
-                        {miembros.length} persona{miembros.length!==1?"s":""} · Total: <span style={{color:"#00C9A7",fontWeight:800}}>{fmtCOP(totalNom)}</span>
-                      </div>
-                    </div>
+                    )
                   )}
                 </div>
               );
@@ -5087,6 +5195,7 @@ const GASTOS_OP_EST = [
 ];
 
 function EstadisticasDemo() {
+  const mob = useM();
   const [tab, setTab] = useState(0);
   const hoy = new Date();
   const mesActual = hoy.toISOString().slice(0,7);
@@ -5099,11 +5208,12 @@ function EstadisticasDemo() {
       const mapa  = {};
       for (const dia of dias) {
         for (const [num, v] of Object.entries(regs[dia] || {})) {
+          if (!v?.estado) continue;
           if (!mapa[num]) {
             const emp = EMPLEADOS_DB.find(e => e.num === num);
             mapa[num] = { nombre: emp ? emp.nombre : num, P:0, A:0, T:0, LP:0 };
           }
-          if (v?.estado) mapa[num][v.estado] = (mapa[num][v.estado] || 0) + 1;
+          mapa[num][v.estado] = (mapa[num][v.estado] || 0) + 1;
         }
       }
       return { datos: Object.values(mapa).sort((a,b)=>b.P-a.P), dias: dias.length };
@@ -5250,7 +5360,7 @@ function EstadisticasDemo() {
                 ✅ <strong>Mes actual:</strong> {contRealesMes.num} contenedor{contRealesMes.num!==1?"es":""} · {contRealesMes.cajas.toLocaleString("es-CO")} cajas — datos reales del sistema
               </div>
             )}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:8, marginBottom:12 }}>
               {[
                 { icon:"🚢", l:"Contenedores totales",  v:totalCont,                                                                         c:"#6366F1" },
                 { icon:"📦", l:"Cajas procesadas",      v:totalCaj.toLocaleString("es-CO"),                                                  c:"#00C9A7" },
@@ -5349,7 +5459,7 @@ function EstadisticasDemo() {
         const maxT = Math.max(...nominaMeses.map(x=>x.total), 1);
         return (
           <div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:12 }}>
               {[
                 { icon:"💰", l:"Promedio mensual",       v:`$${(promTotal/1000000).toFixed(2)}M`,              c:"#F9A826" },
                 { icon:"📊", l:`Total ${nominaMeses.length} mes${nominaMeses.length!==1?"es":""}`, v:`$${(totalNom/1000000).toFixed(1)}M`, c:"#00C9A7" },
@@ -5439,7 +5549,7 @@ function EstadisticasDemo() {
             </div>
           ) : (
             <>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+              <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:8, marginBottom:12 }}>
                 {[
                   { icon:"📅", l:"Días registrados",  v:asistMes.dias,                                                                                                      c:"#4ECDC4" },
                   { icon:"👥", l:"Empleados activos",  v:asistMes.datos.length,                                                                                              c:"#00C9A7" },
@@ -5607,7 +5717,7 @@ function EstadisticasDemo() {
       {/* ══ TAB 4: EXPORTACIONES ══ */}
       {tab===4 && (
         <div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:12 }}>
             {[
               { icon:"🤝", l:"Clientes activos",   v:expArr.length,                                            c:"#0EA5E9" },
               { icon:"⚖️",  l:"Kg en pipeline",    v:expArr.reduce((s,e)=>s+e.kg,0).toLocaleString("es-CO"),  c:"#00C9A7" },
@@ -5732,6 +5842,7 @@ const PEDIDO_ESTADOS = [
 const PEDIDOS_INICIALES = [];
 
 function PedidosDemo() {
+  const mob = useM();
   const [pedidos, setPedidosRaw] = useState(() => {
     try { const v = localStorage.getItem("tp_pedidos"); return v ? JSON.parse(v) : PEDIDOS_INICIALES; }
     catch { return PEDIDOS_INICIALES; }
@@ -5751,16 +5862,25 @@ function PedidosDemo() {
   })();
   const primerCliente = clientes[0]?.nombre || "Princess Kingdom Corp";
 
-  const [showForm,    setShowForm]    = useState(false);
-  const [detalle,     setDetalle]     = useState(null);
-  const [filtroEst,   setFiltroEst]   = useState("todos");
-  const [confirm,     setConfirm]     = useState(null);
-  const [nuevo,       setNuevo]       = useState({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
+  const [showForm,       setShowForm]       = useState(false);
+  const [detalle,        setDetalle]        = useState(null);
+  const [filtroEst,      setFiltroEst]      = useState("todos");
+  const [confirm,        setConfirm]        = useState(null);
+  const [busqPedidos,    setBusqPedidos]    = useState("");
+  const [filtroPedDesde, setFiltroPedDesde] = useState("");
+  const [filtroPedHasta, setFiltroPedHasta] = useState("");
+  const [nuevo,          setNuevo]          = useState({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
 
   const pedir     = (msg, fn) => setConfirm({ msg, fn });
   const estInfo   = (key) => PEDIDO_ESTADOS.find(e => e.key === key) || PEDIDO_ESTADOS[0];
   const nextEst   = (key) => { const i = PEDIDO_ESTADOS.findIndex(e=>e.key===key); return PEDIDO_ESTADOS[Math.min(i+1, PEDIDO_ESTADOS.length-1)]; };
-  const filtrados = filtroEst === "todos" ? pedidos : pedidos.filter(p => p.estado === filtroEst);
+  const filtrados = pedidos.filter(p => {
+    if (filtroEst !== "todos" && p.estado !== filtroEst) return false;
+    if (busqPedidos && ![p.cliente,p.producto,p.contenedor].some(f=>(f||"").toLowerCase().includes(busqPedidos.toLowerCase()))) return false;
+    if (filtroPedDesde && p.fecha < filtroPedDesde) return false;
+    if (filtroPedHasta && p.fecha > filtroPedHasta) return false;
+    return true;
+  });
   const totalUSD  = pedidos.reduce((s,p) => s + p.cantidadKg * p.precioUSD, 0);
 
   const agregar = () => {
@@ -5802,7 +5922,7 @@ function PedidosDemo() {
       )}
 
       {/* KPIs */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:12 }}>
         {[
           { icon:"📋", label:"Total pedidos",   value:pedidos.length,                                                                  color:"#0EA5E9" },
           { icon:"💵", label:"Total USD",        value:`$${totalUSD.toLocaleString("en-US",{maximumFractionDigits:0})}`,               color:"#F9A826" },
@@ -5814,6 +5934,14 @@ function PedidosDemo() {
             <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginTop:2 }}>{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Búsqueda y fechas */}
+      <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+        <input value={busqPedidos} onChange={e=>setBusqPedidos(e.target.value)} placeholder="🔍 Buscar cliente, producto, contenedor..." style={{...inp, flex:2, minWidth:140}} />
+        <input type="date" value={filtroPedDesde} onChange={e=>setFiltroPedDesde(e.target.value)} title="Desde" style={{...inp, flex:1, minWidth:100}} />
+        <input type="date" value={filtroPedHasta} onChange={e=>setFiltroPedHasta(e.target.value)} title="Hasta" style={{...inp, flex:1, minWidth:100}} />
+        {(busqPedidos||filtroPedDesde||filtroPedHasta) && <button onClick={()=>{setBusqPedidos("");setFiltroPedDesde("");setFiltroPedHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
       </div>
 
       {/* Pipeline filtros */}
@@ -5931,6 +6059,7 @@ function PedidosDemo() {
 
 // ─── MÓDULO INICIO — DASHBOARD EJECUTIVO ─────────────────────
 function InicioDemo({ onNavigate }) {
+  const mob = useM();
   const [hora,  setHora]  = useState(new Date());
   const [clima, setClima] = useState(null);
 
@@ -6050,24 +6179,28 @@ function InicioDemo({ onNavigate }) {
   return (
     <div>
       {/* ── HEADER: Fecha/Hora + Clima ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:10, marginBottom:14 }}>
-        <div style={{ background:"linear-gradient(135deg,rgba(0,201,167,0.07),rgba(132,94,247,0.07))", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"14px 18px" }}>
+      <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr auto", gap:10, marginBottom:14 }}>
+        <div style={{ background:"linear-gradient(135deg,rgba(0,201,167,0.07),rgba(132,94,247,0.07))", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding: mob ? "10px 14px" : "14px 18px" }}>
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:2, textTransform:"capitalize" }}>
-            {hora.toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
+            {mob
+              ? hora.toLocaleDateString("es-CO",{weekday:"short",month:"short",day:"numeric"})
+              : hora.toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})
+            }
           </div>
-          <div style={{ fontSize:36, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"white", letterSpacing:-1, lineHeight:1 }}>
+          <div style={{ fontSize: mob ? 30 : 36, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"white", letterSpacing:-1, lineHeight:1 }}>
             {hora.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}
-            <span style={{ fontSize:16, color:"rgba(255,255,255,0.3)", marginLeft:6, fontFamily:"'DM Sans',sans-serif", fontWeight:400 }}>:{String(hora.getSeconds()).padStart(2,"0")}</span>
+            <span style={{ fontSize: mob ? 13 : 16, color:"rgba(255,255,255,0.3)", marginLeft:6, fontFamily:"'DM Sans',sans-serif", fontWeight:400 }}>:{String(hora.getSeconds()).padStart(2,"0")}</span>
           </div>
-          <div style={{ display:"flex", gap:8, marginTop:6, alignItems:"center" }}>
-            <span style={{ fontSize:9, background:"rgba(0,201,167,0.15)", color:"#00C9A7", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>● Sistema en línea</span>
+          <div style={{ display:"flex", gap:8, marginTop:6, alignItems:"center", flexWrap:"wrap" }}>
+            <span style={{ fontSize:9, background:"rgba(0,201,167,0.15)", color:"#00C9A7", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>● En línea</span>
             {alertaCount > 0 && <span style={{ fontSize:9, background:"rgba(255,107,107,0.15)", color:"#FF6B6B", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>⚠️ {alertaCount} alertas</span>}
-            <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>🍋 Girón, Santander</span>
+            {mob && clima && <span style={{ fontSize:9, color:"rgba(56,189,248,0.8)", fontWeight:600 }}>{w.icon} {Math.round(clima.temperature_2m)}°C · Girón</span>}
+            {!mob && <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>🍋 Girón, Santander</span>}
           </div>
         </div>
 
-        {/* Widget de clima */}
-        <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:14, padding:"14px 16px", minWidth:120, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", textAlign:"center", gap:3 }}>
+        {/* Widget de clima — oculto en móvil */}
+        {!mob && <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:14, padding:"14px 16px", minWidth:120, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", textAlign:"center", gap:3 }}>
           <div style={{ fontSize:26 }}>{w.icon}</div>
           {clima ? (
             <>
@@ -6078,11 +6211,11 @@ function InicioDemo({ onNavigate }) {
           ) : (
             <div style={{ fontSize:9, color:"rgba(56,189,248,0.4)" }}>Conectando…</div>
           )}
-        </div>
+        </div>}
       </div>
 
-      {/* ── KPIs — 6 cards, 3 columnas ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:14 }}>
+      {/* ── KPIs — 6 cards, 3 columnas (2 en móvil) ── */}
+      <div style={{ display:"grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap:8, marginBottom:14 }}>
 
         {/* Asistencia hoy */}
         <div style={{ background:"rgba(78,205,196,0.06)", border:`1px solid rgba(78,205,196,${asistHoy.total>0?0.28:0.1})`, borderRadius:12, padding:"12px 14px" }}>
@@ -6161,7 +6294,7 @@ function InicioDemo({ onNavigate }) {
       </div>
 
       {/* ── ALERTAS + ACTIVIDAD RECIENTE ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+      <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap:10, marginBottom:14 }}>
 
         {/* Alertas */}
         <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${alertaCount>0?"rgba(255,107,107,0.18)":"rgba(255,255,255,0.06)"}`, borderRadius:12, padding:"12px 14px" }}>
@@ -6260,7 +6393,7 @@ function InicioDemo({ onNavigate }) {
       {/* ── ACCESO RÁPIDO ── */}
       <div style={{ marginBottom:14 }}>
         <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>⚡ Acceso rápido</div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
+        <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:6 }}>
           {quickMods.map((m,i)=>(
             <button key={i} onClick={()=>onNavigate(m.id)} style={{ background:`${m.color}0e`, border:`1px solid ${m.color}30`, borderRadius:10, padding:"10px 6px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
               <div style={{ fontSize:20 }}>{m.icon}</div>
@@ -7051,6 +7184,13 @@ export default function App() {
     return () => window.removeEventListener("cfg-apariencia-changed", handler);
   }, []);
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+
   const colorPrincipal = apariencia.colorPrincipal || "#00C9A7";
   const sinAnimaciones = apariencia.animaciones === false;
   const searchRef  = useRef(null);
@@ -7107,6 +7247,7 @@ export default function App() {
   };
 
   return (
+    <MobCtx.Provider value={isMobile}>
     <div className="tp-app" style={{ minHeight:"100vh", background:"#0D0F14", fontFamily:"'DM Sans',system-ui,sans-serif", color:"white", "--cp":colorPrincipal }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
@@ -7251,26 +7392,89 @@ export default function App() {
 
         /* ── Móvil (< 768px) ── */
         @media (max-width: 767px) {
-          .tp-app { padding: 0 0 20px 0; }
+          .tp-app { padding: 0 0 32px 0; }
+
+          /* Header pegajoso compacto */
           .tp-header {
-            max-width: 100%; margin: 0;
+            width: 100%; margin: 0;
             padding: 10px 14px;
             border-bottom: 1px solid rgba(255,255,255,0.07);
-            background: rgba(0,0,0,0.25);
-            position: sticky; top: 0; z-index: 100;
+            background: rgba(13,15,20,0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: sticky; top: 0; z-index: 200;
           }
           .tp-header-sub { display: none; }
           .tp-header-title { font-size: 15px !important; }
+
+          /* Nav de módulos — scroll horizontal */
           .tp-mob-nav {
-            display: flex; overflow-x: auto; gap: 8px;
-            padding: 10px 12px 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            scrollbar-width: none; -ms-overflow-style: none;
+            display: flex !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            gap: 6px !important;
+            padding: 10px 12px !important;
+            border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+            background: rgba(13,15,20,0.6) !important;
           }
           .tp-mob-nav::-webkit-scrollbar { display: none; }
-          .tp-grid { display: block; padding: 12px; }
-          .tp-sidebar { display: none; }
-          .tp-mob-tasa { display: block; }
+
+          /* Cards de navegación más compactos */
+          .tp-mob-card {
+            padding: 7px 12px 10px !important;
+            font-size: 12px !important;
+            border-radius: 9px !important;
+          }
+          /* Quitar el scale del active en móvil para evitar clipping */
+          .tp-mob-card[data-active="true"],
+          .tp-mob-card:focus { transform: none !important; }
+
+          /* Ocultar sidebar y activar layout de bloque */
+          .tp-sidebar { display: none !important; }
+          .tp-grid { display: block !important; padding: 0 !important; }
+
+          /* Módulo: sin borde ni border-radius, va edge-to-edge */
+          .tp-mod-container {
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+          }
+
+          /* Header del módulo compacto */
+          .tp-mod-header {
+            padding: 10px 14px !important;
+            border-radius: 0 !important;
+          }
+          .tp-mod-header > div > div:last-child { display: none; }
+
+          /* Cuerpo del módulo con padding cómodo */
+          .tp-module-body { padding: 14px !important; }
+
+          /* Tasa cambio en móvil */
+          .tp-mob-tasa { display: block; padding: 8px 14px 0; }
+
+          /* Dropdown búsqueda global */
+          .tp-dropdown {
+            right: 0 !important;
+            width: calc(100vw - 28px) !important;
+            min-width: unset !important;
+          }
+
+          /* Inputs de fecha/mes en filtros */
+          .tp-module-body input[type="date"],
+          .tp-module-body input[type="month"] {
+            min-width: 0 !important;
+            flex: 1 !important;
+          }
+
+          /* Modales: ancho completo */
+          .tp-modal-inner {
+            max-width: calc(100vw - 28px) !important;
+            width: calc(100vw - 28px) !important;
+          }
         }
         .tp-mob-tasa { display: none; }
       `}</style>
@@ -7411,12 +7615,12 @@ export default function App() {
                 boxShadow: isActive
                   ? `0 8px 24px ${m.color}35, 0 0 0 1px ${m.color}20, inset 0 1px 0 ${m.color}20`
                   : "0 2px 8px rgba(0,0,0,0.35)",
-                transform: isActive ? "translateY(-3.5px) scale(1.06)" : "none",
+                transform: isActive && !isMobile ? "translateY(-3.5px) scale(1.06)" : "none",
                 backdropFilter: "blur(10px)",
                 WebkitBackdropFilter: "blur(10px)",
               }}
             >
-              <span style={{ fontSize:17 }}>{m.icon}</span>
+              <span style={{ fontSize: isMobile ? 15 : 17 }}>{m.icon}</span>
               <span>{m.title}</span>
               {isActive && (
                 <div style={{
@@ -7521,8 +7725,8 @@ export default function App() {
         </div>
 
         {/* Columna 2 — Área de trabajo */}
-        <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${mod.color}30`, borderRadius:16, overflow:"hidden", boxShadow:`0 0 30px ${mod.color}10` }}>
-          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${mod.color}20`, display:"flex", alignItems:"center", gap:10, background:`${mod.color}08` }}>
+        <div className="tp-mod-container" style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${mod.color}30`, borderRadius:16, overflow:"hidden", boxShadow:`0 0 30px ${mod.color}10`, minWidth:0 }}>
+          <div className="tp-mod-header" style={{ padding:"14px 18px", borderBottom:`1px solid ${mod.color}20`, display:"flex", alignItems:"center", gap:10, background:`${mod.color}08` }}>
             <span style={{ fontSize:22 }}>{mod.icon}</span>
             <div>
               <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:"white" }}>{mod.title}</div>
@@ -7530,12 +7734,13 @@ export default function App() {
             </div>
             <div style={{ marginLeft:"auto", width:8, height:8, borderRadius:"50%", background:mod.color, boxShadow:`0 0 8px ${mod.color}` }} />
           </div>
-          <div style={{ padding:18 }}>
+          <div className="tp-module-body" style={{ padding: isMobile ? 12 : 18 }}>
             {renderDemo(mod.demo)}
           </div>
         </div>
 
       </div>
     </div>
+    </MobCtx.Provider>
   );
 }
