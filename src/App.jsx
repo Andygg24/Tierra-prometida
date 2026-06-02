@@ -7385,6 +7385,7 @@ export default function App() {
         /* ── Tablet (768px – 1099px) ── */
         @media (min-width: 768px) and (max-width: 1099px) {
           .tp-app { padding: 12px 14px; }
+          .tp-app { zoom: 1; }
           .tp-header { width: 100%; margin-bottom: 12px; }
           .tp-grid { grid-template-columns: 172px 1fr; width: 100%; gap: 12px; }
           .tp-stack-card { height: 44px; padding: 0 10px; gap: 8px; }
@@ -7392,7 +7393,7 @@ export default function App() {
 
         /* ── Móvil (< 768px) ── */
         @media (max-width: 767px) {
-          .tp-app { padding: 0 0 32px 0; }
+          .tp-app { padding: 0 0 32px 0; zoom: 1; }
 
           /* Header pegajoso compacto */
           .tp-header {
