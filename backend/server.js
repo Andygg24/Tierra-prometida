@@ -153,13 +153,17 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", version: "1.0.0", service: "Tierra Prometida Export Docs" });
 });
 
-// ── Iniciar servidor ──────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🍋 Tierra Prometida — Export Docs Backend`);
-  console.log(`   Servidor en http://localhost:${PORT}`);
-  console.log(`   Endpoints:`);
-  console.log(`     POST /api/carta-temp`);
-  console.log(`     POST /api/proforma`);
-  console.log(`     POST /api/isf`);
-  console.log(`     POST /api/exportar-zip\n`);
-});
+// ── Iniciar servidor (solo en dev local, no en Vercel serverless) ─────
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n🍋 Tierra Prometida — Export Docs Backend`);
+    console.log(`   Servidor en http://localhost:${PORT}`);
+    console.log(`   Endpoints:`);
+    console.log(`     POST /api/carta-temp`);
+    console.log(`     POST /api/proforma`);
+    console.log(`     POST /api/isf`);
+    console.log(`     POST /api/exportar-zip\n`);
+  });
+}
+
+module.exports = app;
