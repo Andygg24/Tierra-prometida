@@ -128,11 +128,9 @@ function PersonalDemo() {
   const [selected, setSelected] = useState([]);
   const [hora, setHora] = useState("6:00 AM");
   const [nuevoEmp, setNuevoEmp] = useState({ nombre:"", doc:"CC Nacional", num:"", tel:"", area:"" });
-  const [extraEmps, setExtraEmps] = useState([]);
   const [confirm, setConfirm] = useState(null);
   const [editando, setEditando] = useState(null);
   const [editForm, setEditForm] = useState({});
-  const [baseEdits, setBaseEdits] = useState({});
   const pedir = (msg, fn) => setConfirm({ msg, fn });
 
   // ── Filtros por tab ──
@@ -150,6 +148,20 @@ function PersonalDemo() {
   // ── localStorage helpers ──
   const loadLS = (k, def) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):def; } catch { return def; } };
   const saveLS = (k, v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch { /* ignore */ } };
+
+  // ── Empleados adicionales y ediciones persistidas ──
+  const [extraEmpsRaw, setExtraEmpsRaw] = useState(() => loadLS("tp_extra_emps", []));
+  const setExtraEmps = (fn) => setExtraEmpsRaw(prev => {
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    saveLS("tp_extra_emps", next);
+    return next;
+  });
+  const [baseEditsRaw, setBaseEditsRaw] = useState(() => loadLS("tp_base_edits", {}));
+  const setBaseEdits = (fn) => setBaseEditsRaw(prev => {
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    saveLS("tp_base_edits", next);
+    return next;
+  });
 
   // ── Tab 1: Contratos ──
   const [contratos, setContratos]       = useState(()=>loadLS("tp_contratos",{}));
@@ -213,8 +225,8 @@ function PersonalDemo() {
 
   // ── Helpers comunes ──
   const empleados = [
-    ...EMPLEADOS_DB.map(e => baseEdits[e.num] ? { ...e, ...baseEdits[e.num] } : e),
-    ...extraEmps,
+    ...EMPLEADOS_DB.map(e => baseEditsRaw[e.num] ? { ...e, ...baseEditsRaw[e.num] } : e),
+    ...extraEmpsRaw,
   ];
   const docColors = { "CC Nacional":"#00C9A7", "CC Venezuela":"#F9A826", "PPT":"#845EF7" };
   const docTypes  = ["Todos","CC Nacional","CC Venezuela","PPT"];
@@ -439,7 +451,7 @@ function PersonalDemo() {
           <div style={{ maxHeight:420, overflowY:"auto" }}>
             {filtered.map((emp,i)=>{
               const isSel   = showBroadcast && selected.find(e=>e.num===emp.num);
-              const isExtra = extraEmps.find(e=>e.num===emp.num);
+              const isExtra = extraEmpsRaw.find(e=>e.num===emp.num);
               const docColor= docColors[emp.doc]||"#aaa";
               const cont    = contratos[emp.num];
               const dias    = cont?.fechaFin ? diasRestantes(cont.fechaFin) : null;
@@ -5209,13 +5221,13 @@ function EstadisticasDemo() {
       const dias  = Object.keys(regs).filter(k => k.startsWith(mesActual));
       const mapa  = {};
       for (const dia of dias) {
-        for (const [num, v] of Object.entries(regs[dia] || {})) {
+        for (const [nombre, v] of Object.entries(regs[dia] || {})) {
           if (!v?.estado) continue;
-          if (!mapa[num]) {
-            const emp = EMPLEADOS_DB.find(e => e.num === num);
-            mapa[num] = { nombre: emp ? emp.nombre : num, P:0, A:0, T:0, LP:0 };
+          if (!mapa[nombre]) {
+            const emp = EMPLEADOS_DB.find(e => e.nombre === nombre);
+            mapa[nombre] = { nombre: emp ? emp.nombre : nombre, P:0, A:0, T:0, LP:0 };
           }
-          mapa[num][v.estado] = (mapa[num][v.estado] || 0) + 1;
+          mapa[nombre][v.estado] = (mapa[nombre][v.estado] || 0) + 1;
         }
       }
       return { datos: Object.values(mapa).sort((a,b)=>b.P-a.P), dias: dias.length };
@@ -5406,7 +5418,7 @@ function EstadisticasDemo() {
                 {histConFinal.map((h,i)=>{
                   const barH  = ((h.cajas/maxC)*60).toFixed(1);
                   const esAct = i===histConFinal.length-1;
-                  const color = h.esReal ? "#00C9A7" : "#00C9A7";
+                  const color = h.esReal ? "#00C9A7" : "#6366F1";
                   return (
                     <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
                       <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.3)" }}>{h.cajas >= 1000 ? `${(h.cajas/1000).toFixed(1)}k` : h.cajas}</div>

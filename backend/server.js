@@ -23,9 +23,7 @@ app.use(express.json());
 
 // ── Python interpreter ─────────────────────────────────────────────────
 // Ruta completa para evitar dependencia de PATH en Windows
-const PYTHON = process.platform === "win32"
-  ? "C:\\Users\\Andy Garcia\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
-  : "python3";
+const PYTHON = process.platform === "win32" ? "python" : "python3";
 
 // ── Ruta a los scripts ─────────────────────────────────────────────────
 const SCRIPTS = path.join(__dirname, "scripts");
