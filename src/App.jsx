@@ -3,6 +3,7 @@ import { supabase } from "./supabase.js";
 import { usePersonal } from "./hooks/usePersonal.js";
 import { useAsistencia } from "./hooks/useAsistencia.js";
 import { useContenedores } from "./hooks/useContenedores.js";
+import { useInventario } from "./hooks/useInventario.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -1968,26 +1969,7 @@ const PLANTILLAS_CC = [
 ];
 
 function InventarioDemo() {
-  const _lsInv = (k, d) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch { return d; } };
-  const _svInv = (k, v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch { /* ignore */ } };
-
-  // Migración: mover datos de la key con fecha a la key permanente
-  useEffect(() => {
-    try {
-      const viejo = localStorage.getItem("tp_inventario_20260528");
-      if (viejo && !localStorage.getItem("tp_inventario")) {
-        localStorage.setItem("tp_inventario", viejo);
-        localStorage.removeItem("tp_inventario_20260528");
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  const [items, setItemsRaw] = useState(() => _lsInv("tp_inventario", INVENTARIO_BASE));
-  const setItems = (fn) => setItemsRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    _svInv("tp_inventario", next);
-    return next;
-  });
+  const { items, historial, loading: loadingInv, actualizarItem, registrarMovimiento, agregarItem } = useInventario(INVENTARIO_BASE);
 
   const [filtro, setFiltro] = useState("Todos");
   const [busqueda, setBusqueda] = useState("");
@@ -1996,19 +1978,13 @@ function InventarioDemo() {
   const [movModal, setMovModal] = useState(null); // { item, tipo: "entrada"|"salida" }
   const [movCant, setMovCant] = useState("");
   const [movObs, setMovObs] = useState("");
-  const [historial, setHistorial] = useState(() => _lsInv("tp_inventario_hist", []));
-  const addHistorial = (entry) => {
-    setHistorial(prev => {
-      const next = [entry, ...prev.slice(0, 99)];
-      _svInv("tp_inventario_hist", next);
-      return next;
-    });
-  };
   const [confirm, setConfirm] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [nuevoItem, setNuevoItem] = useState({ nombre:"", cant:0, unidad:"UNIDADES", minimo:1, categoria:"Insumos", obs:"", costo:0 });
 
   const pedir = (msg, fn) => setConfirm({ msg, fn });
+
+  if (loadingInv) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando inventario...</div>;
 
   const categorias = ["Todos", "Insumos", "Herramientas"];
   const filtrados = items.filter(i => {
@@ -2023,34 +1999,24 @@ function InventarioDemo() {
   const totalInsumos = items.filter(i => i.categoria === "Insumos").length;
   const totalHerramientas = items.filter(i => i.categoria === "Herramientas").length;
 
-  const registrarMovimiento = () => {
+  const confirmarMovimiento = () => {
     if (!movCant || isNaN(movCant) || Number(movCant) <= 0) return;
     const cant = Number(movCant);
     const item = movModal.item;
     const tipo = movModal.tipo;
-    const nuevaCant = tipo === "entrada" ? item.cant + cant : Math.max(0, item.cant - cant);
-    setItems(prev => prev.map(i => i.id === item.id ? { ...i, cant: nuevaCant } : i));
-    addHistorial({
-      fecha: new Date().toLocaleDateString("es-CO"),
-      hora: new Date().toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" }),
-      nombre: item.nombre,
-      tipo,
-      cant,
-      obs: movObs || "",
-      antes: item.cant,
-      despues: nuevaCant,
-    });
+    const despues = tipo === "entrada" ? item.cant + cant : Math.max(0, item.cant - cant);
+    registrarMovimiento(item.id, item.nombre, tipo, cant, movObs, item.cant, despues);
     setMovModal(null); setMovCant(""); setMovObs("");
   };
 
   const guardarEdicion = () => {
-    setItems(prev => prev.map(i => i.id === editando ? { ...i, ...editForm, cant: Number(editForm.cant), minimo: Number(editForm.minimo), costo: Number(editForm.costo) } : i));
+    actualizarItem(editando, editForm);
     setEditando(null);
   };
 
-  const agregarItem = () => {
+  const confirmarAgregarItem = () => {
     if (!nuevoItem.nombre.trim()) return;
-    setItems(prev => [...prev, { ...nuevoItem, id: Date.now(), cant: Number(nuevoItem.cant), minimo: Number(nuevoItem.minimo), costo: Number(nuevoItem.costo) }]);
+    agregarItem({ ...nuevoItem, id: Date.now() });
     setNuevoItem({ nombre:"", cant:0, unidad:"UNIDADES", minimo:1, categoria:"Insumos", obs:"", costo:0 });
     setShowAdd(false);
   };
@@ -2120,7 +2086,7 @@ function InventarioDemo() {
                 <input value={movObs} onChange={e=>setMovObs(e.target.value)} placeholder="Opcional..." style={{...inp,width:"100%"}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
-                <button onClick={registrarMovimiento} style={{ flex:1, background:movModal.tipo==="entrada"?"linear-gradient(135deg,#00C9A7,#845EF7)":"linear-gradient(135deg,#FF6B6B,#F9A826)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>
+                <button onClick={confirmarMovimiento} style={{ flex:1, background:movModal.tipo==="entrada"?"linear-gradient(135deg,#00C9A7,#845EF7)":"linear-gradient(135deg,#FF6B6B,#F9A826)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>
                   {movModal.tipo==="entrada"?"📥 Confirmar entrada":"📤 Confirmar salida"}
                 </button>
                 <button onClick={() => { setMovModal(null); setMovCant(""); setMovObs(""); }} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"9px 12px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>✕</button>
@@ -2189,7 +2155,7 @@ function InventarioDemo() {
             </div>
             <input placeholder="Observaciones" value={nuevoItem.obs} onChange={e=>setNuevoItem(p=>({...p,obs:e.target.value}))} style={{...inp,width:"100%"}} />
             <div style={{ display:"flex", gap:6 }}>
-              <button onClick={() => pedir(`¿Agregar "${nuevoItem.nombre}" al inventario?`, agregarItem)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#00C9A7)", border:"none", borderRadius:7, padding:"7px", fontSize:11, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Agregar</button>
+              <button onClick={() => pedir(`¿Agregar "${nuevoItem.nombre}" al inventario?`, confirmarAgregarItem)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#00C9A7)", border:"none", borderRadius:7, padding:"7px", fontSize:11, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Agregar</button>
               <button onClick={() => setShowAdd(false)} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:7, padding:"7px 12px", fontSize:11, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
@@ -2256,7 +2222,7 @@ function InventarioDemo() {
                 <div style={{ width:1, background:"rgba(255,255,255,0.06)" }} />
                 <button onClick={() => { setEditando(item.id); setEditForm({...item}); }}
                   style={{ background:"rgba(255,255,255,0.04)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,255,255,0.5)" }}>✏️</button>
-                <button onClick={() => pedir(`¿Eliminar "${item.nombre}"?`, () => setItems(prev => prev.filter(i => i.id !== item.id)))}
+                <button onClick={() => pedir(`¿Eliminar "${item.nombre}"?`, () => supabase.from("inventario").delete().eq("id", item.id))}
                   style={{ background:"rgba(255,80,80,0.06)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
               </div>
             </div>
@@ -3239,8 +3205,6 @@ ${seccionObs}
 function ContenedoresDemo() {
   const mob = useM();
   const hoy = new Date().toISOString().split("T")[0];
-  const loadLS = (k, def) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):def; } catch { return def; } };
-  const saveLS = (k, v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch { /* ignore */ } };
 
   const [tabCont, setTabCont]     = useState(0);
   const [confirm, setConfirm]     = useState(null);
@@ -3260,6 +3224,8 @@ function ContenedoresDemo() {
     guardarCC: guardarCCSB,
     eliminarCC,
   } = useContenedores();
+  const { items: invItems, ajustarLotes } = useInventario();
+  const invActual = invItems.length > 0 ? invItems : INVENTARIO_BASE;
 
   // ── Tab 0: Contenedores ──
   const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", destino:"Miami, FL", trazabilidad:[] };
@@ -3284,7 +3250,6 @@ function ContenedoresDemo() {
   const ESTADOS_CONT = ["En proceso","Completado","Pausado","Cancelado"];
 
   // ── Tab 4: Centro de Costos ──
-  const INV_KEY_CC = "tp_inventario";
   const INSUMOS_IDS_CONT = [3,4,5,6,7,9,10,11,12,13,14,16,17,44,45,46,47];
   const [selContCC, setSelContCC]     = useState(null);
   const [formCC, setFormCC]           = useState({});
@@ -3484,13 +3449,14 @@ function ContenedoresDemo() {
                         : `¿Eliminar ${p.numContenedor}?`;
                       pedir(msg, () => {
                         if (recs.length > 0) {
-                          const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
                           const allItems = recs.flatMap(r=>r.items);
-                          const newInv = inv.map(item => {
-                            const totalUsed = allItems.filter(x=>x.id===item.id).reduce((s,x)=>s+x.cant,0);
-                            return totalUsed > 0 ? {...item, cant: item.cant + totalUsed} : item;
-                          });
-                          saveLS(INV_KEY_CC, newInv);
+                          const lotes = invActual
+                            .map(inv => {
+                              const totalUsed = allItems.filter(x=>x.id===inv.id).reduce((s,x)=>s+x.cant,0);
+                              return totalUsed > 0 ? { id: inv.id, newCant: inv.cant + totalUsed } : null;
+                            })
+                            .filter(Boolean);
+                          if (lotes.length) ajustarLotes(lotes);
                         }
                         eliminarContenedor(p.id);
                       });
@@ -3806,7 +3772,6 @@ function ContenedoresDemo() {
 
       {/* ═══ TAB 4: CENTRO DE COSTOS ═══ */}
       {tabCont === 4 && (() => {
-        const invActual = loadLS(INV_KEY_CC, INVENTARIO_BASE);
         const insumosCC = INVENTARIO_BASE
           .filter(i => INSUMOS_IDS_CONT.includes(i.id))
           .map(base => ({ ...base, cantActual: +parseFloat(((invActual.find(x=>x.id===base.id)||base).cant).toFixed(6)) }));
@@ -3851,18 +3816,27 @@ function ContenedoresDemo() {
           const total = items.reduce((s,x)=>s+x.cant*x.costoUnit,0) + extras.reduce((s,e)=>s+e.cant*e.costoUnit,0);
 
           if (editingRec) {
-            const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
-            const newInv = inv.map(item => {
-              const oldCant = editingRec.items.find(x=>x.id===item.id)?.cant || 0;
-              const newCant = items.find(x=>x.id===item.id)?.cant || 0;
-              const delta   = newCant - oldCant;
-              return delta !== 0 ? {...item, cant: +parseFloat(Math.max(0, item.cant - delta).toFixed(6))} : item;
-            });
-            saveLS(INV_KEY_CC, newInv);
+            const lotes = invActual
+              .filter(inv => {
+                const oldCant = editingRec.items.find(x=>x.id===inv.id)?.cant || 0;
+                const newCant = items.find(x=>x.id===inv.id)?.cant || 0;
+                return (newCant - oldCant) !== 0;
+              })
+              .map(inv => {
+                const oldCant = editingRec.items.find(x=>x.id===inv.id)?.cant || 0;
+                const newCant = items.find(x=>x.id===inv.id)?.cant || 0;
+                return { id: inv.id, newCant: +parseFloat(Math.max(0, inv.cant - (newCant - oldCant)).toFixed(6)) };
+              });
+            if (lotes.length) ajustarLotes(lotes);
           } else {
-            const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
-            const newInv = inv.map(item=>{ const used=items.find(x=>x.id===item.id); return used?{...item,cant:+parseFloat(Math.max(0,item.cant-used.cant).toFixed(6))}:item; });
-            saveLS(INV_KEY_CC, newInv);
+            const lotes = items
+              .filter(x => x.cant > 0)
+              .map(x => {
+                const inv = invActual.find(i => i.id === x.id);
+                return inv ? { id: x.id, newCant: +parseFloat(Math.max(0, inv.cant - x.cant).toFixed(6)) } : null;
+              })
+              .filter(Boolean);
+            if (lotes.length) ajustarLotes(lotes);
           }
           guardarCCSB({ contId:selCont.id, contNum:selCont.numContenedor, items, extras, total, editId:editingRecId });
           setEditingRecId(null);
@@ -4100,9 +4074,10 @@ function ContenedoresDemo() {
                             ✏️ Editar
                           </button>
                           <button onClick={()=>pedir("¿Eliminar este registro? Los insumos se restaurarán al inventario.",()=>{
-                            const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
-                            const newInv = inv.map(item=>{ const used=rec.items.find(x=>x.id===item.id); return used?{...item,cant:item.cant+used.cant}:item; });
-                            saveLS(INV_KEY_CC, newInv);
+                            const lotes = invActual
+                              .map(inv => { const used=rec.items.find(x=>x.id===inv.id); return used?{id:inv.id,newCant:inv.cant+used.cant}:null; })
+                              .filter(Boolean);
+                            if (lotes.length) ajustarLotes(lotes);
                             eliminarCC(rec.id);
                             if (editingRecId===rec.id) { setEditingRecId(null); setFormCC(initForm()); }
                           })} style={{background:"rgba(255,80,80,0.07)",border:"1px solid rgba(255,80,80,0.18)",borderRadius:6,padding:"4px 10px",fontSize:10,color:"rgba(255,110,110,0.6)",cursor:"pointer"}}>
@@ -6024,6 +5999,7 @@ function InicioDemo({ onNavigate }) {
   const small = useS();
   const [hora,  setHora]  = useState(new Date());
   const [clima, setClima] = useState(null);
+  const { items: invInicio } = useInventario();
 
   const pedidos = (() => {
     try { const v = localStorage.getItem("tp_pedidos"); return v ? JSON.parse(v) : PEDIDOS_INICIALES; }
@@ -6099,11 +6075,7 @@ function InicioDemo({ onNavigate }) {
     } catch { return []; }
   })();
 
-  // Inventario real desde localStorage (el mismo que usa el módulo Inventario)
-  const inventarioReal = (() => {
-    try { const v = localStorage.getItem("tp_inventario"); return v ? JSON.parse(v) : INVENTARIO_BASE; }
-    catch { return INVENTARIO_BASE; }
-  })();
+  const inventarioReal = invInicio.length > 0 ? invInicio : INVENTARIO_BASE;
 
   // Stats
   const bajoStock   = inventarioReal.filter(i => i.categoria === "Herramientas" ? i.cant === 0 : i.cant <= i.minimo);
@@ -7134,6 +7106,7 @@ export default function App() {
   const [showNotif,    setShowNotif]    = useState(false);
   const [showSearch,   setShowSearch]   = useState(false);
   const [searchQ,      setSearchQ]      = useState("");
+  const { items: invApp } = useInventario();
 
   const [apariencia, setAparienciaCfg] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cfg_apariencia") || "{}"); } catch { return {}; }
@@ -7451,7 +7424,7 @@ export default function App() {
       {(() => {
         // Notificaciones automáticas
         const notifs = [];
-        const invNotif = (() => { try { const v = localStorage.getItem("tp_inventario"); return v ? JSON.parse(v) : INVENTARIO_BASE; } catch { return INVENTARIO_BASE; } })();
+        const invNotif = invApp.length > 0 ? invApp : INVENTARIO_BASE;
         invNotif.forEach(item => {
           const esHerramienta = item.categoria === "Herramientas";
           const bajo = esHerramienta ? item.cant === 0 : item.cant <= item.minimo;
