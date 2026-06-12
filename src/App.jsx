@@ -1,5 +1,7 @@
 ﻿import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { supabase } from "./supabase.js";
 import { usePersonal } from "./hooks/usePersonal.js";
+import { useAsistencia } from "./hooks/useAsistencia.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -982,11 +984,19 @@ function NominaDemo() {
   // ── Empleado seleccionado ──
   const empSel = EMPLEADOS_DB.find(e=>e.num===selEmp) || null;
 
-  // ── Leer ausencias de asistencia ──
-  const readAusencias = (nombreEmp, per) => {
+  // ── Leer ausencias de asistencia (desde Supabase) ──
+  const readAusencias = async (nombreEmp, per) => {
     try {
-      const regs = loadLS("tp_asistencia_registros",{});
-      return Object.keys(regs).filter(f=>f.startsWith(per)).reduce((s,f)=>s+(regs[f]?.[nombreEmp]?.estado==="A"?1:0),0);
+      const inicio = `${per}-01`;
+      const [y, m] = per.split("-").map(Number);
+      const fin = `${per}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+      const { data } = await supabase.from("asistencia")
+        .select("estado")
+        .eq("emp_nombre", nombreEmp)
+        .eq("estado", "A")
+        .gte("fecha", inicio)
+        .lte("fecha", fin);
+      return data?.length || 0;
     } catch { return 0; }
   };
 
@@ -1139,14 +1149,14 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
           <div style={{display:"flex",gap:6,marginBottom:10}}>
             <div style={{flex:2}}>
               <div style={lbl}>Empleado</div>
-              <select value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=EMPLEADOS_DB.find(x=>x.num===e.target.value);if(em){setDiasAus(readAusencias(em.nombre,periodo));}}} style={inp}>
+              <select value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=EMPLEADOS_DB.find(x=>x.num===e.target.value);if(em){readAusencias(em.nombre,periodo).then(setDiasAus);}}} style={inp}>
                 <option value="" style={{background:"#1a1a2e"}}>— Seleccionar empleado —</option>
                 {EMPLEADOS_DB.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre} · {e.area}</option>)}
               </select>
             </div>
             <div style={{flex:1}}>
               <div style={lbl}>Periodo</div>
-              <input type="month" value={periodo} onChange={e=>{setPeriodo(e.target.value);if(empSel){setDiasAus(readAusencias(empSel.nombre,e.target.value));}}} style={inp} />
+              <input type="month" value={periodo} onChange={e=>{setPeriodo(e.target.value);if(empSel){readAusencias(empSel.nombre,e.target.value).then(setDiasAus);}}} style={inp} />
             </div>
           </div>
 
@@ -2416,41 +2426,23 @@ ${historial.length>0?`
 // Persistencia: localStorage
 // ─────────────────────────────────────────────────────────────
 function AsistenciaDemo() {
-  const hoy     = new Date();
+  const hoy      = new Date();
   const fechaHoy = hoy.toISOString().split("T")[0];
 
-  const cargar = (clave, defecto) => {
-    try { const v = localStorage.getItem(clave); return v ? JSON.parse(v) : defecto; }
-    catch { return defecto; }
-  };
-  const guardar = (clave, valor) => {
-    try { localStorage.setItem(clave, JSON.stringify(valor)); } catch { /* ignore */ }
-  };
+  const {
+    registros, metaDia,
+    loading:    loadingAsis,
+    cargarMes,
+    setEmpField: setEmpFieldSB, toggleEstado: toggleEstadoSB,
+    setMetaField: setMetaFieldSB, marcarTodos: marcarTodosSB, limpiarDia,
+  } = useAsistencia();
 
   const [fecha,       setFecha]       = useState(fechaHoy);
-  const [registros,   setRegistrosRaw] = useState(() => cargar("tp_asistencia_registros", {}));
-  const [metaDia,     setMetaDiaRaw]   = useState(() => cargar("tp_asistencia_meta", {}));
   const [search,      setSearch]       = useState("");
   const [showReporte, setShowReporte]  = useState(false);
   const [mesReporte,  setMesReporte]   = useState(`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,"0")}`);
   const [confirm,     setConfirm]      = useState(null);
   const [expandedEmp, setExpandedEmp]  = useState(null);
-
-  // Wrappers que persisten en localStorage
-  const setRegistros = (fn) => {
-    setRegistrosRaw(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      guardar("tp_asistencia_registros", next);
-      return next;
-    });
-  };
-  const setMetaDia = (fn) => {
-    setMetaDiaRaw(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      guardar("tp_asistencia_meta", next);
-      return next;
-    });
-  };
 
   const pedir = (msg, fn) => setConfirm({ msg, fn });
 
@@ -2476,36 +2468,11 @@ function AsistenciaDemo() {
   const getEstado = (nombre) => getEmpReg(nombre).estado || null;
   const getMeta   = ()        => metaDia[fecha] || {};
 
-  // ── Helpers de escritura ──
-  const setEmpField = (nombre, field, value) => {
-    setRegistros(prev => ({
-      ...prev,
-      [fecha]: {
-        ...(prev[fecha] || {}),
-        [nombre]: { ...(prev[fecha]?.[nombre] || {}), [field]: value }
-      }
-    }));
-  };
-
-  const toggleEstado = (nombre, nuevoEstado) => {
-    const actual = getEstado(nombre);
-    setEmpField(nombre, "estado", actual === nuevoEstado ? null : nuevoEstado);
-  };
-
-  const setMetaField = (field, value) => {
-    setMetaDia(prev => ({
-      ...prev,
-      [fecha]: { ...(prev[fecha] || {}), [field]: value }
-    }));
-  };
-
-  const marcarTodos = (estado) => {
-    const batch = {};
-    filtrados.forEach(e => {
-      batch[e.nombre] = { ...(registros[fecha]?.[e.nombre] || {}), estado };
-    });
-    setRegistros(prev => ({ ...prev, [fecha]: { ...(prev[fecha] || {}), ...batch } }));
-  };
+  // ── Helpers de escritura (delegan al hook) ──
+  const setEmpField  = (nombre, field, value) => setEmpFieldSB(fecha, nombre, field, value);
+  const toggleEstado = (nombre, nuevoEstado)  => toggleEstadoSB(fecha, nombre, nuevoEstado);
+  const setMetaField = (field, value)         => setMetaFieldSB(fecha, field, value);
+  const marcarTodos  = (estado)               => marcarTodosSB(fecha, filtrados, estado);
 
   // ── Stats del día ──
   const diaReg = registros[fecha] || {};
@@ -2559,6 +2526,9 @@ function AsistenciaDemo() {
       };
     }).filter(r => r.tieneRegistro);
   };
+
+  // ── Carga lazy cuando cambia el mes del reporte ──
+  useEffect(() => { cargarMes(mesReporte); }, [mesReporte, cargarMes]);
 
   // ── Estilos comunes ──
   const inp   = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:12, fontFamily:"inherit", outline:"none" };
@@ -2837,6 +2807,11 @@ ${seccionObs}
   // ─────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────
+  if (loadingAsis) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40, color:"rgba(255,255,255,0.4)", fontSize:13 }}>
+      ⏳ Cargando registros de asistencia...
+    </div>
+  );
   return (
     <div>
       {/* Confirmación */}
@@ -3079,10 +3054,7 @@ ${seccionObs}
           ✅ Todos P
         </button>
         <button
-          onClick={() => pedir("¿Limpiar TODOS los registros de este día?", () => {
-            setRegistros(prev => ({ ...prev, [fecha]: {} }));
-            setMetaDia(prev  => ({ ...prev, [fecha]: {} }));
-          })}
+          onClick={() => pedir("¿Limpiar TODOS los registros de este día?", () => limpiarDia(fecha))}
           style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:7,padding:"5px 8px",fontSize:11,color:"#FF6B6B",cursor:"pointer",fontWeight:700}}>
           🗑
         </button>
