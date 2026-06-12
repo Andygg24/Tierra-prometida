@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { usePersonal } from "./hooks/usePersonal.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -145,103 +146,67 @@ function PersonalDemo() {
   const [busqSS,            setBusqSS]            = useState("");
   const [filtroSS,          setFiltroSS]          = useState("Todos");
 
-  // ── localStorage helpers ──
-  const loadLS = (k, def) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):def; } catch { return def; } };
-  const saveLS = (k, v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch { /* ignore */ } };
-
-  // ── Empleados adicionales y ediciones persistidas ──
-  const [extraEmpsRaw, setExtraEmpsRaw] = useState(() => loadLS("tp_extra_emps", []));
-  const setExtraEmps = (fn) => setExtraEmpsRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    saveLS("tp_extra_emps", next);
-    return next;
-  });
-  const [baseEditsRaw, setBaseEditsRaw] = useState(() => loadLS("tp_base_edits", {}));
-  const setBaseEdits = (fn) => setBaseEditsRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    saveLS("tp_base_edits", next);
-    return next;
-  });
+  // ── Supabase: Personal ──
+  const {
+    empleados,
+    contratos,  pagosHist,   docs,     desempeno, seguridad,
+    loading:    loadingPersonal,
+    agregarEmpleado, editarEmpleado, eliminarEmpleado,
+    upsertContrato,  agregarPago:    agregarPagoSB, eliminarPago: eliminarPagoSB,
+    toggleDoc:  toggleDocSB, agregarEval: agregarEvalSB, upsertSeguridad,
+  } = usePersonal();
 
   // ── Tab 1: Contratos ──
-  const [contratos, setContratos]       = useState(()=>loadLS("tp_contratos",{}));
   const [contratoEmp, setContratoEmp]   = useState(null);
   const [contratoForm, setContratoForm] = useState({ tipo:"OPS", fechaInicio:"", fechaFin:"", notas:"" });
 
-  const saveContrato = () => {
-    const nc = { ...contratos, [contratoEmp]: contratoForm };
-    setContratos(nc); saveLS("tp_contratos", nc); setContratoEmp(null);
-  };
+  const saveContrato = () => { upsertContrato(contratoEmp, contratoForm); setContratoEmp(null); };
   const diasRestantes = (f) => { if(!f) return null; const d=new Date(f); d.setHours(0,0,0,0); const h=new Date(); h.setHours(0,0,0,0); return Math.ceil((d-h)/86400000); };
   const contColor = (d) => d===null?"rgba(255,255,255,0.2)":d<0?"#FF6B6B":d<30?"#FF6B6B":d<90?"#F9A826":"#00C9A7";
 
   // ── Tab 2: Pagos ──
-  const [pagosHist, setPagosHist]       = useState(()=>loadLS("tp_pagos_hist",{}));
-  const [selEmpPago, setSelEmpPago]     = useState(EMPLEADOS_DB[0].num);
+  const [selEmpPago, setSelEmpPago]     = useState(null);
   const [formPago, setFormPago]         = useState({ fecha:"", monto:"", tipo:"Nómina", ref:"" });
   const [showFormPago, setShowFormPago] = useState(false);
 
   const agregarPago = () => {
     if(!formPago.monto||!formPago.fecha) return;
-    const p = { id:Date.now(), ...formPago, monto:Number(formPago.monto) };
-    const np = { ...pagosHist, [selEmpPago]:[p,...(pagosHist[selEmpPago]||[])] };
-    setPagosHist(np); saveLS("tp_pagos_hist", np);
+    agregarPagoSB(selEmpPago || empleados[0]?.num, formPago);
     setFormPago({ fecha:"", monto:"", tipo:"Nómina", ref:"" }); setShowFormPago(false);
   };
-  const eliminarPago = (empNum, id) => {
-    const np = { ...pagosHist, [empNum]:(pagosHist[empNum]||[]).filter(p=>p.id!==id) };
-    setPagosHist(np); saveLS("tp_pagos_hist", np);
-  };
+  const eliminarPago = (empNum, id) => eliminarPagoSB(id);
 
   // ── Tab 3: Documentos ──
-  const [docs, setDocs] = useState(()=>loadLS("tp_docs",{}));
-  const toggleDoc = (num, key) => {
-    const nd = { ...docs, [num]:{ ...(docs[num]||{}), [key]:!(docs[num]?.[key]) } };
-    setDocs(nd); saveLS("tp_docs", nd);
-  };
+  const toggleDoc = (num, key) => toggleDocSB(num, key);
 
   // ── Tab 4: Desempeño ──
-  const [desempeno, setDesempeno]         = useState(()=>loadLS("tp_desempeno",{}));
-  const [selEmpDesemp, setSelEmpDesemp]   = useState(EMPLEADOS_DB[0].num);
+  const [selEmpDesemp, setSelEmpDesemp]   = useState(null);
   const [showFormDesemp, setShowFormDesemp] = useState(false);
   const [formDesemp, setFormDesemp]       = useState({ fecha:"", puntualidad:4, calidad:4, actitud:4, productividad:4, nota:"" });
 
   const agregarEval = () => {
     if(!formDesemp.fecha) return;
-    const nd = { ...desempeno, [selEmpDesemp]:[{ id:Date.now(), ...formDesemp }, ...(desempeno[selEmpDesemp]||[])] };
-    setDesempeno(nd); saveLS("tp_desempeno", nd);
+    agregarEvalSB(selEmpDesemp || empleados[0]?.num, formDesemp);
     setFormDesemp({ fecha:"", puntualidad:4, calidad:4, actitud:4, productividad:4, nota:"" }); setShowFormDesemp(false);
   };
 
   // ── Tab 5: Seguridad Social ──
-  const [seguridad, setSeguridad]   = useState(()=>loadLS("tp_seguridad",{}));
-  const [editSeg, setEditSeg]       = useState(null);
-  const [formSeg, setFormSeg]       = useState({ eps:"", fechaEPS:"", arl:"", fechaARL:"", estado:"Activo" });
+  const [editSeg, setEditSeg]   = useState(null);
+  const [formSeg, setFormSeg]   = useState({ eps:"", fechaEPS:"", arl:"", fechaARL:"", estado:"Activo" });
 
-  const saveSeg = () => {
-    const ns = { ...seguridad, [editSeg]:formSeg };
-    setSeguridad(ns); saveLS("tp_seguridad", ns); setEditSeg(null);
-  };
-
-  // ── Helpers comunes ──
-  const empleados = [
-    ...EMPLEADOS_DB.map(e => baseEditsRaw[e.num] ? { ...e, ...baseEditsRaw[e.num] } : e),
-    ...extraEmpsRaw,
-  ];
+  const saveSeg = () => { upsertSeguridad(editSeg, formSeg); setEditSeg(null); };
   const docColors = { "CC Nacional":"#00C9A7", "CC Venezuela":"#F9A826", "PPT":"#845EF7" };
   const docTypes  = ["Todos","CC Nacional","CC Venezuela","PPT"];
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
 
   const guardarEdicion = () => {
-    const esBase = EMPLEADOS_DB.find(e => e.num === editando);
-    if (esBase) setBaseEdits(prev => ({ ...prev, [editando]: editForm }));
-    else setExtraEmps(prev => prev.map(e => e.num === editando ? { ...e, ...editForm } : e));
+    editarEmpleado(editando, editForm);
     setEditando(null);
   };
   const guardar = () => {
     if (!nuevoEmp.nombre || !nuevoEmp.num || !nuevoEmp.tel) return;
     pedir(`¿Agregar a "${nuevoEmp.nombre}"?`, () => {
-      setExtraEmps(prev => [...prev, { ...nuevoEmp, no: empleados.length+1 }]);
+      agregarEmpleado({ ...nuevoEmp, no: empleados.length + 1 });
       setNuevoEmp({ nombre:"", doc:"CC Nacional", num:"", tel:"", area:"" });
       setShowForm(false);
     });
@@ -260,6 +225,15 @@ function PersonalDemo() {
     { icon:"⭐", label:"Desempeño"     },
     { icon:"🏥", label:"Seg. Social"   },
   ];
+
+  const empPagoActual  = selEmpPago  || empleados[0]?.num || "";
+  const empDesempActual= selEmpDesemp|| empleados[0]?.num || "";
+
+  if (loadingPersonal) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40, color:"rgba(255,255,255,0.4)", fontSize:13 }}>
+      ⏳ Cargando datos del equipo...
+    </div>
+  );
 
   return (
     <div>
@@ -451,7 +425,7 @@ function PersonalDemo() {
           <div style={{ maxHeight:420, overflowY:"auto" }}>
             {filtered.map((emp,i)=>{
               const isSel   = showBroadcast && selected.find(e=>e.num===emp.num);
-              const isExtra = extraEmpsRaw.find(e=>e.num===emp.num);
+              const isExtra = !EMPLEADOS_DB.find(e=>e.num===emp.num);
               const docColor= docColors[emp.doc]||"#aaa";
               const cont    = contratos[emp.num];
               const dias    = cont?.fechaFin ? diasRestantes(cont.fechaFin) : null;
@@ -496,7 +470,7 @@ function PersonalDemo() {
                         🏥 EPS/ARL
                       </button>
                       {isExtra && (
-                        <button onClick={e=>{e.stopPropagation();pedir(`¿Eliminar a "${emp.nombre}"?`,()=>setExtraEmps(prev=>prev.filter(x=>x.num!==emp.num)));}}
+                        <button onClick={e=>{e.stopPropagation();pedir(`¿Eliminar a "${emp.nombre}"?`,()=>eliminarEmpleado(emp.num));}}
                           style={{ flex:1, background:"rgba(255,80,80,0.05)", border:"none", padding:"9px", fontSize:11, color:"rgba(255,100,100,0.7)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
                           🗑 Eliminar
                         </button>
@@ -586,7 +560,7 @@ function PersonalDemo() {
 
       {/* ══ TAB 2: HISTORIAL DE PAGOS ══ */}
       {tabPers===2 && (() => {
-        const histEmpRaw = pagosHist[selEmpPago] || [];
+        const histEmpRaw = pagosHist[empPagoActual] || [];
         const histEmp    = histEmpRaw.filter(p=>{
           if (filtroTipoPago!=="Todos" && p.tipo!==filtroTipoPago) return false;
           if (filtroPagoDesde && p.fecha < filtroPagoDesde) return false;
@@ -594,12 +568,12 @@ function PersonalDemo() {
           return true;
         });
         const totalPag   = histEmp.reduce((s,p)=>s+Number(p.monto||0),0);
-        const empSelObj  = empleados.find(e=>e.num===selEmpPago);
+        const empSelObj  = empleados.find(e=>e.num===empPagoActual);
         return (
           <div>
             <div style={{ marginBottom:10 }}>
               <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Empleado</div>
-              <select value={selEmpPago} onChange={e=>setSelEmpPago(e.target.value)}
+              <select value={empPagoActual} onChange={e=>setSelEmpPago(e.target.value)}
                 style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
               </select>
@@ -754,15 +728,15 @@ function PersonalDemo() {
 
       {/* ══ TAB 4: DESEMPEÑO ══ */}
       {tabPers===4 && (() => {
-        const histDesempRaw = desempeno[selEmpDesemp] || [];
+        const histDesempRaw = desempeno[empDesempActual] || [];
         const histDesemp    = filtroMesDesemp ? histDesempRaw.filter(ev=>ev.fecha?.startsWith(filtroMesDesemp)) : histDesempRaw;
-        const empSelObj  = empleados.find(e=>e.num===selEmpDesemp);
+        const empSelObj  = empleados.find(e=>e.num===empDesempActual);
         const prom = histDesemp.length>0 ? histDesemp.reduce((s,ev)=>s+CRITERIOS_DESEMP.reduce((a,c)=>a+ev[c],0)/CRITERIOS_DESEMP.length,0)/histDesemp.length : null;
         return (
           <div>
             <div style={{ marginBottom:10 }}>
               <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Empleado</div>
-              <select value={selEmpDesemp} onChange={e=>setSelEmpDesemp(e.target.value)}
+              <select value={empDesempActual} onChange={e=>setSelEmpDesemp(e.target.value)}
                 style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
               </select>
