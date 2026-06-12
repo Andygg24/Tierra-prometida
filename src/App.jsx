@@ -2,6 +2,7 @@
 import { supabase } from "./supabase.js";
 import { usePersonal } from "./hooks/usePersonal.js";
 import { useAsistencia } from "./hooks/useAsistencia.js";
+import { useContenedores } from "./hooks/useContenedores.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -1107,14 +1108,12 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
     const fname = `Colilla_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
     const _u1=URL.createObjectURL(new Blob([html],{type:"text/html"}));
     const a=document.createElement("a");a.href=_u1;a.download=fname;a.click();URL.revokeObjectURL(_u1);
-    // eslint-disable-next-line react-hooks/purity
     const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase,devengado,totalDeduc,neto,ausencias:diasAus,fecha:hoyNom,tipo:"nomina"};
     saveLiq([reg,...liquidaciones.slice(0,199)]);
   };
 
   // Datos de contenedores y grupos para Tab 1
-  const procesos = loadLS("tp_contenedores",[]);
-  const grupos   = loadLS("tp_grupos_trabajo",[]);
+  const { procesos, grupos } = useContenedores();
   const TABS_NOM = ["💰 Liquidador","👤 Empleados","🚢 Contenedores","📜 Historial","📋 Contador"];
   return (
     <div>
@@ -3249,24 +3248,32 @@ function ContenedoresDemo() {
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
   const lbl = { fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 };
 
+  // ── Hook Supabase ──
+  const {
+    procesos, grupos, contInsumos, loading: loadingCont,
+    guardarContenedor,
+    eliminarContenedor,
+    agregarTrazabilidad,
+    cambiarEstado: cambiarEstadoHook,
+    guardarGrupo: guardarGrupoSB,
+    eliminarGrupo: eliminarGrupoSB,
+    guardarCC: guardarCCSB,
+    eliminarCC,
+  } = useContenedores();
+
   // ── Tab 0: Contenedores ──
   const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", destino:"Miami, FL", trazabilidad:[] };
-  const [procesos, setProcesos]   = useState(()=>loadLS("tp_contenedores",[]));
   const [showForm, setShowForm]   = useState(false);
-  const [editIdx, setEditIdx]     = useState(null);
+  const [editIdx, setEditIdx]     = useState(null); // container id or null
   const [busqueda, setBusqueda]   = useState("");
   const [filtroMes, setFiltroMes] = useState("");
   const [form, setForm]           = useState(formDef);
 
-  const saveProcesos = (p) => { setProcesos(p); saveLS("tp_contenedores", p); };
-
   // ── Tab 1: Grupos de trabajo ──
-  const [grupos, setGrupos]           = useState(()=>loadLS("tp_grupos_trabajo",[]));
   const [showFormGrupo, setShowFormGrupo] = useState(false);
   const [editGrupoId, setEditGrupoId] = useState(null);
   const [formGrupo, setFormGrupo]     = useState({ nombre:"", turno:"Día", miembros:[] });
   const [busqGrupo, setBusqGrupo]     = useState("");
-  const saveGrupos = (g) => { setGrupos(g); saveLS("tp_grupos_trabajo", g); };
   const toggleMiembro = (num) => setFormGrupo(f=>({ ...f, miembros:f.miembros.includes(num)?f.miembros.filter(m=>m!==num):[...f.miembros,num] }));
 
   // ── Tab 3: Trazabilidad ──
@@ -3281,8 +3288,6 @@ function ContenedoresDemo() {
   const INSUMOS_IDS_CONT = [3,4,5,6,7,9,10,11,12,13,14,16,17,44,45,46,47];
   const [selContCC, setSelContCC]     = useState(null);
   const [formCC, setFormCC]           = useState({});
-  const [contInsumos, setContInsumos] = useState(()=>loadLS("tp_cont_insumos",[]));
-  const saveContInsumos = (v) => { setContInsumos(v); saveLS("tp_cont_insumos",v); };
   const [editingRecId, setEditingRecId]       = useState(null);
   const [plantillaActiva, setPlantillaActiva] = useState(null);
   const [formExtras, setFormExtras]           = useState([]);
@@ -3301,10 +3306,9 @@ function ContenedoresDemo() {
 
   const guardar = () => {
     if (!form.numContenedor.trim()) return;
-    const nuevo = { ...form, id: editIdx !== null ? procesos[editIdx].id : Date.now() };
-    const next = editIdx !== null ? procesos.map((p,i)=>i===editIdx?nuevo:p) : [nuevo,...procesos];
+    guardarContenedor(form, editIdx);
     if (editIdx !== null) setEditIdx(null);
-    saveProcesos(next); setForm(formDef); setShowForm(false);
+    setForm(formDef); setShowForm(false);
   };
 
   const descargar = () => {
@@ -3318,6 +3322,8 @@ function ContenedoresDemo() {
 </tbody></table><div class="footer">Tierra Prometida Trading 🍋 · JARVIS</div></body></html>`;
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html],{type:"text/html"})); a.download = `Contenedores_${hoy}.html`; a.click();
   };
+
+  if (loadingCont) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando contenedores...</div>;
 
   return (
     <div>
@@ -3466,7 +3472,7 @@ function ContenedoresDemo() {
                     {p.obs && <div style={{fontSize:11,color:"rgba(249,168,38,0.7)",marginTop:3}}>📌 {p.obs}</div>}
                   </div>
                   <div style={{borderTop:`1px solid ${col}20`,display:"flex"}}>
-                    <button onClick={()=>{setForm({...formDef,...p});setEditIdx(procesos.indexOf(p));setShowForm(true);}}
+                    <button onClick={()=>{setForm({...formDef,...p});setEditIdx(p.id);setShowForm(true);}}
                       style={{flex:1,background:"rgba(255,255,255,0.04)",border:"none",padding:"10px",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       ✏️ <span style={{fontSize:12}}>Editar</span>
                     </button>
@@ -3485,9 +3491,8 @@ function ContenedoresDemo() {
                             return totalUsed > 0 ? {...item, cant: item.cant + totalUsed} : item;
                           });
                           saveLS(INV_KEY_CC, newInv);
-                          saveContInsumos(contInsumos.filter(r=>r.contId!==p.id));
                         }
-                        saveProcesos(procesos.filter(x=>x.id!==p.id));
+                        eliminarContenedor(p.id);
                       });
                     }}
                       style={{flex:1,background:"rgba(255,80,80,0.06)",border:"none",padding:"10px",fontSize:13,color:"rgba(255,100,100,0.6)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
@@ -3512,11 +3517,9 @@ function ContenedoresDemo() {
         const guardarGrupo = () => {
           if (!formGrupo.nombre.trim()) { alert("⚠️ Escribe un nombre para el grupo"); return; }
           if (!formGrupo.miembros.length) { alert("⚠️ Selecciona al menos un miembro del equipo"); return; }
-          const next = editGrupoId !== null
-            ? grupos.map(g=>g.id===editGrupoId?{...formGrupo,id:editGrupoId}:g)
-            : [{...formGrupo,id:Date.now()},...grupos];
+          guardarGrupoSB(formGrupo, editGrupoId);
           if (editGrupoId !== null) setEditGrupoId(null);
-          saveGrupos(next); setFormGrupo({nombre:"",turno:"Día",miembros:[]}); setShowFormGrupo(false); setBusqGrupoList("");
+          setFormGrupo({nombre:"",turno:"Día",miembros:[]}); setShowFormGrupo(false); setBusqGrupoList("");
         };
         return (
           <div>
@@ -3602,7 +3605,7 @@ function ContenedoresDemo() {
                         style={{fontSize:11,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 10px",color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>
                         ✏️ Editar
                       </button>
-                      <button onClick={()=>pedir(`¿Eliminar grupo "${g.nombre}"?`,()=>saveGrupos(grupos.filter(x=>x.id!==g.id)))}
+                      <button onClick={()=>pedir(`¿Eliminar grupo "${g.nombre}"?`,()=>eliminarGrupoSB(g.id))}
                         style={{fontSize:11,background:"rgba(255,80,80,0.05)",border:"1px solid rgba(255,80,80,0.15)",borderRadius:6,padding:"5px 10px",color:"rgba(255,100,100,0.6)",cursor:"pointer"}}>
                         🗑 Eliminar
                       </button>
@@ -3702,13 +3705,12 @@ function ContenedoresDemo() {
         const agregarEvento = () => {
           if (!contSel || !formTraz.evento) return;
           const ev = { ...formTraz, ts:new Date().toISOString(), id:Date.now() };
-          saveProcesos(procesos.map(p=>p.id===selContTraz?{...p,trazabilidad:[...(p.trazabilidad||[]),ev]}:p));
+          agregarTrazabilidad(selContTraz, ev);
           setShowFormTraz(false); setFormTraz({evento:EVENTOS_TIPO[0],detalle:"",responsable:""});
         };
         const cambiarEstado = (nuevoEstado) => {
           if (!contSel) return;
-          const ev = {evento:`Estado → ${nuevoEstado}`,detalle:"",responsable:"Sistema",ts:new Date().toISOString(),id:Date.now()};
-          saveProcesos(procesos.map(p=>p.id===selContTraz?{...p,estado:nuevoEstado,trazabilidad:[...(p.trazabilidad||[]),ev]}:p));
+          cambiarEstadoHook(selContTraz, nuevoEstado);
         };
         return (
           <div>
@@ -3846,9 +3848,7 @@ function ContenedoresDemo() {
             .filter(e=>parseFloat(e.cant)>0 && String(e.nombre).trim())
             .map(e=>({ ...e, cant:parseFloat(e.cant)||0, costoUnit:parseFloat(e.costoUnit)||0 }));
           if (!items.length && !extras.length) return;
-          const itemsTotal  = items.reduce((s,x)=>s+x.cant*x.costoUnit,0);
-          const extrasTotal = extras.reduce((s,e)=>s+e.cant*e.costoUnit,0);
-          const total = itemsTotal + extrasTotal;
+          const total = items.reduce((s,x)=>s+x.cant*x.costoUnit,0) + extras.reduce((s,e)=>s+e.cant*e.costoUnit,0);
 
           if (editingRec) {
             const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
@@ -3859,14 +3859,13 @@ function ContenedoresDemo() {
               return delta !== 0 ? {...item, cant: +parseFloat(Math.max(0, item.cant - delta).toFixed(6))} : item;
             });
             saveLS(INV_KEY_CC, newInv);
-            saveContInsumos(contInsumos.map(r=>r.id===editingRecId?{...editingRec, items, extras, total}:r));
-            setEditingRecId(null);
           } else {
             const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
             const newInv = inv.map(item=>{ const used=items.find(x=>x.id===item.id); return used?{...item,cant:+parseFloat(Math.max(0,item.cant-used.cant).toFixed(6))}:item; });
             saveLS(INV_KEY_CC, newInv);
-            saveContInsumos([{ id:Date.now(), contId:selCont.id, contNum:selCont.numContenedor, items, extras, fecha:new Date().toISOString().split("T")[0], total },...contInsumos]);
           }
+          guardarCCSB({ contId:selCont.id, contNum:selCont.numContenedor, items, extras, total, editId:editingRecId });
+          setEditingRecId(null);
           setFormCC(initForm());
           setFormExtras(initExtras());
         };
@@ -4104,7 +4103,7 @@ function ContenedoresDemo() {
                             const inv = loadLS(INV_KEY_CC, INVENTARIO_BASE);
                             const newInv = inv.map(item=>{ const used=rec.items.find(x=>x.id===item.id); return used?{...item,cant:item.cant+used.cant}:item; });
                             saveLS(INV_KEY_CC, newInv);
-                            saveContInsumos(contInsumos.filter(r=>r.id!==rec.id));
+                            eliminarCC(rec.id);
                             if (editingRecId===rec.id) { setEditingRecId(null); setFormCC(initForm()); }
                           })} style={{background:"rgba(255,80,80,0.07)",border:"1px solid rgba(255,80,80,0.18)",borderRadius:6,padding:"4px 10px",fontSize:10,color:"rgba(255,110,110,0.6)",cursor:"pointer"}}>
                             🗑 Eliminar
@@ -5160,6 +5159,7 @@ function EstadisticasDemo() {
   const [tab, setTab] = useState(0);
   const hoy = new Date();
   const mesActual = hoy.toISOString().slice(0,7);
+  const { procesos: contsStats } = useContenedores();
 
   // Asistencia del mes desde localStorage
   const asistMes = (() => {
@@ -5181,14 +5181,14 @@ function EstadisticasDemo() {
     } catch { return { datos:[], dias:0 }; }
   })();
 
-  // Historial REAL desde tp_contenedores — agrupado por mes
+  // Historial REAL desde Supabase (via useContenedores) — agrupado por mes
   const histConFinal = (() => {
     try {
-      const conts = JSON.parse(localStorage.getItem("tp_contenedores") || "[]");
+      const conts = contsStats;
       if (conts.length === 0) return [];
       const porMes = {};
       conts.forEach(c => {
-        const fecha = c.fechaInicio || c.fecha || "";
+        const fecha = c.fecha || "";
         if (!fecha) return;
         const mes = fecha.slice(0, 7);
         if (!porMes[mes]) porMes[mes] = { num: 0, cajas: 0 };
