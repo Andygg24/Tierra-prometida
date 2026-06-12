@@ -5,6 +5,7 @@ import { useAsistencia } from "./hooks/useAsistencia.js";
 import { useContenedores } from "./hooks/useContenedores.js";
 import { useInventario } from "./hooks/useInventario.js";
 import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
+import { usePedidos } from "./hooks/usePedidos.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -5131,6 +5132,7 @@ function EstadisticasDemo() {
   const mesActual = hoy.toISOString().slice(0,7);
   const { procesos: contsStats } = useContenedores();
   const { liquidaciones: liqStats } = useLiquidaciones();
+  const { pedidos: pedidosReales } = usePedidos();
 
   // Asistencia del mes desde localStorage
   const asistMes = (() => {
@@ -5229,11 +5231,7 @@ function EstadisticasDemo() {
     return { ...h, gastos, ingresos, margen:ingresos-gastos };
   });
 
-  // Pedidos reales desde localStorage
-  const pedidosReales = (() => {
-    try { const v = localStorage.getItem("tp_pedidos"); return v ? JSON.parse(v) : PEDIDOS_INICIALES; }
-    catch { return PEDIDOS_INICIALES; }
-  })();
+  // Pedidos reales desde Supabase (via usePedidos)
 
   // Exportaciones por cliente
   const expCliente = {};
@@ -5771,19 +5769,9 @@ const PEDIDO_ESTADOS = [
   { key:"entregado",  label:"Entregado",      color:"#25D366", icon:"🎉" },
 ];
 
-const PEDIDOS_INICIALES = [];
-
 function PedidosDemo() {
   const mob = useM();
-  const [pedidos, setPedidosRaw] = useState(() => {
-    try { const v = localStorage.getItem("tp_pedidos"); return v ? JSON.parse(v) : PEDIDOS_INICIALES; }
-    catch { return PEDIDOS_INICIALES; }
-  });
-  const savePedidos = (fn) => setPedidosRaw(prev => {
-    const next = typeof fn === "function" ? fn(prev) : fn;
-    try { localStorage.setItem("tp_pedidos", JSON.stringify(next)); } catch { /* ignore */ }
-    return next;
-  });
+  const { pedidos, loading: loadingPed, agregarPedido, avanzarEstado, eliminarPedido } = usePedidos();
 
   const clientes = (() => {
     try {
@@ -5817,13 +5805,18 @@ function PedidosDemo() {
 
   const agregar = () => {
     if (!nuevo.cantidadKg) return;
-    savePedidos(prev => [...prev, { ...nuevo, id:Date.now(), fecha:new Date().toISOString().split("T")[0], cantidadKg:Number(nuevo.cantidadKg), precioUSD:Number(nuevo.precioUSD) }]);
-    setNuevo({ cliente:"Princess Kingdom Corp", producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
+    agregarPedido({ ...nuevo, id:Date.now(), fecha:new Date().toISOString().split("T")[0], cantidadKg:Number(nuevo.cantidadKg), precioUSD:Number(nuevo.precioUSD) });
+    setNuevo({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
     setShowForm(false);
   };
-  const avanzar = (id) => savePedidos(prev => prev.map(p => p.id!==id ? p : { ...p, estado: nextEst(p.estado).key }));
+  const avanzar = (id) => {
+    const p = pedidos.find(x => x.id === id);
+    if (p) avanzarEstado(id, nextEst(p.estado).key);
+  };
 
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
+
+  if (loadingPed) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.3)", fontSize:13 }}>Cargando pedidos...</div>;
 
   return (
     <div>
@@ -5979,7 +5972,7 @@ function PedidosDemo() {
                   <button onClick={()=>avanzar(p.id)} style={{ flex:2, background:`${nxt.color}12`, border:"none", padding:"10px", fontSize:11, color:nxt.color, cursor:"pointer", fontWeight:700 }}>→ {nxt.label}</button>
                 )}
                 <div style={{ width:1, background:"rgba(255,255,255,0.05)" }}/>
-                <button onClick={()=>pedir(`¿Eliminar pedido #${p.id}?`,()=>savePedidos(prev=>prev.filter(x=>x.id!==p.id)))} style={{ background:"rgba(255,80,80,0.05)", border:"none", padding:"10px 14px", fontSize:13, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
+                <button onClick={()=>pedir(`¿Eliminar pedido #${p.id}?`,()=>eliminarPedido(p.id))} style={{ background:"rgba(255,80,80,0.05)", border:"none", padding:"10px 14px", fontSize:13, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
               </div>
             </div>
           );
@@ -5996,11 +5989,7 @@ function InicioDemo({ onNavigate }) {
   const [hora,  setHora]  = useState(new Date());
   const [clima, setClima] = useState(null);
   const { items: invInicio } = useInventario();
-
-  const pedidos = (() => {
-    try { const v = localStorage.getItem("tp_pedidos"); return v ? JSON.parse(v) : PEDIDOS_INICIALES; }
-    catch { return PEDIDOS_INICIALES; }
-  })();
+  const { pedidos } = usePedidos();
 
   useEffect(() => {
     const id = setInterval(() => setHora(new Date()), 1000);
