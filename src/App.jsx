@@ -982,6 +982,7 @@ function NominaDemo() {
   // Vista previa de documentos
   const [previewData, setPreviewData] = useState(null);
   const verPrevia = (html, filename) => setPreviewData({url:URL.createObjectURL(new Blob([html],{type:"text/html"})), filename});
+  useEffect(() => () => { if (previewData?.url) URL.revokeObjectURL(previewData.url); }, [previewData]);
 
   // Tab 3 — Contador
   const [periodoCtad, setPeriodoCtad] = useState(mesHoy);
@@ -1120,8 +1121,8 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
     if (!empSel) return;
     const html = buildHtmlColilla();
     const fname = `Colilla_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
-    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
-    a.download=fname;a.click();
+    const _u1=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+    const a=document.createElement("a");a.href=_u1;a.download=fname;a.click();URL.revokeObjectURL(_u1);
     // eslint-disable-next-line react-hooks/purity
     const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase,devengado,totalDeduc,neto,ausencias:diasAus,fecha:hoyNom,tipo:"nomina"};
     saveLiq([reg,...liquidaciones.slice(0,199)]);
@@ -1412,8 +1413,8 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
             const generarComprobante = () => {
               const html = buildHtmlComprobante();
               const fname = `Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
-              const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));
-              a.download=fname;a.click();
+              const _u2=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+              const a=document.createElement("a");a.href=_u2;a.download=fname;a.click();URL.revokeObjectURL(_u2);
               const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase:0,devengado:totalCont,totalDeduc:0,neto:totalCont,ausencias:0,fecha:hoyNom,tipo:"contenedor",contenedores:cantEfectiva,metodoPago};
               saveLiq([reg,...liquidaciones.slice(0,199)]);
             };
@@ -1733,7 +1734,7 @@ ${tabNomina}${tabCont}
         };
         const descargarReporte = () => {
           const html = buildHtmlReporte();
-          const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([html],{type:"text/html"}));a.download=`ReporteContador_${periodoCtad}.html`;a.click();
+          const _u3=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u3;a.download=`ReporteContador_${periodoCtad}.html`;a.click();URL.revokeObjectURL(_u3);
         };
         return (
           <div>
@@ -2425,7 +2426,7 @@ ${historial.length>0?`
 
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
 </body></html>`;
-        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html],{type:"text/html"})); a.download = `Inventario_${fechaFile}.html`; a.click();
+        const _u4=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u4;a.download=`Inventario_${fechaFile}.html`;a.click();URL.revokeObjectURL(_u4);
       }} style={{width:"100%",background:"linear-gradient(135deg,#845EF7,#6366F1)",border:"none",borderRadius:10,padding:"10px",fontSize:13,color:"white",cursor:"pointer",fontWeight:700,marginTop:14}}>
         📥 Descargar informe de inventario
       </button>
@@ -4291,7 +4292,7 @@ ${extrasFilas.map(ex=>{
 
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
 </body></html>`;
-                    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html],{type:"text/html"})); a.download = `CentroCostos_${cont.numContenedor}_${fechaFile}.html`; a.click();
+                    const _u5=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u5;a.download=`CentroCostos_${cont.numContenedor}_${fechaFile}.html`;a.click();URL.revokeObjectURL(_u5);
                   };
                   return (
                     <button onClick={descargarIndividual} style={{width:"100%",background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:10,padding:"10px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700,marginTop:8}}>
@@ -4358,7 +4359,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 </tbody></table></details>`;}).join("")}
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy}</div>
 </body></html>`;
-                const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html],{type:"text/html"})); a.download = `CentroCostos_General_${new Date().toISOString().split("T")[0]}.html`; a.click();
+                const _u6=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u6;a.download=`CentroCostos_General_${new Date().toISOString().split("T")[0]}.html`;a.click();URL.revokeObjectURL(_u6);
               };
               return (
                 <button onClick={descargarGeneral} style={{width:"100%",background:"linear-gradient(135deg,#00C9A7,#0EA5E9)",border:"none",borderRadius:10,padding:"10px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700,marginTop:10}}>
