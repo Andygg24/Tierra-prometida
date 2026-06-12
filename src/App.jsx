@@ -4,6 +4,7 @@ import { usePersonal } from "./hooks/usePersonal.js";
 import { useAsistencia } from "./hooks/useAsistencia.js";
 import { useContenedores } from "./hooks/useContenedores.js";
 import { useInventario } from "./hooks/useInventario.js";
+import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -919,7 +920,6 @@ function NominaDemo() {
   const hoyNom = new Date().toISOString().split("T")[0];
   const mesHoy = hoyNom.slice(0,7);
   const loadLS = (k,d) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch { return d; } };
-  const saveLS = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch { /* ignore */ } };
 
   const cfgEmpresa    = loadLS("cfg_empresa", {});
   const nombreEmpresa = cfgEmpresa.nombre || "Tierra Prometida Trading S.A.S";
@@ -966,22 +966,19 @@ function NominaDemo() {
   const [periodoCtad, setPeriodoCtad] = useState(mesHoy);
 
   // Tab 1 — Empleados / Tipos de pago
-  const [tabEmpBusq, setTabEmpBusq]   = useState("");
-  const [tiposPago,  setTiposPago]    = useState(()=>{
-    const stored = loadLS("tp_tipos_pago", null);
-    if (!stored) return Object.fromEntries(EMPLEADOS_DB.map(e=>[e.num,"contenedor"]));
-    return stored;
-  });
-  const saveTipos = (v) => { setTiposPago(v); saveLS("tp_tipos_pago",v); };
-  const getTipo   = (num) => tiposPago[num] || "contenedor";
-  const setTipo   = (num, tipo) => saveTipos({...tiposPago, [num]: tipo});
-
-  // Persistencia
-  const [liquidaciones, setLiquidaciones] = useState(()=>loadLS("tp_liquidaciones",[]));
-  const saveLiq = (v) => { setLiquidaciones(v); saveLS("tp_liquidaciones",v); };
+  const [tabEmpBusq, setTabEmpBusq] = useState("");
+  const {
+    liquidaciones, tiposPago, loading: loadingLiq,
+    agregarLiquidacion, limpiarHistorial, setTipo, setTodosTipos,
+  } = useLiquidaciones();
+  const getTipo = (num) => tiposPago[num] || "contenedor";
+  // Datos de contenedores y grupos para Tab Contenedores
+  const { procesos, grupos } = useContenedores();
 
   const inp = {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"white",fontSize:11,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
   const lbl = {fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:3};
+
+  if (loadingLiq) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando nómina...</div>;
 
   // ── Empleado seleccionado ──
   const empSel = EMPLEADOS_DB.find(e=>e.num===selEmp) || null;
@@ -1110,11 +1107,9 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
     const _u1=URL.createObjectURL(new Blob([html],{type:"text/html"}));
     const a=document.createElement("a");a.href=_u1;a.download=fname;a.click();URL.revokeObjectURL(_u1);
     const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase,devengado,totalDeduc,neto,ausencias:diasAus,fecha:hoyNom,tipo:"nomina"};
-    saveLiq([reg,...liquidaciones.slice(0,199)]);
+    agregarLiquidacion(reg);
   };
 
-  // Datos de contenedores y grupos para Tab 1
-  const { procesos, grupos } = useContenedores();
   const TABS_NOM = ["💰 Liquidador","👤 Empleados","🚢 Contenedores","📜 Historial","📋 Contador"];
   return (
     <div>
@@ -1400,7 +1395,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               const _u2=URL.createObjectURL(new Blob([html],{type:"text/html"}));
               const a=document.createElement("a");a.href=_u2;a.download=fname;a.click();URL.revokeObjectURL(_u2);
               const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase:0,devengado:totalCont,totalDeduc:0,neto:totalCont,ausencias:0,fecha:hoyNom,tipo:"contenedor",contenedores:cantEfectiva,metodoPago};
-              saveLiq([reg,...liquidaciones.slice(0,199)]);
+              agregarLiquidacion(reg);
             };
             return (
               <div>
@@ -1524,11 +1519,11 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               <div style={lbl}>Buscar empleado</div>
               <input value={tabEmpBusq} onChange={e=>setTabEmpBusq(e.target.value)} placeholder="Nombre o área..." style={inp} />
             </div>
-            <button onClick={()=>{const u={};EMPLEADOS_DB.forEach(e=>u[e.num]="contenedor");saveTipos(u);}}
+            <button onClick={()=>setTodosTipos("contenedor", EMPLEADOS_DB)}
               style={{padding:"7px 11px",fontSize:10,background:"rgba(0,201,167,0.12)",border:"1px solid rgba(0,201,167,0.25)",borderRadius:8,color:"#00C9A7",cursor:"pointer",flexShrink:0}}>
               Todos → 🚢 Contenedor
             </button>
-            <button onClick={()=>{const u={};EMPLEADOS_DB.forEach(e=>u[e.num]="nomina");saveTipos(u);}}
+            <button onClick={()=>setTodosTipos("nomina", EMPLEADOS_DB)}
               style={{padding:"7px 11px",fontSize:10,background:"rgba(99,102,241,0.12)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:8,color:"#a5b4fc",cursor:"pointer",flexShrink:0}}>
               Todos → 📋 Nómina
             </button>
@@ -1677,7 +1672,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
             ));
           })()}
           {liquidaciones.length>0&&(
-            <button onClick={()=>pedir("¿Borrar todo el historial de colillas?",()=>saveLiq([]))}
+            <button onClick={()=>pedir("¿Borrar todo el historial de colillas?",limpiarHistorial)}
               style={{width:"100%",marginTop:4,background:"rgba(255,80,80,0.06)",border:"1px solid rgba(255,80,80,0.15)",borderRadius:8,padding:"8px",fontSize:11,color:"rgba(255,100,100,0.6)",cursor:"pointer"}}>
               🗑 Limpiar historial
             </button>
@@ -5135,6 +5130,7 @@ function EstadisticasDemo() {
   const hoy = new Date();
   const mesActual = hoy.toISOString().slice(0,7);
   const { procesos: contsStats } = useContenedores();
+  const { liquidaciones: liqStats } = useLiquidaciones();
 
   // Asistencia del mes desde localStorage
   const asistMes = (() => {
@@ -5194,10 +5190,10 @@ function EstadisticasDemo() {
   const salMin       = nominaCfgEst.salarioMinimo   ?? SALARIO_MINIMO;
   const valQuin      = nominaCfgEst.valorQuincena   ?? QUINCENA_DESCARGUE;
 
-  // Nómina real desde tp_liquidaciones — agrupada por periodo (YYYY-MM)
+  // Nómina real desde Supabase (via useLiquidaciones) — agrupada por periodo (YYYY-MM)
   const nominaMeses = (() => {
     try {
-      const liqs = JSON.parse(localStorage.getItem("tp_liquidaciones") || "[]");
+      const liqs = liqStats;
       if (liqs.length === 0) return [];
       const porPeriodo = {};
       liqs.forEach(l => {
