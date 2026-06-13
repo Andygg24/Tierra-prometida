@@ -6,6 +6,7 @@ import { useContenedores } from "./hooks/useContenedores.js";
 import { useInventario } from "./hooks/useInventario.js";
 import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 import { usePedidos } from "./hooks/usePedidos.js";
+import { useConfiguracion } from "./hooks/useConfiguracion.js";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -920,9 +921,9 @@ function NominaDemo() {
   const mob = useM();
   const hoyNom = new Date().toISOString().split("T")[0];
   const mesHoy = hoyNom.slice(0,7);
-  const loadLS = (k,d) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch { return d; } };
+  const { config: cfgNom } = useConfiguracion();
 
-  const cfgEmpresa    = loadLS("cfg_empresa", {});
+  const cfgEmpresa    = cfgNom.cfg_empresa || {};
   const nombreEmpresa = cfgEmpresa.nombre || "Tierra Prometida Trading S.A.S";
   const nitEmpresa    = cfgEmpresa.nit    || "";
 
@@ -5133,6 +5134,7 @@ function EstadisticasDemo() {
   const { procesos: contsStats } = useContenedores();
   const { liquidaciones: liqStats } = useLiquidaciones();
   const { pedidos: pedidosReales } = usePedidos();
+  const { config: estCfg } = useConfiguracion();
 
   // Asistencia del mes desde localStorage
   const asistMes = (() => {
@@ -5182,9 +5184,9 @@ function EstadisticasDemo() {
 
   const contRealesMes = histConFinal.find(h => h.esActual) || null;
 
-  // Parámetros configurados
-  const nominaCfgEst = (() => { try { return JSON.parse(localStorage.getItem("cfg_nomina") || "{}"); } catch { return {}; } })();
-  const expCfgEst    = (() => { try { return JSON.parse(localStorage.getItem("cfg_exportacion") || "{}"); } catch { return {}; } })();
+  // Parámetros configurados desde Supabase
+  const nominaCfgEst = estCfg.cfg_nomina      || {};
+  const expCfgEst    = estCfg.cfg_exportacion || {};
   const trmReal      = (() => { const v = localStorage.getItem("tp_tasa_usd"); return v ? Number(v) : TRM_USD; })();
   const kgPorCaja    = expCfgEst.kgPorCaja   ?? 10;
   const precioUSDkg  = expCfgEst.precioUSDkg ?? 0.45;
@@ -5673,7 +5675,7 @@ function EstadisticasDemo() {
             </div>
             {expArr.map((e,i)=>{
               const pct        = Math.round(e.usd/(totalExpUSD||1)*100);
-              const cfgClients = (() => { try { return JSON.parse(localStorage.getItem("cfg_exportacion")||"{}").clientes||[]; } catch { return []; } })();
+              const cfgClients = expCfgEst.clientes || [];
               const dest       = cfgClients.find(c=>c.nombre===e.cliente) || CLIENTES_BASE.find(c=>c.nombre===e.cliente);
               const pedCliente = pedidosReales.filter(p=>p.cliente===e.cliente);
               const entregados = pedCliente.filter(p=>p.estado==="entregado").length;
@@ -5772,13 +5774,11 @@ const PEDIDO_ESTADOS = [
 function PedidosDemo() {
   const mob = useM();
   const { pedidos, loading: loadingPed, agregarPedido, avanzarEstado, eliminarPedido } = usePedidos();
+  const { config: cfgPed } = useConfiguracion();
 
   const clientes = (() => {
-    try {
-      const cfg = JSON.parse(localStorage.getItem("cfg_exportacion") || "{}");
-      const lista = cfg.clientes || [];
-      return lista.length > 0 ? lista : CLIENTES_BASE;
-    } catch { return CLIENTES_BASE; }
+    const lista = (cfgPed.cfg_exportacion || {}).clientes || [];
+    return lista.length > 0 ? lista : CLIENTES_BASE;
   })();
   const primerCliente = clientes[0]?.nombre || "Princess Kingdom Corp";
 
@@ -6369,14 +6369,19 @@ function Toggle({ value, onChange, label }) {
 
 // ─── MÓDULO CONFIGURACIÓN ─────────────────────────────────────
 function ConfiguracionDemo() {
+  const { config, loading, guardar } = useConfiguracion();
+  if (loading) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.3)", fontSize:13 }}>Cargando configuración...</div>;
+  return <ConfigForm config={config} guardar={guardar} />;
+}
+
+function ConfigForm({ config, guardar }) {
   const [tabIdx,     setTabIdx]     = useState(0);
   const [toast,      setToast]      = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const logoRef = useRef(null);
 
-  // ── localStorage helpers ──
-  const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
-  const save = (k, data, msg) => { try { localStorage.setItem(k, JSON.stringify(data)); showToast(msg || "Cambios guardados ✓"); } catch { showToast("Error al guardar", false); } };
+  const load = (k, def) => config[k] ?? def;
+  const save = (k, data, msg) => { guardar(k, data); showToast(msg || "Cambios guardados ✓"); };
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
   // ── State por tab ──
@@ -6834,7 +6839,7 @@ function ConfiguracionDemo() {
             <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginBottom:12 }}>Desactiva en dispositivos lentos o con batería baja</div>
             <Toggle value={apariencia.animaciones} onChange={v=>setApariencia(p=>({...p,animaciones:v}))} label="✨ Animaciones, transiciones y efectos de hover" />
           </div>
-          <SaveBtn onClick={() => { save("cfg_apariencia", apariencia); window.dispatchEvent(new CustomEvent("cfg-apariencia-changed")); }} />
+          <SaveBtn onClick={() => save("cfg_apariencia", apariencia)} />
         </div>
       )}
 
@@ -6893,13 +6898,11 @@ function ConfiguracionDemo() {
           <div style={secS}>
             <div style={secH}>💾 Backup Completo del Sistema</div>
             <div style={{ fontSize:12, color:"rgba(255,255,255,0.42)", marginBottom:14, lineHeight:1.6 }}>
-              Exporta toda la configuración guardada en localStorage a un archivo JSON.<br/>
+              Exporta toda la configuración guardada en Supabase a un archivo JSON.<br/>
               Guárdalo en un lugar seguro — puedes restaurarlo en cualquier dispositivo.
             </div>
             <button onClick={() => {
-              const keys = ["cfg_empresa","cfg_usuarios","cfg_correos","cfg_exportacion","cfg_nomina","cfg_notif","cfg_apariencia","cfg_seguridad","cfg_fiscal"];
-              const data = {}; keys.forEach(k => { try { data[k] = JSON.parse(localStorage.getItem(k)||"null"); } catch { /* ignore */ } });
-              data._exportado = new Date().toISOString();
+              const data = { ...config, _exportado: new Date().toISOString() };
               const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
               const url  = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href=url; a.download=`jarvis-backup-${new Date().toISOString().split("T")[0]}.json`; a.click(); URL.revokeObjectURL(url);
@@ -7093,16 +7096,8 @@ export default function App() {
   const [searchQ,      setSearchQ]      = useState("");
   const { items: invApp } = useInventario();
 
-  const [apariencia, setAparienciaCfg] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("cfg_apariencia") || "{}"); } catch { return {}; }
-  });
-  useEffect(() => {
-    const handler = () => {
-      try { setAparienciaCfg(JSON.parse(localStorage.getItem("cfg_apariencia") || "{}")); } catch { /* ignore */ }
-    };
-    window.addEventListener("cfg-apariencia-changed", handler);
-    return () => window.removeEventListener("cfg-apariencia-changed", handler);
-  }, []);
+  const { config: cfgApp } = useConfiguracion();
+  const apariencia = cfgApp.cfg_apariencia || {};
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [isSmall,  setIsSmall]  = useState(() => window.innerWidth < 480);
