@@ -1,5 +1,4 @@
 import { useState } from "react";
-import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
 
 const CALIBRES  = [110, 150, 175, 200, 230, 250];
