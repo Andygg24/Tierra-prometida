@@ -1,16 +1,21 @@
 """
-isf.py — Edita ISF Template .xls con Excel COM (preserva logos y formato exacto)
-Lee JSON por stdin, escribe el .xls editado a stdout (binario).
+isf.py — Edita ISF Template .xls con xlrd + xlutils + xlwt
+Multiplataforma: no requiere Excel instalado.
 
-Celdas a editar (Sheet1, referencias Excel):
-  B13 → Est Loading Date
-  F13 → Est Arrival Date
-  E63 → House B/L
-  F63 → Ocean B/L / Master B/L
+El molde es .xls (Excel 97-2003). openpyxl no soporta .xls,
+por eso se usa el stack xlrd/xlutils/xlwt para este archivo.
+
+Celdas a editar (Sheet1, referencias Excel 1-indexed):
+  B13 → Est Loading Date  (row=12, col=1 en 0-indexed)
+  F13 → Est Arrival Date  (row=12, col=5)
+  E63 → House B/L         (row=62, col=4)
+  F63 → Ocean B/L         (row=62, col=5)
 """
 import sys, json, os, tempfile
 from datetime import datetime
-import win32com.client
+import xlrd
+from xlutils.copy import copy as xl_copy
+import xlwt
 
 data         = json.load(sys.stdin)
 loading_date = data.get("loadingDate", "")
@@ -18,13 +23,11 @@ arrival_date = data.get("arrivalDate", "")
 house_bl     = data.get("houseBL", "")
 ocean_bl     = data.get("oceanBL", "")
 
-# ── Ruta del molde ────────────────────────────────────────────────────
 BASE   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOLDES = os.path.join(os.path.dirname(BASE), "Moldes")
 TMPL   = os.path.abspath(os.path.join(MOLDES, "ISF Template - JKFE AND PRINCESSES KINGDOM 270711823.xls"))
 
 def parse_date(date_str):
-    """Convierte "YYYY-MM-DD" a objeto datetime para Excel COM."""
     if not date_str:
         return None
     try:
@@ -32,60 +35,51 @@ def parse_date(date_str):
     except Exception:
         return None
 
-# ── Archivo de salida temporal ────────────────────────────────────────
+def to_excel_serial(dt):
+    """Convierte datetime a número serial de Excel (epoch: 30-dic-1899)."""
+    epoch = datetime(1899, 12, 30)
+    return (dt - epoch).days
+
 tmp = tempfile.NamedTemporaryFile(suffix=".xls", delete=False)
 tmp_path = tmp.name
 tmp.close()
 
-excel = None
-wb    = None
-
 try:
-    excel = win32com.client.Dispatch("Excel.Application")
-    excel.Visible          = False
-    excel.DisplayAlerts    = False
-    excel.AskToUpdateLinks = False
+    rb = xlrd.open_workbook(TMPL, formatting_info=True)
+    wb = xl_copy(rb)
+    ws = wb.get_sheet(0)
 
-    wb = excel.Workbooks.Open(TMPL, UpdateLinks=0, ReadOnly=False)
-    ws = wb.Sheets(1)
+    date_style = xlwt.XFStyle()
+    date_style.num_format_str = "MM/DD/YYYY"
 
-    # B13 → Est Loading Date
+    # B13 → Est Loading Date (0-indexed: row=12, col=1)
     d = parse_date(loading_date)
     if d:
-        ws.Cells(13, 2).Value = d
+        ws.write(12, 1, to_excel_serial(d), date_style)
 
-    # F13 → Est Arrival Date
+    # F13 → Est Arrival Date (0-indexed: row=12, col=5)
     d = parse_date(arrival_date)
     if d:
-        ws.Cells(13, 6).Value = d
+        ws.write(12, 5, to_excel_serial(d), date_style)
 
-    # E63 → House B/L (string)
+    # E63 → House B/L (0-indexed: row=62, col=4)
     if house_bl:
-        ws.Cells(63, 5).Value = str(house_bl)
+        ws.write(62, 4, str(house_bl))
 
-    # F63 → Ocean B/L / Master B/L
+    # F63 → Ocean B/L (0-indexed: row=62, col=5)
     if ocean_bl:
         try:
-            ws.Cells(63, 6).Value = float(ocean_bl)
+            ws.write(62, 5, float(ocean_bl))
         except (ValueError, TypeError):
-            ws.Cells(63, 6).Value = str(ocean_bl)
+            ws.write(62, 5, str(ocean_bl))
 
-    # Guardar como .xls (FileFormat 56 = xlExcel8)
-    wb.SaveAs(tmp_path, FileFormat=56)
-    wb.Close(False)
-    wb = None
-    excel.Quit()
-    excel = None
+    wb.save(tmp_path)
 
     with open(tmp_path, "rb") as f:
         sys.stdout.buffer.write(f.read())
 
 finally:
-    if wb:
-        try: wb.Close(False)
-        except: pass
-    if excel:
-        try: excel.Quit()
-        except: pass
-    try: os.unlink(tmp_path)
-    except: pass
+    try:
+        os.unlink(tmp_path)
+    except Exception:
+        pass
