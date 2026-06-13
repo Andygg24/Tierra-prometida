@@ -35,7 +35,7 @@ export function usePedidos() {
       supabase.from("pedidos").select("*").order("created_at", { ascending: false })
         .then(({ data }) => data && setPedidos(data.map(rowToPedido)));
     };
-    const ch = supabase.channel("pedidos-changes")
+    const ch = supabase.channel(`pedidos-changes-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "pedidos" }, refetch)
       .subscribe();
     return () => { supabase.removeChannel(ch); };

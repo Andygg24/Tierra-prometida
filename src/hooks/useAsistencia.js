@@ -63,7 +63,7 @@ export function useAsistencia() {
 
   // ── Suscripciones en tiempo real ─────────────────────────────
   useEffect(() => {
-    const ch = supabase.channel("asistencia-changes")
+    const ch = supabase.channel(`asistencia-changes-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "asistencia" }, ({ new: row, old, eventType }) => {
         if (eventType === "DELETE") {
           setRegistros(prev => {

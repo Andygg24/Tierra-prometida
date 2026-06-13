@@ -45,7 +45,7 @@ export function useLiquidaciones() {
 
   // ── Suscripciones en tiempo real ─────────────────────────────
   useEffect(() => {
-    const ch = supabase.channel("liquidaciones-changes")
+    const ch = supabase.channel(`liquidaciones-changes-${Date.now()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "liquidaciones" }, ({ new: row }) => {
         if (row) setLiquidaciones(prev => [rowToLiq(row), ...prev.slice(0, 199)]);
       })

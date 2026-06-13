@@ -68,7 +68,7 @@ export function useInventario(seedData = []) {
 
   // ── Suscripciones en tiempo real ─────────────────────────────
   useEffect(() => {
-    const ch = supabase.channel("inventario-changes")
+    const ch = supabase.channel(`inventario-changes-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "inventario" }, ({ new: row, old, eventType }) => {
         if (eventType === "DELETE") {
           setItems(prev => prev.filter(i => i.id !== old.id));

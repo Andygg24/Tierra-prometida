@@ -41,11 +41,25 @@ const rowToInsumo = (r) => ({
   total:    r.total     || 0,
 });
 
+const rowToRendimiento = (r) => ({
+  id:              r.id,
+  contId:          r.cont_id,
+  contNum:         r.cont_num          || "",
+  fecha:           r.fecha             || "",
+  kilosProcesados: Number(r.kilos_procesados) || 0,
+  kilosDevueltos:  Number(r.kilos_devueltos)  || 0,
+  cajasDelMonte:   Number(r.cajas_del_monte)  || 0,
+  cajasPrincess:   Number(r.cajas_princess)   || 0,
+  observaciones:   Array.isArray(r.observaciones) ? r.observaciones : [],
+  obsDetalle:      r.obs_detalle || "",
+});
+
 export function useContenedores() {
-  const [procesos,    setProcesos]    = useState([]);
-  const [grupos,      setGrupos]      = useState([]);
-  const [contInsumos, setContInsumos] = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [procesos,      setProcesos]      = useState([]);
+  const [grupos,        setGrupos]        = useState([]);
+  const [contInsumos,   setContInsumos]   = useState([]);
+  const [rendimientos,  setRendimientos]  = useState([]);
+  const [loading,       setLoading]       = useState(true);
 
   // ── Carga inicial ────────────────────────────────────────────
   useEffect(() => {
@@ -55,16 +69,19 @@ export function useContenedores() {
         { data: conts,   error: e1 },
         { data: grups,   error: e2 },
         { data: insumos, error: e3 },
+        { data: rends,   error: e4 },
       ] = await Promise.all([
         supabase.from("contenedores").select("*").order("fecha", { ascending: false }),
         supabase.from("grupos_trabajo").select("*").order("nombre"),
         supabase.from("contenedor_insumos").select("*").order("fecha", { ascending: false }),
+        supabase.from("contenedor_rendimientos").select("*").order("fecha", { ascending: false }),
       ]);
-      if (e1 || e2 || e3) { setLoading(false); return; }
+      if (e1 || e2 || e3 || e4) { setLoading(false); return; }
       if (cancelled) return;
       setProcesos((conts   || []).map(rowToCont));
       setGrupos(  (grups   || []).map(rowToGrupo));
       setContInsumos((insumos || []).map(rowToInsumo));
+      setRendimientos((rends  || []).map(rowToRendimiento));
       setLoading(false);
     }
     fetchAll();
@@ -75,19 +92,22 @@ export function useContenedores() {
   useEffect(() => {
     const refetch = (table, setter, mapper) => () => {
       const q = supabase.from(table).select("*");
-      if (table === "contenedores")      q.order("fecha", { ascending: false });
-      if (table === "grupos_trabajo")    q.order("nombre");
-      if (table === "contenedor_insumos") q.order("fecha", { ascending: false });
+      if (table === "contenedores")              q.order("fecha", { ascending: false });
+      if (table === "grupos_trabajo")            q.order("nombre");
+      if (table === "contenedor_insumos")        q.order("fecha", { ascending: false });
+      if (table === "contenedor_rendimientos")   q.order("fecha", { ascending: false });
       q.then(({ data }) => data && setter(data.map(mapper)));
     };
 
-    const ch = supabase.channel("contenedores-changes")
+    const ch = supabase.channel(`contenedores-changes-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "contenedores" },
           refetch("contenedores", setProcesos, rowToCont))
       .on("postgres_changes", { event: "*", schema: "public", table: "grupos_trabajo" },
           refetch("grupos_trabajo", setGrupos, rowToGrupo))
       .on("postgres_changes", { event: "*", schema: "public", table: "contenedor_insumos" },
           refetch("contenedor_insumos", setContInsumos, rowToInsumo))
+      .on("postgres_changes", { event: "*", schema: "public", table: "contenedor_rendimientos" },
+          refetch("contenedor_rendimientos", setRendimientos, rowToRendimiento))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -199,10 +219,40 @@ export function useContenedores() {
     return !error;
   }, []);
 
+  // ── RENDIMIENTOS ─────────────────────────────────────────────
+
+  const guardarRendimiento = useCallback(async (form, editId = null) => {
+    const row = {
+      cont_id:          form.contId,
+      cont_num:         form.contNum         || null,
+      fecha:            form.fecha,
+      kilos_procesados: Number(form.kilosProcesados) || 0,
+      kilos_devueltos:  Number(form.kilosDevueltos)  || 0,
+      cajas_del_monte:  Number(form.cajasDelMonte)   || 0,
+      cajas_princess:   Number(form.cajasPrincess)   || 0,
+      observaciones:    form.observaciones   || [],
+      obs_detalle:      form.obsDetalle      || null,
+    };
+    if (editId) {
+      const { error } = await supabase.from("contenedor_rendimientos").update(row).eq("id", editId);
+      return !error;
+    } else {
+      row.id = Date.now();
+      const { error } = await supabase.from("contenedor_rendimientos").insert(row);
+      return !error;
+    }
+  }, []);
+
+  const eliminarRendimiento = useCallback(async (id) => {
+    const { error } = await supabase.from("contenedor_rendimientos").delete().eq("id", id);
+    return !error;
+  }, []);
+
   return {
-    procesos, grupos, contInsumos, loading,
+    procesos, grupos, contInsumos, rendimientos, loading,
     guardarContenedor, eliminarContenedor, agregarTrazabilidad, cambiarEstado,
     guardarGrupo, eliminarGrupo,
     guardarCC, eliminarCC,
+    guardarRendimiento, eliminarRendimiento,
   };
 }

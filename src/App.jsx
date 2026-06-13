@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { supabase } from "./supabase.js";
 import { usePersonal } from "./hooks/usePersonal.js";
 import { useAsistencia } from "./hooks/useAsistencia.js";
@@ -7,6 +7,8 @@ import { useInventario } from "./hooks/useInventario.js";
 import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 import { usePedidos } from "./hooks/usePedidos.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
+import PackingListTab from "./components/PackingListTab.jsx";
+import CustomSelect from "./components/CustomSelect.jsx";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -254,9 +256,9 @@ function PersonalDemo() {
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <input placeholder="Nombre" value={editForm.nombre||""} onChange={e=>setEditForm(f=>({...f,nombre:e.target.value}))} style={inp} />
               <div style={{ display:"flex", gap:6 }}>
-                <select value={editForm.doc||"CC Nacional"} onChange={e=>setEditForm(f=>({...f,doc:e.target.value}))} style={{...inp,flex:1}}>
+                <CustomSelect value={editForm.doc||"CC Nacional"} onChange={e=>setEditForm(f=>({...f,doc:e.target.value}))} style={{...inp,flex:1}}>
                   <option style={{background:"#1a1a2e"}}>CC Nacional</option><option style={{background:"#1a1a2e"}}>CC Venezuela</option><option style={{background:"#1a1a2e"}}>PPT</option>
-                </select>
+                </CustomSelect>
                 <input placeholder="Cédula" value={editForm.num||""} onChange={e=>setEditForm(f=>({...f,num:e.target.value}))} style={{...inp,flex:1}} />
               </div>
               <div style={{ display:"flex", gap:6 }}>
@@ -283,9 +285,9 @@ function PersonalDemo() {
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 <div>
                   <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Tipo de contrato</div>
-                  <select value={contratoForm.tipo} onChange={e=>setContratoForm(f=>({...f,tipo:e.target.value}))} style={inp}>
+                  <CustomSelect value={contratoForm.tipo} onChange={e=>setContratoForm(f=>({...f,tipo:e.target.value}))} style={inp}>
                     {["OPS","Término fijo","Término indefinido","Obra o labor","Aprendizaje"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
                   <div style={{ flex:1 }}>
@@ -342,9 +344,9 @@ function PersonalDemo() {
                 </div>
                 <div>
                   <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Estado</div>
-                  <select value={formSeg.estado} onChange={e=>setFormSeg(f=>({...f,estado:e.target.value}))} style={inp}>
+                  <CustomSelect value={formSeg.estado} onChange={e=>setFormSeg(f=>({...f,estado:e.target.value}))} style={inp}>
                     {["Activo","Inactivo","En trámite","Sin afiliación"].map(s=><option key={s} style={{background:"#1a1a2e"}}>{s}</option>)}
-                  </select>
+                  </CustomSelect>
                 </div>
                 <div style={{ display:"flex", gap:8, marginTop:4 }}>
                   <button onClick={saveSeg} style={{ flex:1, background:"linear-gradient(135deg,#FF6B6B,#845EF7)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
@@ -387,9 +389,9 @@ function PersonalDemo() {
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 <input placeholder="Nombre completo *" value={nuevoEmp.nombre} onChange={e=>setNuevoEmp({...nuevoEmp,nombre:e.target.value})} style={inp} />
                 <div style={{ display:"flex", gap:6 }}>
-                  <select value={nuevoEmp.doc} onChange={e=>setNuevoEmp({...nuevoEmp,doc:e.target.value})} style={{...inp,flex:1}}>
+                  <CustomSelect value={nuevoEmp.doc} onChange={e=>setNuevoEmp({...nuevoEmp,doc:e.target.value})} style={{...inp,flex:1}}>
                     <option style={{background:"#1a1a2e"}}>CC Nacional</option><option style={{background:"#1a1a2e"}}>CC Venezuela</option><option style={{background:"#1a1a2e"}}>PPT</option>
-                  </select>
+                  </CustomSelect>
                   <input placeholder="Cédula *" value={nuevoEmp.num} onChange={e=>setNuevoEmp({...nuevoEmp,num:e.target.value})} style={{...inp,flex:1}} />
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
@@ -425,9 +427,9 @@ function PersonalDemo() {
           )}
           <div style={{ display:"flex", gap:6, marginBottom:8 }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nombre o cédula..." style={{...inp,flex:1}} />
-            <select value={filterDoc} onChange={e=>setFilterDoc(e.target.value)} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit" }}>
+            <CustomSelect value={filterDoc} onChange={e=>setFilterDoc(e.target.value)} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit" }}>
               {docTypes.map(d=><option key={d} value={d} style={{background:"#1a1a2e"}}>{d}</option>)}
-            </select>
+            </CustomSelect>
           </div>
           <div style={{ maxHeight:420, overflowY:"auto" }}>
             {filtered.map((emp,i)=>{
@@ -514,9 +516,9 @@ function PersonalDemo() {
             </div>
             <div style={{ display:"flex", gap:6, marginBottom:10 }}>
               <input value={busqContrato} onChange={e=>setBusqContrato(e.target.value)} placeholder="🔍 Buscar empleado..." style={{...inp, flex:1}} />
-              <select value={filtroContrato} onChange={e=>setFiltroContrato(e.target.value)} style={{...inp, width:"auto"}}>
+              <CustomSelect value={filtroContrato} onChange={e=>setFiltroContrato(e.target.value)} style={{...inp, width:"auto"}}>
                 {["Todos","Con contrato","Por vencer","Vencidos","Sin contrato"].map(o=><option key={o} style={{background:"#1a1a2e"}}>{o}</option>)}
-              </select>
+              </CustomSelect>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:480, overflowY:"auto" }}>
               {empleados.filter(emp=>{
@@ -580,10 +582,10 @@ function PersonalDemo() {
           <div>
             <div style={{ marginBottom:10 }}>
               <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Empleado</div>
-              <select value={empPagoActual} onChange={e=>setSelEmpPago(e.target.value)}
+              <CustomSelect value={empPagoActual} onChange={e=>setSelEmpPago(e.target.value)}
                 style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
-              </select>
+              </CustomSelect>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:10 }}>
               {[
@@ -599,9 +601,9 @@ function PersonalDemo() {
               ))}
             </div>
             <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
-              <select value={filtroTipoPago} onChange={e=>setFiltroTipoPago(e.target.value)} style={{...inp, flex:1, minWidth:100}}>
+              <CustomSelect value={filtroTipoPago} onChange={e=>setFiltroTipoPago(e.target.value)} style={{...inp, flex:1, minWidth:100}}>
                 {["Todos","Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-              </select>
+              </CustomSelect>
               <input type="date" value={filtroPagoDesde} onChange={e=>setFiltroPagoDesde(e.target.value)} title="Desde" style={{...inp, flex:1, minWidth:0}} />
               <input type="date" value={filtroPagoHasta} onChange={e=>setFiltroPagoHasta(e.target.value)} title="Hasta" style={{...inp, flex:1, minWidth:0}} />
               {(filtroTipoPago!=="Todos"||filtroPagoDesde||filtroPagoHasta) && <button onClick={()=>{setFiltroTipoPago("Todos");setFiltroPagoDesde("");setFiltroPagoHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
@@ -626,9 +628,9 @@ function PersonalDemo() {
                   <div style={{ display:"flex", gap:6 }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Tipo</div>
-                      <select value={formPago.tipo} onChange={e=>setFormPago(f=>({...f,tipo:e.target.value}))} style={inp}>
+                      <CustomSelect value={formPago.tipo} onChange={e=>setFormPago(f=>({...f,tipo:e.target.value}))} style={inp}>
                         {["Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-                      </select>
+                      </CustomSelect>
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Referencia</div>
@@ -689,9 +691,9 @@ function PersonalDemo() {
             </div>
             <div style={{ display:"flex", gap:6, marginBottom:10 }}>
               <input value={busqDoc} onChange={e=>setBusqDoc(e.target.value)} placeholder="🔍 Buscar empleado..." style={{...inp, flex:1}} />
-              <select value={filtroDocEstado} onChange={e=>setFiltroDocEstado(e.target.value)} style={{...inp, width:"auto"}}>
+              <CustomSelect value={filtroDocEstado} onChange={e=>setFiltroDocEstado(e.target.value)} style={{...inp, width:"auto"}}>
                 {["Todos","Completos","Incompletos","Sin documentos"].map(o=><option key={o} style={{background:"#1a1a2e"}}>{o}</option>)}
-              </select>
+              </CustomSelect>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:500, overflowY:"auto" }}>
               {empleados.filter(emp=>{
@@ -743,10 +745,10 @@ function PersonalDemo() {
           <div>
             <div style={{ marginBottom:10 }}>
               <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Empleado</div>
-              <select value={empDesempActual} onChange={e=>setSelEmpDesemp(e.target.value)}
+              <CustomSelect value={empDesempActual} onChange={e=>setSelEmpDesemp(e.target.value)}
                 style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
-              </select>
+              </CustomSelect>
             </div>
             <div style={{ display:"flex", gap:6, marginBottom:10, alignItems:"center" }}>
               <input type="month" value={filtroMesDesemp} onChange={e=>setFiltroMesDesemp(e.target.value)} style={{...inp, flex:1}} placeholder="Filtrar por mes" />
@@ -869,9 +871,9 @@ function PersonalDemo() {
             </div>
             <div style={{ display:"flex", gap:6, marginBottom:10 }}>
               <input value={busqSS} onChange={e=>setBusqSS(e.target.value)} placeholder="🔍 Buscar empleado..." style={{...inp, flex:1}} />
-              <select value={filtroSS} onChange={e=>setFiltroSS(e.target.value)} style={{...inp, width:"auto"}}>
+              <CustomSelect value={filtroSS} onChange={e=>setFiltroSS(e.target.value)} style={{...inp, width:"auto"}}>
                 {["Todos","Con EPS+ARL","Sin EPS","Sin ARL","Sin registro"].map(o=><option key={o} style={{background:"#1a1a2e"}}>{o}</option>)}
-              </select>
+              </CustomSelect>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:500, overflowY:"auto" }}>
               {empleados.filter(emp=>{
@@ -1146,10 +1148,10 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
           <div style={{display:"flex",gap:6,marginBottom:10}}>
             <div style={{flex:2}}>
               <div style={lbl}>Empleado</div>
-              <select value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=EMPLEADOS_DB.find(x=>x.num===e.target.value);if(em){readAusencias(em.nombre,periodo).then(setDiasAus);}}} style={inp}>
+              <CustomSelect value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=EMPLEADOS_DB.find(x=>x.num===e.target.value);if(em){readAusencias(em.nombre,periodo).then(setDiasAus);}}} style={inp}>
                 <option value="" style={{background:"#1a1a2e"}}>— Seleccionar empleado —</option>
                 {EMPLEADOS_DB.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre} · {e.area}</option>)}
-              </select>
+              </CustomSelect>
             </div>
             <div style={{flex:1}}>
               <div style={lbl}>Periodo</div>
@@ -1630,10 +1632,10 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
       {tabNom === 3 && (
         <div>
           <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-            <select value={histFiltEmp} onChange={e=>setHistFiltEmp(e.target.value)} style={{...inp,flex:2,minWidth:120}}>
+            <CustomSelect value={histFiltEmp} onChange={e=>setHistFiltEmp(e.target.value)} style={{...inp,flex:2,minWidth:120}}>
               <option value="" style={{background:"#1a1a2e"}}>— Todos los empleados —</option>
               {EMPLEADOS_DB.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
-            </select>
+            </CustomSelect>
             <input type="month" value={histFiltDesde} onChange={e=>setHistFiltDesde(e.target.value)} title="Desde" style={{...inp,flex:1,minWidth:100}} />
             <input type="month" value={histFiltHasta} onChange={e=>setHistFiltHasta(e.target.value)} title="Hasta" style={{...inp,flex:1,minWidth:100}} />
             {(histFiltEmp||histFiltDesde||histFiltHasta) && <button onClick={()=>{setHistFiltEmp("");setHistFiltDesde("");setHistFiltHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
@@ -2126,9 +2128,9 @@ function InventarioDemo() {
       {/* Controles */}
       <div style={{ display:"flex", gap:6, marginBottom:10 }}>
         <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar producto..." style={{...inp, flex:1}} />
-        <select value={filtro} onChange={e=>setFiltro(e.target.value)} style={{...inp, minWidth:100}}>
+        <CustomSelect value={filtro} onChange={e=>setFiltro(e.target.value)} style={{...inp, minWidth:100}}>
           {categorias.map(c => <option key={c} style={{background:"#1a1a2e"}}>{c}</option>)}
-        </select>
+        </CustomSelect>
         <button onClick={() => setShowAdd(!showAdd)} style={{ background:"rgba(132,94,247,0.2)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:6, padding:"5px 10px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>➕ Nuevo</button>
       </div>
 
@@ -2144,10 +2146,10 @@ function InventarioDemo() {
               <input type="number" placeholder="Mínimo" value={nuevoItem.minimo} onChange={e=>setNuevoItem(p=>({...p,minimo:e.target.value}))} style={{...inp,flex:1}} />
             </div>
             <div style={{ display:"flex", gap:6 }}>
-              <select value={nuevoItem.categoria} onChange={e=>setNuevoItem(p=>({...p,categoria:e.target.value}))} style={{...inp,flex:1}}>
+              <CustomSelect value={nuevoItem.categoria} onChange={e=>setNuevoItem(p=>({...p,categoria:e.target.value}))} style={{...inp,flex:1}}>
                 <option style={{background:"#1a1a2e"}}>Insumos</option>
                 <option style={{background:"#1a1a2e"}}>Herramientas</option>
-              </select>
+              </CustomSelect>
               <input type="number" placeholder="Costo unit." value={nuevoItem.costo} onChange={e=>setNuevoItem(p=>({...p,costo:e.target.value}))} style={{...inp,flex:1}} />
             </div>
             <input placeholder="Observaciones" value={nuevoItem.obs} onChange={e=>setNuevoItem(p=>({...p,obs:e.target.value}))} style={{...inp,width:"100%"}} />
@@ -2938,12 +2940,12 @@ ${seccionObs}
             onChange={e => setFecha(e.target.value)}
             style={{...inp, flex:1}}
           />
-          <select
+          <CustomSelect
             value={meta.turno || "Día"}
             onChange={e => setMetaField("turno", e.target.value)}
             style={{...inp, minWidth:85}}>
             {["Día","Noche","Ambos"].map(t => <option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-          </select>
+          </CustomSelect>
         </div>
         {/* Fila: contenedor del día + obs general */}
         <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -3211,7 +3213,7 @@ function ContenedoresDemo() {
 
   // ── Hook Supabase ──
   const {
-    procesos, grupos, contInsumos, loading: loadingCont,
+    procesos, grupos, contInsumos, rendimientos, loading: loadingCont,
     guardarContenedor,
     eliminarContenedor,
     agregarTrazabilidad,
@@ -3220,6 +3222,8 @@ function ContenedoresDemo() {
     eliminarGrupo: eliminarGrupoSB,
     guardarCC: guardarCCSB,
     eliminarCC,
+    guardarRendimiento: guardarRendimientoSB,
+    eliminarRendimiento: eliminarRendimientoSB,
   } = useContenedores();
   const { items: invItems, ajustarLotes } = useInventario();
   const invActual = invItems.length > 0 ? invItems : INVENTARIO_BASE;
@@ -3264,7 +3268,17 @@ function ContenedoresDemo() {
   );
   const stats = { total:procesos.length, comp:procesos.filter(p=>p.estado==="Completado").length, enProc:procesos.filter(p=>p.estado==="En proceso").length, cajas:procesos.reduce((s,p)=>s+Number(p.cajasSalida||0),0) };
   const COL_EST = { "En proceso":"#F9A826","Completado":"#00C9A7","Pausado":"#845EF7","Cancelado":"#FF6B6B" };
-  const TAB_CONT = ["🚢 Contenedores","👥 Grupos / Turnos","💰 Nómina","🗺 Trazabilidad","📦 Centro de Costos"];
+  const TAB_CONT = ["🚢 Contenedores","👥 Grupos / Turnos","💰 Nómina","🗺 Trazabilidad","📦 Centro de Costos","📊 Rendimientos","📋 Packing List"];
+
+  // ── Tab 5: Rendimientos ──
+  const KG_DEL_MONTE = 16.8;
+  const KG_PRINCESS  = 16.7;
+  const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, kilosProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "" };
+  const [selContRend,   setSelContRend]   = useState(null);
+  const [showFormRend,  setShowFormRend]  = useState(false);
+  const [editRendId,    setEditRendId]    = useState(null);
+  const [formRend,      setFormRend]      = useState(rendFormDef);
 
   const guardar = () => {
     if (!form.numContenedor.trim()) return;
@@ -3331,39 +3345,39 @@ function ContenedoresDemo() {
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Proveedores de Limón</div><input value={form.proveedor} onChange={e=>setForm(p=>({...p,proveedor:e.target.value}))} placeholder="Ej: Menago, Juan García..." style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Tipo de caja</div>
-                    <select value={form.producto} onChange={e=>setForm(p=>({...p,producto:e.target.value}))} style={inp}>
+                    <CustomSelect value={form.producto} onChange={e=>setForm(p=>({...p,producto:e.target.value}))} style={inp}>
                       <option value="" style={{background:"#1a1a2e"}}>Seleccionar...</option>
                       <option style={{background:"#1a1a2e"}}>Caja Del Monte</option>
                       <option style={{background:"#1a1a2e"}}>Caja Princess</option>
                       <option style={{background:"#1a1a2e"}}>Caja Del Monte + Princess</option>
-                    </select>
+                    </CustomSelect>
                   </div>
                 </div>
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Cajas de salida</div><input type="number" min="0" value={form.cajasSalida} onChange={e=>setForm(p=>({...p,cajasSalida:e.target.value}))} style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Turno</div>
-                    <select value={form.turno} onChange={e=>setForm(p=>({...p,turno:e.target.value}))} style={inp}>
+                    <CustomSelect value={form.turno} onChange={e=>setForm(p=>({...p,turno:e.target.value}))} style={inp}>
                       {["Día","Noche","Ambos"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-                    </select>
+                    </CustomSelect>
                   </div>
                   <div style={{flex:1}}><div style={lbl}>Estado</div>
-                    <select value={form.estado} onChange={e=>setForm(p=>({...p,estado:e.target.value}))} style={inp}>
+                    <CustomSelect value={form.estado} onChange={e=>setForm(p=>({...p,estado:e.target.value}))} style={inp}>
                       {ESTADOS_CONT.map(s=><option key={s} style={{background:"#1a1a2e"}}>{s}</option>)}
-                    </select>
+                    </CustomSelect>
                   </div>
                 </div>
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Grupo Turno Día ☀️</div>
-                    <select value={form.grupoDia} onChange={e=>setForm(p=>({...p,grupoDia:e.target.value}))} style={inp}>
+                    <CustomSelect value={form.grupoDia} onChange={e=>setForm(p=>({...p,grupoDia:e.target.value}))} style={inp}>
                       <option value="" style={{background:"#1a1a2e"}}>— Sin asignar —</option>
                       {grupos.filter(g=>g.turno==="Día"||g.turno==="Ambos").map(g=><option key={g.id} value={g.nombre} style={{background:"#1a1a2e"}}>{g.nombre} ({g.miembros.length} personas)</option>)}
-                    </select>
+                    </CustomSelect>
                   </div>
                   <div style={{flex:1}}><div style={lbl}>Grupo Turno Noche 🌙</div>
-                    <select value={form.grupoNoche} onChange={e=>setForm(p=>({...p,grupoNoche:e.target.value}))} style={inp}>
+                    <CustomSelect value={form.grupoNoche} onChange={e=>setForm(p=>({...p,grupoNoche:e.target.value}))} style={inp}>
                       <option value="" style={{background:"#1a1a2e"}}>— Sin asignar —</option>
                       {grupos.filter(g=>g.turno==="Noche"||g.turno==="Ambos").map(g=><option key={g.id} value={g.nombre} style={{background:"#1a1a2e"}}>{g.nombre} ({g.miembros.length} personas)</option>)}
-                    </select>
+                    </CustomSelect>
                   </div>
                 </div>
                 <div style={{fontSize:11,fontWeight:700,color:"rgba(99,102,241,0.8)",marginTop:4,marginBottom:2}}>Datos de exportación</div>
@@ -3501,9 +3515,9 @@ function ContenedoresDemo() {
                 <div style={{display:"flex",gap:6,marginBottom:8}}>
                   <div style={{flex:2}}><div style={lbl}>Nombre del grupo *</div><input value={formGrupo.nombre} onChange={e=>setFormGrupo(f=>({...f,nombre:e.target.value}))} placeholder="Ej: Equipo Alpha Día" style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Turno</div>
-                    <select value={formGrupo.turno} onChange={e=>setFormGrupo(f=>({...f,turno:e.target.value}))} style={inp}>
+                    <CustomSelect value={formGrupo.turno} onChange={e=>setFormGrupo(f=>({...f,turno:e.target.value}))} style={inp}>
                       {["Día","Noche","Ambos"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-                    </select>
+                    </CustomSelect>
                   </div>
                 </div>
                 <div style={lbl}>Buscar empleado</div>
@@ -3679,12 +3693,12 @@ function ContenedoresDemo() {
           <div>
             <div style={{marginBottom:12}}>
               <div style={lbl}>Seleccionar contenedor</div>
-              <select value={selContTraz||""} onChange={e=>setSelContTraz(e.target.value?Number(e.target.value):null)} style={inp}>
+              <CustomSelect value={selContTraz||""} onChange={e=>setSelContTraz(e.target.value?Number(e.target.value):null)} style={inp}>
                 <option value="" style={{background:"#1a1a2e"}}>— Elige un contenedor —</option>
                 {procesos.map(p=>(
                   <option key={p.id} value={p.id} style={{background:"#1a1a2e"}}>🚢 {p.numContenedor} · {p.fecha} · {p.estado}</option>
                 ))}
-              </select>
+              </CustomSelect>
             </div>
             {!contSel ? (
               <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
@@ -3723,9 +3737,9 @@ function ContenedoresDemo() {
                   <div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:12,marginBottom:12}}>
                     <div style={{display:"flex",flexDirection:"column",gap:7}}>
                       <div><div style={lbl}>Tipo de evento</div>
-                        <select value={formTraz.evento} onChange={e=>setFormTraz(f=>({...f,evento:e.target.value}))} style={inp}>
+                        <CustomSelect value={formTraz.evento} onChange={e=>setFormTraz(f=>({...f,evento:e.target.value}))} style={inp}>
                           {EVENTOS_TIPO.map(ev=><option key={ev} value={ev} style={{background:"#1a1a2e"}}>{ev}</option>)}
-                        </select>
+                        </CustomSelect>
                       </div>
                       <div><div style={lbl}>Detalle</div><input value={formTraz.detalle} onChange={e=>setFormTraz(f=>({...f,detalle:e.target.value}))} placeholder="Descripción del evento..." style={inp} /></div>
                       <div><div style={lbl}>Responsable</div><input value={formTraz.responsable} onChange={e=>setFormTraz(f=>({...f,responsable:e.target.value}))} placeholder="Nombre del responsable..." style={inp} /></div>
@@ -3848,7 +3862,7 @@ function ContenedoresDemo() {
             {/* Selector contenedor */}
             <div style={{marginBottom:12}}>
               <div style={lbl}>Seleccionar contenedor</div>
-              <select value={selContCC||""} onChange={e=>{
+              <CustomSelect value={selContCC||""} onChange={e=>{
                 const id = parseInt(e.target.value)||null;
                 setSelContCC(id);
                 setEditingRecId(null);
@@ -3858,7 +3872,7 @@ function ContenedoresDemo() {
               }} style={inp}>
                 <option value="">— Seleccionar contenedor —</option>
                 {procesos.map(p=><option key={p.id} value={p.id} style={{background:"#1a1a2e"}}>{p.numContenedor} · {p.fecha} · {p.estado}</option>)}
-              </select>
+              </CustomSelect>
             </div>
 
             {procesos.length === 0 && (
@@ -4284,6 +4298,268 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                 </button>
               );
             })()}
+          </div>
+        );
+      })()}
+
+      {/* ═══ TAB 6: PACKING LIST ═══ */}
+      {tabCont === 6 && <PackingListTab mob={mob} />}
+
+      {/* ═══ TAB 5: RENDIMIENTOS ═══ */}
+      {tabCont === 5 && (() => {
+        const contSelRend = selContRend !== null ? procesos.find(p => p.id === selContRend) : null;
+        const rendsDelCont = selContRend !== null ? rendimientos.filter(r => r.contId === selContRend) : [];
+
+        const calcRend = (r) => {
+          const kgDM  = r.cajasDelMonte * KG_DEL_MONTE;
+          const kgPri = r.cajasPrincess * KG_PRINCESS;
+          const kgEmp = kgDM + kgPri;
+          const rendGen = r.kilosProcesados > 0 ? (kgEmp / r.kilosProcesados) * 100 : 0;
+          const rendDM  = r.kilosProcesados > 0 ? (kgDM  / r.kilosProcesados) * 100 : 0;
+          const rendPri = r.kilosProcesados > 0 ? (kgPri / r.kilosProcesados) * 100 : 0;
+          return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri };
+        };
+
+        const totales = rendsDelCont.reduce((acc, r) => {
+          const c = calcRend(r);
+          return {
+            kilosProcesados: acc.kilosProcesados + r.kilosProcesados,
+            kilosDevueltos:  acc.kilosDevueltos  + r.kilosDevueltos,
+            kgEmp:           acc.kgEmp           + c.kgEmp,
+            cajasDelMonte:   acc.cajasDelMonte   + r.cajasDelMonte,
+            cajasPrincess:   acc.cajasPrincess   + r.cajasPrincess,
+          };
+        }, { kilosProcesados: 0, kilosDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
+
+        const rendGeneralTotal = totales.kilosProcesados > 0
+          ? (totales.kgEmp / totales.kilosProcesados) * 100 : 0;
+
+        const colorRend = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
+
+        const abrirFormRend = (r = null) => {
+          if (r) {
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle });
+            setEditRendId(r.id);
+          } else {
+            setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
+            setEditRendId(null);
+          }
+          setShowFormRend(true);
+        };
+
+        const guardarRend = async () => {
+          if (!formRend.kilosProcesados) return;
+          const ok = await guardarRendimientoSB(formRend, editRendId);
+          if (ok) { setShowFormRend(false); setFormRend(rendFormDef); setEditRendId(null); }
+        };
+
+        const toggleObsRend = (obs) => setFormRend(f => ({
+          ...f,
+          observaciones: f.observaciones.includes(obs)
+            ? f.observaciones.filter(o => o !== obs)
+            : [...f.observaciones, obs],
+        }));
+
+        const card = (label, value, color = "white", sub = null) => (
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+            {sub && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{sub}</div>}
+          </div>
+        );
+
+        return (
+          <div>
+            {/* Selector de contenedor */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Seleccionar contenedor</div>
+              <CustomSelect value={selContRend ?? ""} onChange={e => { setSelContRend(e.target.value ? Number(e.target.value) : null); setShowFormRend(false); }}
+                style={{ ...inp, maxWidth: 340 }}>
+                <option value="">— Elige un contenedor —</option>
+                {procesos.map(p => (
+                  <option key={p.id} value={p.id}>{p.numContenedor} · {p.proveedor} · {p.fecha}</option>
+                ))}
+              </CustomSelect>
+            </div>
+
+            {!contSelRend && (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>
+                Selecciona un contenedor para ver o registrar rendimientos
+              </div>
+            )}
+
+            {contSelRend && (
+              <div>
+                {/* Header contenedor */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#a5b4fc" }}>🚢 {contSelRend.numContenedor}</span>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 10 }}>{contSelRend.proveedor} · {contSelRend.producto}</span>
+                  </div>
+                  <button onClick={() => abrirFormRend()} style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
+                    + Registrar camión
+                  </button>
+                </div>
+
+                {/* Tarjetas resumen (solo si hay registros) */}
+                {rendsDelCont.length > 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+                    {card("Kilos procesados total", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`)}
+                    {card("Kilos empacados total", `${totales.kgEmp.toFixed(1)} kg`)}
+                    {card("Kilos devueltos total", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826")}
+                    {card("Rendimiento general", `${rendGeneralTotal.toFixed(1)}%`, colorRend(rendGeneralTotal),
+                      `${totales.cajasDelMonte} cajas DM · ${totales.cajasPrincess} cajas PRI`)}
+                  </div>
+                )}
+
+                {/* Formulario nuevo/editar registro */}
+                {showFormRend && (
+                  <div style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", marginBottom: 10 }}>
+                      {editRendId ? "✏️ Editar registro" : "🚛 Nuevo camión"}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                      <div>
+                        <div style={lbl}>Fecha del camión</div>
+                        <input type="date" value={formRend.fecha} onChange={e => setFormRend(f => ({ ...f, fecha: e.target.value }))} style={inp} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Kilos procesados (del camión)</div>
+                        <input type="number" min="0" step="0.1" value={formRend.kilosProcesados} onChange={e => setFormRend(f => ({ ...f, kilosProcesados: e.target.value }))} placeholder="ej. 24000" style={inp} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Kilos devueltos al camión</div>
+                        <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={inp} />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                      <div>
+                        <div style={lbl}>Cajas Del Monte (16.8 kg)</div>
+                        <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={inp} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Cajas Princess (16.7 kg)</div>
+                        <input type="number" min="0" value={formRend.cajasPrincess} onChange={e => setFormRend(f => ({ ...f, cajasPrincess: e.target.value }))} placeholder="0" style={inp} />
+                      </div>
+                      {formRend.kilosProcesados > 0 && (() => {
+                        const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
+                        const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
+                        const kgEmp = kgDM + kgPri;
+                        const rg    = ((kgEmp / Number(formRend.kilosProcesados)) * 100).toFixed(1);
+                        return (
+                          <>
+                            <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kilos empacados</div>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
+                            </div>
+                            <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rendimiento</div>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Observaciones tipo chips */}
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={lbl}>Estado del limón (selecciona los que aplican)</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                        {OBS_OPCIONES.map(o => {
+                          const activo = formRend.observaciones.includes(o);
+                          return (
+                            <button key={o} onClick={() => toggleObsRend(o)}
+                              style={{ background: activo ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.05)", border: `1px solid ${activo ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.1)"}`, borderRadius: 20, padding: "4px 10px", fontSize: 10, color: activo ? "#fca5a5" : "rgba(255,255,255,0.5)", cursor: "pointer" }}>
+                              {o}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={lbl}>Observaciones adicionales</div>
+                      <textarea value={formRend.obsDetalle} onChange={e => setFormRend(f => ({ ...f, obsDetalle: e.target.value }))} rows={2} placeholder="Ej: El limón venía muy mojado, tuvimos que limpiar la máquina a mitad del proceso..." style={{ ...inp, resize: "vertical" }} />
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={guardarRend} style={{ flex: 1, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "8px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
+                        {editRendId ? "Guardar cambios" : "Registrar camión"}
+                      </button>
+                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer" }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de registros */}
+                {rendsDelCont.length === 0 && !showFormRend && (
+                  <div style={{ textAlign: "center", padding: "30px 0", color: "rgba(255,255,255,0.25)", fontSize: 12 }}>
+                    Sin registros de rendimiento para este contenedor. Presiona "+ Registrar camión" para comenzar.
+                  </div>
+                )}
+
+                {rendsDelCont.map((r, idx) => {
+                  const c = calcRend(r);
+                  return (
+                    <div key={r.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6 }}>
+                        <div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "white" }}>🚛 Camión {idx + 1}</span>
+                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>{r.fecha}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => abrirFormRend(r)} style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#a5b4fc", cursor: "pointer" }}>✏️</button>
+                          <button onClick={() => pedir("¿Eliminar este registro de rendimiento?", async () => { await eliminarRendimientoSB(r.id); })}
+                            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#fca5a5", cursor: "pointer" }}>🗑</button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(6,1fr)", gap: 6, marginTop: 8 }}>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Procesados</div>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>{r.kilosProcesados.toLocaleString("es-CO")} kg</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Empacados</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{c.kgEmp.toFixed(1)} kg</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Devueltos</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#F9A826" }}>{r.kilosDevueltos.toLocaleString("es-CO")} kg</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Rdto. general</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: colorRend(c.rendGen) }}>{c.rendGen.toFixed(1)}%</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Del Monte ({r.cajasDelMonte} cajas)</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#818CF8" }}>{c.rendDM.toFixed(1)}%</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Princess ({r.cajasPrincess} cajas)</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#C084FC" }}>{c.rendPri.toFixed(1)}%</div>
+                        </div>
+                      </div>
+
+                      {(r.observaciones.length > 0 || r.obsDetalle) && (
+                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                          {r.observaciones.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: r.obsDetalle ? 4 : 0 }}>
+                              {r.observaciones.map(o => (
+                                <span key={o} style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 12, padding: "2px 8px", fontSize: 9, color: "#fca5a5" }}>{o}</span>
+                              ))}
+                            </div>
+                          )}
+                          {r.obsDetalle && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", fontStyle: "italic" }}>{r.obsDetalle}</div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -5893,15 +6169,15 @@ function PedidosDemo() {
             <div style={{ display:"flex", gap:6 }}>
               <div style={{ flex:2 }}>
                 <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Cliente</div>
-                <select value={nuevo.cliente} onChange={e=>setNuevo(p=>({...p,cliente:e.target.value}))} style={inp}>
+                <CustomSelect value={nuevo.cliente} onChange={e=>setNuevo(p=>({...p,cliente:e.target.value}))} style={inp}>
                   {clientes.map(c=><option key={c.id} style={{background:"#1a1a2e"}}>{c.nombre}</option>)}
-                </select>
+                </CustomSelect>
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Estado inicial</div>
-                <select value={nuevo.estado} onChange={e=>setNuevo(p=>({...p,estado:e.target.value}))} style={inp}>
+                <CustomSelect value={nuevo.estado} onChange={e=>setNuevo(p=>({...p,estado:e.target.value}))} style={inp}>
                   {PEDIDO_ESTADOS.map(e=><option key={e.key} value={e.key} style={{background:"#1a1a2e"}}>{e.label}</option>)}
-                </select>
+                </CustomSelect>
               </div>
             </div>
             <div style={{ display:"flex", gap:6 }}>
@@ -6600,9 +6876,9 @@ function ConfigForm({ config, guardar }) {
               </div>
               <div>
                 <label style={lS}>Rol</label>
-                <select style={iS()} value={nuevoUsr.rol} onChange={e=>setNuevoUsr(p=>({...p,rol:e.target.value}))}>
+                <CustomSelect style={iS()} value={nuevoUsr.rol} onChange={e=>setNuevoUsr(p=>({...p,rol:e.target.value}))}>
                   {["Owner","Administrador","Supervisor","Operario"].map(r=><option key={r} value={r} style={{ background:"#1a1c26" }}>{r}</option>)}
-                </select>
+                </CustomSelect>
               </div>
             </div>
             <button onClick={() => {
@@ -6923,9 +7199,9 @@ function ConfigForm({ config, guardar }) {
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
               <div>
                 <label style={lS}>Régimen</label>
-                <select style={iS()} value={fiscal.regimen} onChange={e=>setFiscal(p=>({...p,regimen:e.target.value}))}>
+                <CustomSelect style={iS()} value={fiscal.regimen} onChange={e=>setFiscal(p=>({...p,regimen:e.target.value}))}>
                   {["Régimen Ordinario","Régimen Especial","Gran Contribuyente","Autoretenedor"].map(r=><option key={r} value={r} style={{ background:"#1a1c26" }}>{r}</option>)}
-                </select>
+                </CustomSelect>
               </div>
               <div>
                 <label style={lS}>Responsabilidades DIAN</label>
