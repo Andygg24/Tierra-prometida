@@ -59,13 +59,17 @@ export function usePedidos() {
   }, []);
 
   const avanzarEstado = useCallback(async (id, nuevoEstado) => {
-    setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p));
-    await supabase.from("pedidos").update({ estado: nuevoEstado }).eq("id", id);
+    let estadoAnterior;
+    setPedidos(prev => { estadoAnterior = prev.find(p => p.id === id)?.estado; return prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p); });
+    const { error } = await supabase.from("pedidos").update({ estado: nuevoEstado }).eq("id", id);
+    if (error) setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: estadoAnterior } : p));
   }, []);
 
   const eliminarPedido = useCallback(async (id) => {
-    setPedidos(prev => prev.filter(p => p.id !== id));
-    await supabase.from("pedidos").delete().eq("id", id);
+    let removed;
+    setPedidos(prev => { removed = prev.find(p => p.id === id); return prev.filter(p => p.id !== id); });
+    const { error } = await supabase.from("pedidos").delete().eq("id", id);
+    if (error && removed) setPedidos(prev => [...prev, removed]);
   }, []);
 
   return { pedidos, loading, agregarPedido, avanzarEstado, eliminarPedido };

@@ -101,36 +101,37 @@ export function useAsistencia() {
   // ── Mutaciones ───────────────────────────────────────────────
 
   const setEmpField = useCallback(async (fecha, nombre, field, value) => {
-    // Actualización optimista inmediata
-    setRegistros(prev => ({
-      ...prev,
-      [fecha]: { ...(prev[fecha] || {}), [nombre]: { ...(prev[fecha]?.[nombre] || {}), [field]: value } },
-    }));
-    await supabase.from("asistencia").upsert(
+    let anterior;
+    setRegistros(prev => {
+      anterior = prev[fecha]?.[nombre]?.[field];
+      return { ...prev, [fecha]: { ...(prev[fecha] || {}), [nombre]: { ...(prev[fecha]?.[nombre] || {}), [field]: value } } };
+    });
+    const { error } = await supabase.from("asistencia").upsert(
       { fecha, emp_nombre: nombre, [field]: value || null },
       { onConflict: "fecha,emp_nombre" }
     );
+    if (error) setRegistros(prev => ({ ...prev, [fecha]: { ...(prev[fecha] || {}), [nombre]: { ...(prev[fecha]?.[nombre] || {}), [field]: anterior } } }));
   }, []);
 
   const toggleEstado = useCallback(async (fecha, nombre, nuevoEstado) => {
     const actual = registros[fecha]?.[nombre]?.estado || null;
     const next   = actual === nuevoEstado ? null : nuevoEstado;
-    // Actualización optimista
     setRegistros(prev => ({
       ...prev,
       [fecha]: { ...(prev[fecha] || {}), [nombre]: { ...(prev[fecha]?.[nombre] || {}), estado: next } },
     }));
+    let error;
     if (next) {
-      await supabase.from("asistencia").upsert({ fecha, emp_nombre: nombre, estado: next }, { onConflict: "fecha,emp_nombre" });
+      ({ error } = await supabase.from("asistencia").upsert({ fecha, emp_nombre: nombre, estado: next }, { onConflict: "fecha,emp_nombre" }));
     } else {
-      // Sin estado → borrar la fila si no tiene otros datos
       const reg = registros[fecha]?.[nombre] || {};
       if (!reg.contenedor && !reg.obs) {
-        await supabase.from("asistencia").delete().eq("fecha", fecha).eq("emp_nombre", nombre);
+        ({ error } = await supabase.from("asistencia").delete().eq("fecha", fecha).eq("emp_nombre", nombre));
       } else {
-        await supabase.from("asistencia").upsert({ fecha, emp_nombre: nombre, estado: null }, { onConflict: "fecha,emp_nombre" });
+        ({ error } = await supabase.from("asistencia").upsert({ fecha, emp_nombre: nombre, estado: null }, { onConflict: "fecha,emp_nombre" }));
       }
     }
+    if (error) setRegistros(prev => ({ ...prev, [fecha]: { ...(prev[fecha] || {}), [nombre]: { ...(prev[fecha]?.[nombre] || {}), estado: actual } } }));
   }, [registros]);
 
   const setMetaField = useCallback(async (fecha, field, value) => {
@@ -154,12 +155,14 @@ export function useAsistencia() {
   }, [registros]);
 
   const limpiarDia = useCallback(async (fecha) => {
-    setRegistros(prev => { const c = { ...prev }; c[fecha] = {}; return c; });
-    setMetaDia(prev   => { const c = { ...prev }; delete c[fecha]; return c; });
-    await Promise.all([
+    let snapRegs, snapMeta;
+    setRegistros(prev => { snapRegs = prev; const c = { ...prev }; c[fecha] = {}; return c; });
+    setMetaDia(prev   => { snapMeta = prev; const c = { ...prev }; delete c[fecha]; return c; });
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
       supabase.from("asistencia").delete().eq("fecha", fecha),
       supabase.from("asistencia_meta").delete().eq("fecha", fecha),
     ]);
+    if (e1 || e2) { setRegistros(snapRegs); setMetaDia(snapMeta); }
   }, []);
 
   return {

@@ -1795,13 +1795,14 @@ function InformesDemo() {
   const [historial, setHistorial] = useState([]);
   const fileRef = useRef(null);
 
-  const leerArchivo = (file) => new Promise(resolve => {
+  const leerArchivo = (file) => new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = e => resolve(e.target.result);
+    r.onerror = () => reject(new Error("Error leyendo archivo"));
     file.name.endsWith(".csv")||file.name.endsWith(".txt") ? r.readAsText(file) : r.readAsDataURL(file);
   });
 
-  const handleFile = async (file) => { if (!file) return; setArchivo(file); setAnalisis(""); const c = await leerArchivo(file); setArchivoTexto(c); };
+  const handleFile = async (file) => { if (!file) return; setArchivo(file); setAnalisis(""); try { const c = await leerArchivo(file); setArchivoTexto(c); } catch { setAnalisis("❌ Error leyendo el archivo."); } };
 
   const analizar = async () => {
     if (!archivo) return;
@@ -1811,9 +1812,9 @@ function InformesDemo() {
       const esImg = archivo.type.startsWith("image/");
       let messages;
       if (esPDF) {
-        messages = [{ role:"user", content:[{ type:"document", source:{ type:"base64", media_type:"application/pdf", data:archivoTexto.split(",")[1] }},{ type:"text", text:"Analiza este documento como JARVIS de Tierra Prometida Trading 🍋. Genera un informe ejecutivo con resumen, hallazgos y recomendaciones para los socios." }]}];
+        messages = [{ role:"user", content:[{ type:"document", source:{ type:"base64", media_type:"application/pdf", data:(archivoTexto.includes(",")?archivoTexto.split(",")[1]:archivoTexto) }},{ type:"text", text:"Analiza este documento como JARVIS de Tierra Prometida Trading 🍋. Genera un informe ejecutivo con resumen, hallazgos y recomendaciones para los socios." }]}];
       } else if (esImg) {
-        messages = [{ role:"user", content:[{ type:"image", source:{ type:"base64", media_type:archivo.type, data:archivoTexto.split(",")[1] }},{ type:"text", text:"Analiza esta imagen como JARVIS de Tierra Prometida Trading 🍋. Genera un informe ejecutivo." }]}];
+        messages = [{ role:"user", content:[{ type:"image", source:{ type:"base64", media_type:archivo.type, data:(archivoTexto.includes(",")?archivoTexto.split(",")[1]:archivoTexto) }},{ type:"text", text:"Analiza esta imagen como JARVIS de Tierra Prometida Trading 🍋. Genera un informe ejecutivo." }]}];
       } else {
         messages = [{ role:"user", content:`Analiza este archivo como JARVIS de Tierra Prometida Trading 🍋. Genera informe ejecutivo con resumen, hallazgos y recomendaciones.\n\nContenido:\n${archivoTexto.slice(0,8000)}` }];
       }
@@ -1826,6 +1827,7 @@ function InformesDemo() {
           "anthropic-dangerous-direct-browser-access": "true",
         },
         body:JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:2000, system:"Eres JARVIS, asistente de Tierra Prometida Trading 🍋, empresa colombiana de procesamiento y exportación de frutas en Lebrija y Girón, Santander. Generas informes ejecutivos claros, profesionales y en español. Incluye resumen ejecutivo, hallazgos clave, métricas importantes y recomendaciones accionables para los socios.", messages }) });
+      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message||`Error ${res.status}`); }
       const data = await res.json();
       const result = data.content?.map(b=>b.text||"").join("")||"No se pudo analizar.";
       setAnalisis(result);
