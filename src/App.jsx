@@ -7297,21 +7297,47 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0D0F14", display:"flex", alignItems:"center", justifyContent:"center", padding:20, fontFamily:"'DM Sans',system-ui,sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');*{box-sizing:border-box}input:focus{outline:none}`}</style>
+    <div style={{ minHeight:"100dvh", background:"#0D0F14", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:"'DM Sans',system-ui,sans-serif", overflowY:"auto" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
+        * { box-sizing: border-box; }
+        input:focus { outline: none; }
+        .login-wrap { width: 100%; max-width: 400px; }
+        .login-logo { text-align: center; margin-bottom: 36px; }
+        .login-logo-icon { width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg,#00C9A7,#845EF7); display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 14px; box-shadow: 0 8px 32px rgba(0,201,167,0.35), 0 0 0 1px rgba(255,255,255,0.06); }
+        .login-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 28px 28px 24px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 24px 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); }
+        .login-btn { width: 100%; background: linear-gradient(135deg,#00C9A7,#845EF7); border: none; border-radius: 12px; padding: 15px; font-size: 15px; color: white; cursor: pointer; font-weight: 700; margin-top: 4px; font-family: inherit; transition: opacity 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(0,201,167,0.3); }
+        .login-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+        .login-btn:active { transform: scale(0.97); }
+        /* Landscape: layout horizontal logo + card */
+        @media (max-height: 500px) and (orientation: landscape) {
+          .login-wrap { max-width: 680px; display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; }
+          .login-logo { margin-bottom: 0; }
+          .login-logo-icon { width: 56px; height: 56px; font-size: 28px; border-radius: 16px; }
+          .login-logo h1 { font-size: 18px !important; }
+          .login-logo p { font-size: 11px !important; }
+          .login-card { padding: 20px 22px; border-radius: 16px; }
+          .login-footer { display: none; }
+        }
+        /* Pantallas muy pequeñas */
+        @media (max-width: 360px) {
+          .login-card { padding: 20px 16px; }
+          .login-logo { margin-bottom: 24px; }
+        }
+      `}</style>
 
-      <div style={{ width:"100%", maxWidth:400 }}>
+      <div className="login-wrap">
         {/* Logo */}
-        <div style={{ textAlign:"center", marginBottom:40 }}>
-          <div style={{ width:70, height:70, borderRadius:20, background:"linear-gradient(135deg,#00C9A7,#845EF7)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 16px" }}>🍋</div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:"white", letterSpacing:-0.5 }}>Tierra Prometida Trading</div>
-          <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginTop:4 }}>Sistema de gestión — JARVIS</div>
+        <div className="login-logo">
+          <div className="login-logo-icon">🍋</div>
+          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:"white", letterSpacing:-0.5, margin:0 }}>Tierra Prometida Trading</h1>
+          <p style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:5, margin:"5px 0 0" }}>Sistema de gestión — JARVIS</p>
         </div>
 
         {/* Card */}
-        <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:32 }}>
-          <div style={{ fontSize:16, fontWeight:700, color:"white", marginBottom:6 }}>Bienvenido 👋</div>
-          <div style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:24 }}>Ingresa tus datos para continuar</div>
+        <div className="login-card">
+          <div style={{ fontSize:16, fontWeight:700, color:"white", marginBottom:4 }}>Bienvenido 👋</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginBottom:20 }}>Ingresa tus datos para continuar</div>
 
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
@@ -7321,6 +7347,7 @@ function LoginScreen({ onLogin }) {
                 onChange={e => { setNombre(e.target.value); setError(""); }}
                 onKeyDown={e => e.key === "Enter" && intentarLogin()}
                 placeholder="Tu nombre completo"
+                autoComplete="name"
                 style={inp}
               />
             </div>
@@ -7333,30 +7360,32 @@ function LoginScreen({ onLogin }) {
                   onChange={e => { setCedula(e.target.value); setError(""); }}
                   onKeyDown={e => e.key === "Enter" && intentarLogin()}
                   placeholder="Tu número de cédula"
-                  style={{ ...inp, paddingRight: 44 }}
+                  autoComplete="current-password"
+                  inputMode="numeric"
+                  style={{ ...inp, paddingRight: 46 }}
                 />
-                <button onClick={() => setShowPass(!showPass)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:16 }}>
+                <button
+                  onClick={() => setShowPass(!showPass)}
+                  style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:18, lineHeight:1, padding:4, minWidth:32, minHeight:32, display:"flex", alignItems:"center", justifyContent:"center" }}
+                >
                   {showPass ? "🙈" : "👁"}
                 </button>
               </div>
             </div>
 
             {error && (
-              <div style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:8, padding:"10px 12px", fontSize:12, color:"#FF6B6B" }}>
-                ⚠️ {error}
+              <div style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:9, padding:"10px 12px", fontSize:13, color:"#FF6B6B", display:"flex", alignItems:"center", gap:8 }}>
+                <span>⚠️</span> {error}
               </div>
             )}
 
-            <button onClick={intentarLogin} style={{
-              background:"linear-gradient(135deg,#00C9A7,#845EF7)", border:"none", borderRadius:12,
-              padding:"14px", fontSize:14, color:"white", cursor:"pointer", fontWeight:700, marginTop:4,
-            }}>
+            <button onClick={intentarLogin} className="login-btn">
               Ingresar al sistema →
             </button>
           </div>
         </div>
 
-        <div style={{ textAlign:"center", marginTop:20, fontSize:11, color:"rgba(255,255,255,0.2)" }}>
+        <div className="login-footer" style={{ textAlign:"center", marginTop:18, fontSize:11, color:"rgba(255,255,255,0.2)" }}>
           Powered by JARVIS 🤖 · Tierra Prometida Trading
         </div>
       </div>
@@ -7674,6 +7703,58 @@ export default function App() {
           }
         }
         .tp-mob-tasa { display: none; }
+
+        /* ── Pantallas muy pequeñas (< 380px) ── */
+        @media (max-width: 379px) {
+          .tp-header-title { font-size: 12px !important; }
+          .tp-hdr-exit { display: none !important; }
+          .tp-mob-card { padding: 6px 9px 9px !important; font-size: 11px !important; }
+        }
+
+        /* ── Landscape móvil (altura < 500px) ── */
+        @media (max-height: 500px) and (orientation: landscape) {
+          .tp-app { padding: 0 0 8px 0 !important; }
+
+          .tp-header {
+            padding: 5px 12px !important;
+            position: sticky;
+            top: 0;
+            z-index: 200;
+          }
+          .tp-header-title { font-size: 13px !important; }
+          .tp-header-sub   { display: none !important; }
+
+          /* Nav horizontal más compacto */
+          .tp-mob-nav {
+            padding: 4px 10px !important;
+            gap: 4px !important;
+          }
+          .tp-mob-card {
+            padding: 4px 10px 6px !important;
+            font-size: 11px !important;
+            border-radius: 7px !important;
+          }
+
+          /* Módulo */
+          .tp-mod-header  { padding: 7px 12px !important; }
+          .tp-module-body { padding: 8px 12px !important; }
+
+          /* Tasa de cambio en landscape: ocultar para ahorrar espacio */
+          .tp-mob-tasa { display: none !important; }
+        }
+
+        /* ── Safe area (iPhone notch / home indicator) ── */
+        @supports (padding: max(0px)) {
+          .tp-mob-nav {
+            padding-left:  max(12px, env(safe-area-inset-left))  !important;
+            padding-right: max(12px, env(safe-area-inset-right)) !important;
+          }
+          @media (max-width: 767px) {
+            .tp-app {
+              padding-bottom: max(32px, calc(32px + env(safe-area-inset-bottom))) !important;
+            }
+          }
+        }
       `}</style>
 
       {/* ── HEADER ── */}
@@ -7701,10 +7782,12 @@ export default function App() {
         return (
           <div className="tp-header" style={{ position:"relative" }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${colorPrincipal},#845EF7)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0 }}>🍋</div>
+              <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${colorPrincipal},#845EF7)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0, boxShadow:`0 4px 12px ${colorPrincipal}40` }}>🍋</div>
               <div style={{ minWidth:0, flex:1 }}>
-                <div className="tp-header-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, letterSpacing:-0.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>🍋 Tierra Prometida Trading</div>
-                <div className="tp-header-sub" style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sistema de gestión — JARVIS</div>
+                <div className="tp-header-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, letterSpacing:-0.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                  {isSmall ? "JARVIS 🍋" : "Tierra Prometida Trading"}
+                </div>
+                <div className="tp-header-sub" style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Sistema de gestión — JARVIS</div>
               </div>
               <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
 
@@ -7922,16 +8005,16 @@ export default function App() {
         </div>
 
         {/* Columna 2 — Área de trabajo */}
-        <div className="tp-mod-container" style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${mod.color}30`, borderRadius:16, overflow:"hidden", boxShadow:`0 0 30px ${mod.color}10`, minWidth:0 }}>
-          <div className="tp-mod-header" style={{ padding:"14px 18px", borderBottom:`1px solid ${mod.color}20`, display:"flex", alignItems:"center", gap:10, background:`${mod.color}08` }}>
-            <span style={{ fontSize:22 }}>{mod.icon}</span>
-            <div>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, color:"white" }}>{mod.title}</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Tierra Prometida Trading 🍋</div>
+        <div className="tp-mod-container" style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${mod.color}30`, borderRadius:16, overflow: isMobile ? "visible" : "hidden", boxShadow:`0 0 30px ${mod.color}10`, minWidth:0 }}>
+          <div className="tp-mod-header" style={{ padding:"12px 16px", borderBottom:`1px solid ${mod.color}20`, display:"flex", alignItems:"center", gap:10, background:`${mod.color}08` }}>
+            <span style={{ fontSize:20 }}>{mod.icon}</span>
+            <div style={{ minWidth:0, flex:1 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, color:"white", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{mod.title}</div>
+              {!isMobile && <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Tierra Prometida Trading 🍋</div>}
             </div>
-            <div style={{ marginLeft:"auto", width:8, height:8, borderRadius:"50%", background:mod.color, boxShadow:`0 0 8px ${mod.color}` }} />
+            <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0, background:mod.color, boxShadow:`0 0 8px ${mod.color}` }} />
           </div>
-          <div className="tp-module-body" style={{ padding: isMobile ? 12 : 18 }}>
+          <div className="tp-module-body" style={{ padding: isMobile ? 12 : 18, overflowX:"hidden" }}>
             {renderDemo(mod.demo)}
           </div>
         </div>

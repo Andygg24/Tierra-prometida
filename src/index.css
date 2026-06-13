@@ -9,7 +9,6 @@
 html {
   width: 100%;
   height: 100%;
-  /* clip en lugar de hidden: evita scrollbar sin bloquear scroll en hijos */
   overflow-x: clip;
 }
 
@@ -45,6 +44,22 @@ input[type="month"] {
 
 input:focus, textarea:focus, select:focus {
   outline: none;
+}
+
+/* ── Prevenir zoom automático en iOS al enfocar inputs (requiere ≥ 16px) ── */
+@media (max-width: 767px) {
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Landscape ultra-compacto: overflow manejado por la página ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  html, body {
+    overflow-y: auto;
+  }
 }
 
 ::-webkit-scrollbar {
