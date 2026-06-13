@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import CustomSelect from "./CustomSelect.jsx";
 
 const CALIBRES = [110, 150, 175, 200, 230, 250];
@@ -29,13 +29,15 @@ function initLayout() {
 }
 function fmtDate(d) {
   if (!d) return "";
-  const [y,m,dd] = d.split("-");
-  return `${m}-${dd}-${y}`;
+  const [y, mo, dd] = d.split("-");
+  return `${mo}-${dd}-${y}`;
 }
 
 export default function PackingListTab({ mob }) {
-  // ── Responsive: usa prop del padre O detecta el ancho propio ──
-  const [isMobLocal, setIsMobLocal] = useState(() => typeof window !== "undefined" && window.innerWidth < 680);
+  // ── Detección de ancho (prop padre + detección local) ─────────
+  const [isMobLocal, setIsMobLocal] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 680
+  );
   useEffect(() => {
     const h = () => setIsMobLocal(window.innerWidth < 680);
     window.addEventListener("resize", h);
@@ -45,7 +47,6 @@ export default function PackingListTab({ mob }) {
 
   const hoy = new Date().toISOString().split("T")[0];
 
-  // fontSize 16px en móvil para evitar que iOS haga zoom al enfocar inputs
   const inp = {
     background: "rgba(255,255,255,0.07)",
     border: "1px solid rgba(255,255,255,0.12)",
@@ -65,19 +66,26 @@ export default function PackingListTab({ mob }) {
     fontWeight: 600,
     letterSpacing: 0.3,
   };
-  const card = {
+  const cardStyle = {
     background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(255,255,255,0.07)",
     borderRadius: 10,
     padding: m ? 14 : 10,
   };
 
+  // ── Estado principal ─────────────────────────────────────────
   const [totalCajas, setTotalCajas] = useState(1400);
   const [pallets,    setPallets]    = useState(() => initPallets(1400));
   const [layout,     setLayout]     = useState(initLayout);
-  const [dragPid,    setDragPid]    = useState(null);
-  const [selPid,     setSelPid]     = useState(null);
-  const [swapPid,    setSwapPid]    = useState(null); // móvil: pallet esperando ser intercambiado
+  const [dragPid,    setDragPid]    = useState(null);   // desktop drag
+  const [selPid,     setSelPid]     = useState(null);   // pallet seleccionado para editar
+
+  // ── Touch-drag (móvil) ───────────────────────────────────────
+  // Ref para no perder el estado entre re-renders durante el gesto
+  const tRef = useRef({ pid: null, startX: 0, startY: 0, dragging: false, overPid: null });
+  const [touchDragPid, setTouchDragPid] = useState(null); // visual: quién se arrastra
+  const [touchOverPid, setTouchOverPid] = useState(null); // visual: objetivo bajo el dedo
+
   const [admin, setAdmin] = useState({
     plNo:"", fechaCargue:hoy, container:"", destino:"Philadelphia",
     vessel:"", palletCertICA:"", palletCertPalletNo:"",
@@ -93,7 +101,6 @@ export default function PackingListTab({ mob }) {
     setPallets(initPallets(Number(v)));
     setLayout(initLayout());
     setSelPid(null);
-    setSwapPid(null);
   };
 
   const setPF = (pi, ci, field, val) =>
@@ -115,18 +122,18 @@ export default function PackingListTab({ mob }) {
   const palletById = (pid) => pallets.find(p => p.id === pid);
   const selPalletIdx = selPid !== null ? pallets.findIndex(p => p.id === selPid) : -1;
 
-  // Intercambiar posiciones en el layout
+  // ── Swap de posición en el layout ────────────────────────────
   const swapPositions = (pidA, pidB) => {
     setLayout(prev => {
       const next = { left: [...prev.left], right: [...prev.right] };
-      const findPos = (pid) => {
+      const find = (pid) => {
         const li = next.left.indexOf(pid);
         if (li >= 0) return { col: "left",  idx: li };
         const ri = next.right.indexOf(pid);
         if (ri >= 0) return { col: "right", idx: ri };
         return null;
       };
-      const a = findPos(pidA), b = findPos(pidB);
+      const a = find(pidA), b = find(pidB);
       if (!a || !b) return prev;
       next[a.col][a.idx] = pidB;
       next[b.col][b.idx] = pidA;
@@ -134,6 +141,7 @@ export default function PackingListTab({ mob }) {
     });
   };
 
+  // ── Desktop drag-and-drop ─────────────────────────────────────
   const onDrop = (col, idx) => {
     if (dragPid === null) return;
     setLayout(prev => {
@@ -148,14 +156,57 @@ export default function PackingListTab({ mob }) {
     setDragPid(null);
   };
 
-  const handlePalletTap = (pid) => {
-    if (swapPid !== null) {
-      if (pid !== swapPid) swapPositions(swapPid, pid);
-      setSwapPid(null);
-      setSelPid(null);
+  // ── Touch drag handlers ───────────────────────────────────────
+  const onTouchStartPallet = (e, pid) => {
+    const t = e.touches[0];
+    tRef.current = { pid, startX: t.clientX, startY: t.clientY, dragging: false, overPid: null };
+  };
+
+  const onTouchMovePallet = (e, pid) => {
+    const r = tRef.current;
+    if (r.pid !== pid) return;
+    const t = e.touches[0];
+    const dist = Math.hypot(t.clientX - r.startX, t.clientY - r.startY);
+
+    if (!r.dragging && dist > 8) {
+      r.dragging = true;
+      setTouchDragPid(pid);
+      // vibración háptica si el dispositivo la soporta
+      navigator.vibrate?.([20]);
+    }
+
+    if (r.dragging) {
+      // evitar scroll de página mientras se arrastra
+      e.preventDefault();
+
+      // qué pallet hay bajo el dedo ahora mismo
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      const pidEl = el?.closest("[data-pid]");
+      const over  = pidEl ? Number(pidEl.getAttribute("data-pid")) : null;
+      const overPid = (over && over !== pid) ? over : null;
+
+      if (r.overPid !== overPid) {
+        r.overPid = overPid;
+        setTouchOverPid(overPid);
+      }
+    }
+  };
+
+  const onTouchEndPallet = (e, pid) => {
+    const r = tRef.current;
+    if (r.pid !== pid) return;
+
+    if (r.dragging) {
+      e.preventDefault(); // evitar click fantasma después del drag
+      if (r.overPid) swapPositions(pid, r.overPid);
     } else {
+      // fue un toque rápido → seleccionar para editar
       setSelPid(prev => prev === pid ? null : pid);
     }
+
+    tRef.current = { pid: null, startX: 0, startY: 0, dragging: false, overPid: null };
+    setTouchDragPid(null);
+    setTouchOverPid(null);
   };
 
   const resumen = CALIBRES.map(size => ({
@@ -165,57 +216,80 @@ export default function PackingListTab({ mob }) {
                     .reduce((ss, c) => ss + Number(c.cajas || 0), 0), 0),
   }));
 
-  // ── Pallet card ──────────────────────────────────────────────
+  // ── Tarjeta de pallet ─────────────────────────────────────────
   const renderPallet = (pid, idx, col) => {
     const p = palletById(pid);
     if (!p) return null;
-    const isMixed  = p.calibres.length > 1;
-    const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL[200];
-    const isSel    = selPid   === pid;
-    const isDrag   = dragPid  === pid;
-    const isSwapSrc = swapPid === pid;
-    const isSwapTgt = swapPid !== null && swapPid !== pid;
-    const sum      = palletSum(p);
-    const ok       = sum === cpp;
 
+    const isMixed    = p.calibres.length > 1;
+    const mainCal    = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+    const isSel      = selPid       === pid;
+    const isDragDsk  = dragPid      === pid;  // desktop
+    const isTouchDrg = touchDragPid === pid;  // táctil: yo soy el que se arrastra
+    const isTouchTgt = touchOverPid === pid;  // táctil: soy el objetivo bajo el dedo
+    const sum        = palletSum(p);
+    const ok         = sum === cpp;
+
+    // ── Colores base ──
     let bg, border;
-    if (isSwapSrc) {
-      bg = "rgba(251,191,36,0.25)"; border = "2px solid #FBBF24";
-    } else if (isMixed) {
+    if (isMixed) {
       const stops = p.calibres.map((c, i) => `${COL_CAL[c.size]?.bg || "#888"}${i === 0 ? "55" : "33"}`);
-      bg = `linear-gradient(135deg,${stops.join(",")})`;
+      bg     = `linear-gradient(135deg,${stops.join(",")})`;
       border = isSel ? "2px solid white" : "1px solid rgba(255,255,255,0.25)";
     } else {
-      bg     = isSel ? mainCal.light : isSwapTgt ? "rgba(251,191,36,0.08)" : "rgba(255,255,255,0.05)";
-      border = isSel ? `2px solid ${mainCal.bg}` : isSwapTgt ? "1px dashed rgba(251,191,36,0.5)" : `1px solid ${mainCal.border}`;
+      bg     = isSel ? mainCal.light : "rgba(255,255,255,0.05)";
+      border = isSel ? `2px solid ${mainCal.bg}` : `1px solid ${mainCal.border}`;
+    }
+
+    // Sobreescribir si hay drag táctil activo
+    if (isTouchDrg) {
+      border = "2px solid rgba(255,255,255,0.7)";
+    } else if (isTouchTgt) {
+      bg     = "rgba(34,197,94,0.15)";
+      border = "2px dashed #22C55E";
     }
 
     return (
       <div
         key={pid}
+        data-pid={pid}
+        // Desktop
         draggable={!m}
         onDragStart={() => !m && setDragPid(pid)}
         onDragOver={e => e.preventDefault()}
         onDrop={() => !m && onDrop(col, idx)}
-        onClick={() => handlePalletTap(pid)}
+        onClick={!m ? () => setSelPid(prev => prev === pid ? null : pid) : undefined}
+        // Móvil
+        onTouchStart={m ? (e) => onTouchStartPallet(e, pid) : undefined}
+        onTouchMove={m  ? (e) => onTouchMovePallet(e, pid)  : undefined}
+        onTouchEnd={m   ? (e) => onTouchEndPallet(e, pid)   : undefined}
         style={{
-          background: bg, border, borderRadius: m ? 8 : 6,
-          padding: m ? "8px 6px" : "5px 6px",
-          cursor: swapPid ? "crosshair" : "pointer",
+          background: bg,
+          border,
+          borderRadius: m ? 8 : 6,
+          padding: m ? "8px 7px" : "5px 6px",
+          cursor: touchDragPid ? (isTouchTgt ? "copy" : "grabbing") : "grab",
           position: "relative",
-          opacity: isDrag ? 0.35 : 1,
-          transition: "all 0.15s",
+          opacity: isDragDsk || isTouchDrg ? 0.4 : 1,
+          transition: isTouchDrg || isTouchTgt ? "none" : "all 0.12s",
           minHeight: m ? 64 : 54,
           display: "flex", flexDirection: "column", justifyContent: "space-between",
-          boxShadow: isSel ? "0 0 0 1px rgba(255,255,255,0.3) inset" : isSwapSrc ? "0 0 12px rgba(251,191,36,0.3)" : "none",
+          boxShadow: isTouchTgt
+            ? "0 0 0 3px rgba(34,197,94,0.35)"
+            : isSel
+              ? "0 0 0 1px rgba(255,255,255,0.3) inset"
+              : "none",
+          transform: isTouchDrg ? "scale(0.94)" : isTouchTgt ? "scale(1.04)" : "none",
           WebkitTapHighlightColor: "transparent",
           userSelect: "none",
+          touchAction: "none", // permite preventDefault en touchmove
         }}
       >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <span style={{ fontSize: m ? 10 : 9, fontWeight: 800, color: "rgba(255,255,255,0.55)" }}>P{pid}</span>
           {!ok && <span style={{ fontSize: m ? 9 : 8, color: "#F9A826" }}>⚠</span>}
-          {isSwapSrc && <span style={{ fontSize: 8, color: "#FBBF24" }}>↔</span>}
+          {isTouchDrg && <span style={{ fontSize: 9, color: "white" }}>✥</span>}
+          {isTouchTgt && <span style={{ fontSize: 9, color: "#22C55E" }}>↓</span>}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
           {p.calibres.map((c, ci) => (
@@ -230,14 +304,14 @@ export default function PackingListTab({ mob }) {
             {p.calibres[0].predio}
           </div>
         )}
-        {isSel && !swapPid && (
+        {isSel && !touchDragPid && (
           <div style={{ position:"absolute", bottom:-1, left:"50%", transform:"translateX(-50%)", width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderBottom:"5px solid white" }} />
         )}
       </div>
     );
   };
 
-  // ── Excel ────────────────────────────────────────────────────
+  // ── Excel ─────────────────────────────────────────────────────
   const [generandoExcel, setGenerandoExcel] = useState(false);
 
   const generarExcel = async () => {
@@ -268,7 +342,7 @@ export default function PackingListTab({ mob }) {
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
-      a.href     = url;
+      a.href = url;
       a.download = `Packing-List-${admin.plNo || admin.container || "export"}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
@@ -279,10 +353,11 @@ export default function PackingListTab({ mob }) {
     }
   };
 
-  // ── HTML/PDF ─────────────────────────────────────────────────
+  // ── HTML/PDF ──────────────────────────────────────────────────
   const generarPDF = () => {
     const resHtml = ["250","230","200","175","150","110"].map(s => {
-      const tot = pallets.reduce((sum, p) => sum + p.calibres.filter(c => String(c.size) === s).reduce((ss, c) => ss + Number(c.cajas || 0), 0), 0);
+      const tot = pallets.reduce((sum, p) =>
+        sum + p.calibres.filter(c => String(c.size) === s).reduce((ss, c) => ss + Number(c.cajas || 0), 0), 0);
       return `<tr><td>${s}</td><td style="text-align:right">${tot.toLocaleString("es-CO")}</td></tr>`;
     }).join("") + `<tr class="tot"><td>TOTAL</td><td style="text-align:right">${totalCajas.toLocaleString("es-CO")}</td></tr>`;
 
@@ -310,7 +385,7 @@ export default function PackingListTab({ mob }) {
     URL.revokeObjectURL(u);
   };
 
-  // ── Render ───────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────
   const totalConf  = pallets.reduce((s, p) => s + palletSum(p), 0);
   const todoCuadra = totalConf === totalCajas;
 
@@ -357,38 +432,23 @@ export default function PackingListTab({ mob }) {
       {/* ── Fila 3: datos especiales ── */}
       <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
 
-        {/* Pallet Certificate */}
-        <div style={card}>
+        <div style={cardStyle}>
           <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🏷 PALLET CERTIFICATE ICA</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
-            <div>
-              <div style={lbl}>Número ICA</div>
-              <input value={admin.palletCertICA} onChange={e => sa("palletCertICA", e.target.value)} placeholder="ICA 05-007-26" style={inp} />
-            </div>
-            <div>
-              <div style={lbl}>En pallet #</div>
-              <input type="number" min={1} max={20} value={admin.palletCertPalletNo} onChange={e => sa("palletCertPalletNo", e.target.value)} style={inp} />
-            </div>
+            <div><div style={lbl}>Número ICA</div><input value={admin.palletCertICA} onChange={e => sa("palletCertICA", e.target.value)} placeholder="ICA 05-007-26" style={inp} /></div>
+            <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.palletCertPalletNo} onChange={e => sa("palletCertPalletNo", e.target.value)} style={inp} /></div>
           </div>
         </div>
 
-        {/* Temp Recorder */}
-        <div style={card}>
+        <div style={cardStyle}>
           <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TEMP RECORDER</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
-            <div>
-              <div style={lbl}>Número</div>
-              <input value={admin.tempRecorder} onChange={e => sa("tempRecorder", e.target.value)} placeholder="V1-0041573" style={inp} />
-            </div>
-            <div>
-              <div style={lbl}>En pallet #</div>
-              <input type="number" min={1} max={20} value={admin.tempRecorderPalletNo} onChange={e => sa("tempRecorderPalletNo", e.target.value)} style={inp} />
-            </div>
+            <div><div style={lbl}>Número</div><input value={admin.tempRecorder} onChange={e => sa("tempRecorder", e.target.value)} placeholder="V1-0041573" style={inp} /></div>
+            <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.tempRecorderPalletNo} onChange={e => sa("tempRecorderPalletNo", e.target.value)} style={inp} /></div>
           </div>
         </div>
 
-        {/* Proceso */}
-        <div style={card}>
+        <div style={cardStyle}>
           <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>📦 PROCESO</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6 }}>
             <div>
@@ -423,53 +483,46 @@ export default function PackingListTab({ mob }) {
           </div>
         </div>
 
-        {/* Aviso modo swap */}
-        {swapPid !== null && (
-          <div style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:8, padding:"8px 12px", marginBottom:10, fontSize:12, color:"#FBBF24", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span>↔ Toca otro pallet para intercambiar posición con P{swapPid}</span>
-            <button onClick={() => setSwapPid(null)} style={{ background:"transparent", border:"none", color:"#FBBF24", fontSize:16, cursor:"pointer", padding:"0 4px" }}>✕</button>
+        {/* Banner de drag activo */}
+        {touchDragPid !== null && (
+          <div style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, padding:"7px 12px", marginBottom:10, fontSize:12, color:"rgba(255,255,255,0.7)", textAlign:"center" }}>
+            Arrastrando P{touchDragPid} — suelta sobre otro pallet para intercambiar
           </div>
         )}
 
         {m ? (
-          /* ── MÓVIL: grilla 5×4, sin decoración de camión ── */
+          /* ── MÓVIL: grilla 5×4 sin decoración de camión ── */
           <div>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6, letterSpacing:0.5 }}>◀ FONDO — LADO IZQUIERDO (IZQ)</div>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6 }}>◀ FONDO — LADO IZQUIERDO</div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6, marginBottom:6 }}>
               {layout.left.map((pid, idx) => renderPallet(pid, idx, "left"))}
             </div>
-            <div style={{ height:6, background:"rgba(255,255,255,0.04)", borderRadius:3, margin:"4px 0 6px", border:"1px solid rgba(255,255,255,0.06)" }} />
+            <div style={{ height:5, background:"rgba(255,255,255,0.04)", borderRadius:3, margin:"2px 0 6px", border:"1px solid rgba(255,255,255,0.06)" }} />
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6 }}>
               {layout.right.map((pid, idx) => renderPallet(pid, idx, "right"))}
             </div>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right", marginTop:6, letterSpacing:0.5 }}>LADO DERECHO (DER) — PUERTA ▶</div>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right", marginTop:6 }}>LADO DERECHO — PUERTA ▶</div>
           </div>
         ) : (
           /* ── DESKTOP: camión visual completo ── */
           <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
-            {/* Cabina */}
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginRight:6 }}>
               <div style={{ display:"flex", gap:3, marginBottom:4 }}>
-                <div style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />
-                <div style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />
+                {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
               </div>
               <div style={{ width:52, background:"linear-gradient(180deg,#3a3a3a,#1f1f1f)", border:"2px solid #555", borderRadius:"8px 4px 4px 8px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"8px 4px", flex:1, gap:4 }}>
                 <div style={{ fontSize:18 }}>🚛</div>
                 <div style={{ fontSize:7, color:"rgba(255,255,255,0.4)", textAlign:"center", lineHeight:1.2 }}>TIERRA<br />PROM.</div>
               </div>
               <div style={{ display:"flex", gap:3, marginTop:4 }}>
-                <div style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />
-                <div style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />
+                {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
               </div>
             </div>
-
-            {/* Cuerpo del contenedor */}
             <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
               <div style={{ display:"flex", justifyContent:"space-around", marginBottom:4, paddingLeft:20, paddingRight:20 }}>
                 {[0,1,2,3,4].map(i => (
                   <div key={i} style={{ display:"flex", gap:2 }}>
-                    <div style={{ width:8, height:12, background:"#333", borderRadius:"3px 3px 0 0", border:"1px solid #555" }} />
-                    <div style={{ width:8, height:12, background:"#333", borderRadius:"3px 3px 0 0", border:"1px solid #555" }} />
+                    {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"3px 3px 0 0", border:"1px solid #555" }} />)}
                   </div>
                 ))}
               </div>
@@ -498,108 +551,69 @@ export default function PackingListTab({ mob }) {
               <div style={{ display:"flex", justifyContent:"space-around", marginTop:4, paddingLeft:20, paddingRight:20 }}>
                 {[0,1,2,3,4].map(i => (
                   <div key={i} style={{ display:"flex", gap:2 }}>
-                    <div style={{ width:8, height:12, background:"#333", borderRadius:"0 0 3px 3px", border:"1px solid #555" }} />
-                    <div style={{ width:8, height:12, background:"#333", borderRadius:"0 0 3px 3px", border:"1px solid #555" }} />
+                    {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"0 0 3px 3px", border:"1px solid #555" }} />)}
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Puerta */}
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginLeft:6 }}>
               <div style={{ width:18, background:"linear-gradient(180deg,#2a2a2a,#1a1a1a)", border:"2px solid #555", borderRadius:"2px 6px 6px 2px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"6px 2px", flex:1, gap:6 }}>
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} style={{ width:4, height:4, background:"#666", borderRadius:"50%" }} />
-                ))}
+                {[...Array(6)].map((_, i) => <div key={i} style={{ width:4, height:4, background:"#666", borderRadius:"50%" }} />)}
               </div>
             </div>
           </div>
         )}
 
         <div style={{ fontSize: m ? 11 : 8, color:"rgba(255,255,255,0.2)", textAlign:"center", marginTop: m ? 10 : 8 }}>
-          {m ? "Toca un pallet para editarlo · Usa ↔ para cambiar posición" : "Clic para editar · Arrastra para cambiar posición"}
+          {m
+            ? "Toca para editar · Mantén presionado y arrastra para cambiar posición"
+            : "Clic para editar · Arrastra para cambiar posición"}
         </div>
       </div>
 
-      {/* ── Panel de edición del pallet seleccionado ── */}
-      {selPid !== null && selPalletIdx >= 0 && swapPid === null && (() => {
+      {/* ── Panel de edición ── */}
+      {selPid !== null && selPalletIdx >= 0 && (() => {
         const p   = pallets[selPalletIdx];
         const sum = palletSum(p);
         const ok  = sum === cpp;
         return (
           <div style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:12, padding: m ? 16 : 14, marginBottom: m ? 14 : 12 }}>
-            {/* Header del panel */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 14 : 12 }}>
               <div style={{ fontSize: m ? 14 : 12, fontWeight:700, color:"#a5b4fc" }}>
                 ✏️ Pallet {selPid}
                 {!ok && <span style={{ color:"#F9A826", fontSize: m ? 12 : 10, marginLeft:8 }}>⚠ {sum}/{cpp}</span>}
                 {ok  && <span style={{ color:"#00C9A7", fontSize: m ? 12 : 10, marginLeft:8 }}>✓ Cuadra</span>}
               </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                {/* Botón cambiar posición (visible siempre, útil en móvil) */}
-                <button
-                  onClick={() => { setSwapPid(selPid); setSelPid(null); }}
-                  style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:8, padding: m ? "8px 12px" : "5px 10px", color:"#FBBF24", cursor:"pointer", fontSize: m ? 13 : 11, fontWeight:600, whiteSpace:"nowrap" }}
-                >
-                  ↔ Mover
-                </button>
-                <button
-                  onClick={() => setSelPid(null)}
-                  style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 22 : 16, lineHeight:1, padding:"4px 6px", minWidth: m ? 40 : 28, minHeight: m ? 40 : 28 }}
-                >
-                  ✕
-                </button>
-              </div>
+              <button
+                onClick={() => setSelPid(null)}
+                style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 24 : 16, lineHeight:1, padding:"4px 8px", minWidth: m ? 44 : 28, minHeight: m ? 44 : 28 }}
+              >✕</button>
             </div>
 
-            {/* Calibres */}
             {p.calibres.map((c, ci) => (
-              <div
-                key={ci}
-                style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[c.size]?.border || "rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 14 : 10, marginBottom:10 }}
-              >
+              <div key={ci} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[c.size]?.border || "rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 14 : 10, marginBottom:10 }}>
                 {m ? (
-                  /* MÓVIL: stack vertical 2+2 con botón al final */
                   <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                       <div>
                         <div style={lbl}>Calibre / Size</div>
-                        <CustomSelect
-                          value={c.size}
-                          onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))}
-                          style={{ ...inp, background: COL_CAL[c.size]?.light || "rgba(255,255,255,0.07)", cursor:"pointer" }}
-                        >
+                        <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background: COL_CAL[c.size]?.light || "rgba(255,255,255,0.07)", cursor:"pointer" }}>
                           {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
                         </CustomSelect>
                       </div>
                       <div>
                         <div style={lbl}>N° Cajas</div>
-                        <input
-                          type="number" inputMode="numeric" min={0}
-                          value={c.cajas}
-                          onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)}
-                          style={inp}
-                        />
+                        <input type="number" inputMode="numeric" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} />
                       </div>
                     </div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                       <div>
                         <div style={lbl}>Predio</div>
-                        <input
-                          value={c.predio}
-                          onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)}
-                          placeholder="Nombre del predio"
-                          style={inp}
-                        />
+                        <input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} />
                       </div>
                       <div>
                         <div style={lbl}>Registro ICA</div>
-                        <input
-                          value={c.ica}
-                          onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)}
-                          placeholder="980005905"
-                          style={inp}
-                        />
+                        <input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} />
                       </div>
                     </div>
                     <div>
@@ -610,15 +624,10 @@ export default function PackingListTab({ mob }) {
                     </div>
                   </div>
                 ) : (
-                  /* DESKTOP: fila horizontal */
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 1fr 1fr auto", gap:8, alignItems:"end" }}>
                     <div>
                       <div style={lbl}>Calibre / Size</div>
-                      <CustomSelect
-                        value={c.size}
-                        onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))}
-                        style={{ ...inp, background: COL_CAL[c.size]?.light || "rgba(255,255,255,0.07)", cursor:"pointer" }}
-                      >
+                      <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background: COL_CAL[c.size]?.light || "rgba(255,255,255,0.07)", cursor:"pointer" }}>
                         {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
                       </CustomSelect>
                     </div>
@@ -646,7 +655,7 @@ export default function PackingListTab({ mob }) {
             ))}
 
             <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.25)", marginTop:4 }}>
-              Peso/caja: {PESO_STR} (fijo) · LIMON TAHITI · Categoría 1
+              Peso/caja: {PESO_STR} · LIMON TAHITI · Categoría 1
             </div>
           </div>
         );
@@ -654,17 +663,10 @@ export default function PackingListTab({ mob }) {
 
       {/* ── Botones de descarga ── */}
       <div style={{ display:"flex", flexDirection: m ? "column" : "row", gap: m ? 10 : 8, paddingTop: m ? 14 : 12, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-        <button
-          onClick={generarExcel}
-          disabled={generandoExcel}
-          style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}
-        >
+        <button onClick={generarExcel} disabled={generandoExcel} style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
           {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
         </button>
-        <button
-          onClick={generarPDF}
-          style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}
-        >
+        <button onClick={generarPDF} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
           📄 Descargar PDF (Administrativo)
         </button>
       </div>
