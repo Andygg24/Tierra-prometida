@@ -159,46 +159,56 @@ export default function PackingListTab({ mob }) {
     );
   };
 
-  // ── Excel ────────────────────────────────────────────────────
-  const generarExcel = () => {
-    const wb=XLSX.utils.book_new(), ws={}, merges=[];
-    const ec=(r,c)=>XLSX.utils.encode_cell({r,c});
-    const sc=(r,c,v,t)=>{ws[ec(r,c)]={v,t:t||(typeof v==="number"?"n":"s")};};
+  // ── Excel — usa molde de la empresa vía backend ──────────────
+  const [generandoExcel, setGenerandoExcel] = useState(false);
 
-    sc(1,0,`TIERRA PROMETIDA TRADING SAS.\nBARRANQUILLA - ATLANTICO\noperaciones@tierraprometidat.com\nPacking List No. ${admin.plNo}`);
-    merges.push({s:{c:0,r:1},e:{c:8,r:1}});
+  const generarExcel = async () => {
+    setGenerandoExcel(true);
+    try {
+      const payload = {
+        plNo:              admin.plNo,
+        destino:           admin.destino,
+        fechaCargue:       admin.fechaCargue,
+        empresaTransporte: admin.empresaTransporte,
+        placa:             admin.placa,
+        tempRecorder:      admin.tempRecorder,
+        finalStamps:       admin.finalStamps,
+        totalCajas,
+        pallets: pallets.map(p => ({
+          id:       p.id,
+          calibres: p.calibres.map(c => ({
+            size:   Number(c.size),
+            cajas:  Number(c.cajas || 0),
+            predio: c.predio || "",
+            ica:    String(c.ica || ""),
+          })),
+        })),
+      };
 
-    const C4=[[0,2],[3,4],[5,6],[7,8]];
-    [{r:3,lbls:["PUERTO DE SALIDA","PUERTO DE DESTINO","TOTAL CAJAS","TOTAL PALLETS"],vals:["CARTAGENA",admin.destino.toUpperCase(),totalCajas,20]},
-     {r:5,lbls:["PESO BRUTO","PESO NETO","EMPRESA TRANSPOR","PLACA"],vals:[totalCajas*PESO_KG,totalCajas*PESO_KG,admin.empresaTransporte,admin.placa]},
-     {r:7,lbls:["DEAL","DATALLOGERS 1","FECHA DE CARGUE","SEALS"],vals:[admin.plNo,admin.tempRecorder,fmtDate(admin.fechaCargue),admin.finalStamps]},
-    ].forEach(({r,lbls,vals})=>{
-      lbls.forEach((l,i)=>{sc(r,C4[i][0],l);merges.push({s:{c:C4[i][0],r},e:{c:C4[i][1],r}});});
-      vals.forEach((v,i)=>{sc(r+1,C4[i][0],v);merges.push({s:{c:C4[i][0],r:r+1},e:{c:C4[i][1],r:r+1}});});
-    });
-
-    ["Pallet No.","Peso / caja","Size","Product","Category","No. Boxes","Predio","Cantidad","Registro"].forEach((h,c)=>sc(9,c,h));
-
-    let row=10;
-    pallets.forEach(p=>{
-      const sr=row;
-      p.calibres.forEach((c,ci)=>{
-        if(ci===0){sc(row,0,p.id,"n");sc(row,1,PESO_STR);}
-        sc(row,2,Number(c.size),"n"); sc(row,3,"LIMON TAHITI"); sc(row,4,1,"n");
-        sc(row,5,Number(c.cajas||0),"n"); sc(row,6,c.predio);
-        sc(row,7,Number(c.cajas||0),"n"); sc(row,8,String(c.ica));
-        row++;
+      const res = await fetch("http://localhost:3001/api/packing-list", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
       });
-      if(p.calibres.length>1){
-        merges.push({s:{c:0,r:sr},e:{c:0,r:row-1}});
-        merges.push({s:{c:1,r:sr},e:{c:1,r:row-1}});
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        alert("Error generando Excel: " + (err.error || res.statusText));
+        return;
       }
-    });
-    ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:row,c:8}});
-    ws["!merges"]=merges;
-    ws["!cols"]=[{wch:7},{wch:10},{wch:9},{wch:13},{wch:12},{wch:9},{wch:17},{wch:10},{wch:14}];
-    XLSX.utils.book_append_sheet(wb,ws,"Table 1");
-    XLSX.writeFile(wb,`Packing_List_${admin.container||"XXXX"}.xlsx`);
+
+      const blob     = await res.blob();
+      const url      = URL.createObjectURL(blob);
+      const a        = document.createElement("a");
+      a.href         = url;
+      a.download     = `Packing-List-${admin.plNo || admin.container || "export"}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("No se pudo conectar al servidor backend: " + e.message);
+    } finally {
+      setGenerandoExcel(false);
+    }
   };
 
   // ── HTML/PDF ─────────────────────────────────────────────────
@@ -502,9 +512,9 @@ export default function PackingListTab({ mob }) {
 
       {/* ── Botones ── */}
       <div style={{display:"flex",gap:8,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
-        <button onClick={generarExcel}
-          style={{flex:1,background:"linear-gradient(135deg,#22C55E,#16A34A)",border:"none",borderRadius:10,padding:"11px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>
-          📊 Descargar Excel (Planta)
+        <button onClick={generarExcel} disabled={generandoExcel}
+          style={{flex:1,background:"linear-gradient(135deg,#22C55E,#16A34A)",border:"none",borderRadius:10,padding:"11px",fontSize:12,color:"white",cursor:generandoExcel?"wait":"pointer",fontWeight:700,opacity:generandoExcel?0.7:1}}>
+          {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
         </button>
         <button onClick={generarPDF}
           style={{flex:1,background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)",border:"none",borderRadius:10,padding:"11px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>
