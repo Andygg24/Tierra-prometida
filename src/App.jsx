@@ -7445,13 +7445,13 @@ export default function App() {
     if (idx >= 0) setActiveModule(idx);
   };
 
-  // Filtrar módulos según permisos del usuario ([] = acceso total)
-  const modulosVisibles = !usuario.permisos?.length
-    ? MODULES
-    : MODULES.filter(m => {
-        const title = m.title === "Config." ? "Configuración" : m.title;
-        return usuario.permisos.includes(title);
-      });
+  // Verificar si el usuario tiene acceso a un módulo ([] = acceso total)
+  const tieneAcceso = (m) => {
+    if (!usuario.permisos?.length) return true;
+    const title = m.title === "Config." ? "Configuración" : m.title;
+    return usuario.permisos.includes(title);
+  };
+  const modulosVisibles = MODULES;
 
   const mod = MODULES[activeModule];
 
@@ -7895,29 +7895,33 @@ export default function App() {
         {modulosVisibles.map((m) => {
           const i = MODULES.indexOf(m);
           const isActive = activeModule === i;
+          const acceso = tieneAcceso(m);
           return (
             <button
               key={i}
               className="tp-mob-card"
-              onClick={() => setActiveModule(i)}
+              onClick={() => { if (acceso) setActiveModule(i); }}
               style={{
-                background: isActive
+                background: !acceso ? "rgba(255,255,255,0.02)" : isActive
                   ? `linear-gradient(145deg, ${m.color}35 0%, ${m.color}18 100%)`
                   : "rgba(255,255,255,0.04)",
-                border: `1px solid ${isActive ? m.color+"60" : "rgba(255,255,255,0.07)"}`,
-                borderTop: `2px solid ${isActive ? m.color : m.color+"35"}`,
-                color: isActive ? m.color : "rgba(255,255,255,0.45)",
-                boxShadow: isActive
+                border: `1px solid ${isActive && acceso ? m.color+"60" : "rgba(255,255,255,0.07)"}`,
+                borderTop: `2px solid ${isActive && acceso ? m.color : m.color+"35"}`,
+                color: !acceso ? "rgba(255,255,255,0.2)" : isActive ? m.color : "rgba(255,255,255,0.45)",
+                boxShadow: isActive && acceso
                   ? `0 8px 24px ${m.color}35, 0 0 0 1px ${m.color}20, inset 0 1px 0 ${m.color}20`
                   : "0 2px 8px rgba(0,0,0,0.35)",
-                transform: isActive && !isMobile ? "translateY(-3.5px) scale(1.06)" : "none",
+                transform: isActive && !isMobile && acceso ? "translateY(-3.5px) scale(1.06)" : "none",
                 backdropFilter: "blur(10px)",
                 WebkitBackdropFilter: "blur(10px)",
+                cursor: acceso ? "pointer" : "not-allowed",
+                opacity: acceso ? 1 : 0.45,
+                position: "relative",
               }}
             >
-              <span style={{ fontSize: isMobile ? 15 : 17 }}>{m.icon}</span>
+              <span style={{ fontSize: isMobile ? 15 : 17 }}>{acceso ? m.icon : "🔒"}</span>
               <span>{m.title}</span>
-              {isActive && (
+              {isActive && acceso && (
                 <div style={{
                   position:"absolute", bottom:4, left:"50%", transform:"translateX(-50%)",
                   width:18, height:3, borderRadius:2,
@@ -7959,52 +7963,63 @@ export default function App() {
               ? `0 22px 64px ${m.color}42, 0 8px 28px rgba(0,0,0,0.65), ${depthShadow}`
               : depthShadow;
 
+            const acceso = tieneAcceso(m);
             return (
               <div
                 key={i}
                 className="tp-stack-card"
                 style={{
-                  background: `linear-gradient(140deg, rgba(14,16,26,0.96) 0%, ${m.color}20 100%)`,
+                  background: acceso
+                    ? `linear-gradient(140deg, rgba(14,16,26,0.96) 0%, ${m.color}20 100%)`
+                    : `linear-gradient(140deg, rgba(14,16,26,0.96) 0%, rgba(60,60,80,0.18) 100%)`,
                   backdropFilter:       "blur(14px)",
                   WebkitBackdropFilter: "blur(14px)",
                   border:    `1px solid rgba(255,255,255,${isActive ? 0.10 : 0.04})`,
-                  borderTop: `2px solid ${isActive ? m.color : m.color+"70"}`,
-                  boxShadow,
+                  borderTop: `2px solid ${acceso ? (isActive ? m.color : m.color+"70") : "rgba(255,255,255,0.12)"}`,
+                  boxShadow: acceso ? boxShadow : depthShadow,
                   transform,
-                  opacity: isDim ? 0.60 : 1,
+                  opacity: acceso ? (isDim ? 0.60 : 1) : 0.45,
                   zIndex:  isActive || isHov ? 50 : MODULES.length - i,
                   marginBottom: 4,
-                  // CSS custom props for animated gradient border
+                  cursor: acceso ? "pointer" : "not-allowed",
                   "--card-c1": m.color,
                   "--card-c2": m.color + "66",
                 }}
                 onMouseEnter={() => setHoveredCard(i)}
-                onClick={e => { setActiveModule(i); triggerRipple(i, e); }}
+                onClick={e => { if (acceso) { setActiveModule(i); triggerRipple(i, e); } }}
               >
                 {/* Animated gradient border ring (active only) */}
-                {isActive && <div className="tp-card-active-wrap" />}
+                {isActive && acceso && <div className="tp-card-active-wrap" />}
 
                 {/* Shimmer sweep on hover */}
-                <div className="tp-card-shimmer" />
+                {acceso && <div className="tp-card-shimmer" />}
 
                 {/* Click ripple particles */}
-                {ripples.filter(r => r.cardIdx === i).map(r => (
+                {acceso && ripples.filter(r => r.cardIdx === i).map(r => (
                   <div key={r.id} className="tp-card-ripple" style={{ left:r.x, top:r.y, background:`${m.color}55` }} />
                 ))}
 
+                {/* Overlay bloqueado */}
+                {!acceso && (
+                  <div style={{ position:"absolute", inset:0, borderRadius:"inherit", background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", gap:5, zIndex:2 }}>
+                    <span style={{ fontSize:11 }}>🔒</span>
+                    <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.45)", letterSpacing:0.5 }}>BLOQUEADO</span>
+                  </div>
+                )}
+
                 {/* Content */}
-                <span style={{ fontSize:21, flexShrink:0, filter: isActive || isHov ? `drop-shadow(0 0 6px ${m.color})` : "none", transition:"filter 0.3s" }}>{m.icon}</span>
+                <span style={{ fontSize:21, flexShrink:0, filter: acceso && (isActive || isHov) ? `drop-shadow(0 0 6px ${m.color})` : "none", transition:"filter 0.3s" }}>{m.icon}</span>
                 <span style={{
                   fontSize:13, fontWeight:700, lineHeight:1.2,
-                  color: isActive ? m.color : isHov ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.62)",
+                  color: !acceso ? "rgba(255,255,255,0.25)" : isActive ? m.color : isHov ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.62)",
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
                   flex:1, letterSpacing:0.2,
                   transition:"color 0.2s ease",
-                  textShadow: isActive ? `0 0 12px ${m.color}80` : "none",
+                  textShadow: isActive && acceso ? `0 0 12px ${m.color}80` : "none",
                 }}>{m.title}</span>
 
                 {/* Active pulse dot */}
-                {isActive && (
+                {isActive && acceso && (
                   <div style={{
                     width:7, height:7, borderRadius:"50%", flexShrink:0,
                     background: m.color,
