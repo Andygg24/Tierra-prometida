@@ -6659,7 +6659,11 @@ function ConfigForm({ config, guardar }) {
   const logoRef = useRef(null);
 
   const load = (k, def) => config[k] ?? def;
-  const save = (k, data, msg) => { guardar(k, data); showToast(msg || "Cambios guardados ✓"); };
+  const save = async (k, data, msg) => {
+    const { error } = await guardar(k, data);
+    if (error) { showToast("Error al guardar: " + error.message, false); return; }
+    showToast(msg || "Cambios guardados ✓");
+  };
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
   // ── State por tab ──
@@ -7273,14 +7277,14 @@ const USUARIOS = [
 ];
 
 // ─── PANTALLA DE LOGIN ─────────────────────────────────────────
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, usuarios = USUARIOS }) {
   const [cedula, setCedula] = useState("");
   const [nombre, setNombre] = useState("");
   const [error, setError] = useState("");
   const [showPass, setShowPass] = useState(false);
 
   const intentarLogin = () => {
-    const user = USUARIOS.find(u =>
+    const user = usuarios.find(u =>
       u.nombre.toLowerCase().trim() === nombre.toLowerCase().trim() &&
       u.cedula === cedula.trim()
     );
@@ -7432,7 +7436,8 @@ export default function App() {
   };
 
   // Mostrar login si no hay sesión
-  if (!usuario) return <LoginScreen onLogin={setUsuario} />;
+  const usuariosLogin = cfgApp.cfg_usuarios?.length ? cfgApp.cfg_usuarios : USUARIOS;
+  if (!usuario) return <LoginScreen onLogin={setUsuario} usuarios={usuariosLogin} />;
 
   // Navegar a módulo por id (usado desde InicioDemo)
   const navigateToModule = (moduleId) => {

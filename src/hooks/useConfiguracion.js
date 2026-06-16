@@ -35,7 +35,7 @@ export function useConfiguracion() {
 
   // ── Mutación
   const guardar = useCallback(async (clave, valor) => {
-    await supabase.from("configuracion").upsert(
+    return await supabase.from("configuracion").upsert(
       { clave, valor, updated_at: new Date().toISOString() },
       { onConflict: "clave" }
     );
