@@ -7445,6 +7445,13 @@ export default function App() {
     if (idx >= 0) setActiveModule(idx);
   };
 
+  // Filtrar módulos según permisos del usuario ([] = acceso total)
+  const modulosVisibles = !usuario.permisos?.length
+    ? MODULES
+    : MODULES.filter(m => {
+        const title = m.title === "Config." ? "Configuración" : m.title;
+        return usuario.permisos.includes(title);
+      });
 
   const mod = MODULES[activeModule];
 
@@ -7885,7 +7892,8 @@ export default function App() {
 
       {/* ── NAVEGACIÓN MÓVIL — premium spring cards ── */}
       <div className="tp-mob-nav">
-        {MODULES.map((m, i) => {
+        {modulosVisibles.map((m) => {
+          const i = MODULES.indexOf(m);
           const isActive = activeModule === i;
           return (
             <button
@@ -7932,7 +7940,8 @@ export default function App() {
 
         {/* Columna 1 — Stacked folder cards */}
         <div className="tp-sidebar" onMouseLeave={() => setHoveredCard(null)}>
-          {MODULES.map((m, i) => {
+          {modulosVisibles.map((m) => {
+            const i = MODULES.indexOf(m);
             const isActive  = activeModule === i;
             const isHov     = hoveredCard  === i;
             const isDim     = hoveredCard !== null && hoveredCard !== i && !isActive;
