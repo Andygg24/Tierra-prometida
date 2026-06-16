@@ -113,7 +113,6 @@ export function useInventario(seedData = []) {
 
   const agregarItem = useCallback(async (nuevoItem) => {
     const row = {
-      id:        nuevoItem.id || Date.now(),
       nombre:    nuevoItem.nombre,
       cant:      Number(nuevoItem.cant || 0),
       unidad:    nuevoItem.unidad || "UNIDADES",
