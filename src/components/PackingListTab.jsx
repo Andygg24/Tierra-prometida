@@ -66,9 +66,10 @@ export default function PackingListTab({ mob }) {
   const [fase, setFase] = useState(1);
 
   // ── Estado Fase 1: pallets + edición ────────────────────────
-  const [totalCajas, setTotalCajas] = useState(1400);
-  const [pallets,    setPallets]    = useState(() => initPallets(1400));
-  const [selPid,     setSelPid]     = useState(null);
+  const [totalCajas,  setTotalCajas]  = useState(1400);
+  const [cajasInput,  setCajasInput]  = useState("1400");
+  const [pallets,     setPallets]     = useState(() => initPallets(1400));
+  const [selPid,      setSelPid]      = useState(null);
 
   // ── Estado Fase 2: layout camión ─────────────────────────────
   const [layoutCamion,    setLayoutCamion]    = useState(initLayout);
@@ -86,17 +87,25 @@ export default function PackingListTab({ mob }) {
   // ── Datos administrativos ────────────────────────────────────
   const [admin, setAdmin] = useState({
     plNo:"", fechaCargue:hoy, container:"", destino:"Philadelphia",
-    vessel:"", palletCertICA:"", palletCertPalletNo:"",
+    vessel:"", palletCerts:[{ ica:"", palletNo:"" }],
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"",
   });
   const sa = (k, v) => setAdmin(a => ({ ...a, [k]: v }));
+  const setPalletCert   = (i, field, val) =>
+    setAdmin(a => ({ ...a, palletCerts: a.palletCerts.map((c, ci) => ci !== i ? c : { ...c, [field]: val }) }));
+  const addPalletCert   = ()  =>
+    setAdmin(a => ({ ...a, palletCerts: [...a.palletCerts, { ica:"", palletNo:"" }] }));
+  const removePalletCert = (i) =>
+    setAdmin(a => ({ ...a, palletCerts: a.palletCerts.filter((_, ci) => ci !== i) }));
 
   const cpp = Math.floor(totalCajas / 20);
 
   const changeTotalCajas = (v) => {
     const n = Number(v);
+    if (!n || n <= 0) return;
     setTotalCajas(n);
+    setCajasInput(String(n));
     setPallets(initPallets(n));
     setLayoutCamion(initLayout());
     setLayout(initLayout());
@@ -445,7 +454,7 @@ export default function PackingListTab({ mob }) {
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>PL ${admin.container}</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:24px;font-size:11px;background:#fff}h2{text-align:center;font-size:20px;font-weight:800;margin-bottom:16px}.hdr{display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr;border:2px solid #1a5c1a;margin-bottom:16px}.hl{background:#1a5c1a;color:#fff;font-weight:700;padding:7px 10px}.hv{padding:7px 10px;font-weight:700}.wrap{display:grid;grid-template-columns:130px 1fr;gap:14px}.sum{border:2px solid #1a5c1a;border-collapse:collapse;width:100%}.sum th{background:#1a5c1a;color:#fff;padding:6px 8px;text-align:left}.sum td{padding:6px 8px;border-top:1px solid #c8e6c9;font-size:14px;font-weight:700}.sum tr.tot td{border-top:2px solid #1a5c1a}.ctitle{background:#1a5c1a;color:#fff;padding:7px 12px;font-weight:700;display:flex;justify-content:space-between;margin-bottom:4px}.pt{width:100%;border-collapse:collapse}.pt th{background:#f1f8e9;padding:5px 6px;font-size:10px;border:1px solid #a5d6a7;font-weight:700}.pt td{padding:5px 6px;font-size:10px;border:1px solid #c8e6c9;text-align:center}.door{text-align:center;font-weight:700;background:#1a5c1a;color:#fff;padding:4px;font-size:10px}.footer{text-align:center;margin-top:20px;font-size:10px;color:#555;border-top:1px solid #eee;padding-top:12px}</style></head><body>
 <h2>Pallet Distribution Inside Container</h2>
-<div class="hdr"><div class="hl">DATE:</div><div class="hv">${fmtDate(admin.fechaCargue)}</div><div class="hl">PORT:</div><div class="hv">SP CARTAGENA</div><div class="hl">PALLET CERTIFICATE:</div><div class="hv">${admin.palletCertICA}<br>in Pallet # ${admin.palletCertPalletNo}</div><div class="hl">VESSEL:</div><div class="hv">${admin.vessel}</div><div class="hl">CONTAINER:</div><div class="hv">${admin.container}</div><div class="hl">DESTINATION:</div><div class="hv">${admin.destino.toUpperCase()}</div><div class="hl">TEMP RECORDER:</div><div class="hv">${admin.tempRecorder}<br>In Pallet # ${admin.tempRecorderPalletNo}</div><div class="hl">FINAL STAMPS:</div><div class="hv">${admin.finalStamps}</div></div>
+<div class="hdr"><div class="hl">DATE:</div><div class="hv">${fmtDate(admin.fechaCargue)}</div><div class="hl">PORT:</div><div class="hv">SP CARTAGENA</div><div class="hl">PALLET CERTIFICATE:</div><div class="hv">${admin.palletCerts.map(c => `${c.ica} — Pallet #${c.palletNo}`).join("<br>")}</div><div class="hl">VESSEL:</div><div class="hv">${admin.vessel}</div><div class="hl">CONTAINER:</div><div class="hv">${admin.container}</div><div class="hl">DESTINATION:</div><div class="hv">${admin.destino.toUpperCase()}</div><div class="hl">TEMP RECORDER:</div><div class="hv">${admin.tempRecorder}<br>In Pallet # ${admin.tempRecorderPalletNo}</div><div class="hl">FINAL STAMPS:</div><div class="hv">${admin.finalStamps}</div></div>
 <div class="wrap"><table class="sum"><tr><th>PACKING LIST</th><th></th></tr>${resHtml}</table><div><div class="ctitle"><span>CONTAINER ←- - - - - - - →</span><span>🚛</span></div><table class="pt"><thead><tr><th>Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th><th style="border-left:3px solid #1a5c1a">Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th></tr></thead><tbody>${rows}</tbody><tr><td colspan="4" class="door">LEFT CONTAINER DOOR</td><td colspan="4" class="door">RIGHT CONTAINER DOOR</td></tr></table></div></div>
 <div class="footer"><p>1001 S. Dairy Ashford, Suite 100-163 Houston, TX 77077</p><p>gerencia@princesseskingdom.com</p></div></body></html>`;
 
@@ -525,11 +534,15 @@ export default function PackingListTab({ mob }) {
             <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "1fr 1fr 1fr", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
               <div>
                 <div style={lbl}>Total cajas</div>
-                <CustomSelect value={totalCajas} onChange={e => changeTotalCajas(e.target.value)} style={{ ...inp, cursor:"pointer" }}>
-                  <option value={1400}>1400 — 70/plt</option>
-                  <option value={1500}>1500 — 75/plt</option>
-                  <option value={1600}>1600 — 80/plt</option>
-                </CustomSelect>
+                <input
+                  type="number" inputMode="numeric" min={20}
+                  value={cajasInput}
+                  onChange={e => setCajasInput(e.target.value)}
+                  onBlur={e => changeTotalCajas(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && changeTotalCajas(cajasInput)}
+                  placeholder="Ej: 1480"
+                  style={inp}
+                />
               </div>
               <div>
                 <div style={lbl}>Packing Date</div>
@@ -783,11 +796,30 @@ export default function PackingListTab({ mob }) {
           {/* Fila 3: certificados */}
           <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(2,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
             <div style={cardS}>
-              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🏷 PALLET CERTIFICATE ICA</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
-                <div><div style={lbl}>Número ICA</div><input value={admin.palletCertICA} onChange={e => sa("palletCertICA", e.target.value)} placeholder="ICA 05-007-26" style={inp} /></div>
-                <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.palletCertPalletNo} onChange={e => sa("palletCertPalletNo", e.target.value)} style={inp} /></div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 10 : 6 }}>
+                <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>🏷 PALLET CERTIFICATE ICA</div>
+                <button onClick={addPalletCert} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:7, padding: m ? "6px 12px" : "4px 10px", color:"#a5b4fc", cursor:"pointer", fontSize: m ? 13 : 11, fontWeight:700, fontFamily:"inherit" }}>
+                  ➕ Agregar ICA
+                </button>
               </div>
+              {admin.palletCerts.map((cert, ci) => (
+                <div key={ci} style={{ display:"grid", gridTemplateColumns:"1fr 90px auto", gap: m ? 8 : 6, marginBottom: ci < admin.palletCerts.length - 1 ? (m ? 8 : 6) : 0, alignItems:"end" }}>
+                  <div>
+                    <div style={lbl}>Número ICA{admin.palletCerts.length > 1 ? ` #${ci + 1}` : ""}</div>
+                    <input value={cert.ica} onChange={e => setPalletCert(ci, "ica", e.target.value)} placeholder="ICA 05-007-26" style={inp} />
+                  </div>
+                  <div>
+                    <div style={lbl}>En pallet #</div>
+                    <input type="number" inputMode="numeric" min={1} max={20} value={cert.palletNo} onChange={e => setPalletCert(ci, "palletNo", e.target.value)} style={inp} />
+                  </div>
+                  <div style={{ paddingBottom:1 }}>
+                    {admin.palletCerts.length > 1
+                      ? <button onClick={() => removePalletCert(ci)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:7, padding: m ? "10px" : "7px 10px", color:"#fca5a5", cursor:"pointer", fontSize:13, minHeight: m ? 44 : 32, fontFamily:"inherit" }}>✕</button>
+                      : <div style={{ minHeight: m ? 44 : 32 }} />
+                    }
+                  </div>
+                </div>
+              ))}
             </div>
             <div style={cardS}>
               <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TEMP RECORDER</div>
