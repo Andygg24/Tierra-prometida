@@ -4432,6 +4432,10 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
         const rendGeneralTotal = totales.kilosProcesados > 0
           ? (totales.kgEmp / totales.kilosProcesados) * 100 : 0;
+        const rendDMTotal  = totales.kilosProcesados > 0
+          ? ((totales.cajasDelMonte * KG_DEL_MONTE) / totales.kilosProcesados) * 100 : 0;
+        const rendPriTotal = totales.kilosProcesados > 0
+          ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesados) * 100 : 0;
 
         const colorRend = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
 
@@ -4502,12 +4506,16 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
                 {/* Tarjetas resumen (solo si hay registros) */}
                 {rendsDelCont.length > 0 && (
-                  <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
-                    {card("Kilos procesados total", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`)}
-                    {card("Kilos empacados total", `${totales.kgEmp.toFixed(1)} kg`)}
-                    {card("Kilos devueltos total", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826")}
-                    {card("Rendimiento general", `${rendGeneralTotal.toFixed(1)}%`, colorRend(rendGeneralTotal),
-                      `${totales.cajasDelMonte} cajas DM · ${totales.cajasPrincess} cajas PRI`)}
+                  <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: 8, marginBottom: 14 }}>
+                    {card("Kg procesados", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`)}
+                    {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
+                    {card("Kg devueltos", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "dato informativo")}
+                    {card("Rdto. general", `${rendGeneralTotal.toFixed(1)}%`, colorRend(rendGeneralTotal),
+                      `${totales.cajasDelMonte + totales.cajasPrincess} cajas totales`)}
+                    {card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
+                      `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
+                    {card("Rdto. Princess", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
+                      `${totales.cajasPrincess} cajas · ${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg`)}
                   </div>
                 )}
 
@@ -4531,7 +4539,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                         <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={inp} />
                       </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
                         <div style={lbl}>Cajas Del Monte (16.8 kg)</div>
                         <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={inp} />
@@ -4544,16 +4552,27 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                         const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
                         const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
                         const kgEmp = kgDM + kgPri;
-                        const rg    = ((kgEmp / Number(formRend.kilosProcesados)) * 100).toFixed(1);
+                        const proc  = Number(formRend.kilosProcesados);
+                        const rg    = ((kgEmp / proc) * 100).toFixed(1);
+                        const rdm   = ((kgDM  / proc) * 100).toFixed(1);
+                        const rpri  = ((kgPri / proc) * 100).toFixed(1);
                         return (
                           <>
                             <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kilos empacados</div>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kg empacados</div>
                               <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
                             </div>
                             <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rendimiento</div>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. general</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
+                            </div>
+                            <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Del Monte</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
+                            </div>
+                            <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Princess</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
                             </div>
                           </>
                         );
@@ -4615,13 +4634,13 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                         </div>
                       </div>
 
-                      <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(6,1fr)", gap: 6, marginTop: 8 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: 6, marginTop: 8 }}>
                         <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Procesados</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg procesados</div>
                           <div style={{ fontSize: 12, fontWeight: 700 }}>{r.kilosProcesados.toLocaleString("es-CO")} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Empacados</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg empacados</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{c.kgEmp.toFixed(1)} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "6px 8px" }}>
