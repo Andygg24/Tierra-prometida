@@ -235,14 +235,28 @@ export function useContenedores() {
       observaciones:    form.observaciones   || [],
       obs_detalle:      form.obsDetalle      || null,
     };
-    if (editId) {
-      const { error } = await supabase.from("contenedor_rendimientos").update(row).eq("id", editId);
-      return !error;
-    } else {
-      row.id = Date.now();
-      const { error } = await supabase.from("contenedor_rendimientos").insert(row);
-      return !error;
+
+    const tryUpsert = async (r) => {
+      if (editId) {
+        const { error } = await supabase.from("contenedor_rendimientos").update(r).eq("id", editId);
+        return error || null;
+      } else {
+        r.id = r.id || Date.now();
+        const { error } = await supabase.from("contenedor_rendimientos").insert(r);
+        return error || null;
+      }
+    };
+
+    let error = await tryUpsert({ ...row });
+    if (error) {
+      // Si falla por columna proveedor inexistente, reintentar sin ella
+      const isColError = error.message?.includes("proveedor") || error.code === "42703";
+      if (isColError) {
+        const { proveedor: _, ...rowSinProv } = row;
+        error = await tryUpsert(rowSinProv);
+      }
     }
+    return !error;
   }, []);
 
   const eliminarRendimiento = useCallback(async (id) => {

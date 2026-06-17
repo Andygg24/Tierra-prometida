@@ -3212,7 +3212,9 @@ function ContenedoresDemo() {
   const [plContenedorActivo, setPlContenedorActivo] = useState(null);
   const [plStatuses, setPlStatuses]     = useState({});
   const [confirm, setConfirm]           = useState(null);
+  const [toast, setToast]               = useState(null);
   const pedir = (msg, fn) => setConfirm({ msg, fn });
+  const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
   const lbl = { fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 };
 
@@ -3292,11 +3294,16 @@ function ContenedoresDemo() {
   const [editRendId,    setEditRendId]    = useState(null);
   const [formRend,      setFormRend]      = useState(rendFormDef);
 
-  const guardar = () => {
+  const guardar = async () => {
     if (!form.numContenedor.trim()) return;
-    guardarContenedor(form, editIdx);
-    if (editIdx !== null) setEditIdx(null);
-    setForm(formDef); setShowForm(false);
+    const ok = await guardarContenedor(form, editIdx);
+    if (ok) {
+      if (editIdx !== null) setEditIdx(null);
+      setForm(formDef); setNuevoProveedor(""); setShowForm(false);
+      showToast("Contenedor guardado", true);
+    } else {
+      showToast("Error al guardar el contenedor", false);
+    }
   };
 
   const descargar = () => {
@@ -3316,6 +3323,11 @@ function ContenedoresDemo() {
   return (
     <div>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={()=>{confirm.fn();setConfirm(null);}} onCancel={()=>setConfirm(null)} />}
+      {toast && (
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background: toast.ok ? "#064e3b" : "#450a0a", border:`1px solid ${toast.ok ? "#059669" : "#dc2626"}`, color: toast.ok ? "#6ee7b7" : "#fca5a5", borderRadius:10, padding:"10px 20px", fontSize:12, fontWeight:600, zIndex:9999, pointerEvents:"none", whiteSpace:"nowrap" }}>
+          {toast.ok ? "✅" : "❌"} {toast.msg}
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.07)",paddingBottom:10,overflowX:"auto",flexWrap:"nowrap",scrollbarWidth:"none"}}>
@@ -4569,7 +4581,12 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
         const guardarRend = async () => {
           if (!formRend.kilosProcesados) return;
           const ok = await guardarRendimientoSB(formRend, editRendId);
-          if (ok) { setShowFormRend(false); setFormRend(rendFormDef); setEditRendId(null); }
+          if (ok) {
+            setShowFormRend(false); setFormRend(rendFormDef); setEditRendId(null);
+            showToast("Camión registrado correctamente", true);
+          } else {
+            showToast("Error al guardar — verifica la conexión o ejecuta la migración SQL pendiente", false);
+          }
         };
 
         const toggleObsRend = (obs) => setFormRend(f => ({
