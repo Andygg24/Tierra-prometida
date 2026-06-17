@@ -90,6 +90,7 @@ export default function PackingListTab({ mob }) {
     vessel:"", palletCerts:[{ ica:"", palletNo:"" }],
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"",
+    conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
   });
   const sa = (k, v) => setAdmin(a => ({ ...a, [k]: v }));
   const setPalletCert   = (i, field, val) =>
@@ -725,7 +726,7 @@ export default function PackingListTab({ mob }) {
       {fase === 2 && (
         <div>
           {/* Datos del transporte */}
-          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 10 : 8 }}>
             <div>
               <div style={lbl}>Empresa transporte</div>
               <input value={admin.empresaTransporte} onChange={e => sa("empresaTransporte", e.target.value)} placeholder="Transportando Express" style={inp} />
@@ -733,6 +734,22 @@ export default function PackingListTab({ mob }) {
             <div>
               <div style={lbl}>Placa</div>
               <input value={admin.placa} onChange={e => sa("placa", e.target.value)} placeholder="QJN678" style={inp} />
+            </div>
+            <div>
+              <div style={lbl}>Conductor</div>
+              <input value={admin.conductor} onChange={e => sa("conductor", e.target.value)} placeholder="Nombre del conductor" style={inp} />
+            </div>
+            <div>
+              <div style={lbl}>Supervisor de cargue</div>
+              <input value={admin.supervisorCargue} onChange={e => sa("supervisorCargue", e.target.value)} placeholder="Nombre del supervisor" style={inp} />
+            </div>
+            <div>
+              <div style={lbl}>Hora de cargue</div>
+              <input type="time" value={admin.horaCargue} onChange={e => sa("horaCargue", e.target.value)} style={inp} />
+            </div>
+            <div>
+              <div style={lbl}>Hora de salida</div>
+              <input type="time" value={admin.horaSalida} onChange={e => sa("horaSalida", e.target.value)} style={inp} />
             </div>
             <div style={{ gridColumn: m ? "1 / -1" : "auto" }}>
               <div style={lbl}>Fecha de cargue</div>
