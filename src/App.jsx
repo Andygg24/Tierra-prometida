@@ -8,6 +8,7 @@ import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 import { usePedidos } from "./hooks/usePedidos.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
+import { usePackingList } from "./hooks/usePackingList.js";
 import CustomSelect from "./components/CustomSelect.jsx";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
@@ -3209,6 +3210,7 @@ function ContenedoresDemo() {
 
   const [tabCont, setTabCont]           = useState(0);
   const [plContenedorActivo, setPlContenedorActivo] = useState(null);
+  const [plStatuses, setPlStatuses]     = useState({});
   const [confirm, setConfirm]           = useState(null);
   const pedir = (msg, fn) => setConfirm({ msg, fn });
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
@@ -3228,6 +3230,7 @@ function ContenedoresDemo() {
     guardarRendimiento: guardarRendimientoSB,
     eliminarRendimiento: eliminarRendimientoSB,
   } = useContenedores();
+  const { cargarTodos: cargarPLTodos } = usePackingList();
   const { items: invItems, ajustarLotes } = useInventario();
   const invActual = invItems.length > 0 ? invItems : INVENTARIO_BASE;
 
@@ -3319,14 +3322,7 @@ function ContenedoresDemo() {
       </div>
 
       {/* ═══ TAB 0: CONTENEDORES ═══ */}
-      {tabCont === 0 && plContenedorActivo && (
-        <PackingListTab
-          mob={mob}
-          contenedor={plContenedorActivo}
-          onClose={() => setPlContenedorActivo(null)}
-        />
-      )}
-      {tabCont === 0 && !plContenedorActivo && (
+      {tabCont === 0 && (
         <div>
           <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:8,marginBottom:12}}>
             {[{i:"🚢",l:"Total",v:stats.total,c:"#6366F1"},{i:"✅",l:"Completados",v:stats.comp,c:"#00C9A7"},{i:"⏳",l:"En proceso",v:stats.enProc,c:"#F9A826"},{i:"📦",l:"Cajas",v:stats.cajas.toLocaleString("es-CO"),c:"#845EF7"}].map((s,i)=>(
@@ -3458,11 +3454,6 @@ function ContenedoresDemo() {
                     {p.obs && <div style={{fontSize:11,color:"rgba(249,168,38,0.7)",marginTop:3}}>📌 {p.obs}</div>}
                   </div>
                   <div style={{borderTop:`1px solid ${col}20`,display:"flex"}}>
-                    <button onClick={()=>{setPlContenedorActivo(p);}}
-                      style={{flex:1,background:"rgba(99,102,241,0.08)",border:"none",padding:"10px",fontSize:13,color:"rgba(165,180,252,0.8)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
-                      📦 <span style={{fontSize:12}}>Packing List</span>
-                    </button>
-                    <div style={{width:1,background:`${col}20`}} />
                     <button onClick={()=>{setForm({...formDef,...p});setEditIdx(p.id);setShowForm(true);}}
                       style={{flex:1,background:"rgba(255,255,255,0.04)",border:"none",padding:"10px",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       ✏️ <span style={{fontSize:12}}>Editar</span>
@@ -4318,16 +4309,100 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
       })()}
 
       {/* ═══ TAB 6: PACKING LIST ═══ */}
-      {tabCont === 6 && (
-        <div style={{textAlign:"center",padding:"48px 0",color:"rgba(255,255,255,0.35)"}}>
-          <div style={{fontSize:40,marginBottom:12}}>📦</div>
-          <div style={{fontSize:15,fontWeight:700,marginBottom:8,color:"rgba(255,255,255,0.6)"}}>Packing List vinculado al contenedor</div>
-          <div style={{fontSize:12,marginBottom:20}}>Abre el Packing List desde el botón <b style={{color:"#a5b4fc"}}>📦 Packing List</b> en cada tarjeta de contenedor.</div>
-          <button onClick={()=>setTabCont(0)} style={{background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"10px 22px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
-            ← Ir a Contenedores
-          </button>
-        </div>
-      )}
+      {tabCont === 6 && (() => {
+        const COL_EST_PL = { "En proceso":"#F9A826","Completado":"#00C9A7","Pausado":"#845EF7","Cancelado":"#FF6B6B" };
+        const FASE_BADGE = { 1:"📦 Fase 1", 2:"🚛 Fase 2", 3:"✅ Completo" };
+
+        // Cargar estados PL cuando entramos al tab
+        const handleTabPL = () => {
+          if (!procesos.length) return;
+          const ids = procesos.map(p => p.id);
+          cargarPLTodos(ids).then(({ data }) => {
+            const map = {};
+            (data || []).forEach(r => { map[r.contenedor_id] = r.fase; });
+            setPlStatuses(map);
+          });
+        };
+
+        // Si hay contenedor activo, mostrar el PL
+        if (plContenedorActivo) {
+          return (
+            <PackingListTab
+              mob={mob}
+              contenedor={plContenedorActivo}
+              onClose={() => { setPlContenedorActivo(null); handleTabPL(); }}
+            />
+          );
+        }
+
+        // Si no, mostrar el selector de contenedor
+        return (
+          <div>
+            {/* Encabezado */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div>
+                <div style={{fontSize:mob?15:13,fontWeight:800,color:"white"}}>📋 Packing List</div>
+                <div style={{fontSize:mob?11:9,color:"rgba(255,255,255,0.35)",marginTop:2}}>Selecciona un contenedor para crear o continuar su Packing List</div>
+              </div>
+              <button onClick={handleTabPL} style={{marginLeft:"auto",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit"}}>
+                🔄 Actualizar
+              </button>
+            </div>
+
+            {procesos.length === 0 ? (
+              <div style={{textAlign:"center",padding:"48px 0",color:"rgba(255,255,255,0.25)"}}>
+                <div style={{fontSize:36,marginBottom:10}}>🚢</div>
+                <div style={{fontSize:13}}>No hay contenedores registrados</div>
+                <button onClick={()=>setTabCont(0)} style={{marginTop:14,background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:8,padding:"8px 18px",fontSize:12,color:"#a5b4fc",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>
+                  ← Ir a Contenedores
+                </button>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {[...procesos].sort((a,b) => b.fecha.localeCompare(a.fecha)).map(p => {
+                  const col   = COL_EST_PL[p.estado] || "#6366F1";
+                  const fase  = plStatuses[p.id];
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setPlContenedorActivo(p)}
+                      style={{
+                        width:"100%",textAlign:"left",
+                        background:`${col}06`,
+                        border:`1px solid ${col}25`,
+                        borderRadius:12,padding:"12px 14px",cursor:"pointer",
+                        fontFamily:"inherit",color:"white",
+                        display:"flex",alignItems:"center",gap:12,
+                        transition:"background 0.15s",
+                      }}
+                    >
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+                          <span style={{fontSize:mob?14:13,fontWeight:800}}>🚢 {p.numContenedor}</span>
+                          <span style={{fontSize:10,background:`${col}22`,color:col,borderRadius:6,padding:"2px 8px",fontWeight:700,border:`1px solid ${col}40`}}>{p.estado}</span>
+                          {fase && (
+                            <span style={{fontSize:10,background:"rgba(0,201,167,0.12)",color:"#00C9A7",borderRadius:6,padding:"2px 8px",fontWeight:700,border:"1px solid rgba(0,201,167,0.3)"}}>
+                              {FASE_BADGE[fase]}
+                            </span>
+                          )}
+                          <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginLeft:"auto"}}>📅 {p.fecha}</span>
+                        </div>
+                        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                          {p.cajasSalida > 0 && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.45)"}}>📦 {Number(p.cajasSalida).toLocaleString("es-CO")} cajas</span>}
+                          {p.transporte  && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.45)"}}>🚛 {p.transporte}</span>}
+                          {p.placa       && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.45)"}}>🪧 {p.placa}</span>}
+                          {p.destino     && <span style={{fontSize:mob?11:10,color:"rgba(99,102,241,0.8)"}}>→ {p.destino}</span>}
+                        </div>
+                      </div>
+                      <div style={{fontSize:mob?22:18,color:"rgba(255,255,255,0.2)",flexShrink:0}}>›</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ═══ TAB 5: RENDIMIENTOS ═══ */}
       {tabCont === 5 && (() => {
