@@ -23,8 +23,8 @@ function initPallets(total) {
 }
 function initLayout() {
   return {
-    left:  [1,3,5,7,9,11,13,15,17,19],
-    right: [2,4,6,8,10,12,14,16,18,20],
+    left:  [1, 3, 5, 7, 9, 11, 13, 15, 17, 19],
+    right: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
   };
 }
 function fmtDate(d) {
@@ -34,7 +34,6 @@ function fmtDate(d) {
 }
 
 export default function PackingListTab({ mob }) {
-  // ── Detección de ancho (prop padre + detección local) ─────────
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
@@ -47,45 +46,44 @@ export default function PackingListTab({ mob }) {
 
   const hoy = new Date().toISOString().split("T")[0];
 
+  // ── Estilos compartidos ──────────────────────────────────────
   const inp = {
-    background: "rgba(255,255,255,0.07)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 8,
-    padding: m ? "10px 11px" : "7px 10px",
-    color: "white",
-    fontSize: m ? 16 : 12,
-    fontFamily: "inherit",
-    width: "100%",
-    boxSizing: "border-box",
-    minHeight: m ? 44 : 32,
+    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 8, padding: m ? "10px 11px" : "7px 10px", color: "white",
+    fontSize: m ? 16 : 12, fontFamily: "inherit", width: "100%",
+    boxSizing: "border-box", minHeight: m ? 44 : 32,
   };
   const lbl = {
-    fontSize: m ? 11 : 9,
-    color: "rgba(255,255,255,0.45)",
-    marginBottom: 4,
-    fontWeight: 600,
-    letterSpacing: 0.3,
+    fontSize: m ? 11 : 9, color: "rgba(255,255,255,0.45)",
+    marginBottom: 4, fontWeight: 600, letterSpacing: 0.3,
   };
-  const cardStyle = {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 10,
-    padding: m ? 14 : 10,
+  const cardS = {
+    background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+    borderRadius: 10, padding: m ? 14 : 10,
   };
 
-  // ── Estado principal ─────────────────────────────────────────
+  // ── Fase activa ──────────────────────────────────────────────
+  const [fase, setFase] = useState(1);
+
+  // ── Estado Fase 1: pallets + edición ────────────────────────
   const [totalCajas, setTotalCajas] = useState(1400);
   const [pallets,    setPallets]    = useState(() => initPallets(1400));
-  const [layout,     setLayout]     = useState(initLayout);
-  const [dragPid,    setDragPid]    = useState(null);   // desktop drag
-  const [selPid,     setSelPid]     = useState(null);   // pallet seleccionado para editar
+  const [selPid,     setSelPid]     = useState(null);
 
-  // ── Touch-drag (móvil) ───────────────────────────────────────
-  // Ref para no perder el estado entre re-renders durante el gesto
-  const tRef = useRef({ pid: null, startX: 0, startY: 0, dragging: false, overPid: null });
-  const [touchDragPid, setTouchDragPid] = useState(null); // visual: quién se arrastra
-  const [touchOverPid, setTouchOverPid] = useState(null); // visual: objetivo bajo el dedo
+  // ── Estado Fase 2: layout camión ─────────────────────────────
+  const [layoutCamion,    setLayoutCamion]    = useState(initLayout);
+  const [dragPidCamion,   setDragPidCamion]   = useState(null);
 
+  // ── Estado Fase 3: layout contenedor ─────────────────────────
+  const [layout,    setLayout]    = useState(initLayout);
+  const [dragPid,   setDragPid]   = useState(null);
+
+  // ── Touch drag compartido (fases 2 y 3) ──────────────────────
+  const tRef = useRef({ pid:null, startX:0, startY:0, dragging:false, overPid:null });
+  const [touchDragPid, setTouchDragPid] = useState(null);
+  const [touchOverPid, setTouchOverPid] = useState(null);
+
+  // ── Datos administrativos ────────────────────────────────────
   const [admin, setAdmin] = useState({
     plNo:"", fechaCargue:hoy, container:"", destino:"Philadelphia",
     vessel:"", palletCertICA:"", palletCertPalletNo:"",
@@ -97,8 +95,10 @@ export default function PackingListTab({ mob }) {
   const cpp = Math.floor(totalCajas / 20);
 
   const changeTotalCajas = (v) => {
-    setTotalCajas(Number(v));
-    setPallets(initPallets(Number(v)));
+    const n = Number(v);
+    setTotalCajas(n);
+    setPallets(initPallets(n));
+    setLayoutCamion(initLayout());
     setLayout(initLayout());
     setSelPid(null);
   };
@@ -122,15 +122,15 @@ export default function PackingListTab({ mob }) {
   const palletById = (pid) => pallets.find(p => p.id === pid);
   const selPalletIdx = selPid !== null ? pallets.findIndex(p => p.id === selPid) : -1;
 
-  // ── Swap de posición en el layout ────────────────────────────
-  const swapPositions = (pidA, pidB) => {
-    setLayout(prev => {
-      const next = { left: [...prev.left], right: [...prev.right] };
-      const find = (pid) => {
+  // ── Swap genérico ────────────────────────────────────────────
+  const makeSwap = (setFn) => (pidA, pidB) =>
+    setFn(prev => {
+      const next = { left:[...prev.left], right:[...prev.right] };
+      const find = pid => {
         const li = next.left.indexOf(pid);
-        if (li >= 0) return { col: "left",  idx: li };
+        if (li >= 0) return { col:"left",  idx:li };
         const ri = next.right.indexOf(pid);
-        if (ri >= 0) return { col: "right", idx: ri };
+        if (ri >= 0) return { col:"right", idx:ri };
         return null;
       };
       const a = find(pidA), b = find(pidB);
@@ -139,181 +139,252 @@ export default function PackingListTab({ mob }) {
       next[b.col][b.idx] = pidA;
       return next;
     });
-  };
 
-  // ── Desktop drag-and-drop ─────────────────────────────────────
-  const onDrop = (col, idx) => {
-    if (dragPid === null) return;
-    setLayout(prev => {
-      const next = { left: [...prev.left], right: [...prev.right] };
-      const li = next.left.indexOf(dragPid), ri = next.right.indexOf(dragPid);
+  const swapCamion    = makeSwap(setLayoutCamion);
+  const swapContainer = makeSwap(setLayout);
+
+  // ── Desktop drop ─────────────────────────────────────────────
+  const makeDrop = (setFn, dragState, setDragState) => (col, idx) => {
+    if (dragState === null) return;
+    setFn(prev => {
+      const next = { left:[...prev.left], right:[...prev.right] };
+      const li = next.left.indexOf(dragState), ri = next.right.indexOf(dragState);
       const fc = li >= 0 ? "left" : "right", fi = li >= 0 ? li : ri;
       if (fc === col && fi === idx) return prev;
       const d = next[col][idx];
-      next[col][idx] = dragPid; next[fc][fi] = d;
+      next[col][idx] = dragState; next[fc][fi] = d;
       return next;
     });
-    setDragPid(null);
+    setDragState(null);
   };
+  const dropCamion    = makeDrop(setLayoutCamion, dragPidCamion, setDragPidCamion);
+  const dropContainer = makeDrop(setLayout, dragPid, setDragPid);
 
-  // ── Touch drag handlers ───────────────────────────────────────
+  // ── Touch drag ───────────────────────────────────────────────
   const onTouchStartPallet = (e, pid) => {
     const t = e.touches[0];
-    tRef.current = { pid, startX: t.clientX, startY: t.clientY, dragging: false, overPid: null };
+    tRef.current = { pid, startX:t.clientX, startY:t.clientY, dragging:false, overPid:null };
   };
-
   const onTouchMovePallet = (e, pid) => {
     const r = tRef.current;
     if (r.pid !== pid) return;
     const t = e.touches[0];
     const dist = Math.hypot(t.clientX - r.startX, t.clientY - r.startY);
-
     if (!r.dragging && dist > 8) {
       r.dragging = true;
       setTouchDragPid(pid);
-      // vibración háptica si el dispositivo la soporta
       navigator.vibrate?.([20]);
     }
-
     if (r.dragging) {
-      // evitar scroll de página mientras se arrastra
       e.preventDefault();
-
-      // qué pallet hay bajo el dedo ahora mismo
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const pidEl = el?.closest("[data-pid]");
       const over  = pidEl ? Number(pidEl.getAttribute("data-pid")) : null;
       const overPid = (over && over !== pid) ? over : null;
-
-      if (r.overPid !== overPid) {
-        r.overPid = overPid;
-        setTouchOverPid(overPid);
-      }
+      if (r.overPid !== overPid) { r.overPid = overPid; setTouchOverPid(overPid); }
     }
   };
-
   const onTouchEndPallet = (e, pid) => {
     const r = tRef.current;
     if (r.pid !== pid) return;
-
     if (r.dragging) {
-      e.preventDefault(); // evitar click fantasma después del drag
-      if (r.overPid) swapPositions(pid, r.overPid);
+      e.preventDefault();
+      if (r.overPid) {
+        if (fase === 2) swapCamion(pid, r.overPid);
+        else            swapContainer(pid, r.overPid);
+      }
     } else {
-      // fue un toque rápido → seleccionar para editar
-      setSelPid(prev => prev === pid ? null : pid);
+      if (fase === 1) setSelPid(prev => prev === pid ? null : pid);
     }
-
-    tRef.current = { pid: null, startX: 0, startY: 0, dragging: false, overPid: null };
+    tRef.current = { pid:null, startX:0, startY:0, dragging:false, overPid:null };
     setTouchDragPid(null);
     setTouchOverPid(null);
   };
 
+  // ── Resumen calibres ─────────────────────────────────────────
   const resumen = CALIBRES.map(size => ({
     size,
     cajas: pallets.reduce((s, p) =>
       s + p.calibres.filter(c => Number(c.size) === size)
                     .reduce((ss, c) => ss + Number(c.cajas || 0), 0), 0),
   }));
+  const totalConf  = pallets.reduce((s, p) => s + palletSum(p), 0);
+  const todoCuadra = totalConf === totalCajas;
 
-  // ── Tarjeta de pallet ─────────────────────────────────────────
-  const renderPallet = (pid, idx, col) => {
+  // ── Tarjeta de pallet (layout grid) ─────────────────────────
+  const renderPalletCard = (pid, idx, col, dragState, setDragState, onDrop) => {
     const p = palletById(pid);
     if (!p) return null;
-
     const isMixed    = p.calibres.length > 1;
     const mainCal    = COL_CAL[p.calibres[0].size] || COL_CAL[200];
-    const isSel      = selPid       === pid;
-    const isDragDsk  = dragPid      === pid;  // desktop
-    const isTouchDrg = touchDragPid === pid;  // táctil: yo soy el que se arrastra
-    const isTouchTgt = touchOverPid === pid;  // táctil: soy el objetivo bajo el dedo
+    const isDragDsk  = dragState === pid;
+    const isTouchDrg = touchDragPid === pid;
+    const isTouchTgt = touchOverPid === pid;
     const sum        = palletSum(p);
     const ok         = sum === cpp;
 
-    // ── Colores base ──
     let bg, border;
     if (isMixed) {
       const stops = p.calibres.map((c, i) => `${COL_CAL[c.size]?.bg || "#888"}${i === 0 ? "55" : "33"}`);
       bg     = `linear-gradient(135deg,${stops.join(",")})`;
-      border = isSel ? "2px solid white" : "1px solid rgba(255,255,255,0.25)";
+      border = "1px solid rgba(255,255,255,0.25)";
     } else {
-      bg     = isSel ? mainCal.light : "rgba(255,255,255,0.05)";
-      border = isSel ? `2px solid ${mainCal.bg}` : `1px solid ${mainCal.border}`;
+      bg     = "rgba(255,255,255,0.05)";
+      border = `1px solid ${mainCal.border}`;
     }
-
-    // Sobreescribir si hay drag táctil activo
-    if (isTouchDrg) {
-      border = "2px solid rgba(255,255,255,0.7)";
-    } else if (isTouchTgt) {
-      bg     = "rgba(34,197,94,0.15)";
-      border = "2px dashed #22C55E";
-    }
+    if (isTouchDrg) border = "2px solid rgba(255,255,255,0.7)";
+    else if (isTouchTgt) { bg = "rgba(34,197,94,0.15)"; border = "2px dashed #22C55E"; }
 
     return (
       <div
-        key={pid}
-        data-pid={pid}
-        // Desktop
+        key={pid} data-pid={pid}
         draggable={!m}
-        onDragStart={() => !m && setDragPid(pid)}
+        onDragStart={() => !m && setDragState(pid)}
         onDragOver={e => e.preventDefault()}
         onDrop={() => !m && onDrop(col, idx)}
-        onClick={!m ? () => setSelPid(prev => prev === pid ? null : pid) : undefined}
-        // Móvil
-        onTouchStart={m ? (e) => onTouchStartPallet(e, pid) : undefined}
-        onTouchMove={m  ? (e) => onTouchMovePallet(e, pid)  : undefined}
-        onTouchEnd={m   ? (e) => onTouchEndPallet(e, pid)   : undefined}
+        onTouchStart={m ? e => onTouchStartPallet(e, pid) : undefined}
+        onTouchMove={m  ? e => onTouchMovePallet(e, pid)  : undefined}
+        onTouchEnd={m   ? e => onTouchEndPallet(e, pid)   : undefined}
         style={{
-          background: bg,
-          border,
-          borderRadius: m ? 8 : 6,
-          padding: m ? "8px 7px" : "5px 6px",
+          background: bg, border,
+          borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
           cursor: touchDragPid ? (isTouchTgt ? "copy" : "grabbing") : "grab",
           position: "relative",
           opacity: isDragDsk || isTouchDrg ? 0.4 : 1,
           transition: isTouchDrg || isTouchTgt ? "none" : "all 0.12s",
           minHeight: m ? 64 : 54,
           display: "flex", flexDirection: "column", justifyContent: "space-between",
-          boxShadow: isTouchTgt
-            ? "0 0 0 3px rgba(34,197,94,0.35)"
-            : isSel
-              ? "0 0 0 1px rgba(255,255,255,0.3) inset"
-              : "none",
+          boxShadow: isTouchTgt ? "0 0 0 3px rgba(34,197,94,0.35)" : "none",
           transform: isTouchDrg ? "scale(0.94)" : isTouchTgt ? "scale(1.04)" : "none",
-          WebkitTapHighlightColor: "transparent",
-          userSelect: "none",
-          touchAction: "none", // permite preventDefault en touchmove
+          WebkitTapHighlightColor: "transparent", userSelect: "none", touchAction: "none",
         }}
       >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize: m ? 10 : 9, fontWeight: 800, color: "rgba(255,255,255,0.55)" }}>P{pid}</span>
-          {!ok && <span style={{ fontSize: m ? 9 : 8, color: "#F9A826" }}>⚠</span>}
-          {isTouchDrg && <span style={{ fontSize: 9, color: "white" }}>✥</span>}
-          {isTouchTgt && <span style={{ fontSize: 9, color: "#22C55E" }}>↓</span>}
+          <span style={{ fontSize: m ? 10 : 9, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{pid}</span>
+          {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
           {p.calibres.map((c, ci) => (
             <div key={ci} style={{ display:"flex", alignItems:"center", gap:3 }}>
-              <span style={{ fontSize: m ? 11 : 8, fontWeight: 700, color: COL_CAL[c.size]?.bg || "#fff", lineHeight: 1 }}>{c.size}</span>
-              <span style={{ fontSize: m ? 9 : 8, color: "rgba(255,255,255,0.5)", lineHeight: 1 }}>{c.cajas}cj</span>
+              <span style={{ fontSize: m ? 11 : 8, fontWeight:700, color:COL_CAL[c.size]?.bg || "#fff", lineHeight:1 }}>{c.size}</span>
+              <span style={{ fontSize: m ? 9 : 8, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
             </div>
           ))}
         </div>
         {p.calibres[0].predio && (
-          <div style={{ fontSize: m ? 8 : 7, color: "rgba(255,255,255,0.3)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          <div style={{ fontSize: m ? 8 : 7, color:"rgba(255,255,255,0.3)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
             {p.calibres[0].predio}
           </div>
-        )}
-        {isSel && !touchDragPid && (
-          <div style={{ position:"absolute", bottom:-1, left:"50%", transform:"translateX(-50%)", width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderBottom:"5px solid white" }} />
         )}
       </div>
     );
   };
 
+  // ── Grid visual de vehículo (camión o contenedor) ────────────
+  const renderVehicleGrid = (currentLayout, dragState, setDragState, onDrop, vehicleIcon, vehicleLabel, hint) => (
+    <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, padding: m ? 12 : 14, marginBottom: m ? 14 : 12 }}>
+      {/* Leyenda calibres */}
+      <div style={{ display:"flex", flexWrap:"wrap", gap: m ? 8 : 6, marginBottom: m ? 12 : 10, alignItems:"center" }}>
+        {resumen.filter(r => r.cajas > 0).map(r => (
+          <div key={r.size} style={{ background:COL_CAL[r.size].light, border:`1px solid ${COL_CAL[r.size].border}`, borderRadius:6, padding: m ? "5px 11px" : "3px 9px", fontSize: m ? 12 : 10, fontWeight:700, display:"flex", gap:5, alignItems:"center" }}>
+            <span style={{ color:COL_CAL[r.size].bg }}>{r.size}</span>
+            <span style={{ color:"rgba(255,255,255,0.6)" }}>{r.cajas.toLocaleString("es-CO")}</span>
+          </div>
+        ))}
+        <div style={{ marginLeft:"auto", fontSize: m ? 13 : 11, fontWeight:700, color: todoCuadra ? "#00C9A7" : "#F9A826" }}>
+          {todoCuadra ? `✓ ${totalCajas.toLocaleString("es-CO")}` : `⚠ ${totalConf}/${totalCajas}`}
+        </div>
+      </div>
+
+      {touchDragPid !== null && (
+        <div style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, padding:"7px 12px", marginBottom:10, fontSize:12, color:"rgba(255,255,255,0.7)", textAlign:"center" }}>
+          Arrastrando P{touchDragPid} — suelta sobre otro pallet para intercambiar
+        </div>
+      )}
+
+      {m ? (
+        <div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6 }}>◀ FONDO — LADO IZQUIERDO</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6, marginBottom:6 }}>
+            {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
+          </div>
+          <div style={{ height:5, background:"rgba(255,255,255,0.04)", borderRadius:3, margin:"2px 0 6px", border:"1px solid rgba(255,255,255,0.06)" }} />
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6 }}>
+            {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
+          </div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right", marginTop:6 }}>LADO DERECHO — PUERTA ▶</div>
+        </div>
+      ) : (
+        <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
+          {/* Cabeza del vehículo */}
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginRight:6 }}>
+            <div style={{ display:"flex", gap:3, marginBottom:4 }}>
+              {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
+            </div>
+            <div style={{ width:52, background:"linear-gradient(180deg,#3a3a3a,#1f1f1f)", border:"2px solid #555", borderRadius:"8px 4px 4px 8px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"8px 4px", flex:1, gap:4 }}>
+              <div style={{ fontSize:18 }}>{vehicleIcon}</div>
+              <div style={{ fontSize:7, color:"rgba(255,255,255,0.4)", textAlign:"center", lineHeight:1.2 }}>{vehicleLabel}</div>
+            </div>
+            <div style={{ display:"flex", gap:3, marginTop:4 }}>
+              {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
+            </div>
+          </div>
+          {/* Cuerpo */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+            <div style={{ display:"flex", justifyContent:"space-around", marginBottom:4, paddingLeft:20, paddingRight:20 }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:"flex", gap:2 }}>
+                  {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"3px 3px 0 0", border:"1px solid #555" }} />)}
+                </div>
+              ))}
+            </div>
+            <div style={{ flex:1, background:"linear-gradient(180deg,#1a1a2e 0%,#16213e 100%)", border:"3px solid #4a4a6a", borderRadius:"0 6px 6px 0", position:"relative", overflow:"hidden" }}>
+              {[...Array(9)].map((_, i) => (
+                <div key={i} style={{ position:"absolute", left:`${(i+1)*10}%`, top:0, bottom:0, width:1, background:"rgba(255,255,255,0.04)", pointerEvents:"none" }} />
+              ))}
+              <div style={{ padding:"8px 10px", display:"flex", flexDirection:"column", gap:4 }}>
+                <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)", marginBottom:2, letterSpacing:1 }}>◀ FONDO</div>
+                <div style={{ display:"flex", gap:4 }}>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", writingMode:"vertical-rl", transform:"rotate(180deg)", display:"flex", alignItems:"center", minWidth:12 }}>IZQ</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:4, flex:1 }}>
+                    {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
+                  </div>
+                </div>
+                <div style={{ height:6, background:"rgba(255,255,255,0.03)", borderRadius:2, margin:"0 12px", border:"1px solid rgba(255,255,255,0.05)" }} />
+                <div style={{ display:"flex", gap:4 }}>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", writingMode:"vertical-rl", transform:"rotate(180deg)", display:"flex", alignItems:"center", minWidth:12 }}>DER</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:4, flex:1 }}>
+                    {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
+                  </div>
+                </div>
+                <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)", textAlign:"right", marginTop:2, letterSpacing:1 }}>PUERTA ▶</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-around", marginTop:4, paddingLeft:20, paddingRight:20 }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:"flex", gap:2 }}>
+                  {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"0 0 3px 3px", border:"1px solid #555" }} />)}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Puerta lateral */}
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginLeft:6 }}>
+            <div style={{ width:18, background:"linear-gradient(180deg,#2a2a2a,#1a1a1a)", border:"2px solid #555", borderRadius:"2px 6px 6px 2px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"6px 2px", flex:1, gap:6 }}>
+              {[...Array(6)].map((_, i) => <div key={i} style={{ width:4, height:4, background:"#666", borderRadius:"50%" }} />)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize: m ? 11 : 8, color:"rgba(255,255,255,0.2)", textAlign:"center", marginTop: m ? 10 : 8 }}>
+        {hint}
+      </div>
+    </div>
+  );
+
   // ── Excel ─────────────────────────────────────────────────────
   const [generandoExcel, setGenerandoExcel] = useState(false);
-
   const generarExcel = async () => {
     setGenerandoExcel(true);
     try {
@@ -353,7 +424,7 @@ export default function PackingListTab({ mob }) {
     }
   };
 
-  // ── HTML/PDF ──────────────────────────────────────────────────
+  // ── PDF ───────────────────────────────────────────────────────
   const generarPDF = () => {
     const resHtml = ["250","230","200","175","150","110"].map(s => {
       const tot = pallets.reduce((sum, p) =>
@@ -363,10 +434,10 @@ export default function PackingListTab({ mob }) {
 
     const pcell = (pid) => {
       const p = pallets.find(pp => pp.id === pid);
-      if (!p) return { id: pid, size: "" };
-      return { id: pid, size: p.calibres.length > 1 ? p.calibres.map(c => `${c.cajas}/${c.size}`).join("<br>") : String(p.calibres[0].size) };
+      if (!p) return { id:pid, size:"" };
+      return { id:pid, size: p.calibres.length > 1 ? p.calibres.map(c => `${c.cajas}/${c.size}`).join("<br>") : String(p.calibres[0].size) };
     };
-    const rows = Array.from({ length: 10 }, (_, i) => {
+    const rows = Array.from({ length:10 }, (_, i) => {
       const pl = pcell(layout.left[i]), pr = pcell(layout.right[i]);
       return `<tr><td><b>Pallet ${pl.id}</b></td><td><b>${pl.size}</b></td><td>CO-68-001<br>HT</td><td>${fmtDate(admin.packingDate)}</td><td style="border-left:3px solid #1a5c1a"><b>Pallet ${pr.id}</b></td><td><b>${pr.size}</b></td><td>CO-68-001<br>HT</td><td>${fmtDate(admin.packingDate)}</td></tr>`;
     }).join("");
@@ -378,298 +449,383 @@ export default function PackingListTab({ mob }) {
 <div class="wrap"><table class="sum"><tr><th>PACKING LIST</th><th></th></tr>${resHtml}</table><div><div class="ctitle"><span>CONTAINER ←- - - - - - - →</span><span>🚛</span></div><table class="pt"><thead><tr><th>Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th><th style="border-left:3px solid #1a5c1a">Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th></tr></thead><tbody>${rows}</tbody><tr><td colspan="4" class="door">LEFT CONTAINER DOOR</td><td colspan="4" class="door">RIGHT CONTAINER DOOR</td></tr></table></div></div>
 <div class="footer"><p>1001 S. Dairy Ashford, Suite 100-163 Houston, TX 77077</p><p>gerencia@princesseskingdom.com</p></div></body></html>`;
 
-    const blob = new Blob([html], { type: "text/html" });
+    const blob = new Blob([html], { type:"text/html" });
     const u = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = u; a.download = `PL_${admin.container || "XXXX"}.html`; a.click();
     URL.revokeObjectURL(u);
   };
 
-  // ── Render ────────────────────────────────────────────────────
-  const totalConf  = pallets.reduce((s, p) => s + palletSum(p), 0);
-  const todoCuadra = totalConf === totalCajas;
+  // ── Botón nav ─────────────────────────────────────────────────
+  const NavBtn = ({ onClick, children, primary, disabled }) => (
+    <button onClick={onClick} disabled={disabled} style={{
+      flex:1, background: primary ? "linear-gradient(135deg,#00C9A7,#00a88e)" : "rgba(255,255,255,0.06)",
+      border: primary ? "none" : "1px solid rgba(255,255,255,0.12)",
+      borderRadius:10, padding: m ? "14px" : "10px 18px", color:"white",
+      fontSize: m ? 14 : 12, fontWeight:700, cursor: disabled ? "not-allowed" : "pointer",
+      opacity: disabled ? 0.5 : 1, fontFamily:"inherit",
+    }}>{children}</button>
+  );
 
+  // ─────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────
   return (
     <div>
 
-      {/* ── Fila 1: datos del contenedor ── */}
-      <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+      {/* ── Barra de progreso ── */}
+      <div style={{ display:"flex", alignItems:"center", gap: m ? 4 : 6, marginBottom: m ? 18 : 14 }}>
         {[
-          { l:"Packing List No.", v:admin.plNo,        k:"plNo",        ph:"2026-174"           },
-          { l:"N° Container",     v:admin.container,   k:"container",   ph:"TLLU1194289"        },
-          { l:"Vessel / Motonave",v:admin.vessel,      k:"vessel",      ph:"SPIRIT OF MELBOURNE"},
-          { l:"Final Stamps",     v:admin.finalStamps, k:"finalStamps", ph:"005743–SQ83066"     },
-        ].map(f => (
-          <div key={f.k}>
-            <div style={lbl}>{f.l}</div>
-            <input value={f.v} onChange={e => sa(f.k, e.target.value)} placeholder={f.ph} style={inp} />
-          </div>
-        ))}
+          { n:1, label:"Packing Planta",     short:"Planta",     icon:"📦" },
+          { n:2, label:"Carga Camión",        short:"Camión",     icon:"🚛" },
+          { n:3, label:"Packing Contenedor",  short:"Contenedor", icon:"🚢" },
+        ].map((step, i) => {
+          const done   = fase > step.n;
+          const active = fase === step.n;
+          return (
+            <div key={step.n} style={{ display:"flex", alignItems:"center", flex: i < 2 ? "1 1 auto" : "1 1 auto" }}>
+              <button
+                onClick={() => done && setFase(step.n)}
+                style={{
+                  flex:1, display:"flex", alignItems:"center", gap: m ? 6 : 8,
+                  background: active ? "rgba(0,201,167,0.12)" : done ? "rgba(0,201,167,0.06)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${active ? "#00C9A7" : done ? "rgba(0,201,167,0.35)" : "rgba(255,255,255,0.08)"}`,
+                  borderTop: `2px solid ${active ? "#00C9A7" : done ? "rgba(0,201,167,0.5)" : "rgba(255,255,255,0.08)"}`,
+                  borderRadius:10, padding: m ? "8px 10px" : "7px 14px",
+                  cursor: done ? "pointer" : "default",
+                }}
+              >
+                <span style={{ fontSize: m ? 16 : 15 }}>{done ? "✅" : step.icon}</span>
+                <div style={{ textAlign:"left" }}>
+                  <div style={{ fontSize: m ? 10 : 9, color:"rgba(255,255,255,0.35)", fontWeight:600 }}>PASO {step.n}</div>
+                  <div style={{ fontSize: m ? 11 : 10, fontWeight:700, color: active ? "#00C9A7" : done ? "rgba(0,201,167,0.7)" : "rgba(255,255,255,0.38)" }}>
+                    {m ? step.short : step.label}
+                  </div>
+                </div>
+              </button>
+              {i < 2 && (
+                <div style={{ width: m ? 12 : 16, height:2, background: done ? "rgba(0,201,167,0.4)" : "rgba(255,255,255,0.07)", flexShrink:0, margin:"0 2px" }} />
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* ── Fila 2: destino / fechas / transporte ── */}
-      <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
-        <div>
-          <div style={lbl}>Puerto destino</div>
-          <CustomSelect value={admin.destino} onChange={e => sa("destino", e.target.value)} style={{ ...inp, cursor:"pointer" }}>
-            {DESTINOS.map(d => <option key={d} value={d}>{d}</option>)}
-          </CustomSelect>
-        </div>
-        <div>
-          <div style={lbl}>Fecha de cargue</div>
-          <input type="date" value={admin.fechaCargue} onChange={e => sa("fechaCargue", e.target.value)} style={inp} />
-        </div>
-        <div>
-          <div style={lbl}>Empresa transporte</div>
-          <input value={admin.empresaTransporte} onChange={e => sa("empresaTransporte", e.target.value)} placeholder="Transportando Express" style={inp} />
-        </div>
-        <div>
-          <div style={lbl}>Placa</div>
-          <input value={admin.placa} onChange={e => sa("placa", e.target.value)} placeholder="QJN678" style={inp} />
-        </div>
-      </div>
+      {/* ══════════════════════════════════════════════════════════
+          FASE 1 — PACKING PLANTA
+      ══════════════════════════════════════════════════════════ */}
+      {fase === 1 && (() => {
+        const selP = selPalletIdx >= 0 ? pallets[selPalletIdx] : null;
+        const selSum = selP ? palletSum(selP) : 0;
+        const selOk  = selSum === cpp;
 
-      {/* ── Fila 3: datos especiales ── */}
-      <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🏷 PALLET CERTIFICATE ICA</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
-            <div><div style={lbl}>Número ICA</div><input value={admin.palletCertICA} onChange={e => sa("palletCertICA", e.target.value)} placeholder="ICA 05-007-26" style={inp} /></div>
-            <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.palletCertPalletNo} onChange={e => sa("palletCertPalletNo", e.target.value)} style={inp} /></div>
-          </div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TEMP RECORDER</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
-            <div><div style={lbl}>Número</div><input value={admin.tempRecorder} onChange={e => sa("tempRecorder", e.target.value)} placeholder="V1-0041573" style={inp} /></div>
-            <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.tempRecorderPalletNo} onChange={e => sa("tempRecorderPalletNo", e.target.value)} style={inp} /></div>
-          </div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>📦 PROCESO</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6 }}>
-            <div>
-              <div style={lbl}>Total cajas</div>
-              <CustomSelect value={totalCajas} onChange={e => changeTotalCajas(e.target.value)} style={{ ...inp, cursor:"pointer" }}>
-                <option value={1400}>1400 — 70/plt</option>
-                <option value={1500}>1500 — 75/plt</option>
-                <option value={1600}>1600 — 80/plt</option>
-              </CustomSelect>
-            </div>
-            <div>
-              <div style={lbl}>Packing Date</div>
-              <input type="date" value={admin.packingDate} onChange={e => sa("packingDate", e.target.value)} style={inp} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── CONTENEDOR VISUAL ── */}
-      <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, padding: m ? 12 : 14, marginBottom: m ? 14 : 12 }}>
-
-        {/* Leyenda calibres + contador */}
-        <div style={{ display:"flex", flexWrap:"wrap", gap: m ? 8 : 6, marginBottom: m ? 12 : 10, alignItems:"center" }}>
-          {resumen.filter(r => r.cajas > 0).map(r => (
-            <div key={r.size} style={{ background:COL_CAL[r.size].light, border:`1px solid ${COL_CAL[r.size].border}`, borderRadius:6, padding: m ? "5px 11px" : "3px 9px", fontSize: m ? 12 : 10, fontWeight:700, display:"flex", gap:5, alignItems:"center" }}>
-              <span style={{ color:COL_CAL[r.size].bg }}>{r.size}</span>
-              <span style={{ color:"rgba(255,255,255,0.6)" }}>{r.cajas.toLocaleString("es-CO")}</span>
-            </div>
-          ))}
-          <div style={{ marginLeft:"auto", fontSize: m ? 13 : 11, fontWeight:700, color: todoCuadra ? "#00C9A7" : "#F9A826" }}>
-            {todoCuadra ? `✓ ${totalCajas.toLocaleString("es-CO")}` : `⚠ ${totalConf}/${totalCajas}`}
-          </div>
-        </div>
-
-        {/* Banner de drag activo */}
-        {touchDragPid !== null && (
-          <div style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, padding:"7px 12px", marginBottom:10, fontSize:12, color:"rgba(255,255,255,0.7)", textAlign:"center" }}>
-            Arrastrando P{touchDragPid} — suelta sobre otro pallet para intercambiar
-          </div>
-        )}
-
-        {m ? (
-          /* ── MÓVIL: grilla 5×4 sin decoración de camión ── */
+        return (
           <div>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6 }}>◀ FONDO — LADO IZQUIERDO</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6, marginBottom:6 }}>
-              {layout.left.map((pid, idx) => renderPallet(pid, idx, "left"))}
-            </div>
-            <div style={{ height:5, background:"rgba(255,255,255,0.04)", borderRadius:3, margin:"2px 0 6px", border:"1px solid rgba(255,255,255,0.06)" }} />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6 }}>
-              {layout.right.map((pid, idx) => renderPallet(pid, idx, "right"))}
-            </div>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right", marginTop:6 }}>LADO DERECHO — PUERTA ▶</div>
-          </div>
-        ) : (
-          /* ── DESKTOP: camión visual completo ── */
-          <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginRight:6 }}>
-              <div style={{ display:"flex", gap:3, marginBottom:4 }}>
-                {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
+            {/* Config row */}
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "1fr 1fr 1fr", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
+              <div>
+                <div style={lbl}>Total cajas</div>
+                <CustomSelect value={totalCajas} onChange={e => changeTotalCajas(e.target.value)} style={{ ...inp, cursor:"pointer" }}>
+                  <option value={1400}>1400 — 70/plt</option>
+                  <option value={1500}>1500 — 75/plt</option>
+                  <option value={1600}>1600 — 80/plt</option>
+                </CustomSelect>
               </div>
-              <div style={{ width:52, background:"linear-gradient(180deg,#3a3a3a,#1f1f1f)", border:"2px solid #555", borderRadius:"8px 4px 4px 8px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"8px 4px", flex:1, gap:4 }}>
-                <div style={{ fontSize:18 }}>🚛</div>
-                <div style={{ fontSize:7, color:"rgba(255,255,255,0.4)", textAlign:"center", lineHeight:1.2 }}>TIERRA<br />PROM.</div>
+              <div>
+                <div style={lbl}>Packing Date</div>
+                <input type="date" value={admin.packingDate} onChange={e => sa("packingDate", e.target.value)} style={inp} />
               </div>
-              <div style={{ display:"flex", gap:3, marginTop:4 }}>
-                {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
-              </div>
-            </div>
-            <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
-              <div style={{ display:"flex", justifyContent:"space-around", marginBottom:4, paddingLeft:20, paddingRight:20 }}>
-                {[0,1,2,3,4].map(i => (
-                  <div key={i} style={{ display:"flex", gap:2 }}>
-                    {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"3px 3px 0 0", border:"1px solid #555" }} />)}
-                  </div>
-                ))}
-              </div>
-              <div style={{ flex:1, background:"linear-gradient(180deg,#1a1a2e 0%,#16213e 100%)", border:"3px solid #4a4a6a", borderRadius:"0 6px 6px 0", position:"relative", overflow:"hidden" }}>
-                {[...Array(9)].map((_, i) => (
-                  <div key={i} style={{ position:"absolute", left:`${(i+1)*10}%`, top:0, bottom:0, width:1, background:"rgba(255,255,255,0.04)", pointerEvents:"none" }} />
-                ))}
-                <div style={{ padding:"8px 10px", display:"flex", flexDirection:"column", gap:4 }}>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)", marginBottom:2, letterSpacing:1 }}>◀ FONDO DEL CONTENEDOR</div>
-                  <div style={{ display:"flex", gap:4 }}>
-                    <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", writingMode:"vertical-rl", transform:"rotate(180deg)", display:"flex", alignItems:"center", minWidth:12 }}>IZQ</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:4, flex:1 }}>
-                      {layout.left.map((pid, idx) => renderPallet(pid, idx, "left"))}
+              <div style={{ display:"flex", alignItems:"flex-end", gridColumn: m ? "1 / -1" : "auto" }}>
+                <div style={{ flex:1, background: todoCuadra ? "rgba(0,201,167,0.08)" : "rgba(249,115,22,0.08)", border:`1px solid ${todoCuadra ? "rgba(0,201,167,0.3)" : "rgba(249,115,22,0.3)"}`, borderRadius:8, padding:"7px 14px", display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize: m ? 18 : 15 }}>{todoCuadra ? "✅" : "⚠️"}</span>
+                  <div>
+                    <div style={{ fontSize: m ? 12 : 10, fontWeight:700, color: todoCuadra ? "#00C9A7" : "#F9A826" }}>
+                      {todoCuadra ? "Cuadra perfecto" : `Faltan ${totalCajas - totalConf} cajas`}
                     </div>
+                    <div style={{ fontSize: m ? 10 : 9, color:"rgba(255,255,255,0.35)" }}>{totalConf}/{totalCajas} distribuidas</div>
                   </div>
-                  <div style={{ height:6, background:"rgba(255,255,255,0.03)", borderRadius:2, margin:"0 12px", border:"1px solid rgba(255,255,255,0.05)" }} />
-                  <div style={{ display:"flex", gap:4 }}>
-                    <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", writingMode:"vertical-rl", transform:"rotate(180deg)", display:"flex", alignItems:"center", minWidth:12 }}>DER</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:4, flex:1 }}>
-                      {layout.right.map((pid, idx) => renderPallet(pid, idx, "right"))}
-                    </div>
-                  </div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)", textAlign:"right", marginTop:2, letterSpacing:1 }}>PUERTA DEL CONTENEDOR ▶</div>
                 </div>
               </div>
-              <div style={{ display:"flex", justifyContent:"space-around", marginTop:4, paddingLeft:20, paddingRight:20 }}>
-                {[0,1,2,3,4].map(i => (
-                  <div key={i} style={{ display:"flex", gap:2 }}>
-                    {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"0 0 3px 3px", border:"1px solid #555" }} />)}
+            </div>
+
+            {/* Leyenda calibres */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap: m ? 8 : 6, marginBottom: m ? 12 : 10 }}>
+              {resumen.filter(r => r.cajas > 0).map(r => (
+                <div key={r.size} style={{ background:COL_CAL[r.size].light, border:`1px solid ${COL_CAL[r.size].border}`, borderRadius:6, padding: m ? "5px 11px" : "3px 9px", fontSize: m ? 12 : 10, fontWeight:700, display:"flex", gap:5, alignItems:"center" }}>
+                  <span style={{ color:COL_CAL[r.size].bg }}>{r.size}</span>
+                  <span style={{ color:"rgba(255,255,255,0.6)" }}>{r.cajas.toLocaleString("es-CO")}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Grid 20 pallets */}
+            <div style={{ background:"rgba(0,0,0,0.2)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, padding: m ? 10 : 12, marginBottom: m ? 14 : 12 }}>
+              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.35)", marginBottom: m ? 10 : 8, fontWeight:600 }}>
+                📦 PALLETS — toca para editar calibre y cajas
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns: m ? "repeat(4,1fr)" : "repeat(10,1fr)", gap: m ? 8 : 6 }}>
+                {pallets.map((p, pi) => {
+                  const isMixed = p.calibres.length > 1;
+                  const mainCal = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+                  const isSel   = selPid === p.id;
+                  const sum     = palletSum(p);
+                  const ok      = sum === cpp;
+                  const bg      = isMixed
+                    ? `linear-gradient(135deg,${p.calibres.map((c,i) => `${COL_CAL[c.size]?.bg||"#888"}${i===0?"55":"33"}`).join(",")})`
+                    : isSel ? mainCal.light : "rgba(255,255,255,0.05)";
+                  const brd     = isSel
+                    ? `2px solid ${isMixed ? "white" : mainCal.bg}`
+                    : isMixed ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${mainCal.border}`;
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => setSelPid(prev => prev === p.id ? null : p.id)}
+                      style={{
+                        background:bg, border:brd, borderRadius: m ? 8 : 6,
+                        padding: m ? "10px 8px" : "6px 7px", cursor:"pointer",
+                        position:"relative", transition:"all 0.12s",
+                        minHeight: m ? 72 : 58,
+                        display:"flex", flexDirection:"column", justifyContent:"space-between",
+                        boxShadow: isSel ? "0 0 0 1px rgba(255,255,255,0.3) inset" : "none",
+                      }}
+                    >
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize: m ? 10 : 9, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{p.id}</span>
+                        {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
+                        {ok  && <span style={{ fontSize: m ? 9 : 8, color:"#00C9A7" }}>✓</span>}
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                        {p.calibres.map((c, ci) => (
+                          <div key={ci} style={{ display:"flex", alignItems:"center", gap:3 }}>
+                            <span style={{ fontSize: m ? 12 : 9, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.size}</span>
+                            <span style={{ fontSize: m ? 10 : 8, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
+                          </div>
+                        ))}
+                      </div>
+                      {p.calibres[0].predio && (
+                        <div style={{ fontSize: m ? 8 : 7, color:"rgba(255,255,255,0.3)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {p.calibres[0].predio}
+                        </div>
+                      )}
+                      {isSel && (
+                        <div style={{ position:"absolute", bottom:-1, left:"50%", transform:"translateX(-50%)", width:0, height:0, borderLeft:"5px solid transparent", borderRight:"5px solid transparent", borderBottom:"5px solid white" }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Panel de edición */}
+            {selPid !== null && selP && (
+              <div style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:12, padding: m ? 16 : 14, marginBottom: m ? 14 : 12 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 14 : 12 }}>
+                  <div style={{ fontSize: m ? 14 : 12, fontWeight:700, color:"#a5b4fc" }}>
+                    ✏️ Editando Pallet {selPid}
+                    {!selOk && <span style={{ color:"#F9A826", fontSize: m ? 12 : 10, marginLeft:8 }}>⚠ {selSum}/{cpp}</span>}
+                    {selOk  && <span style={{ color:"#00C9A7", fontSize: m ? 12 : 10, marginLeft:8 }}>✓ Cuadra</span>}
+                  </div>
+                  <button onClick={() => setSelPid(null)} style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 24 : 18, lineHeight:1, padding:"4px 8px", minWidth: m ? 44 : 28, minHeight: m ? 44 : 28 }}>✕</button>
+                </div>
+                {selP.calibres.map((c, ci) => (
+                  <div key={ci} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[c.size]?.border||"rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 14 : 10, marginBottom:10 }}>
+                    {m ? (
+                      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                          <div>
+                            <div style={lbl}>Calibre / Size</div>
+                            <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
+                              {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
+                            </CustomSelect>
+                          </div>
+                          <div>
+                            <div style={lbl}>N° Cajas</div>
+                            <input type="number" inputMode="numeric" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} />
+                          </div>
+                        </div>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                          <div>
+                            <div style={lbl}>Predio</div>
+                            <input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} />
+                          </div>
+                          <div>
+                            <div style={lbl}>Registro ICA</div>
+                            <input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} />
+                          </div>
+                        </div>
+                        <div>
+                          {ci === 0
+                            ? <button onClick={() => addCal(selPalletIdx)} style={{ width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:8, padding:"12px", color:"#a5b4fc", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>➕ Agregar calibre mixto</button>
+                            : <button onClick={() => removeCal(selPalletIdx, ci)} style={{ width:"100%", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"12px", color:"#fca5a5", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>✕ Quitar calibre</button>
+                          }
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 1fr 1fr auto", gap:8, alignItems:"end" }}>
+                        <div>
+                          <div style={lbl}>Calibre / Size</div>
+                          <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
+                            {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
+                          </CustomSelect>
+                        </div>
+                        <div>
+                          <div style={lbl}>N° Cajas</div>
+                          <input type="number" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} />
+                        </div>
+                        <div>
+                          <div style={lbl}>Predio</div>
+                          <input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} />
+                        </div>
+                        <div>
+                          <div style={lbl}>Registro ICA</div>
+                          <input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} />
+                        </div>
+                        <div style={{ paddingBottom:1 }}>
+                          {ci === 0
+                            ? <button onClick={() => addCal(selPalletIdx)} style={{ background:"rgba(99,102,241,0.2)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:7, padding:"6px 10px", color:"#a5b4fc", cursor:"pointer", fontSize:12, width:"100%" }}>➕</button>
+                            : <button onClick={() => removeCal(selPalletIdx, ci)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:7, padding:"6px 10px", color:"#fca5a5", cursor:"pointer", fontSize:12, width:"100%" }}>✕</button>
+                          }
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
+                <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.25)", marginTop:4 }}>
+                  Peso/caja: {PESO_STR} · LIMON TAHITI · Categoría 1
+                </div>
               </div>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginLeft:6 }}>
-              <div style={{ width:18, background:"linear-gradient(180deg,#2a2a2a,#1a1a1a)", border:"2px solid #555", borderRadius:"2px 6px 6px 2px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"6px 2px", flex:1, gap:6 }}>
-                {[...Array(6)].map((_, i) => <div key={i} style={{ width:4, height:4, background:"#666", borderRadius:"50%" }} />)}
-              </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        <div style={{ fontSize: m ? 11 : 8, color:"rgba(255,255,255,0.2)", textAlign:"center", marginTop: m ? 10 : 8 }}>
-          {m
-            ? "Toca para editar · Mantén presionado y arrastra para cambiar posición"
-            : "Clic para editar · Arrastra para cambiar posición"}
-        </div>
-      </div>
-
-      {/* ── Panel de edición ── */}
-      {selPid !== null && selPalletIdx >= 0 && (() => {
-        const p   = pallets[selPalletIdx];
-        const sum = palletSum(p);
-        const ok  = sum === cpp;
-        return (
-          <div style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:12, padding: m ? 16 : 14, marginBottom: m ? 14 : 12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 14 : 12 }}>
-              <div style={{ fontSize: m ? 14 : 12, fontWeight:700, color:"#a5b4fc" }}>
-                ✏️ Pallet {selPid}
-                {!ok && <span style={{ color:"#F9A826", fontSize: m ? 12 : 10, marginLeft:8 }}>⚠ {sum}/{cpp}</span>}
-                {ok  && <span style={{ color:"#00C9A7", fontSize: m ? 12 : 10, marginLeft:8 }}>✓ Cuadra</span>}
-              </div>
-              <button
-                onClick={() => setSelPid(null)}
-                style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 24 : 16, lineHeight:1, padding:"4px 8px", minWidth: m ? 44 : 28, minHeight: m ? 44 : 28 }}
-              >✕</button>
-            </div>
-
-            {p.calibres.map((c, ci) => (
-              <div key={ci} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[c.size]?.border || "rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 14 : 10, marginBottom:10 }}>
-                {m ? (
-                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      <div>
-                        <div style={lbl}>Calibre / Size</div>
-                        <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background: COL_CAL[c.size]?.light || "rgba(255,255,255,0.07)", cursor:"pointer" }}>
-                          {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
-                        </CustomSelect>
-                      </div>
-                      <div>
-                        <div style={lbl}>N° Cajas</div>
-                        <input type="number" inputMode="numeric" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} />
-                      </div>
-                    </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      <div>
-                        <div style={lbl}>Predio</div>
-                        <input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} />
-                      </div>
-                      <div>
-                        <div style={lbl}>Registro ICA</div>
-                        <input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} />
-                      </div>
-                    </div>
-                    <div>
-                      {ci === 0
-                        ? <button onClick={() => addCal(selPalletIdx)} style={{ width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:8, padding:"12px", color:"#a5b4fc", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>➕ Agregar calibre mixto</button>
-                        : <button onClick={() => removeCal(selPalletIdx, ci)} style={{ width:"100%", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"12px", color:"#fca5a5", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>✕ Quitar este calibre</button>
-                      }
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 1fr 1fr auto", gap:8, alignItems:"end" }}>
-                    <div>
-                      <div style={lbl}>Calibre / Size</div>
-                      <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background: COL_CAL[c.size]?.light || "rgba(255,255,255,0.07)", cursor:"pointer" }}>
-                        {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
-                      </CustomSelect>
-                    </div>
-                    <div>
-                      <div style={lbl}>N° Cajas</div>
-                      <input type="number" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} />
-                    </div>
-                    <div>
-                      <div style={lbl}>Predio</div>
-                      <input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} />
-                    </div>
-                    <div>
-                      <div style={lbl}>Registro ICA</div>
-                      <input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} />
-                    </div>
-                    <div style={{ paddingBottom:1 }}>
-                      {ci === 0
-                        ? <button onClick={() => addCal(selPalletIdx)} style={{ background:"rgba(99,102,241,0.2)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:7, padding:"6px 10px", color:"#a5b4fc", cursor:"pointer", fontSize:12, width:"100%" }}>➕</button>
-                        : <button onClick={() => removeCal(selPalletIdx, ci)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:7, padding:"6px 10px", color:"#fca5a5", cursor:"pointer", fontSize:12, width:"100%" }}>✕</button>
-                      }
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.25)", marginTop:4 }}>
-              Peso/caja: {PESO_STR} · LIMON TAHITI · Categoría 1
+            {/* Nav */}
+            <div style={{ display:"flex", gap:8, paddingTop: m ? 14 : 10 }}>
+              <NavBtn primary onClick={() => { setSelPid(null); setFase(2); }}>
+                Continuar a Carga Camión →
+              </NavBtn>
             </div>
           </div>
         );
       })()}
 
-      {/* ── Botones de descarga ── */}
-      <div style={{ display:"flex", flexDirection: m ? "column" : "row", gap: m ? 10 : 8, paddingTop: m ? 14 : 12, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-        <button onClick={generarExcel} disabled={generandoExcel} style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
-          {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
-        </button>
-        <button onClick={generarPDF} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
-          📄 Descargar PDF (Administrativo)
-        </button>
-      </div>
+      {/* ══════════════════════════════════════════════════════════
+          FASE 2 — CARGA CAMIÓN
+      ══════════════════════════════════════════════════════════ */}
+      {fase === 2 && (
+        <div>
+          {/* Datos del transporte */}
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
+            <div>
+              <div style={lbl}>Empresa transporte</div>
+              <input value={admin.empresaTransporte} onChange={e => sa("empresaTransporte", e.target.value)} placeholder="Transportando Express" style={inp} />
+            </div>
+            <div>
+              <div style={lbl}>Placa</div>
+              <input value={admin.placa} onChange={e => sa("placa", e.target.value)} placeholder="QJN678" style={inp} />
+            </div>
+            <div style={{ gridColumn: m ? "1 / -1" : "auto" }}>
+              <div style={lbl}>Fecha de cargue</div>
+              <input type="date" value={admin.fechaCargue} onChange={e => sa("fechaCargue", e.target.value)} style={inp} />
+            </div>
+          </div>
+
+          {/* Instrucción */}
+          <div style={{ background:"rgba(249,115,22,0.07)", border:"1px solid rgba(249,115,22,0.25)", borderRadius:10, padding: m ? "10px 14px" : "8px 14px", marginBottom: m ? 12 : 10, fontSize: m ? 12 : 11, color:"rgba(249,115,22,0.9)" }}>
+            🚛 Arrastra los pallets para reflejar cómo quedaron físicamente dentro del camión (fondo → puerta trasera).
+          </div>
+
+          {renderVehicleGrid(
+            layoutCamion, dragPidCamion, setDragPidCamion, dropCamion,
+            "🚛", "CAMIÓN",
+            m ? "Mantén presionado y arrastra para cambiar posición" : "Arrastra para cambiar posición"
+          )}
+
+          {/* Nav */}
+          <div style={{ display:"flex", gap:8, paddingTop: m ? 14 : 10 }}>
+            <NavBtn onClick={() => setFase(1)}>← Volver a Planta</NavBtn>
+            <NavBtn primary onClick={() => setFase(3)}>Continuar a Contenedor →</NavBtn>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          FASE 3 — PACKING CONTENEDOR
+      ══════════════════════════════════════════════════════════ */}
+      {fase === 3 && (
+        <div>
+          {/* Fila 1: datos del contenedor */}
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+            {[
+              { l:"Packing List No.", v:admin.plNo,        k:"plNo",        ph:"2026-174"            },
+              { l:"N° Container",     v:admin.container,   k:"container",   ph:"TLLU1194289"         },
+              { l:"Vessel / Motonave",v:admin.vessel,      k:"vessel",      ph:"SPIRIT OF MELBOURNE" },
+              { l:"Final Stamps",     v:admin.finalStamps, k:"finalStamps", ph:"005743–SQ83066"      },
+            ].map(f => (
+              <div key={f.k}>
+                <div style={lbl}>{f.l}</div>
+                <input value={f.v} onChange={e => sa(f.k, e.target.value)} placeholder={f.ph} style={inp} />
+              </div>
+            ))}
+          </div>
+
+          {/* Fila 2: destino */}
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(2,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+            <div>
+              <div style={lbl}>Puerto destino</div>
+              <CustomSelect value={admin.destino} onChange={e => sa("destino", e.target.value)} style={{ ...inp, cursor:"pointer" }}>
+                {DESTINOS.map(d => <option key={d} value={d}>{d}</option>)}
+              </CustomSelect>
+            </div>
+            <div>
+              <div style={lbl}>Fecha de cargue</div>
+              <input type="date" value={admin.fechaCargue} onChange={e => sa("fechaCargue", e.target.value)} style={inp} />
+            </div>
+          </div>
+
+          {/* Fila 3: certificados */}
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(2,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
+            <div style={cardS}>
+              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🏷 PALLET CERTIFICATE ICA</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
+                <div><div style={lbl}>Número ICA</div><input value={admin.palletCertICA} onChange={e => sa("palletCertICA", e.target.value)} placeholder="ICA 05-007-26" style={inp} /></div>
+                <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.palletCertPalletNo} onChange={e => sa("palletCertPalletNo", e.target.value)} style={inp} /></div>
+              </div>
+            </div>
+            <div style={cardS}>
+              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TEMP RECORDER</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
+                <div><div style={lbl}>Número</div><input value={admin.tempRecorder} onChange={e => sa("tempRecorder", e.target.value)} placeholder="V1-0041573" style={inp} /></div>
+                <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.tempRecorderPalletNo} onChange={e => sa("tempRecorderPalletNo", e.target.value)} style={inp} /></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Instrucción */}
+          <div style={{ background:"rgba(14,165,233,0.07)", border:"1px solid rgba(14,165,233,0.25)", borderRadius:10, padding: m ? "10px 14px" : "8px 14px", marginBottom: m ? 12 : 10, fontSize: m ? 12 : 11, color:"rgba(14,165,233,0.9)" }}>
+            🚢 Ajusta el orden final de los pallets tal como quedaron cargados dentro del contenedor.
+          </div>
+
+          {renderVehicleGrid(
+            layout, dragPid, setDragPid, dropContainer,
+            "🚢", "CONT.",
+            m ? "Mantén presionado y arrastra para cambiar posición" : "Arrastra para cambiar posición"
+          )}
+
+          {/* Botones descarga */}
+          <div style={{ display:"flex", flexDirection: m ? "column" : "row", gap: m ? 10 : 8, paddingTop: m ? 14 : 12, borderTop:"1px solid rgba(255,255,255,0.06)", marginBottom: m ? 10 : 8 }}>
+            <button onClick={generarExcel} disabled={generandoExcel} style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
+              {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
+            </button>
+            <button onClick={generarPDF} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
+              📄 Descargar PDF (Administrativo)
+            </button>
+          </div>
+
+          {/* Nav */}
+          <div style={{ display:"flex", gap:8 }}>
+            <NavBtn onClick={() => setFase(2)}>← Volver a Camión</NavBtn>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
