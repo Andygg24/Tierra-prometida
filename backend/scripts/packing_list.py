@@ -28,7 +28,7 @@ JSON esperado por stdin:
   ]
 }
 """
-import sys, json, os, io
+import sys, json, os, io, zipfile, re
 from copy import deepcopy
 from datetime import date as date_cls
 from openpyxl import load_workbook
@@ -36,7 +36,7 @@ from openpyxl.cell.cell import MergedCell
 from openpyxl.utils import column_index_from_string
 
 # ── Leer JSON de stdin ────────────────────────────────────────────────────
-data = json.load(sys.stdin)
+data = json.load(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8-sig"))
 
 pl_no        = str(data.get("plNo", ""))
 destino      = str(data.get("destino", "PHILADELPHIA")).upper()
@@ -116,7 +116,7 @@ ws["A2"].value = (
 )
 ws["D5"].value = destino
 ws["F5"].value = total_cajas
-ws["H5"].value = 20
+ws["H5"].value = len(pallets)
 ws["A7"].value = peso
 ws["D7"].value = peso
 ws["F7"].value = empresa
@@ -233,8 +233,57 @@ print(f"AutoFilter (post): {ws.auto_filter.ref}", file=sys.stderr)
 extra = max(0, len(rows) - (TMPL_LAST_ROW - DATA_START + 1))
 print(f"Pallets: {len(sorted_pallets)} | Filas: {len(rows)} | Extra: {extra}", file=sys.stderr)
 
-# ── Guardar en stdout ─────────────────────────────────────────────────────
+# ── Guardar + restaurar logo/drawing (openpyxl los descarta al guardar) ───
+opxl_buf = io.BytesIO()
+wb.save(opxl_buf)
+opxl_buf.seek(0)
+
+# Archivos de imagen/dibujo que openpyxl siempre elimina
+DRAWING_FILES = [
+    "xl/drawings/drawing1.xml",
+    "xl/drawings/_rels/drawing1.xml.rels",
+    "xl/media/image1.png",
+]
+
+# Fragmentos a inyectar en [Content_Types].xml
+CT_PNG  = '<Default Extension="png" ContentType="image/png"/>'
+CT_DRW  = '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'
+
+# Relación del dibujo a inyectar en sheet1.xml.rels
+REL_DRW = '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>'
+
+with zipfile.ZipFile(TMPL, "r") as tmpl_zip:
+    tmpl_files = {n: tmpl_zip.read(n) for n in DRAWING_FILES if n in tmpl_zip.namelist()}
+
 out_buf = io.BytesIO()
-wb.save(out_buf)
+with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
+     zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as dst_zip:
+
+    for item in src_zip.infolist():
+        data = src_zip.read(item.filename)
+
+        if item.filename == "[Content_Types].xml":
+            text = data.decode("utf-8")
+            # Agregar png si no está
+            if 'Extension="png"' not in text:
+                text = text.replace('<Default Extension="rels"', f'{CT_PNG}<Default Extension="rels"', 1)
+            # Agregar drawing override si no está
+            if "drawings/drawing1.xml" not in text:
+                text = text.replace("</Types>", f"{CT_DRW}</Types>", 1)
+            data = text.encode("utf-8")
+
+        elif item.filename == "xl/worksheets/_rels/sheet1.xml.rels":
+            text = data.decode("utf-8")
+            # Inyectar rId3 de drawing si no está
+            if "drawing1.xml" not in text:
+                text = text.replace("</Relationships>", f"{REL_DRW}</Relationships>", 1)
+            data = text.encode("utf-8")
+
+        dst_zip.writestr(item, data)
+
+    # Copiar archivos de dibujo/imagen desde el molde
+    for path, fdata in tmpl_files.items():
+        dst_zip.writestr(path, fdata)
+
 out_buf.seek(0)
 sys.stdout.buffer.write(out_buf.read())
