@@ -1,11 +1,13 @@
 """
 packing_list.py — Genera Packing List preservando el molde original.
-Usa openpyxl load_workbook() para conservar logo, AutoFilter, estilos,
-bordes, merges, anchos y altos de fila.
-
-Pallets mixtos (multi-calibre): genera filas de continuación con A y B
-vacíos. Si el total de filas supera las del molde, copia el estilo de la
-fila de referencia del molde para que no queden sin formato.
+Estrategia:
+  1. Capturar estilos de TODAS las filas de datos ANTES de cualquier cambio
+     (incluyendo estilos de celdas que son MergedCell no-ancla).
+  2. Desunir merges del área de datos.
+  3. Limpiar valores.
+  4. Escribir nuevos valores.
+  5. Re-aplicar los estilos capturados (garantiza que el formato del molde
+     se preserve en filas existentes Y en filas extra para pallets mixtos).
 
 JSON esperado por stdin:
 {
@@ -27,9 +29,10 @@ JSON esperado por stdin:
 }
 """
 import sys, json, os, io
-from copy import copy as copy_obj
+from copy import deepcopy
 from datetime import date as date_cls
 from openpyxl import load_workbook
+from openpyxl.cell.cell import MergedCell
 from openpyxl.utils import column_index_from_string
 
 # ── Leer JSON de stdin ────────────────────────────────────────────────────
@@ -45,27 +48,21 @@ final_stamps = str(data.get("finalStamps", ""))
 total_cajas  = int(data.get("totalCajas", 1400))
 pallets      = data.get("pallets", [])
 
-PESO_KG      = 16.2
-DATA_START   = 11        # primera fila de datos de pallets en el molde
-COLS         = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
+PESO_KG    = 16.2
+DATA_START = 11
+COLS       = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
+COL_IDXS   = {c: column_index_from_string(c) for c in COLS}
 
 BASE   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOLDES = os.path.join(os.path.dirname(BASE), "Moldes")
 TMPL   = os.path.join(MOLDES, "Packing List 271169365.xlsx")
 
-# ── Cargar molde — preserva logo, AutoFilter, estilos, merges ────────────
+# ── Cargar molde ──────────────────────────────────────────────────────────
 wb = load_workbook(TMPL, keep_vba=False)
-ws = wb.active   # hoja "Table 1"
+ws = wb.active
 
-# Guardar límite de filas del molde ANTES de tocar nada
 TMPL_LAST_ROW = ws.max_row   # 31 en el molde actual
 
-# Fila de referencia para copiar estilo en filas extra (fila intermedia,
-# sin bordes especiales de primera/última fila)
-STYLE_REF_ROW  = 15
-STYLE_CONT_ROW = 15   # mismo estilo para filas de continuación extra
-
-# ── Verificar preservación antes de modificar ─────────────────────────────
 try:
     n_img = len(ws._images)
 except Exception:
@@ -74,13 +71,47 @@ print(f"Imágenes en el workbook: {n_img}", file=sys.stderr)
 print(f"AutoFilter: {ws.auto_filter.ref}", file=sys.stderr)
 print(f"Última fila del molde: {TMPL_LAST_ROW}", file=sys.stderr)
 
-# ── Encabezado — solo .value ──────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 1 — Capturar estilos y alturas ANTES de cualquier modificación
+# Para MergedCells no-ancla, usamos el estilo de su celda ancla.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Mapa (row, col_idx) -> estilo del ancla, para celdas dentro de un merge
+anchor_style_map = {}
+for mr in ws.merged_cells.ranges:
+    if mr.min_row >= DATA_START:
+        anchor = ws.cell(row=mr.min_row, column=mr.min_col)
+        anchor_st = deepcopy(anchor._style) if hasattr(anchor, "_style") else None
+        for r in range(mr.min_row, mr.max_row + 1):
+            for c in range(mr.min_col, mr.max_col + 1):
+                anchor_style_map[(r, c)] = anchor_st
+
+# Capturar estilo de cada celda de datos
+captured = {}   # row -> {col: _style, "_height": float|None}
+for r in range(DATA_START, TMPL_LAST_ROW + 1):
+    captured[r] = {}
+    for col in COLS:
+        cidx = COL_IDXS[col]
+        cell = ws.cell(row=r, column=cidx)
+        if isinstance(cell, MergedCell):
+            st = anchor_style_map.get((r, cidx))
+        else:
+            st = deepcopy(cell._style) if hasattr(cell, "_style") else None
+        captured[r][col] = st
+    captured[r]["_height"] = ws.row_dimensions[r].height
+
+# Fila de referencia para filas extra más allá del molde (fila intermedia)
+REF_ROW = 15
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 2 — Escribir encabezado (solo .value, los estilos ya están en molde)
+# ═══════════════════════════════════════════════════════════════════════════
 peso = round(total_cajas * PESO_KG, 2)
 
 ws["A2"].value = (
-    f"TIERRA PROMETIDA TRADING SAS.\n"
-    f"BARRANQUILLA - ATLANTICO\n"
-    f"operaciones@tierraprometidat.com\n"
+    "TIERRA PROMETIDA TRADING SAS.\n"
+    "BARRANQUILLA - ATLANTICO\n"
+    "operaciones@tierraprometidat.com\n"
     f"Packing List No. {pl_no}"
 )
 ws["D5"].value = destino
@@ -101,10 +132,12 @@ if fecha_str:
     except Exception:
         ws["F9"].value = fecha_str
 
-# ── Construir lista plana de filas (pallets simples y mixtos) ────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 3 — Construir lista plana de filas de pallets
+# ═══════════════════════════════════════════════════════════════════════════
 sorted_pallets = sorted(pallets, key=lambda p: p.get("id", 0))
 rows = []
-merges_to_add = []   # (col, r1, r2) para pallets mixtos
+merges_to_add = []
 
 for p in sorted_pallets:
     pid      = p.get("id", 0)
@@ -121,53 +154,57 @@ for p in sorted_pallets:
             "is_cont": ci > 0,
         })
 
-    # Si tiene más de un calibre → merge de A y B para las filas que ocupa
     if len(calibres) > 1:
         r_end = DATA_START + len(rows) - 1
         for col in ("A", "B"):
             merges_to_add.append((col, r_start, r_end))
 
-# ── Desunir merges del área de datos ANTES de limpiar ────────────────────
-# Las MergedCell que no son el ancla son read-only; hay que unmerge primero.
-merges_data = [
-    str(m) for m in ws.merged_cells.ranges
-    if m.min_row >= DATA_START
-]
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 4 — Desunir merges del área de datos (ahora seguro, estilos guardados)
+# ═══════════════════════════════════════════════════════════════════════════
+merges_data = [str(m) for m in ws.merged_cells.ranges if m.min_row >= DATA_START]
 for ref in merges_data:
     ws.unmerge_cells(ref)
-print(f"Merges desunidos en área de datos: {len(merges_data)}", file=sys.stderr)
+print(f"Merges desunidos: {len(merges_data)}", file=sys.stderr)
 
-# ── Limpiar área de datos — ahora todas las celdas son escribibles ────────
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 5 — Limpiar valores del área de datos
+# ═══════════════════════════════════════════════════════════════════════════
 for r in range(DATA_START, TMPL_LAST_ROW + 1):
     for col in COLS:
-        ws[f"{col}{r}"].value = None
+        ws.cell(row=r, column=COL_IDXS[col]).value = None
 
-# ── Función auxiliar: copiar estilo completo de una celda a otra ──────────
-def copy_style(src_row, dst_row, col):
-    src = ws.cell(row=src_row, column=column_index_from_string(col))
-    dst = ws.cell(row=dst_row, column=column_index_from_string(col))
-    if src.has_style:
-        dst._style = copy_obj(src._style)
-    # Copiar alto de fila si la fila destino no existe aún en row_dimensions
-    src_ht = ws.row_dimensions[src_row].height
-    if src_ht and dst_row not in ws.row_dimensions:
-        ws.row_dimensions[dst_row].height = src_ht
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 6 — Escribir nuevos datos y re-aplicar estilos capturados
+# ═══════════════════════════════════════════════════════════════════════════
+def style_for(excel_row, col):
+    """Devuelve el estilo capturado del molde para esta fila/columna."""
+    src_row = excel_row if excel_row <= TMPL_LAST_ROW else REF_ROW
+    return captured.get(src_row, {}).get(col)
 
-# ── Escribir datos de pallets ─────────────────────────────────────────────
+def height_for(excel_row):
+    src_row = excel_row if excel_row <= TMPL_LAST_ROW else REF_ROW
+    return captured.get(src_row, {}).get("_height")
+
 for i, rd in enumerate(rows):
     excel_row = DATA_START + i
 
-    # Si la fila está fuera del molde → copiar estilo de fila de referencia
-    if excel_row > TMPL_LAST_ROW:
-        ref_row = STYLE_CONT_ROW if rd["is_cont"] else STYLE_REF_ROW
-        for col in COLS:
-            copy_style(ref_row, excel_row, col)
+    # Re-aplicar estilo capturado a cada celda de esta fila
+    for col in COLS:
+        cell = ws.cell(row=excel_row, column=COL_IDXS[col])
+        st = style_for(excel_row, col)
+        if st is not None:
+            cell._style = deepcopy(st)
 
-    # Escribir valores — solo .value
+    # Re-aplicar altura de fila
+    ht = height_for(excel_row)
+    if ht:
+        ws.row_dimensions[excel_row].height = ht
+
+    # Escribir valores
     if not rd["is_cont"]:
         ws[f"A{excel_row}"].value = rd["pid"]
         ws[f"B{excel_row}"].value = "16.2 KG"
-    # Filas de continuación: A y B quedan None
 
     ws[f"C{excel_row}"].value = rd["size"] if rd["size"] != "" else None
     ws[f"D{excel_row}"].value = "LIMON TAHITI"
@@ -177,23 +214,24 @@ for i, rd in enumerate(rows):
     ws[f"H{excel_row}"].value = rd["cajas"]
     ws[f"I{excel_row}"].value = rd["ica"] or None
 
-# ── Agregar merges para pallets mixtos (A y B agrupados) ─────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 7 — Agregar merges para pallets mixtos
+# ═══════════════════════════════════════════════════════════════════════════
 for col, r1, r2 in merges_to_add:
     try:
         ws.merge_cells(f"{col}{r1}:{col}{r2}")
     except Exception as e:
         print(f"Merge {col}{r1}:{col}{r2} omitido: {e}", file=sys.stderr)
 
-# ── Verificar estado final antes de guardar ───────────────────────────────
+# ── Diagnóstico final ─────────────────────────────────────────────────────
 try:
     n_img_post = len(ws._images)
 except Exception:
     n_img_post = "N/A"
-print(f"Imágenes en el workbook (post): {n_img_post}", file=sys.stderr)
+print(f"Imágenes (post): {n_img_post}", file=sys.stderr)
 print(f"AutoFilter (post): {ws.auto_filter.ref}", file=sys.stderr)
-print(f"Pallets: {len(sorted_pallets)} | Filas de datos: {len(rows)} | "
-      f"Filas extra fuera del molde: {max(0, len(rows) - (TMPL_LAST_ROW - DATA_START + 1))}",
-      file=sys.stderr)
+extra = max(0, len(rows) - (TMPL_LAST_ROW - DATA_START + 1))
+print(f"Pallets: {len(sorted_pallets)} | Filas: {len(rows)} | Extra: {extra}", file=sys.stderr)
 
 # ── Guardar en stdout ─────────────────────────────────────────────────────
 out_buf = io.BytesIO()
