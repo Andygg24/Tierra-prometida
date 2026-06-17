@@ -77,12 +77,15 @@ export function useContenedores() {
         supabase.from("contenedor_insumos").select("*").order("fecha", { ascending: false }),
         supabase.from("contenedor_rendimientos").select("*").order("fecha", { ascending: false }),
       ]);
-      if (e1 || e2 || e3 || e4) { setLoading(false); return; }
       if (cancelled) return;
-      setProcesos((conts   || []).map(rowToCont));
-      setGrupos(  (grups   || []).map(rowToGrupo));
-      setContInsumos((insumos || []).map(rowToInsumo));
-      setRendimientos((rends  || []).map(rowToRendimiento));
+      if (!e1) setProcesos((conts   || []).map(rowToCont));
+      if (!e2) setGrupos(  (grups   || []).map(rowToGrupo));
+      if (!e3) setContInsumos((insumos || []).map(rowToInsumo));
+      if (!e4) setRendimientos((rends  || []).map(rowToRendimiento));
+      if (e1) console.error("[contenedores]", e1.message);
+      if (e2) console.error("[grupos_trabajo]", e2.message);
+      if (e3) console.error("[contenedor_insumos]", e3.message);
+      if (e4) console.error("[contenedor_rendimientos]", e4.message);
       setLoading(false);
     }
     fetchAll();
