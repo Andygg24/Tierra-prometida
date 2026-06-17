@@ -3207,8 +3207,9 @@ function ContenedoresDemo() {
   const mob = useM();
   const hoy = new Date().toISOString().split("T")[0];
 
-  const [tabCont, setTabCont]     = useState(0);
-  const [confirm, setConfirm]     = useState(null);
+  const [tabCont, setTabCont]           = useState(0);
+  const [plContenedorActivo, setPlContenedorActivo] = useState(null);
+  const [confirm, setConfirm]           = useState(null);
   const pedir = (msg, fn) => setConfirm({ msg, fn });
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
   const lbl = { fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 };
@@ -3318,7 +3319,14 @@ function ContenedoresDemo() {
       </div>
 
       {/* ═══ TAB 0: CONTENEDORES ═══ */}
-      {tabCont === 0 && (
+      {tabCont === 0 && plContenedorActivo && (
+        <PackingListTab
+          mob={mob}
+          contenedor={plContenedorActivo}
+          onClose={() => setPlContenedorActivo(null)}
+        />
+      )}
+      {tabCont === 0 && !plContenedorActivo && (
         <div>
           <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:8,marginBottom:12}}>
             {[{i:"🚢",l:"Total",v:stats.total,c:"#6366F1"},{i:"✅",l:"Completados",v:stats.comp,c:"#00C9A7"},{i:"⏳",l:"En proceso",v:stats.enProc,c:"#F9A826"},{i:"📦",l:"Cajas",v:stats.cajas.toLocaleString("es-CO"),c:"#845EF7"}].map((s,i)=>(
@@ -3450,6 +3458,11 @@ function ContenedoresDemo() {
                     {p.obs && <div style={{fontSize:11,color:"rgba(249,168,38,0.7)",marginTop:3}}>📌 {p.obs}</div>}
                   </div>
                   <div style={{borderTop:`1px solid ${col}20`,display:"flex"}}>
+                    <button onClick={()=>{setPlContenedorActivo(p);}}
+                      style={{flex:1,background:"rgba(99,102,241,0.08)",border:"none",padding:"10px",fontSize:13,color:"rgba(165,180,252,0.8)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                      📦 <span style={{fontSize:12}}>Packing List</span>
+                    </button>
+                    <div style={{width:1,background:`${col}20`}} />
                     <button onClick={()=>{setForm({...formDef,...p});setEditIdx(p.id);setShowForm(true);}}
                       style={{flex:1,background:"rgba(255,255,255,0.04)",border:"none",padding:"10px",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       ✏️ <span style={{fontSize:12}}>Editar</span>
@@ -4305,7 +4318,16 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
       })()}
 
       {/* ═══ TAB 6: PACKING LIST ═══ */}
-      {tabCont === 6 && <PackingListTab mob={mob} />}
+      {tabCont === 6 && (
+        <div style={{textAlign:"center",padding:"48px 0",color:"rgba(255,255,255,0.35)"}}>
+          <div style={{fontSize:40,marginBottom:12}}>📦</div>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:8,color:"rgba(255,255,255,0.6)"}}>Packing List vinculado al contenedor</div>
+          <div style={{fontSize:12,marginBottom:20}}>Abre el Packing List desde el botón <b style={{color:"#a5b4fc"}}>📦 Packing List</b> en cada tarjeta de contenedor.</div>
+          <button onClick={()=>setTabCont(0)} style={{background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"10px 22px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
+            ← Ir a Contenedores
+          </button>
+        </div>
+      )}
 
       {/* ═══ TAB 5: RENDIMIENTOS ═══ */}
       {tabCont === 5 && (() => {
