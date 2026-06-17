@@ -110,7 +110,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 
   // ── Admin ─────────────────────────────────────────────────────
   const adminInicial = {
-    plNo:"", fechaCargue:hoy, container:"", destino:"Philadelphia",
+    plNo:"", consecutivo:"", fechaCargue:hoy, container:"", destino:"Philadelphia",
     vessel:"", palletCerts:[{ ica:"", palletNo:"" }],
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
@@ -953,12 +953,27 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
       {/* ══ FASE 3 — PACKING CONTENEDOR ══ */}
       {fase === 3 && (
         <div>
-          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(5,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+            <div>
+              <div style={lbl}>Consecutivo</div>
+              <input
+                type="number" inputMode="numeric" min={1}
+                value={admin.consecutivo}
+                onChange={e => {
+                  const cons = e.target.value;
+                  const año  = new Date().getFullYear();
+                  sa("consecutivo", cons);
+                  if (cons) sa("plNo", `${año}-${cons}`);
+                }}
+                placeholder="175"
+                style={inp}
+              />
+            </div>
             {[
-              { l:"Packing List No.", v:admin.plNo,        k:"plNo",        ph:"2026-174"            },
-              { l:"N° Container",     v:admin.container,   k:"container",   ph:"TLLU1194289"         },
-              { l:"Vessel / Motonave",v:admin.vessel,      k:"vessel",      ph:"SPIRIT OF MELBOURNE" },
-              { l:"Final Stamps",     v:admin.finalStamps, k:"finalStamps", ph:"005743–SQ83066"      },
+              { l:"Packing List No. / DEAL", v:admin.plNo,        k:"plNo",        ph:"2026-175"            },
+              { l:"N° Container",            v:admin.container,   k:"container",   ph:"TLLU1194289"         },
+              { l:"Vessel / Motonave",       v:admin.vessel,      k:"vessel",      ph:"SPIRIT OF MELBOURNE" },
+              { l:"Final Stamps",            v:admin.finalStamps, k:"finalStamps", ph:"005743–SQ83066"      },
             ].map(f => (
               <div key={f.k}><div style={lbl}>{f.l}</div><input value={f.v} onChange={e => sa(f.k, e.target.value)} placeholder={f.ph} style={inp} /></div>
             ))}

@@ -272,6 +272,13 @@ with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
                 text = text.replace("</Types>", f"{CT_DRW}</Types>", 1)
             data = text.encode("utf-8")
 
+        elif item.filename == "xl/worksheets/sheet1.xml":
+            text = data.decode("utf-8")
+            # openpyxl elimina <drawing r:id="rId3"/> — reinyectar antes de </worksheet>
+            if "drawing" not in text:
+                text = text.replace("</worksheet>", '<drawing r:id="rId3"/></worksheet>', 1)
+            data = text.encode("utf-8")
+
         elif item.filename == "xl/worksheets/_rels/sheet1.xml.rels":
             text = data.decode("utf-8")
             # Inyectar rId3 de drawing si no está
