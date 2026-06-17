@@ -97,7 +97,7 @@ app.post("/api/proforma", async (req, res) => {
 
 // ── POST /api/packing-list ────────────────────────────────────────────
 app.post("/api/packing-list", async (req, res) => {
-  const err = validate(req.body, ["plNo", "pallets"]);
+  const err = validate(req.body, ["pallets"]);
   if (err) return res.status(400).json({ error: err });
 
   try {

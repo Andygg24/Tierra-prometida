@@ -436,7 +436,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     setGenerandoExcel(true);
     try {
       const payload = {
-        plNo:              admin.plNo        || "",
+        plNo:              admin.plNo || admin.container || `PL-${hoy}`,
         destino:           admin.destino     || "Philadelphia",
         fechaCargue:       admin.fechaCargue || "",
         empresaTransporte: admin.empresaTransporte || "",
