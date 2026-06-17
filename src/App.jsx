@@ -3278,7 +3278,7 @@ function ContenedoresDemo() {
 
   // ── Tab 5: Rendimientos ──
   const KG_DEL_MONTE = 16.8;
-  const KG_PRINCESS  = 16.7;
+  const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
   const rendFormDef  = { contId: null, contNum: "", fecha: hoy, kilosProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "" };
   const [selContRend,   setSelContRend]   = useState(null);
@@ -4545,7 +4545,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                         <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={inp} />
                       </div>
                       <div>
-                        <div style={lbl}>Cajas Princess (16.7 kg)</div>
+                        <div style={lbl}>Cajas Princess (15.7 kg)</div>
                         <input type="number" min="0" value={formRend.cajasPrincess} onChange={e => setFormRend(f => ({ ...f, cajasPrincess: e.target.value }))} placeholder="0" style={inp} />
                       </div>
                       {formRend.kilosProcesados > 0 && (() => {
