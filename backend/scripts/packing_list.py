@@ -127,7 +127,17 @@ for p in sorted_pallets:
         for col in ("A", "B"):
             merges_to_add.append((col, r_start, r_end))
 
-# ── Limpiar área de datos del molde — solo .value = None ─────────────────
+# ── Desunir merges del área de datos ANTES de limpiar ────────────────────
+# Las MergedCell que no son el ancla son read-only; hay que unmerge primero.
+merges_data = [
+    str(m) for m in ws.merged_cells.ranges
+    if m.min_row >= DATA_START
+]
+for ref in merges_data:
+    ws.unmerge_cells(ref)
+print(f"Merges desunidos en área de datos: {len(merges_data)}", file=sys.stderr)
+
+# ── Limpiar área de datos — ahora todas las celdas son escribibles ────────
 for r in range(DATA_START, TMPL_LAST_ROW + 1):
     for col in COLS:
         ws[f"{col}{r}"].value = None
