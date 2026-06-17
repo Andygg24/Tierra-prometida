@@ -3958,13 +3958,18 @@ function ContenedoresDemo() {
                                   </button>
                                   <button onClick={() => pedir(
                                     "¿Eliminar este registro? Los insumos se restaurarán al inventario.",
-                                    () => {
+                                    async () => {
                                       const lotes = invActual
                                         .map(inv => { const used = rec.items.find(x => x.id === inv.id); return used ? {id:inv.id, newCant: inv.cant + used.cant} : null; })
                                         .filter(Boolean);
-                                      if (lotes.length) ajustarLotes(lotes);
-                                      eliminarCC(rec.id);
-                                      if (editingRecId === rec.id) { setEditingRecId(null); setFormCC(initForm()); }
+                                      if (lotes.length) await ajustarLotes(lotes);
+                                      const ok = await eliminarCC(rec.id);
+                                      if (ok) {
+                                        showToast("Registro eliminado ✓");
+                                        if (editingRecId === rec.id) { setEditingRecId(null); setFormCC(initForm()); }
+                                      } else {
+                                        showToast("Error al eliminar", false);
+                                      }
                                     }
                                   )} style={{flex:1,background:"rgba(255,80,80,0.07)",border:"1px solid rgba(255,80,80,0.18)",borderRadius:6,padding:"5px 0",fontSize:10,color:"rgba(255,110,110,0.7)",cursor:"pointer",fontFamily:"inherit"}}>
                                     🗑 Eliminar
