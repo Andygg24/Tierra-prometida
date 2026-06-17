@@ -273,6 +273,12 @@ with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
         elif name == "xl/worksheets/sheet1.xml":
             text = data.decode("utf-8")
             if "<drawing" not in text:
+                # Verificar que xmlns:r esté en el elemento <worksheet> raíz
+                # (openpyxl lo pone solo en elementos hijos como <hyperlink>)
+                XMLNS_R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+                ws_close = text.find(">")          # fin del tag <worksheet ...>
+                if XMLNS_R not in text[:ws_close]:
+                    text = text.replace("<worksheet ", f"<worksheet {XMLNS_R} ", 1)
                 text = text.replace("</worksheet>", '<drawing r:id="rId3"/></worksheet>', 1)
             data = text.encode("utf-8")
 
