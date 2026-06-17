@@ -435,74 +435,38 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const generarExcel = async () => {
     setGenerandoExcel(true);
     try {
-      // Cargar plantilla desde public/
-      const res = await fetch("/plantilla-packing-list.xlsx");
-      if (!res.ok) throw new Error("No se encontró la plantilla Excel");
-      const ab  = await res.arrayBuffer();
-      const wb  = XLSX.read(ab, { type: "array", cellStyles: true });
-      const ws  = wb.Sheets[wb.SheetNames[0]];
-
-      const sv = (addr, val, type) => {
-        if (!ws[addr]) ws[addr] = {};
-        ws[addr].v = val;
-        ws[addr].t = type || (typeof val === "number" ? "n" : "s");
-        if (ws[addr].f) delete ws[addr].f; // quitar fórmulas si las hay
+      const payload = {
+        plNo:              admin.plNo        || "",
+        destino:           admin.destino     || "Philadelphia",
+        fechaCargue:       admin.fechaCargue || "",
+        empresaTransporte: admin.empresaTransporte || "",
+        placa:             admin.placa       || "",
+        tempRecorder:      admin.tempRecorder || "",
+        finalStamps:       admin.finalStamps  || "",
+        totalCajas,
+        pallets: pallets.map(p => ({
+          id:       p.id,
+          calibres: p.calibres.map(c => ({
+            size:   Number(c.size  || 0),
+            cajas:  Number(c.cajas || 0),
+            predio: c.predio || "",
+            ica:    c.ica    || "",
+          })),
+        })),
       };
 
-      // ── Encabezado ──────────────────────────────────────────────
-      sv("A2", `TIERRA PROMETIDA TRADING SAS.\r\nBARRANQUILLA - ATLANTICO\r\noperaciones@tierraprometidat.com\r\nPacking List No. ${admin.plNo || ""}`);
-      sv("A5", "CARTAGENA");
-      sv("D5", (admin.destino || "MIAMI").toUpperCase());
-      sv("F5", totalCajas, "n");
-      sv("H5", 20, "n");
-
-      const pesoTotal = Math.round(totalCajas * 16.2 * 100) / 100;
-      sv("A7", pesoTotal, "n");
-      sv("D7", pesoTotal, "n");
-      sv("F7", admin.empresaTransporte || "");
-      sv("H7", admin.placa || "");
-
-      sv("A9", admin.plNo || "");
-      sv("D9", admin.tempRecorder || "");
-
-      // Fecha como número Excel
-      if (admin.fechaCargue) {
-        const [y, mo, d] = admin.fechaCargue.split("-").map(Number);
-        const excelDate = Math.floor((new Date(y, mo - 1, d) - new Date(1899, 11, 30)) / 86400000);
-        ws["F9"] = { t: "n", v: excelDate, z: "mm/dd/yyyy" };
-      }
-      sv("H9", admin.finalStamps || "");
-
-      // ── Limpiar filas de pallets anteriores (filas 11–60) ───────
-      for (let r = 11; r <= 60; r++) {
-        ["A","B","C","D","E","F","G","H","I"].forEach(col => { delete ws[`${col}${r}`]; });
-      }
-
-      // ── Escribir datos de pallets ────────────────────────────────
-      let rowNum = 11;
-      pallets.forEach((pallet) => {
-        pallet.calibres.forEach((cal, ci) => {
-          if (ci === 0) {
-            sv(`A${rowNum}`, pallet.id, "n");
-            sv(`B${rowNum}`, "16.2 KG");
-          }
-          sv(`C${rowNum}`, Number(cal.size), "n");
-          sv(`D${rowNum}`, "LIMON TAHITI");
-          sv(`E${rowNum}`, 1, "n");
-          sv(`F${rowNum}`, Number(cal.cajas || 0), "n");
-          sv(`G${rowNum}`, cal.predio || "");
-          sv(`H${rowNum}`, Number(cal.cajas || 0), "n");
-          sv(`I${rowNum}`, String(cal.ica || ""));
-          rowNum++;
-        });
+      const res = await fetch("http://localhost:3001/api/packing-list", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
       });
 
-      // Actualizar rango
-      ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowNum, c: 8 } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || res.statusText);
+      }
 
-      // ── Descargar ────────────────────────────────────────────────
-      const out  = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
       a.href = url;
@@ -510,7 +474,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Error generando Excel: " + e.message);
+      alert(
+        "Error generando Excel: " + e.message +
+        "\n\nAsegúrate de que el servidor backend esté corriendo:\n  cd backend && node server.js"
+      );
     } finally {
       setGenerandoExcel(false);
     }
