@@ -3241,6 +3241,7 @@ function ContenedoresDemo() {
   const [busqueda, setBusqueda]   = useState("");
   const [filtroMes, setFiltroMes] = useState("");
   const [form, setForm]           = useState(formDef);
+  const [nuevoProveedor, setNuevoProveedor] = useState("");
 
   // ── Tab 1: Grupos de trabajo ──
   const [showFormGrupo, setShowFormGrupo] = useState(false);
@@ -3280,7 +3281,12 @@ function ContenedoresDemo() {
   const KG_DEL_MONTE = 16.8;
   const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
-  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, kilosProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "" };
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "" };
+  const parseProveedores = (str) => {
+    if (!str) return [];
+    try { const p = JSON.parse(str); return Array.isArray(p) ? p.filter(Boolean) : [str]; }
+    catch { return str.split(/[,|]/).map(s => s.trim()).filter(Boolean); }
+  };
   const [selContRend,   setSelContRend]   = useState(null);
   const [showFormRend,  setShowFormRend]  = useState(false);
   const [editRendId,    setEditRendId]    = useState(null);
@@ -3349,7 +3355,21 @@ function ContenedoresDemo() {
                   <div style={{flex:1}}><div style={lbl}>N° Contenedor *</div><input value={form.numContenedor} onChange={e=>setForm(p=>({...p,numContenedor:e.target.value}))} placeholder="Ej: MNBU3679199" style={inp} /></div>
                 </div>
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
-                  <div style={{flex:1}}><div style={lbl}>Proveedores de Limón</div><input value={form.proveedor} onChange={e=>setForm(p=>({...p,proveedor:e.target.value}))} placeholder="Ej: Menago, Juan García..." style={inp} /></div>
+                  <div style={{flex:1}}>
+                    <div style={lbl}>Proveedores de Limón</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:5}}>
+                      {parseProveedores(form.proveedor).map((pv,i)=>(
+                        <span key={i} style={{background:"rgba(99,102,241,0.18)",border:"1px solid rgba(99,102,241,0.35)",borderRadius:20,padding:"3px 10px",fontSize:11,color:"#a5b4fc",display:"flex",alignItems:"center",gap:5}}>
+                          {pv}
+                          <button onClick={()=>{const arr=parseProveedores(form.proveedor).filter((_,j)=>j!==i);setForm(p=>({...p,proveedor:JSON.stringify(arr)}));}} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:12,padding:0,lineHeight:1}}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:5}}>
+                      <input value={nuevoProveedor} onChange={e=>setNuevoProveedor(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&nuevoProveedor.trim()){const arr=[...parseProveedores(form.proveedor),nuevoProveedor.trim()];setForm(p=>({...p,proveedor:JSON.stringify(arr)}));setNuevoProveedor("");}}} placeholder="Nombre del proveedor..." style={{...inp,flex:1}} />
+                      <button onClick={()=>{if(!nuevoProveedor.trim())return;const arr=[...parseProveedores(form.proveedor),nuevoProveedor.trim()];setForm(p=>({...p,proveedor:JSON.stringify(arr)}));setNuevoProveedor("");}} style={{background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:8,padding:"0 12px",fontSize:12,color:"#a5b4fc",cursor:"pointer",whiteSpace:"nowrap"}}>+ Agregar</button>
+                    </div>
+                  </div>
                   <div style={{flex:1}}><div style={lbl}>Tipo de caja</div>
                     <CustomSelect value={form.producto} onChange={e=>setForm(p=>({...p,producto:e.target.value}))} style={inp}>
                       <option value="" style={{background:"#1a1a2e"}}>Seleccionar...</option>
@@ -4439,9 +4459,105 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
         const colorRend = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
 
+        const proveedoresCont = parseProveedores(contSelRend?.proveedor);
+
+        // Estadísticas por proveedor
+        const statsPorProveedor = proveedoresCont.map(pv => {
+          const recs = rendsDelCont.filter(r => r.proveedor === pv);
+          const kgProc = recs.reduce((s,r) => s + r.kilosProcesados, 0);
+          const kgDev  = recs.reduce((s,r) => s + r.kilosDevueltos,  0);
+          const kgDM   = recs.reduce((s,r) => s + r.cajasDelMonte * KG_DEL_MONTE, 0);
+          const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * KG_PRINCESS,  0);
+          const kgEmp  = kgDM + kgPri;
+          const rdto   = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
+          const cajDM  = recs.reduce((s,r) => s + r.cajasDelMonte, 0);
+          const cajPri = recs.reduce((s,r) => s + r.cajasPrincess, 0);
+          return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, cajDM, cajPri };
+        });
+
+        const generarInforme = () => {
+          const cont = contSelRend;
+          const pvsTexto = proveedoresCont.join(", ") || "—";
+          const fechaHoy = new Date().toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
+          const rowsProvs = proveedoresCont.length > 1 ? statsPorProveedor.map(s => `
+            <tr>
+              <td><b>${s.pv}</b></td>
+              <td>${s.camiones}</td>
+              <td>${s.kgProc.toLocaleString("es-CO")} kg</td>
+              <td>${s.kgDev.toLocaleString("es-CO")} kg</td>
+              <td>${s.kgEmp.toFixed(1)} kg</td>
+              <td>${s.cajDM + s.cajPri} (${s.cajDM} DM · ${s.cajPri} PRI)</td>
+              <td style="font-weight:700;color:${s.rdto>=80?"#15803d":s.rdto>=60?"#b45309":"#b91c1c"}">${s.rdto.toFixed(1)}%</td>
+            </tr>`).join("") : "";
+          const rowsCamiones = rendsDelCont.map((r,i) => {
+            const c = calcRend(r);
+            return `<tr>
+              <td>${i+1}</td>
+              <td>${r.fecha}</td>
+              <td>${r.proveedor||"—"}</td>
+              <td>${r.kilosProcesados.toLocaleString("es-CO")} kg</td>
+              <td>${r.kilosDevueltos.toLocaleString("es-CO")} kg</td>
+              <td>${c.kgEmp.toFixed(1)} kg</td>
+              <td>${r.cajasDelMonte} DM · ${r.cajasPrincess} PRI</td>
+              <td style="font-weight:700;color:${c.rendGen>=80?"#15803d":c.rendGen>=60?"#b45309":"#b91c1c"}">${c.rendGen.toFixed(1)}%</td>
+            </tr>`;
+          }).join("");
+          const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Informe de Rendimiento — ${cont.numContenedor}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; padding:32px; font-size:13px; }
+  h1 { font-size:20px; color:#1e1b4b; margin-bottom:4px; }
+  .sub { color:#64748b; font-size:12px; margin-bottom:24px; }
+  .badge { display:inline-block; background:#ede9fe; color:#4f46e5; border-radius:20px; padding:2px 12px; font-size:11px; font-weight:700; margin-bottom:20px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px; }
+  .card { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; }
+  .card .lbl { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+  .card .val { font-size:20px; font-weight:700; color:#1e1b4b; }
+  .card .sub2 { font-size:10px; color:#94a3b8; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; margin-bottom:24px; }
+  th { background:#f1f5f9; text-align:left; padding:8px 10px; font-size:11px; color:#475569; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+  td { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12px; }
+  tr:hover td { background:#fafafa; }
+  h2 { font-size:14px; color:#1e1b4b; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e0e7ff; }
+  .footer { margin-top:32px; padding-top:16px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; }
+  @media print { body { padding:16px; } }
+</style></head><body>
+  <div class="badge">🚢 Informe de Rendimiento</div>
+  <h1>${cont.numContenedor}</h1>
+  <div class="sub">${cont.proveedor ? `Proveedores: ${pvsTexto}` : ""} &nbsp;·&nbsp; Fecha: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy}</div>
+
+  <div class="grid">
+    <div class="card"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")} kg</div></div>
+    <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d">${totales.kgEmp.toFixed(1)} kg</div></div>
+    <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309">${totales.kilosDevueltos.toLocaleString("es-CO")} kg</div></div>
+    <div class="card"><div class="lbl">Rendimiento general</div><div class="val" style="color:${rendGeneralTotal>=80?"#15803d":rendGeneralTotal>=60?"#b45309":"#b91c1c"}">${rendGeneralTotal.toFixed(1)}%</div></div>
+    <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${totales.cajasDelMonte} Del Monte · ${totales.cajasPrincess} Princess</div></div>
+    <div class="card"><div class="lbl">Camiones registrados</div><div class="val">${rendsDelCont.length}</div></div>
+  </div>
+
+  ${proveedoresCont.length > 1 ? `<h2>Rendimiento por proveedor</h2>
+  <table><thead><tr><th>Proveedor</th><th>Camiones</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
+  <tbody>${rowsProvs}</tbody></table>` : ""}
+
+  <h2>Detalle por camión</h2>
+  <table><thead><tr><th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg procesados</th><th>Devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
+  <tbody>${rowsCamiones}</tbody></table>
+
+  <div class="footer">
+    <span>Tierra Prometida Trading · Sistema JARVIS</span>
+    <span>${fechaHoy}</span>
+  </div>
+</body></html>`;
+          const win = window.open("", "_blank");
+          win.document.write(html);
+          win.document.close();
+          win.print();
+        };
+
         const abrirFormRend = (r = null) => {
           if (r) {
-            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle });
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle });
             setEditRendId(r.id);
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
@@ -4497,11 +4613,20 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
                   <div>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "#a5b4fc" }}>🚢 {contSelRend.numContenedor}</span>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 10 }}>{contSelRend.proveedor} · {contSelRend.producto}</span>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 10 }}>
+                      {proveedoresCont.length > 0 ? proveedoresCont.join(" · ") : contSelRend.proveedor} · {contSelRend.producto}
+                    </span>
                   </div>
-                  <button onClick={() => abrirFormRend()} style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
-                    + Registrar camión
-                  </button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {rendsDelCont.length > 0 && (
+                      <button onClick={generarInforme} style={{ background: "rgba(0,201,167,0.15)", border: "1px solid rgba(0,201,167,0.35)", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "#00C9A7", cursor: "pointer", fontWeight: 700 }}>
+                        📄 Informe
+                      </button>
+                    )}
+                    <button onClick={() => abrirFormRend()} style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
+                      + Registrar camión
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tarjetas resumen (solo si hay registros) */}
@@ -4519,12 +4644,46 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                   </div>
                 )}
 
+                {/* Estadísticas por proveedor (solo si hay 2+ proveedores con datos) */}
+                {rendsDelCont.length > 0 && proveedoresCont.length > 1 && statsPorProveedor.some(s => s.camiones > 0) && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Rendimiento por proveedor</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {statsPorProveedor.map(s => (
+                        <div key={s.pv} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: "10px 12px", display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "2fr 1fr 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#e2e8f0" }}>{s.pv}</div>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 1 }}>{s.camiones} camión{s.camiones !== 1 ? "es" : ""}</div>
+                          </div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg procesados</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.kgProc.toLocaleString("es-CO")}</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg empacados</div><div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{s.kgEmp.toFixed(0)}</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Cajas</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.cajDM + s.cajPri}</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Rendimiento</div><div style={{ fontSize: 14, fontWeight: 700, color: colorRend(s.rdto) }}>{s.rdto.toFixed(1)}%</div></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Formulario nuevo/editar registro */}
                 {showFormRend && (
                   <div style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", marginBottom: 10 }}>
                       {editRendId ? "✏️ Editar registro" : "🚛 Nuevo camión"}
                     </div>
+                    {proveedoresCont.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={lbl}>Proveedor de este camión</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {proveedoresCont.map(pv => (
+                            <button key={pv} onClick={() => setFormRend(f => ({ ...f, proveedor: f.proveedor === pv ? "" : pv }))}
+                              style={{ background: formRend.proveedor === pv ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.05)", border: `1px solid ${formRend.proveedor === pv ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.12)"}`, borderRadius: 20, padding: "5px 14px", fontSize: 11, color: formRend.proveedor === pv ? "#a5b4fc" : "rgba(255,255,255,0.5)", cursor: "pointer", fontWeight: formRend.proveedor === pv ? 700 : 400 }}>
+                              {pv}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
                         <div style={lbl}>Fecha del camión</div>
@@ -4626,6 +4785,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                         <div>
                           <span style={{ fontSize: 11, fontWeight: 700, color: "white" }}>🚛 Camión {idx + 1}</span>
                           <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>{r.fecha}</span>
+                          {r.proveedor && <span style={{ fontSize: 9, background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 10, padding: "1px 8px", color: "#a5b4fc", marginLeft: 6 }}>{r.proveedor}</span>}
                         </div>
                         <div style={{ display: "flex", gap: 6 }}>
                           <button onClick={() => abrirFormRend(r)} style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#a5b4fc", cursor: "pointer" }}>✏️</button>
