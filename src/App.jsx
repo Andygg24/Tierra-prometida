@@ -4492,56 +4492,33 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const pvsTexto = proveedoresCont.join(", ") || "—";
           const fechaHoy = new Date().toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
 
-          // ── SVG Gauge ──────────────────────────────────────────────
-          const gColor = rendGeneralTotal >= 80 ? "#16a34a" : rendGeneralTotal >= 60 ? "#d97706" : "#dc2626";
-          const gCx = 110, gCy = 105, gR = 88;
-          const gCircum = Math.PI * gR;
-          const gFilled = (Math.min(rendGeneralTotal, 99.5) / 100) * gCircum;
-          const gD = `M ${gCx-gR} ${gCy} A ${gR} ${gR} 0 0 0 ${gCx+gR} ${gCy}`;
-          // Tick helper: punto en el arco a un % dado
-          const gTick = (pct, inner, outer) => {
-            const a = Math.PI * (1 - pct / 100);
-            const x1 = (gCx + inner * Math.cos(a)).toFixed(1);
-            const y1 = (gCy - inner * Math.sin(a)).toFixed(1);
-            const x2 = (gCx + outer * Math.cos(a)).toFixed(1);
-            const y2 = (gCy - outer * Math.sin(a)).toFixed(1);
-            return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#cbd5e1" stroke-width="1.5"/>`;
-          };
-          const gaugeSVG = `<svg viewBox="0 0 220 125" width="220" height="125" style="display:block;margin:0 auto 4px;">
-  <!-- Pista gris -->
-  <path d="${gD}" fill="none" stroke="#e8ecf0" stroke-width="20" stroke-linecap="round"/>
-  <!-- Arco de valor -->
-  <path d="${gD}" fill="none" stroke="${gColor}" stroke-width="20" stroke-linecap="round" stroke-dasharray="${gFilled.toFixed(1)} ${gCircum.toFixed(1)}"/>
-  <!-- Marcas de escala -->
-  ${gTick(0,   gR+2, gR+14)}
-  ${gTick(25,  gR+2, gR+10)}
-  ${gTick(50,  gR+2, gR+14)}
-  ${gTick(75,  gR+2, gR+10)}
-  ${gTick(100, gR+2, gR+14)}
-  <!-- Etiquetas -->
-  <text x="${(gCx-gR-16).toFixed(0)}" y="${gCy+5}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">0%</text>
-  <text x="${gCx}" y="10" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">50%</text>
-  <text x="${(gCx+gR+16).toFixed(0)}" y="${gCy+5}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">100%</text>
-  <!-- Valor central -->
-  <text x="${gCx}" y="${gCy-20}" font-family="Segoe UI,Arial,sans-serif" font-size="34" font-weight="800" fill="${gColor}" text-anchor="middle">${rendGeneralTotal.toFixed(1)}%</text>
-  <text x="${gCx}" y="${gCy-3}" font-family="Segoe UI,Arial,sans-serif" font-size="8.5" fill="#94a3b8" text-anchor="middle" letter-spacing="1.5">RENDIMIENTO GENERAL</text>
-</svg>`;
+          // ── Colores por rendimiento ────────────────────────────────
+          const gColor = rendGeneralTotal >= 80 ? "#16a34a" : rendGeneralTotal >= 60 ? "#ca8a04" : "#dc2626";
+          const gLabel = rendGeneralTotal >= 80 ? "Excelente" : rendGeneralTotal >= 60 ? "Regular" : "Bajo";
 
-          // ── Mini gauge helper para DM/Princess ──────────────────────
-          const miniGauge = (pct, color, label) => {
-            const mc = 55, mr = 40;
-            const mC = Math.PI * mr;
-            const mF = (Math.min(pct, 99.5) / 100) * mC;
-            const mD = `M ${mc-mr} ${mc} A ${mr} ${mr} 0 0 0 ${mc+mr} ${mc}`;
-            return `<div style="text-align:center;">
-  <svg viewBox="0 0 110 60" width="110" height="60" style="display:block;margin:0 auto;">
-    <path d="${mD}" fill="none" stroke="#e8ecf0" stroke-width="12" stroke-linecap="round"/>
-    <path d="${mD}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${mF.toFixed(1)} ${mC.toFixed(1)}"/>
-    <text x="${mc}" y="${mc-8}" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="${color}" text-anchor="middle">${pct.toFixed(1)}%</text>
-  </svg>
-  <div style="font-size:10px;color:#64748b;margin-top:-4px;">${label}</div>
+          // ── Medidor CSS (sin SVG) ──────────────────────────────────
+          const gaugeBox = `
+<div style="text-align:center;padding:22px 16px 18px;">
+  <div style="font-size:9px;color:#6b7280;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">Rendimiento General</div>
+  <div style="font-size:60px;font-weight:900;color:${gColor};line-height:1;margin-bottom:20px;font-family:'Segoe UI',Arial,sans-serif;">${rendGeneralTotal.toFixed(1)}<span style="font-size:30px;font-weight:700;">%</span></div>
+  <div style="background:#f0f0f0;border-radius:999px;height:18px;margin:0 6px 5px;overflow:hidden;">
+    <div style="height:100%;width:${Math.min(rendGeneralTotal,100).toFixed(2)}%;background:linear-gradient(90deg,#fbbf24 0%,#22c55e 65%,#16a34a 100%);border-radius:999px;"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:0 6px;font-size:8px;color:#d1d5db;margin-bottom:16px;font-family:'Segoe UI',Arial,sans-serif;">
+    <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+  </div>
+  <div style="display:inline-block;padding:5px 20px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px;background:${gColor}15;color:${gColor};border:1.5px solid ${gColor}60;font-family:'Segoe UI',Arial,sans-serif;">${gLabel}</div>
 </div>`;
-          };
+
+          // ── Mini barra para DM/Princess ────────────────────────────
+          const miniGauge = (pct, color, label) => `
+<div style="padding:4px 0;">
+  <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">${label}</div>
+  <div style="font-size:20px;font-weight:800;color:${color};margin-bottom:6px;font-family:'Segoe UI',Arial,sans-serif;">${pct.toFixed(1)}%</div>
+  <div style="background:#f0f0f0;border-radius:999px;height:8px;overflow:hidden;">
+    <div style="height:100%;width:${Math.min(pct,100).toFixed(2)}%;background:${color};border-radius:999px;"></div>
+  </div>
+</div>`;
 
           // ── Info extra del contenedor ────────────────────────────────
           const infoItems = [
@@ -4628,14 +4605,14 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; font-size:13px; }
-  .hdr { background:linear-gradient(135deg,#1e1b4b 0%,#4f46e5 60%,#7c3aed 100%); color:#fff; padding:28px 36px 22px; }
+  .hdr { background:linear-gradient(135deg,#052e16 0%,#14532d 55%,#16a34a 100%); color:#fff; padding:28px 36px 22px; }
   .hdr h1 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px; }
   .hdr .sub { font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; }
   .hdr .badge { display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:3px 14px; font-size:10px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; }
   .hdr .pv-tag { display:inline-block; background:rgba(255,255,255,0.12); border-radius:12px; padding:2px 10px; font-size:10px; margin-right:4px; }
   .infobar { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:9px 36px; font-size:11px; color:#475569; }
   .body { padding:24px 36px; }
-  h2 { font-size:13px; font-weight:700; color:#1e1b4b; margin:22px 0 10px; padding-bottom:6px; border-bottom:2px solid #e0e7ff; text-transform:uppercase; letter-spacing:.5px; }
+  h2 { font-size:13px; font-weight:700; color:#14532d; margin:22px 0 10px; padding-bottom:6px; border-bottom:2px solid #bbf7d0; text-transform:uppercase; letter-spacing:.5px; }
   .summary-row { display:grid; grid-template-columns:240px 1fr; gap:20px; margin-bottom:20px; align-items:start; }
   .gauge-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px 12px 10px; text-align:center; }
   .gauge-sub { font-size:10px; color:#64748b; margin-top:6px; }
@@ -4654,9 +4631,9 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   td { padding:7px 10px; border-bottom:1px solid #f8fafc; font-size:11.5px; vertical-align:top; }
   tr:hover td { background:#fafbff; }
   .num-cell { color:#94a3b8; font-size:11px; font-weight:600; }
-  .pv-badge { background:#ede9fe; color:#6d28d9; border-radius:10px; padding:2px 8px; font-size:10px; font-weight:700; white-space:nowrap; }
-  .tag-dm  { background:#e0e7ff; color:#4338ca; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; margin-right:3px; display:inline-block; }
-  .tag-pri { background:#f3e8ff; color:#7c3aed; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; display:inline-block; }
+  .pv-badge { background:#f0fdf4; color:#15803d; border-radius:10px; padding:2px 8px; font-size:10px; font-weight:700; white-space:nowrap; border:1px solid #bbf7d0; }
+  .tag-dm  { background:#dcfce7; color:#15803d; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; margin-right:3px; display:inline-block; }
+  .tag-pri { background:#fef9c3; color:#854d0e; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; display:inline-block; }
   .obs-chip { background:#fef3c7; color:#92400e; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:600; margin-right:3px; display:inline-block; margin-bottom:2px; }
   .dim { color:#cbd5e1; }
   .bar-cell { display:flex; align-items:center; gap:8px; }
@@ -4677,9 +4654,9 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   <div class="badge">🚢 INFORME DE RENDIMIENTO</div>
   <h1>${cont.numContenedor}</h1>
   <div style="margin-top:8px;">
-    ${proveedoresCont.map(p => `<span class="pv-tag">👤 ${p}</span>`).join("")}
-    ${cont.producto ? `<span class="pv-tag">🍋 ${cont.producto}</span>` : ""}
-    ${cont.estado   ? `<span class="pv-tag">📌 ${cont.estado}</span>`   : ""}
+    ${proveedoresCont.map(p => `<span class="pv-tag">${p}</span>`).join("")}
+    ${cont.producto ? `<span class="pv-tag">${cont.producto}</span>` : ""}
+    ${cont.estado   ? `<span class="pv-tag">${cont.estado}</span>`   : ""}
   </div>
   <div class="sub">Fecha contenedor: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy} &nbsp;·&nbsp; ${rendsDelCont.length} camión${rendsDelCont.length !== 1 ? "es" : ""} registrado${rendsDelCont.length !== 1 ? "s" : ""}</div>
 </div>
@@ -4691,11 +4668,10 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
 <h2>Resumen general</h2>
 <div class="summary-row">
   <div class="gauge-box">
-    ${gaugeSVG}
-    <div class="gauge-sub">🟢 ≥80% excelente &nbsp; 🟡 60–79% regular &nbsp; 🔴 &lt;60% bajo</div>
-    <div class="gauge-types">
-      ${miniGauge(rendDMTotal,  "#6366f1", "Del Monte")}
-      ${miniGauge(rendPriTotal, "#a855f7", "Princess")}
+    ${gaugeBox}
+    <div style="border-top:1px solid #f0f0f0;padding:14px 16px 6px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      ${miniGauge(rendDMTotal,  "#16a34a", "Del Monte")}
+      ${miniGauge(rendPriTotal, "#ca8a04", "Princess")}
     </div>
   </div>
   <div class="cards">
@@ -4703,8 +4679,8 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
     <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${totales.cajasDelMonte} Del Monte · ${totales.cajasPrincess} Princess</div></div>
-    <div class="card"><div class="lbl">Rdto. Del Monte</div><div class="val" style="color:#6366f1;">${rendDMTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg empacados</div></div>
-    <div class="card"><div class="lbl">Rdto. Princess</div><div class="val" style="color:#a855f7;">${rendPriTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg empacados</div></div>
+    <div class="card"><div class="lbl">Rdto. Del Monte</div><div class="val" style="color:#16a34a;">${rendDMTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg empacados</div></div>
+    <div class="card"><div class="lbl">Rdto. Princess</div><div class="val" style="color:#ca8a04;">${rendPriTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg empacados</div></div>
   </div>
 </div>
 
