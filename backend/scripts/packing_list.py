@@ -259,36 +259,32 @@ out_buf = io.BytesIO()
 with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
      zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as dst_zip:
 
-    for item in src_zip.infolist():
-        data = src_zip.read(item.filename)
+    for name in src_zip.namelist():
+        data = src_zip.read(name)
 
-        if item.filename == "[Content_Types].xml":
+        if name == "[Content_Types].xml":
             text = data.decode("utf-8")
-            # Agregar png si no está
             if 'Extension="png"' not in text:
                 text = text.replace('<Default Extension="rels"', f'{CT_PNG}<Default Extension="rels"', 1)
-            # Agregar drawing override si no está
             if "drawings/drawing1.xml" not in text:
                 text = text.replace("</Types>", f"{CT_DRW}</Types>", 1)
             data = text.encode("utf-8")
 
-        elif item.filename == "xl/worksheets/sheet1.xml":
+        elif name == "xl/worksheets/sheet1.xml":
             text = data.decode("utf-8")
-            # openpyxl elimina <drawing r:id="rId3"/> — reinyectar antes de </worksheet>
-            if "drawing" not in text:
+            if "<drawing" not in text:
                 text = text.replace("</worksheet>", '<drawing r:id="rId3"/></worksheet>', 1)
             data = text.encode("utf-8")
 
-        elif item.filename == "xl/worksheets/_rels/sheet1.xml.rels":
+        elif name == "xl/worksheets/_rels/sheet1.xml.rels":
             text = data.decode("utf-8")
-            # Inyectar rId3 de drawing si no está
             if "drawing1.xml" not in text:
                 text = text.replace("</Relationships>", f"{REL_DRW}</Relationships>", 1)
             data = text.encode("utf-8")
 
-        dst_zip.writestr(item, data)
+        dst_zip.writestr(name, data)
 
-    # Copiar archivos de dibujo/imagen desde el molde
+    # Copiar archivos de dibujo/imagen desde el molde (openpyxl los descarta)
     for path, fdata in tmpl_files.items():
         dst_zip.writestr(path, fdata)
 
