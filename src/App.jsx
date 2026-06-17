@@ -4697,7 +4697,7 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
 
 ${providerSection}
 
-<h2>Rendimiento por camión</h2>
+<h2>Rendimiento del proceso</h2>
 <div class="chart-wrap">
   ${truckBars}
 </div>
