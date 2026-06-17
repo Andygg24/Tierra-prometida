@@ -7862,7 +7862,11 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
 }
 
 export default function App() {
-  const [usuario,      setUsuario]      = useState(null);
+  const [usuario, setUsuario] = useState(() => {
+    try { const s = localStorage.getItem("tp_session"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const login  = (u) => { setUsuario(u); try { localStorage.setItem("tp_session", JSON.stringify(u)); } catch {} };
+  const logout = ()  => { setUsuario(null); try { localStorage.removeItem("tp_session"); } catch {} };
   const [activeModule, setActiveModule] = useState(0);
   const [showNotif,    setShowNotif]    = useState(false);
   const [showSearch,   setShowSearch]   = useState(false);
@@ -7899,7 +7903,7 @@ export default function App() {
 
   // Mostrar login si no hay sesión
   const usuariosLogin = cfgApp.cfg_usuarios?.length ? cfgApp.cfg_usuarios : USUARIOS;
-  if (!usuario) return <LoginScreen onLogin={setUsuario} usuarios={usuariosLogin} />;
+  if (!usuario) return <LoginScreen onLogin={login} usuarios={usuariosLogin} />;
 
   // Navegar a módulo por id (usado desde InicioDemo)
   const navigateToModule = (moduleId) => {
@@ -8345,7 +8349,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="tp-hdr-avatar" style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,#845EF7,${colorPrincipal})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"white", flexShrink:0 }}>{usuario.avatar}</div>
-                <button onClick={() => setUsuario(null)} className="tp-hdr-exit" style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:8, padding:"5px 10px", fontSize:11, color:"#FF6B6B", cursor:"pointer", fontWeight:600, whiteSpace:"nowrap" }}>Salir</button>
+                <button onClick={logout} className="tp-hdr-exit" style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:8, padding:"5px 10px", fontSize:11, color:"#FF6B6B", cursor:"pointer", fontWeight:600, whiteSpace:"nowrap" }}>Salir</button>
               </div>
             </div>
           </div>
