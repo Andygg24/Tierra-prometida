@@ -4491,80 +4491,251 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const cont = contSelRend;
           const pvsTexto = proveedoresCont.join(", ") || "—";
           const fechaHoy = new Date().toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
-          const rowsProvs = proveedoresCont.length > 1 ? statsPorProveedor.map(s => `
-            <tr>
-              <td><b>${s.pv}</b></td>
-              <td>${s.camiones}</td>
-              <td>${s.kgProc.toLocaleString("es-CO")} kg</td>
-              <td>${s.kgDev.toLocaleString("es-CO")} kg</td>
-              <td>${s.kgEmp.toFixed(1)} kg</td>
-              <td>${s.cajDM + s.cajPri} (${s.cajDM} DM · ${s.cajPri} PRI)</td>
-              <td style="font-weight:700;color:${s.rdto>=80?"#15803d":s.rdto>=60?"#b45309":"#b91c1c"}">${s.rdto.toFixed(1)}%</td>
-            </tr>`).join("") : "";
-          const rowsCamiones = rendsDelCont.map((r,i) => {
+
+          // ── SVG Gauge ──────────────────────────────────────────────
+          const gColor = rendGeneralTotal >= 80 ? "#16a34a" : rendGeneralTotal >= 60 ? "#d97706" : "#dc2626";
+          const gCx = 110, gCy = 105, gR = 88;
+          const gCircum = Math.PI * gR;
+          const gFilled = (Math.min(rendGeneralTotal, 99.5) / 100) * gCircum;
+          const gD = `M ${gCx-gR} ${gCy} A ${gR} ${gR} 0 0 0 ${gCx+gR} ${gCy}`;
+          const gaugeSVG = `<svg viewBox="0 0 220 125" width="220" height="125" style="display:block;margin:0 auto 4px;">
+  <path d="${gD}" fill="none" stroke="#f1f5f9" stroke-width="22" stroke-linecap="round"/>
+  <path d="${gD}" fill="none" stroke="#fecaca" stroke-width="22" stroke-dasharray="${(0.6*gCircum).toFixed(1)} ${gCircum.toFixed(1)}"/>
+  <path d="${gD}" fill="none" stroke="#fef08a" stroke-width="22" stroke-dasharray="${(0.2*gCircum).toFixed(1)} ${gCircum.toFixed(1)}" stroke-dashoffset="${(-0.6*gCircum).toFixed(1)}"/>
+  <path d="${gD}" fill="none" stroke="#bbf7d0" stroke-width="22" stroke-dasharray="${(0.2*gCircum).toFixed(1)} ${gCircum.toFixed(1)}" stroke-dashoffset="${(-0.8*gCircum).toFixed(1)}"/>
+  <path d="${gD}" fill="none" stroke="${gColor}" stroke-width="22" stroke-linecap="round" stroke-dasharray="${gFilled.toFixed(1)} ${gCircum.toFixed(1)}" opacity="0.95"/>
+  <text x="${gCx}" y="${gCy-20}" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="${gColor}" text-anchor="middle">${rendGeneralTotal.toFixed(1)}%</text>
+  <text x="${gCx}" y="${gCy-3}" font-family="Segoe UI,Arial,sans-serif" font-size="8.5" fill="#94a3b8" text-anchor="middle" letter-spacing="1.5">RENDIMIENTO GENERAL</text>
+  <text x="${gCx-gR-4}" y="${gCy+18}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="end">0%</text>
+  <text x="${gCx+gR+4}" y="${gCy+18}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8">100%</text>
+  <text x="${gCx}" y="14" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">50%</text>
+  <line x1="${gCx-gR}" y1="${gCy}" x2="${gCx-gR-6}" y2="${gCy}" stroke="#cbd5e1" stroke-width="1.5"/>
+  <line x1="${gCx+gR}" y1="${gCy}" x2="${gCx+gR+6}" y2="${gCy}" stroke="#cbd5e1" stroke-width="1.5"/>
+  <line x1="${gCx}" y1="${gCy-gR}" x2="${gCx}" y2="${gCy-gR-6}" stroke="#cbd5e1" stroke-width="1.5"/>
+</svg>`;
+
+          // ── Mini gauge helper para DM/Princess ──────────────────────
+          const miniGauge = (pct, color, label) => {
+            const mc = 55, mr = 40;
+            const mC = Math.PI * mr;
+            const mF = (Math.min(pct, 99.5) / 100) * mC;
+            const mD = `M ${mc-mr} ${mc} A ${mr} ${mr} 0 0 0 ${mc+mr} ${mc}`;
+            return `<div style="text-align:center;">
+  <svg viewBox="0 0 110 60" width="110" height="60" style="display:block;margin:0 auto;">
+    <path d="${mD}" fill="none" stroke="#f1f5f9" stroke-width="12" stroke-linecap="round"/>
+    <path d="${mD}" fill="none" stroke="${color}30" stroke-width="12"/>
+    <path d="${mD}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${mF.toFixed(1)} ${mC.toFixed(1)}" opacity="0.9"/>
+    <text x="${mc}" y="${mc-8}" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="${color}" text-anchor="middle">${pct.toFixed(1)}%</text>
+  </svg>
+  <div style="font-size:10px;color:#64748b;margin-top:-4px;">${label}</div>
+</div>`;
+          };
+
+          // ── Info extra del contenedor ────────────────────────────────
+          const infoItems = [
+            cont.booking    ? `<span><b>Booking:</b> ${cont.booking}</span>`       : "",
+            cont.naviera    ? `<span><b>Naviera:</b> ${cont.naviera}</span>`       : "",
+            cont.destino    ? `<span><b>Destino:</b> ${cont.destino}</span>`       : "",
+            cont.transporte ? `<span><b>Transporte:</b> ${cont.transporte}</span>` : "",
+            cont.placa      ? `<span><b>Placa:</b> ${cont.placa}</span>`           : "",
+            cont.turno      ? `<span><b>Turno:</b> ${cont.turno}</span>`           : "",
+          ].filter(Boolean).join('<span style="color:#cbd5e1;margin:0 6px;">·</span>');
+
+          // ── Split bar DM vs Princess ─────────────────────────────────
+          const totalCajas = totales.cajasDelMonte + totales.cajasPrincess;
+          const pctDMc  = totalCajas > 0 ? (totales.cajasDelMonte / totalCajas * 100) : 50;
+          const pctPric = 100 - pctDMc;
+
+          // ── Tabla por proveedor ──────────────────────────────────────
+          const providerSection = proveedoresCont.length > 1 ? `
+<h2>Rendimiento por proveedor</h2>
+<table>
+  <thead><tr><th>Proveedor</th><th>Camiones</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
+  <tbody>
+  ${statsPorProveedor.map(s => {
+    const sc = s.rdto >= 80 ? "#15803d" : s.rdto >= 60 ? "#b45309" : "#b91c1c";
+    return `<tr>
+      <td><span class="pv-badge">${s.pv}</span></td>
+      <td>${s.camiones}</td>
+      <td>${s.kgProc.toLocaleString("es-CO")} kg</td>
+      <td style="color:#b45309;">${s.kgDev.toLocaleString("es-CO")} kg</td>
+      <td style="color:#15803d;font-weight:600;">${s.kgEmp.toFixed(1)} kg</td>
+      <td>${s.cajDM + s.cajPri} <span class="dim">(${s.cajDM} DM · ${s.cajPri} PRI)</span></td>
+      <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(s.rdto,100).toFixed(1)}%;background:${sc};"></div></div><span style="font-weight:700;color:${sc};">${s.rdto.toFixed(1)}%</span></div></td>
+    </tr>`;
+  }).join("")}
+  </tbody>
+</table>` : "";
+
+          // ── Gráfico de barras por camión ─────────────────────────────
+          const truckBars = rendsDelCont.map((r, i) => {
             const c = calcRend(r);
-            return `<tr>
-              <td>${i+1}</td>
-              <td>${r.fecha}</td>
-              <td>${r.proveedor||"—"}</td>
-              <td>${r.kilosProcesados.toLocaleString("es-CO")} kg</td>
-              <td>${r.kilosDevueltos.toLocaleString("es-CO")} kg</td>
-              <td>${c.kgEmp.toFixed(1)} kg</td>
-              <td>${r.cajasDelMonte} DM · ${r.cajasPrincess} PRI</td>
-              <td style="font-weight:700;color:${c.rendGen>=80?"#15803d":c.rendGen>=60?"#b45309":"#b91c1c"}">${c.rendGen.toFixed(1)}%</td>
-            </tr>`;
+            const rc = c.rendGen >= 80 ? "#15803d" : c.rendGen >= 60 ? "#b45309" : "#b91c1c";
+            return `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #f8fafc;">
+  <div>
+    <span style="font-size:11px;font-weight:600;color:#374151;">Camión ${i+1}</span>
+    ${r.proveedor ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:4px;">${r.proveedor}</span>` : ""}
+    <div style="font-size:9px;color:#94a3b8;">${r.fecha}</div>
+  </div>
+  <div style="background:#f1f5f9;border-radius:5px;height:16px;overflow:hidden;position:relative;">
+    <div style="background:${rc};width:${Math.min(c.rendGen,100).toFixed(1)}%;height:100%;border-radius:5px;opacity:0.85;"></div>
+  </div>
+  <div style="text-align:right;">
+    <span style="font-size:10px;color:#64748b;">${r.kilosProcesados.toLocaleString("es-CO")} kg &nbsp;</span>
+    <span style="font-size:13px;font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span>
+  </div>
+</div>`;
           }).join("");
-          const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+
+          // ── Tabla detalle con observaciones ─────────────────────────
+          const truckRows = rendsDelCont.map((r, i) => {
+            const c = calcRend(r);
+            const rc = c.rendGen >= 80 ? "#15803d" : c.rendGen >= 60 ? "#b45309" : "#b91c1c";
+            const obsChips = (r.observaciones || []).map(o => `<span class="obs-chip">${o}</span>`).join(" ");
+            const obsDetalle = r.obsDetalle ? `<div style="margin-top:3px;font-style:italic;color:#64748b;font-size:10px;">${r.obsDetalle}</div>` : "";
+            const obsCell = (obsChips || obsDetalle) ? `${obsChips}${obsDetalle}` : `<span class="dim">—</span>`;
+            return `<tr>
+  <td class="num-cell">${i+1}</td>
+  <td>${r.fecha}</td>
+  <td>${r.proveedor ? `<span class="pv-badge">${r.proveedor}</span>` : `<span class="dim">—</span>`}</td>
+  <td>${r.kilosProcesados.toLocaleString("es-CO")} kg</td>
+  <td style="color:#b45309;">${r.kilosDevueltos.toLocaleString("es-CO")} kg</td>
+  <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
+  <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
+  <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
+  <td>${obsCell}</td>
+</tr>`;
+          }).join("");
+
+          // ── HTML completo ────────────────────────────────────────────
+          const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
 <title>Informe de Rendimiento — ${cont.numContenedor}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; padding:32px; font-size:13px; }
-  h1 { font-size:20px; color:#1e1b4b; margin-bottom:4px; }
-  .sub { color:#64748b; font-size:12px; margin-bottom:24px; }
-  .badge { display:inline-block; background:#ede9fe; color:#4f46e5; border-radius:20px; padding:2px 12px; font-size:11px; font-weight:700; margin-bottom:20px; }
-  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px; }
-  .card { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; }
-  .card .lbl { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
-  .card .val { font-size:20px; font-weight:700; color:#1e1b4b; }
-  .card .sub2 { font-size:10px; color:#94a3b8; margin-top:2px; }
-  table { width:100%; border-collapse:collapse; margin-bottom:24px; }
-  th { background:#f1f5f9; text-align:left; padding:8px 10px; font-size:11px; color:#475569; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
-  td { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12px; }
-  tr:hover td { background:#fafafa; }
-  h2 { font-size:14px; color:#1e1b4b; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #e0e7ff; }
-  .footer { margin-top:32px; padding-top:16px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; }
-  @media print { body { padding:16px; } }
-</style></head><body>
-  <div class="badge">🚢 Informe de Rendimiento</div>
+  body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; font-size:13px; }
+  .hdr { background:linear-gradient(135deg,#1e1b4b 0%,#4f46e5 60%,#7c3aed 100%); color:#fff; padding:28px 36px 22px; }
+  .hdr h1 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px; }
+  .hdr .sub { font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; }
+  .hdr .badge { display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:3px 14px; font-size:10px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; }
+  .hdr .pv-tag { display:inline-block; background:rgba(255,255,255,0.12); border-radius:12px; padding:2px 10px; font-size:10px; margin-right:4px; }
+  .infobar { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:9px 36px; font-size:11px; color:#475569; }
+  .body { padding:24px 36px; }
+  h2 { font-size:13px; font-weight:700; color:#1e1b4b; margin:22px 0 10px; padding-bottom:6px; border-bottom:2px solid #e0e7ff; text-transform:uppercase; letter-spacing:.5px; }
+  .summary-row { display:grid; grid-template-columns:240px 1fr; gap:20px; margin-bottom:20px; align-items:start; }
+  .gauge-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px 12px 10px; text-align:center; }
+  .gauge-sub { font-size:10px; color:#64748b; margin-top:6px; }
+  .gauge-types { display:flex; justify-content:center; gap:16px; margin-top:10px; }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .card { border:1px solid #e2e8f0; border-radius:10px; padding:11px 14px; }
+  .card .lbl { font-size:9px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+  .card .val { font-size:19px; font-weight:700; color:#1e1b4b; }
+  .card .sub2 { font-size:9px; color:#94a3b8; margin-top:2px; }
+  .split-wrap { margin-bottom:18px; }
+  .split-bar { display:flex; height:13px; border-radius:6px; overflow:hidden; margin-top:7px; }
+  .split-legend { display:flex; gap:16px; font-size:11px; }
+  .split-dot { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:middle; }
+  table { width:100%; border-collapse:collapse; margin-bottom:6px; }
+  th { background:#f1f5f9; text-align:left; padding:7px 10px; font-size:10px; color:#475569; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+  td { padding:7px 10px; border-bottom:1px solid #f8fafc; font-size:11.5px; vertical-align:top; }
+  tr:hover td { background:#fafbff; }
+  .num-cell { color:#94a3b8; font-size:11px; font-weight:600; }
+  .pv-badge { background:#ede9fe; color:#6d28d9; border-radius:10px; padding:2px 8px; font-size:10px; font-weight:700; white-space:nowrap; }
+  .tag-dm  { background:#e0e7ff; color:#4338ca; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; margin-right:3px; display:inline-block; }
+  .tag-pri { background:#f3e8ff; color:#7c3aed; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; display:inline-block; }
+  .obs-chip { background:#fef3c7; color:#92400e; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:600; margin-right:3px; display:inline-block; margin-bottom:2px; }
+  .dim { color:#cbd5e1; }
+  .bar-cell { display:flex; align-items:center; gap:8px; }
+  .bar-bg { background:#f1f5f9; border-radius:4px; height:10px; width:70px; overflow:hidden; flex-shrink:0; }
+  .bar-fill { height:100%; border-radius:4px; }
+  .chart-wrap { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:20px; }
+  .footer { margin-top:28px; padding:14px 36px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; background:#f8fafc; }
+  @media print {
+    .hdr { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    body { font-size:11.5px; }
+    .body { padding:16px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="badge">🚢 INFORME DE RENDIMIENTO</div>
   <h1>${cont.numContenedor}</h1>
-  <div class="sub">${cont.proveedor ? `Proveedores: ${pvsTexto}` : ""} &nbsp;·&nbsp; Fecha: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy}</div>
+  <div style="margin-top:8px;">
+    ${proveedoresCont.map(p => `<span class="pv-tag">👤 ${p}</span>`).join("")}
+    ${cont.producto ? `<span class="pv-tag">🍋 ${cont.producto}</span>` : ""}
+    ${cont.estado   ? `<span class="pv-tag">📌 ${cont.estado}</span>`   : ""}
+  </div>
+  <div class="sub">Fecha contenedor: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy} &nbsp;·&nbsp; ${rendsDelCont.length} camión${rendsDelCont.length !== 1 ? "es" : ""} registrado${rendsDelCont.length !== 1 ? "s" : ""}</div>
+</div>
 
-  <div class="grid">
-    <div class="card"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")} kg</div></div>
-    <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d">${totales.kgEmp.toFixed(1)} kg</div></div>
-    <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309">${totales.kilosDevueltos.toLocaleString("es-CO")} kg</div></div>
-    <div class="card"><div class="lbl">Rendimiento general</div><div class="val" style="color:${rendGeneralTotal>=80?"#15803d":rendGeneralTotal>=60?"#b45309":"#b91c1c"}">${rendGeneralTotal.toFixed(1)}%</div></div>
+${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
+
+<div class="body">
+
+<h2>Resumen general</h2>
+<div class="summary-row">
+  <div class="gauge-box">
+    ${gaugeSVG}
+    <div class="gauge-sub">🟢 ≥80% excelente &nbsp; 🟡 60–79% regular &nbsp; 🔴 &lt;60% bajo</div>
+    <div class="gauge-types">
+      ${miniGauge(rendDMTotal,  "#6366f1", "Del Monte")}
+      ${miniGauge(rendPriTotal, "#a855f7", "Princess")}
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">kg entrada</div></div>
+    <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
+    <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
     <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${totales.cajasDelMonte} Del Monte · ${totales.cajasPrincess} Princess</div></div>
-    <div class="card"><div class="lbl">Camiones registrados</div><div class="val">${rendsDelCont.length}</div></div>
+    <div class="card"><div class="lbl">Rdto. Del Monte</div><div class="val" style="color:#6366f1;">${rendDMTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg empacados</div></div>
+    <div class="card"><div class="lbl">Rdto. Princess</div><div class="val" style="color:#a855f7;">${rendPriTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg empacados</div></div>
   </div>
+</div>
 
-  ${proveedoresCont.length > 1 ? `<h2>Rendimiento por proveedor</h2>
-  <table><thead><tr><th>Proveedor</th><th>Camiones</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
-  <tbody>${rowsProvs}</tbody></table>` : ""}
-
-  <h2>Detalle por camión</h2>
-  <table><thead><tr><th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg procesados</th><th>Devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
-  <tbody>${rowsCamiones}</tbody></table>
-
-  <div class="footer">
-    <span>Tierra Prometida Trading · Sistema JARVIS</span>
-    <span>${fechaHoy}</span>
+<div class="split-wrap">
+  <div class="split-legend">
+    <span><span class="split-dot" style="background:#6366f1;"></span>Del Monte: <b>${totales.cajasDelMonte} cajas</b> (${pctDMc.toFixed(1)}%)</span>
+    <span><span class="split-dot" style="background:#a855f7;"></span>Princess: <b>${totales.cajasPrincess} cajas</b> (${pctPric.toFixed(1)}%)</span>
   </div>
+  <div class="split-bar">
+    <div style="background:#6366f1;width:${pctDMc.toFixed(1)}%;"></div>
+    <div style="background:#a855f7;width:${pctPric.toFixed(1)}%;"></div>
+  </div>
+</div>
+
+${providerSection}
+
+<h2>Rendimiento por camión</h2>
+<div class="chart-wrap">
+  ${truckBars}
+</div>
+
+<h2>Detalle por camión</h2>
+<table>
+  <thead>
+    <tr>
+      <th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg proc.</th><th>Devueltos</th>
+      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Observaciones</th>
+    </tr>
+  </thead>
+  <tbody>${truckRows}</tbody>
+</table>
+
+</div>
+
+<div class="footer">
+  <span>🌿 Tierra Prometida Trading · Sistema JARVIS</span>
+  <span>${fechaHoy}</span>
+</div>
+
 </body></html>`;
+
           const win = window.open("", "_blank");
-          win.document.write(html);
-          win.document.close();
-          win.print();
+          if (win) { win.document.write(html); win.document.close(); }
         };
 
         const abrirFormRend = (r = null) => {
