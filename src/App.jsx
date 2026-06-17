@@ -3909,27 +3909,81 @@ function ContenedoresDemo() {
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {contsConCC.map(p => {
-                    const recs  = contInsumos.filter(r => r.contId === p.id);
-                    const total = recs.reduce((s,r) => s + r.total, 0);
-                    const activo = selContCC === p.id;
+                    const recs     = contInsumos.filter(r => r.contId === p.id);
+                    const total    = recs.reduce((s,r) => s + r.total, 0);
+                    const expanded = !!expandidos[p.id];
                     return (
-                      <button key={p.id} onClick={() => {
-                        const id = p.id;
-                        setSelContCC(id);
-                        setEditingRecId(null);
-                        setPlantillaActiva(null);
-                        setFormCC(initForm());
-                        setFormExtras(initExtras());
-                      }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:activo?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${activo?"rgba(99,102,241,0.5)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"10px 14px",cursor:"pointer",textAlign:"left",width:"100%"}}>
-                        <div>
-                          <div style={{fontSize:12,fontWeight:700,color:activo?"#a5b4fc":"white"}}>🚢 {p.numContenedor}</div>
-                          <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:2}}>{p.fecha} · {recs.length} registro{recs.length!==1?"s":""}</div>
-                        </div>
-                        <div style={{textAlign:"right"}}>
-                          <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>TOTAL ACUMULADO</div>
-                          <div style={{fontSize:13,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(total)}</div>
-                        </div>
-                      </button>
+                      <div key={p.id} style={{border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,overflow:"hidden"}}>
+                        {/* Cabecera */}
+                        <button onClick={() => toggleExpandido(p.id)}
+                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:expanded?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.03)",padding:"10px 14px",cursor:"pointer",textAlign:"left",width:"100%",border:"none"}}>
+                          <div>
+                            <div style={{fontSize:12,fontWeight:700,color:expanded?"#a5b4fc":"white"}}>🚢 {p.numContenedor}</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:2}}>{p.fecha} · {recs.length} registro{recs.length!==1?"s":""}</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <div style={{textAlign:"right"}}>
+                              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>TOTAL ACUMULADO</div>
+                              <div style={{fontSize:13,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(total)}</div>
+                            </div>
+                            <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{expanded?"▲":"▼"}</span>
+                          </div>
+                        </button>
+
+                        {/* Registros expandidos */}
+                        {expanded && (
+                          <div style={{padding:"8px 12px",background:"rgba(0,0,0,0.2)",display:"flex",flexDirection:"column",gap:6}}>
+                            {recs.map(rec => (
+                              <div key={rec.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"8px 10px"}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                                  <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>📅 {rec.fecha}</span>
+                                  <span style={{fontSize:12,fontWeight:800,color:"#F9A826"}}>{fmtCOP(rec.total)}</span>
+                                </div>
+                                <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:6}}>
+                                  {rec.items.length} insumo{rec.items.length!==1?"s":""}{rec.extras?.length>0?` · ${rec.extras.length} extra${rec.extras.length!==1?"s":""}`:""}</div>
+                                <div style={{display:"flex",gap:6}}>
+                                  <button onClick={() => {
+                                    const f = {};
+                                    insumosCC.forEach(ins => {
+                                      const item = rec.items.find(x => x.id === ins.id);
+                                      f[ins.id] = { cant: item ? item.cant : "", costoUnit: item ? item.costoUnit : ins.costo||0 };
+                                    });
+                                    setFormCC(f);
+                                    setFormExtras(rec.extras ? rec.extras.map(e=>({...e})) : initExtras());
+                                    setEditingRecId(rec.id);
+                                    setSelContCC(p.id);
+                                    setPlantillaActiva(null);
+                                  }} style={{flex:1,background:"rgba(249,168,38,0.1)",border:"1px solid rgba(249,168,38,0.25)",borderRadius:6,padding:"5px 0",fontSize:10,color:"#F9A826",cursor:"pointer",fontFamily:"inherit"}}>
+                                    ✏️ Editar
+                                  </button>
+                                  <button onClick={() => pedir(
+                                    "¿Eliminar este registro? Los insumos se restaurarán al inventario.",
+                                    () => {
+                                      const lotes = invActual
+                                        .map(inv => { const used = rec.items.find(x => x.id === inv.id); return used ? {id:inv.id, newCant: inv.cant + used.cant} : null; })
+                                        .filter(Boolean);
+                                      if (lotes.length) ajustarLotes(lotes);
+                                      eliminarCC(rec.id);
+                                      if (editingRecId === rec.id) { setEditingRecId(null); setFormCC(initForm()); }
+                                    }
+                                  )} style={{flex:1,background:"rgba(255,80,80,0.07)",border:"1px solid rgba(255,80,80,0.18)",borderRadius:6,padding:"5px 0",fontSize:10,color:"rgba(255,110,110,0.7)",cursor:"pointer",fontFamily:"inherit"}}>
+                                    🗑 Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            <button onClick={() => {
+                              setSelContCC(p.id);
+                              setEditingRecId(null);
+                              setPlantillaActiva(null);
+                              setFormCC(initForm());
+                              setFormExtras(initExtras());
+                            }} style={{background:"rgba(99,102,241,0.1)",border:"1px dashed rgba(99,102,241,0.3)",borderRadius:8,padding:"7px",fontSize:10,color:"rgba(165,180,252,0.7)",cursor:"pointer",fontFamily:"inherit"}}>
+                              ➕ Agregar nuevo registro a este contenedor
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
