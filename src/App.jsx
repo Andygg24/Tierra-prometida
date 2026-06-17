@@ -4498,20 +4498,33 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const gCircum = Math.PI * gR;
           const gFilled = (Math.min(rendGeneralTotal, 99.5) / 100) * gCircum;
           const gD = `M ${gCx-gR} ${gCy} A ${gR} ${gR} 0 0 0 ${gCx+gR} ${gCy}`;
+          // Tick helper: punto en el arco a un % dado
+          const gTick = (pct, inner, outer) => {
+            const a = Math.PI * (1 - pct / 100);
+            const x1 = (gCx + inner * Math.cos(a)).toFixed(1);
+            const y1 = (gCy - inner * Math.sin(a)).toFixed(1);
+            const x2 = (gCx + outer * Math.cos(a)).toFixed(1);
+            const y2 = (gCy - outer * Math.sin(a)).toFixed(1);
+            return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#cbd5e1" stroke-width="1.5"/>`;
+          };
           const gaugeSVG = `<svg viewBox="0 0 220 125" width="220" height="125" style="display:block;margin:0 auto 4px;">
-  <path d="${gD}" fill="none" stroke="#f1f5f9" stroke-width="22" stroke-linecap="round"/>
-  <path d="${gD}" fill="none" stroke="#fecaca" stroke-width="22" stroke-dasharray="${(0.6*gCircum).toFixed(1)} ${gCircum.toFixed(1)}"/>
-  <path d="${gD}" fill="none" stroke="#fef08a" stroke-width="22" stroke-dasharray="${(0.2*gCircum).toFixed(1)} ${gCircum.toFixed(1)}" stroke-dashoffset="${(-0.6*gCircum).toFixed(1)}"/>
-  <path d="${gD}" fill="none" stroke="#bbf7d0" stroke-width="22" stroke-dasharray="${(0.2*gCircum).toFixed(1)} ${gCircum.toFixed(1)}" stroke-dashoffset="${(-0.8*gCircum).toFixed(1)}"/>
-  <path d="${gD}" fill="none" stroke="${gColor}" stroke-width="22" stroke-linecap="round" stroke-dasharray="${gFilled.toFixed(1)} ${gCircum.toFixed(1)}" opacity="0.95"/>
-  <text x="${gCx}" y="${gCy-20}" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="${gColor}" text-anchor="middle">${rendGeneralTotal.toFixed(1)}%</text>
+  <!-- Pista gris -->
+  <path d="${gD}" fill="none" stroke="#e8ecf0" stroke-width="20" stroke-linecap="round"/>
+  <!-- Arco de valor -->
+  <path d="${gD}" fill="none" stroke="${gColor}" stroke-width="20" stroke-linecap="round" stroke-dasharray="${gFilled.toFixed(1)} ${gCircum.toFixed(1)}"/>
+  <!-- Marcas de escala -->
+  ${gTick(0,   gR+2, gR+14)}
+  ${gTick(25,  gR+2, gR+10)}
+  ${gTick(50,  gR+2, gR+14)}
+  ${gTick(75,  gR+2, gR+10)}
+  ${gTick(100, gR+2, gR+14)}
+  <!-- Etiquetas -->
+  <text x="${(gCx-gR-16).toFixed(0)}" y="${gCy+5}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">0%</text>
+  <text x="${gCx}" y="10" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">50%</text>
+  <text x="${(gCx+gR+16).toFixed(0)}" y="${gCy+5}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">100%</text>
+  <!-- Valor central -->
+  <text x="${gCx}" y="${gCy-20}" font-family="Segoe UI,Arial,sans-serif" font-size="34" font-weight="800" fill="${gColor}" text-anchor="middle">${rendGeneralTotal.toFixed(1)}%</text>
   <text x="${gCx}" y="${gCy-3}" font-family="Segoe UI,Arial,sans-serif" font-size="8.5" fill="#94a3b8" text-anchor="middle" letter-spacing="1.5">RENDIMIENTO GENERAL</text>
-  <text x="${gCx-gR-4}" y="${gCy+18}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="end">0%</text>
-  <text x="${gCx+gR+4}" y="${gCy+18}" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8">100%</text>
-  <text x="${gCx}" y="14" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#94a3b8" text-anchor="middle">50%</text>
-  <line x1="${gCx-gR}" y1="${gCy}" x2="${gCx-gR-6}" y2="${gCy}" stroke="#cbd5e1" stroke-width="1.5"/>
-  <line x1="${gCx+gR}" y1="${gCy}" x2="${gCx+gR+6}" y2="${gCy}" stroke="#cbd5e1" stroke-width="1.5"/>
-  <line x1="${gCx}" y1="${gCy-gR}" x2="${gCx}" y2="${gCy-gR-6}" stroke="#cbd5e1" stroke-width="1.5"/>
 </svg>`;
 
           // ── Mini gauge helper para DM/Princess ──────────────────────
@@ -4522,9 +4535,8 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             const mD = `M ${mc-mr} ${mc} A ${mr} ${mr} 0 0 0 ${mc+mr} ${mc}`;
             return `<div style="text-align:center;">
   <svg viewBox="0 0 110 60" width="110" height="60" style="display:block;margin:0 auto;">
-    <path d="${mD}" fill="none" stroke="#f1f5f9" stroke-width="12" stroke-linecap="round"/>
-    <path d="${mD}" fill="none" stroke="${color}30" stroke-width="12"/>
-    <path d="${mD}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${mF.toFixed(1)} ${mC.toFixed(1)}" opacity="0.9"/>
+    <path d="${mD}" fill="none" stroke="#e8ecf0" stroke-width="12" stroke-linecap="round"/>
+    <path d="${mD}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${mF.toFixed(1)} ${mC.toFixed(1)}"/>
     <text x="${mc}" y="${mc-8}" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="${color}" text-anchor="middle">${pct.toFixed(1)}%</text>
   </svg>
   <div style="font-size:10px;color:#64748b;margin-top:-4px;">${label}</div>
@@ -4734,8 +4746,15 @@ ${providerSection}
 
 </body></html>`;
 
-          const win = window.open("", "_blank");
-          if (win) { win.document.write(html); win.document.close(); }
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement("a");
+          a.href     = url;
+          a.download = `Informe_Rendimiento_${cont.numContenedor}_${new Date().toISOString().split("T")[0]}.html`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
         };
 
         const abrirFormRend = (r = null) => {
