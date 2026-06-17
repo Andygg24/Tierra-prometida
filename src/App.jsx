@@ -3895,8 +3895,47 @@ function ContenedoresDemo() {
 
 
 
+        // Contenedores que ya tienen registros CC
+        const contsConCC = procesos.filter(p => contInsumos.some(r => r.contId === p.id));
+
         return (
           <div>
+
+            {/* ── Resumen: contenedores con registros ── */}
+            {contsConCC.length > 0 && (
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:700}}>
+                  📦 Contenedores con centro de costos ({contsConCC.length})
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {contsConCC.map(p => {
+                    const recs  = contInsumos.filter(r => r.contId === p.id);
+                    const total = recs.reduce((s,r) => s + r.total, 0);
+                    const activo = selContCC === p.id;
+                    return (
+                      <button key={p.id} onClick={() => {
+                        const id = p.id;
+                        setSelContCC(id);
+                        setEditingRecId(null);
+                        setPlantillaActiva(null);
+                        setFormCC(initForm());
+                        setFormExtras(initExtras());
+                      }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:activo?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${activo?"rgba(99,102,241,0.5)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"10px 14px",cursor:"pointer",textAlign:"left",width:"100%"}}>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:700,color:activo?"#a5b4fc":"white"}}>🚢 {p.numContenedor}</div>
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:2}}>{p.fecha} · {recs.length} registro{recs.length!==1?"s":""}</div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>TOTAL ACUMULADO</div>
+                          <div style={{fontSize:13,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(total)}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Selector contenedor */}
             <div style={{marginBottom:12}}>
               <div style={lbl}>Seleccionar contenedor</div>
