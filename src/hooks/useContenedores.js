@@ -223,7 +223,9 @@ export function useContenedores() {
   // ── RENDIMIENTOS ─────────────────────────────────────────────
 
   const guardarRendimiento = useCallback(async (form, editId = null) => {
+    const newId = editId || Date.now();
     const row = {
+      id:               newId,
       cont_id:          form.contId,
       cont_num:         form.contNum         || null,
       fecha:            form.fecha,
@@ -241,7 +243,6 @@ export function useContenedores() {
         const { error } = await supabase.from("contenedor_rendimientos").update(r).eq("id", editId);
         return error || null;
       } else {
-        r.id = r.id || Date.now();
         const { error } = await supabase.from("contenedor_rendimientos").insert(r);
         return error || null;
       }
@@ -249,13 +250,22 @@ export function useContenedores() {
 
     let error = await tryUpsert({ ...row });
     if (error) {
-      // Si falla por columna proveedor inexistente, reintentar sin ella
       const isColError = error.message?.includes("proveedor") || error.code === "42703";
       if (isColError) {
         const { proveedor: _, ...rowSinProv } = row;
         error = await tryUpsert(rowSinProv);
       }
     }
+
+    if (!error) {
+      const newRend = rowToRendimiento(row);
+      setRendimientos(prev =>
+        editId
+          ? prev.map(r => r.id === editId ? newRend : r)
+          : [...prev, newRend]
+      );
+    }
+
     return !error;
   }, []);
 

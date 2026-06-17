@@ -4612,9 +4612,12 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
               <CustomSelect value={selContRend ?? ""} onChange={e => { setSelContRend(e.target.value ? Number(e.target.value) : null); setShowFormRend(false); }}
                 style={{ ...inp, maxWidth: 340 }}>
                 <option value="">— Elige un contenedor —</option>
-                {procesos.map(p => (
-                  <option key={p.id} value={p.id}>{p.numContenedor} · {p.proveedor} · {p.fecha}</option>
-                ))}
+                {procesos.map(p => {
+                  const provs = parseProveedores(p.proveedor).join(", ") || "sin proveedor";
+                  return (
+                    <option key={p.id} value={p.id}>{p.numContenedor} · {provs} · {p.fecha}</option>
+                  );
+                })}
               </CustomSelect>
             </div>
 
