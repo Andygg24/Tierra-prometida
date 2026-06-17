@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { usePackingList } from "../hooks/usePackingList.js";
 
@@ -434,59 +435,207 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const generarExcel = async () => {
     setGenerandoExcel(true);
     try {
-      const payload = {
-        plNo: admin.plNo, destino: admin.destino, fechaCargue: admin.fechaCargue,
-        empresaTransporte: admin.empresaTransporte, placa: admin.placa,
-        tempRecorder: admin.tempRecorder, finalStamps: admin.finalStamps,
-        totalCajas,
-        pallets: pallets.map(p => ({
-          id: p.id,
-          calibres: p.calibres.map(c => ({ size:Number(c.size), cajas:Number(c.cajas||0), predio:c.predio||"", ica:String(c.ica||"") })),
-        })),
+      // Cargar plantilla desde public/
+      const res = await fetch("/plantilla-packing-list.xlsx");
+      if (!res.ok) throw new Error("No se encontró la plantilla Excel");
+      const ab  = await res.arrayBuffer();
+      const wb  = XLSX.read(ab, { type: "array", cellStyles: true });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+
+      const sv = (addr, val, type) => {
+        if (!ws[addr]) ws[addr] = {};
+        ws[addr].v = val;
+        ws[addr].t = type || (typeof val === "number" ? "n" : "s");
+        if (ws[addr].f) delete ws[addr].f; // quitar fórmulas si las hay
       };
-      const res = await fetch("http://localhost:3001/api/packing-list", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(payload),
+
+      // ── Encabezado ──────────────────────────────────────────────
+      sv("A2", `TIERRA PROMETIDA TRADING SAS.\r\nBARRANQUILLA - ATLANTICO\r\noperaciones@tierraprometidat.com\r\nPacking List No. ${admin.plNo || ""}`);
+      sv("A5", "CARTAGENA");
+      sv("D5", (admin.destino || "MIAMI").toUpperCase());
+      sv("F5", totalCajas, "n");
+      sv("H5", 20, "n");
+
+      const pesoTotal = Math.round(totalCajas * 16.2 * 100) / 100;
+      sv("A7", pesoTotal, "n");
+      sv("D7", pesoTotal, "n");
+      sv("F7", admin.empresaTransporte || "");
+      sv("H7", admin.placa || "");
+
+      sv("A9", admin.plNo || "");
+      sv("D9", admin.tempRecorder || "");
+
+      // Fecha como número Excel
+      if (admin.fechaCargue) {
+        const [y, mo, d] = admin.fechaCargue.split("-").map(Number);
+        const excelDate = Math.floor((new Date(y, mo - 1, d) - new Date(1899, 11, 30)) / 86400000);
+        ws["F9"] = { t: "n", v: excelDate, z: "mm/dd/yyyy" };
+      }
+      sv("H9", admin.finalStamps || "");
+
+      // ── Limpiar filas de pallets anteriores (filas 11–60) ───────
+      for (let r = 11; r <= 60; r++) {
+        ["A","B","C","D","E","F","G","H","I"].forEach(col => { delete ws[`${col}${r}`]; });
+      }
+
+      // ── Escribir datos de pallets ────────────────────────────────
+      let rowNum = 11;
+      pallets.forEach((pallet) => {
+        pallet.calibres.forEach((cal, ci) => {
+          if (ci === 0) {
+            sv(`A${rowNum}`, pallet.id, "n");
+            sv(`B${rowNum}`, "16.2 KG");
+          }
+          sv(`C${rowNum}`, Number(cal.size), "n");
+          sv(`D${rowNum}`, "LIMON TAHITI");
+          sv(`E${rowNum}`, 1, "n");
+          sv(`F${rowNum}`, Number(cal.cajas || 0), "n");
+          sv(`G${rowNum}`, cal.predio || "");
+          sv(`H${rowNum}`, Number(cal.cajas || 0), "n");
+          sv(`I${rowNum}`, String(cal.ica || ""));
+          rowNum++;
+        });
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({ error: res.statusText })); alert("Error: " + (err.error || res.statusText)); return; }
-      const blob = await res.blob();
+
+      // Actualizar rango
+      ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowNum, c: 8 } });
+
+      // ── Descargar ────────────────────────────────────────────────
+      const out  = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
-      a.href = url; a.download = `Packing-List-${admin.plNo || admin.container || "export"}.xlsx`; a.click();
+      a.href = url;
+      a.download = `Packing-List-${admin.plNo || admin.container || "export"}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("No se pudo conectar al servidor: " + e.message);
-    } finally { setGenerandoExcel(false); }
+      alert("Error generando Excel: " + e.message);
+    } finally {
+      setGenerandoExcel(false);
+    }
   };
 
   const generarPDF = () => {
-    const resHtml = ["250","230","200","175","150","110"].map(s => {
-      const tot = pallets.reduce((sum, p) =>
-        sum + p.calibres.filter(c => String(c.size) === s).reduce((ss, c) => ss + Number(c.cajas||0), 0), 0);
-      return `<tr><td>${s}</td><td style="text-align:right">${tot.toLocaleString("es-CO")}</td></tr>`;
-    }).join("") + `<tr class="tot"><td>TOTAL</td><td style="text-align:right">${totalCajas.toLocaleString("es-CO")}</td></tr>`;
+    const G   = "#1a5c1a";
+    const GL  = "#e8f5e9";
+    const peso = Math.round(totalCajas * 16.2 * 100) / 100;
 
-    const pcell = (pid) => {
-      const p = pallets.find(pp => pp.id === pid);
-      if (!p) return { id:pid, size:"" };
-      return { id:pid, size: p.calibres.length > 1 ? p.calibres.map(c => `${c.cajas}/${c.size}`).join("<br>") : String(p.calibres[0].size) };
-    };
-    const rows = Array.from({ length:10 }, (_, i) => {
-      const pl = pcell(layout.left[i]), pr = pcell(layout.right[i]);
-      return `<tr><td><b>Pallet ${pl.id}</b></td><td><b>${pl.size}</b></td><td>CO-68-001<br>HT</td><td>${fmtDate(admin.packingDate)}</td><td style="border-left:3px solid #1a5c1a"><b>Pallet ${pr.id}</b></td><td><b>${pr.size}</b></td><td>CO-68-001<br>HT</td><td>${fmtDate(admin.packingDate)}</td></tr>`;
-    }).join("");
+    // Filas de pallets — misma lógica que generarExcel
+    const palletRows = pallets.flatMap((pallet) =>
+      pallet.calibres.map((cal, ci) => `
+      <tr>
+        <td class="num">${ci === 0 ? pallet.id : ""}</td>
+        <td>${ci === 0 ? "16.2 KG" : ""}</td>
+        <td class="num">${cal.size}</td>
+        <td>LIMON TAHITI</td>
+        <td class="num">1</td>
+        <td class="num">${Number(cal.cajas || 0)}</td>
+        <td>${cal.predio || ""}</td>
+        <td class="num">${Number(cal.cajas || 0)}</td>
+        <td>${cal.ica || ""}</td>
+      </tr>`)
+    ).join("");
 
-    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>PL ${admin.container}</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:24px;font-size:11px;background:#fff}h2{text-align:center;font-size:20px;font-weight:800;margin-bottom:16px}.hdr{display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr;border:2px solid #1a5c1a;margin-bottom:16px}.hl{background:#1a5c1a;color:#fff;font-weight:700;padding:7px 10px}.hv{padding:7px 10px;font-weight:700}.wrap{display:grid;grid-template-columns:130px 1fr;gap:14px}.sum{border:2px solid #1a5c1a;border-collapse:collapse;width:100%}.sum th{background:#1a5c1a;color:#fff;padding:6px 8px;text-align:left}.sum td{padding:6px 8px;border-top:1px solid #c8e6c9;font-size:14px;font-weight:700}.sum tr.tot td{border-top:2px solid #1a5c1a}.ctitle{background:#1a5c1a;color:#fff;padding:7px 12px;font-weight:700;display:flex;justify-content:space-between;margin-bottom:4px}.pt{width:100%;border-collapse:collapse}.pt th{background:#f1f8e9;padding:5px 6px;font-size:10px;border:1px solid #a5d6a7;font-weight:700}.pt td{padding:5px 6px;font-size:10px;border:1px solid #c8e6c9;text-align:center}.door{text-align:center;font-weight:700;background:#1a5c1a;color:#fff;padding:4px;font-size:10px}.footer{text-align:center;margin-top:20px;font-size:10px;color:#555;border-top:1px solid #eee;padding-top:12px}</style></head><body>
-<h2>Pallet Distribution Inside Container</h2>
-<div class="hdr"><div class="hl">DATE:</div><div class="hv">${fmtDate(admin.fechaCargue)}</div><div class="hl">PORT:</div><div class="hv">SP CARTAGENA</div><div class="hl">PALLET CERTIFICATE:</div><div class="hv">${admin.palletCerts.map(c=>`${c.ica} — Pallet #${c.palletNo}`).join("<br>")}</div><div class="hl">VESSEL:</div><div class="hv">${admin.vessel}</div><div class="hl">CONTAINER:</div><div class="hv">${admin.container}</div><div class="hl">DESTINATION:</div><div class="hv">${admin.destino.toUpperCase()}</div><div class="hl">TEMP RECORDER:</div><div class="hv">${admin.tempRecorder}<br>In Pallet # ${admin.tempRecorderPalletNo}</div><div class="hl">FINAL STAMPS:</div><div class="hv">${admin.finalStamps}</div></div>
-<div class="wrap"><table class="sum"><tr><th>PACKING LIST</th><th></th></tr>${resHtml}</table><div><div class="ctitle"><span>CONTAINER ←- - - - - - - →</span><span>🚛</span></div><table class="pt"><thead><tr><th>Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th><th style="border-left:3px solid #1a5c1a">Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th></tr></thead><tbody>${rows}</tbody><tr><td colspan="4" class="door">LEFT CONTAINER DOOR</td><td colspan="4" class="door">RIGHT CONTAINER DOOR</td></tr></table></div></div>
-<div class="footer"><p>1001 S. Dairy Ashford, Suite 100-163 Houston, TX 77077</p><p>gerencia@princesseskingdom.com</p></div></body></html>`;
+    // Fecha formateada igual que el Excel (mm/dd/yyyy)
+    let fechaFmt = "";
+    if (admin.fechaCargue) {
+      const [y, mo, d] = admin.fechaCargue.split("-");
+      fechaFmt = `${mo}/${d}/${y}`;
+    }
 
-    const blob = new Blob([html], { type:"text/html" });
+    const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Packing List ${admin.plNo || ""}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:18px 22px}
+/* ── Cabecera empresa (equivale a A2 del Excel) ── */
+.hdr-empresa{
+  width:100%;border:1.5px solid ${G};border-collapse:collapse;margin-bottom:0
+}
+.hdr-empresa td{
+  padding:10px 14px;font-size:13px;font-weight:900;color:${G};
+  white-space:pre-line;line-height:1.5;border:none
+}
+/* ── Tabla de metadatos (filas 4-9 del Excel) ── */
+.meta{width:100%;border-collapse:collapse;border:1.5px solid ${G};border-top:none;margin-bottom:8px}
+.meta td{border:1px solid ${G};padding:4px 7px}
+.meta .lbl{background:${G};color:#fff;font-weight:700;font-size:8.5px;text-transform:uppercase;white-space:nowrap}
+.meta .val{font-weight:700;font-size:10px;background:#fff}
+/* ── Tabla de pallets (fila 10+ del Excel) ── */
+.pal{width:100%;border-collapse:collapse;border:1.5px solid ${G}}
+.pal th{background:${G};color:#fff;padding:5px 6px;font-size:8.5px;font-weight:700;text-align:center;border:1px solid ${G}}
+.pal td{padding:4px 6px;border:1px solid #b2dfb2;font-size:9px}
+.pal td.num{text-align:right}
+.pal tr:nth-child(even) td{background:${GL}}
+@media print{body{padding:8px 12px}@page{size:A4 landscape;margin:8mm}}
+</style>
+</head><body>
+
+<!-- A2: empresa (celda combinada A2:I2 del Excel) -->
+<table class="hdr-empresa"><tr><td>TIERRA PROMETIDA TRADING SAS.
+BARRANQUILLA - ATLANTICO
+operaciones@tierraprometidat.com
+Packing List No. ${admin.plNo || ""}</td></tr></table>
+
+<!-- Filas 4-9: metadatos en 4 columnas (A-C | D-E | F-G | H-I) -->
+<table class="meta">
+  <tr>
+    <td class="lbl" style="width:14%">PUERTO DE SALIDA</td>
+    <td class="val" style="width:11%">CARTAGENA</td>
+    <td class="lbl" style="width:14%">PUERTO DE DESTINO</td>
+    <td class="val" style="width:11%">${(admin.destino || "").toUpperCase()}</td>
+    <td class="lbl" style="width:14%">TOTAL CAJAS</td>
+    <td class="val" style="width:11%">${totalCajas}</td>
+    <td class="lbl" style="width:14%">TOTAL PALLETS</td>
+    <td class="val" style="width:11%">20</td>
+  </tr>
+  <tr>
+    <td class="lbl">PESO BRUTO</td>
+    <td class="val">${peso} KG</td>
+    <td class="lbl">PESO NETO</td>
+    <td class="val">${peso} KG</td>
+    <td class="lbl">EMPRESA TRANSPOR</td>
+    <td class="val">${admin.empresaTransporte || ""}</td>
+    <td class="lbl">PLACA</td>
+    <td class="val">${admin.placa || ""}</td>
+  </tr>
+  <tr>
+    <td class="lbl">DEAL</td>
+    <td class="val">${admin.plNo || ""}</td>
+    <td class="lbl">DATALLOGERS 1</td>
+    <td class="val">${admin.tempRecorder || ""}</td>
+    <td class="lbl">FECHA DE CARGUE</td>
+    <td class="val">${fechaFmt}</td>
+    <td class="lbl">SEALS</td>
+    <td class="val">${admin.finalStamps || ""}</td>
+  </tr>
+</table>
+
+<!-- Fila 10: encabezados + filas 11+: pallets -->
+<table class="pal">
+  <thead><tr>
+    <th>Pallet No.</th>
+    <th>Peso / caja</th>
+    <th>Size</th>
+    <th>Product</th>
+    <th>Category</th>
+    <th>No. Boxes</th>
+    <th>Predio</th>
+    <th>Cantidad</th>
+    <th>Registro</th>
+  </tr></thead>
+  <tbody>${palletRows}</tbody>
+</table>
+</body></html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const u = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = u; a.download = `PL_${admin.container||"XXXX"}.html`; a.click();
+    a.href = u;
+    a.download = `Packing-List-${admin.plNo || admin.container || "XXXX"}.html`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(u);
   };
 
