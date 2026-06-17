@@ -517,124 +517,199 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   };
 
   const generarPDF = () => {
-    const G   = "#1a5c1a";
-    const GL  = "#e8f5e9";
-    const peso = Math.round(totalCajas * 16.2 * 100) / 100;
+    const G  = "#1f5c1f";   // verde oscuro del molde
+    const GB = "#2d7a2d";   // verde medio
 
-    // Filas de pallets — misma lógica que generarExcel
-    const palletRows = pallets.flatMap((pallet) =>
-      pallet.calibres.map((cal, ci) => `
-      <tr>
-        <td class="num">${ci === 0 ? pallet.id : ""}</td>
-        <td>${ci === 0 ? "16.2 KG" : ""}</td>
-        <td class="num">${cal.size}</td>
-        <td>LIMON TAHITI</td>
-        <td class="num">1</td>
-        <td class="num">${Number(cal.cajas || 0)}</td>
-        <td>${cal.predio || ""}</td>
-        <td class="num">${Number(cal.cajas || 0)}</td>
-        <td>${cal.ica || ""}</td>
-      </tr>`)
-    ).join("");
+    // ── Resumen de cajas por calibre (panel izquierdo) ────────────
+    const sizeQty = { 250:0, 230:0, 200:0, 175:0, 150:0, 110:0 };
+    pallets.forEach(p => p.calibres.forEach(c => {
+      const s = Number(c.size);
+      if (s in sizeQty) sizeQty[s] += Number(c.cajas || 0);
+    }));
+    const summaryRows = [250, 230, 200, 175, 150, 110].map(s =>
+      `<tr><td class="sc">${s}</td><td class="sq">${sizeQty[s].toLocaleString("es-CO")}</td></tr>`
+    ).join("") +
+    `<tr class="stot"><td>TOTAL</td><td>${totalCajas.toLocaleString("es-CO")}</td></tr>`;
 
-    // Fecha formateada igual que el Excel (mm/dd/yyyy)
-    let fechaFmt = "";
-    if (admin.fechaCargue) {
-      const [y, mo, d] = admin.fechaCargue.split("-");
-      fechaFmt = `${mo}/${d}/${y}`;
-    }
+    // ── Distribución en contenedor (panel derecho) ─────────────────
+    const pcell = (pid) => {
+      const p = pallets.find(pp => pp.id === pid);
+      if (!p) return { id: pid, size: "" };
+      const sz = p.calibres.length > 1
+        ? p.calibres.map(c => `${c.cajas}/${c.size}`).join("<br>")
+        : String(p.calibres[0]?.size || "");
+      return { id: pid, size: sz };
+    };
+    const contRows = Array.from({ length: 10 }, (_, i) => {
+      const pl = pcell(layout.left[i]);
+      const pr = pcell(layout.right[i]);
+      return `<tr>
+        <td class="pc">Pallet ${pl.id}</td><td class="ps">${pl.size}</td>
+        <td class="pi">CO-68-001<br>HT</td><td class="pd">${fmtDate(admin.packingDate)}</td>
+        <td class="sep"></td>
+        <td class="pc">Pallet ${pr.id}</td><td class="ps">${pr.size}</td>
+        <td class="pi">CO-68-001<br>HT</td><td class="pd">${fmtDate(admin.packingDate)}</td>
+      </tr>`;
+    }).join("");
+
+    // ── Pallet Certificate (primer cert) ──────────────────────────
+    const cert0 = admin.palletCerts[0] || {};
+    const certText = cert0.ica
+      ? `${cert0.ica}<br>in Pallet # ${cert0.palletNo || ""}`
+      : "";
+
+    // ── Logo Princesses Kingdom (SVG inline) ──────────────────────
+    const logo = `<svg width="82" height="82" viewBox="0 0 82 82" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="41" cy="41" r="40" fill="${G}" stroke="#0d3d0d" stroke-width="1.5"/>
+      <circle cx="41" cy="41" r="33" fill="${GB}"/>
+      <circle cx="41" cy="37" r="15" fill="#5aaa28"/>
+      <circle cx="41" cy="37" r="12" fill="#7dc63f"/>
+      <circle cx="43" cy="34" r="5" fill="#5aaa28" opacity="0.55"/>
+      <ellipse cx="53" cy="21" rx="7" ry="3" fill="${G}" transform="rotate(-42 53 21)"/>
+      <ellipse cx="57" cy="26" rx="5" ry="2.2" fill="${GB}" transform="rotate(-28 57 26)"/>
+      <path d="M14 41 A27 27 0 0 1 68 41" fill="none" id="tp"/>
+      <text font-family="Arial Black,Arial" font-size="6.5" font-weight="900" fill="white" letter-spacing="1.2">
+        <textPath href="#tp" startOffset="8%">PRINCESSES KINGDOM</textPath>
+      </text>
+      <path d="M68 55 A27 27 0 0 1 14 55" fill="none" id="bp"/>
+      <text font-family="Arial" font-size="5.5" fill="rgba(255,255,255,0.7)" letter-spacing="0.8">
+        <textPath href="#bp" startOffset="22%">gerencia@princesseskingdom.com</textPath>
+      </text>
+    </svg>`;
 
     const html = `<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8">
-<title>Packing List ${admin.plNo || ""}</title>
+<html lang="en"><head><meta charset="UTF-8">
+<title>Packing List ${admin.container || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:18px 22px}
-/* ── Cabecera empresa (equivale a A2 del Excel) ── */
-.hdr-empresa{
-  width:100%;border:1.5px solid ${G};border-collapse:collapse;margin-bottom:0
-}
-.hdr-empresa td{
-  padding:10px 14px;font-size:13px;font-weight:900;color:${G};
-  white-space:pre-line;line-height:1.5;border:none
-}
-/* ── Tabla de metadatos (filas 4-9 del Excel) ── */
-.meta{width:100%;border-collapse:collapse;border:1.5px solid ${G};border-top:none;margin-bottom:8px}
-.meta td{border:1px solid ${G};padding:4px 7px}
-.meta .lbl{background:${G};color:#fff;font-weight:700;font-size:8.5px;text-transform:uppercase;white-space:nowrap}
-.meta .val{font-weight:700;font-size:10px;background:#fff}
-/* ── Tabla de pallets (fila 10+ del Excel) ── */
-.pal{width:100%;border-collapse:collapse;border:1.5px solid ${G}}
-.pal th{background:${G};color:#fff;padding:5px 6px;font-size:8.5px;font-weight:700;text-align:center;border:1px solid ${G}}
-.pal td{padding:4px 6px;border:1px solid #b2dfb2;font-size:9px}
-.pal td.num{text-align:right}
-.pal tr:nth-child(even) td{background:${GL}}
-@media print{body{padding:8px 12px}@page{size:A4 landscape;margin:8mm}}
+body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px 20px}
+
+/* ── Título + logo ── */
+.title-row{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:14px}
+.title-row h1{font-size:22px;font-weight:900;text-align:center}
+.title-row .logo{position:absolute;right:0;top:-6px}
+
+/* ── Tabla de encabezado (2 filas × 8 cols) ── */
+.hdr{width:100%;border-collapse:collapse;border:2px solid ${G};margin-bottom:14px}
+.hdr td{border:1px solid ${G};padding:6px 10px;font-size:10.5px}
+.hdr .lbl{background:${G};color:#fff;font-weight:800;white-space:nowrap;min-width:90px}
+.hdr .val{font-weight:700;background:#fff;min-width:100px}
+
+/* ── Cuerpo: dos paneles ── */
+.body{display:flex;gap:10px;align-items:flex-start}
+
+/* ── Panel izquierdo: PACKING LIST ── */
+.pl-panel{width:140px;flex-shrink:0;border:2px solid ${G};border-collapse:collapse}
+.pl-panel .pl-hdr td{background:${G};color:#fff;font-weight:900;font-size:11px;
+  padding:8px 10px;text-align:center;letter-spacing:.5px;border-bottom:2px solid ${G}}
+.pl-panel table{width:100%;border-collapse:collapse}
+.pl-panel td{padding:6px 10px;font-weight:700;font-size:12px;text-align:center;
+  border-bottom:1px solid #c8e6c9}
+.pl-panel td.sc{text-align:center;font-size:13px}
+.pl-panel td.sq{text-align:center;font-size:13px}
+.pl-panel .stot td{border-top:2px solid ${G};font-size:13px;font-weight:900}
+
+/* ── Panel derecho: CONTAINER ── */
+.ct-panel{flex:1;border:2px solid ${G};border-collapse:collapse}
+.ct-hdr{background:${G};color:#fff;font-weight:900;font-size:11px;
+  padding:8px 12px;display:flex;align-items:center;gap:8px;letter-spacing:.5px}
+.ct-hdr .arrow{flex:1;border-top:2px dashed rgba(255,255,255,0.6);margin:0 8px}
+.ct-hdr .truck{font-size:18px}
+.ct-table{width:100%;border-collapse:collapse}
+.ct-table th{background:#f0f7f0;padding:5px 8px;font-size:9px;font-weight:700;
+  border:1px solid #a5d6a7;text-align:center}
+.ct-table td{padding:5px 8px;font-size:9.5px;border:1px solid #c8e6c9;text-align:center;font-weight:600}
+.ct-table td.pc{font-weight:700}
+.ct-table td.ps{font-weight:800}
+.ct-table td.pi{font-size:8.5px;color:#444}
+.ct-table td.pd{font-weight:700}
+.ct-table td.sep{width:8px;background:#f5f5f5;border-top:none;border-bottom:none;padding:0}
+.ct-table .door td{background:${G};color:#fff;font-weight:800;font-size:10px;
+  text-align:center;padding:6px;border:1px solid ${G}}
+
+/* ── Footer ── */
+.footer{margin-top:16px;text-align:center;font-size:10px;color:#333;
+  border-top:1px solid #ddd;padding-top:10px;font-weight:500}
+
+@media print{body{padding:8px 12px}@page{size:A4 landscape;margin:6mm}}
 </style>
 </head><body>
 
-<!-- A2: empresa (celda combinada A2:I2 del Excel) -->
-<table class="hdr-empresa"><tr><td>TIERRA PROMETIDA TRADING SAS.
-BARRANQUILLA - ATLANTICO
-operaciones@tierraprometidat.com
-Packing List No. ${admin.plNo || ""}</td></tr></table>
+<!-- TÍTULO + LOGO -->
+<div class="title-row">
+  <h1>Pallet Distribution Inside Container</h1>
+  <div class="logo">${logo}</div>
+</div>
 
-<!-- Filas 4-9: metadatos en 4 columnas (A-C | D-E | F-G | H-I) -->
-<table class="meta">
+<!-- ENCABEZADO (2 filas) -->
+<table class="hdr">
   <tr>
-    <td class="lbl" style="width:14%">PUERTO DE SALIDA</td>
-    <td class="val" style="width:11%">CARTAGENA</td>
-    <td class="lbl" style="width:14%">PUERTO DE DESTINO</td>
-    <td class="val" style="width:11%">${(admin.destino || "").toUpperCase()}</td>
-    <td class="lbl" style="width:14%">TOTAL CAJAS</td>
-    <td class="val" style="width:11%">${totalCajas}</td>
-    <td class="lbl" style="width:14%">TOTAL PALLETS</td>
-    <td class="val" style="width:11%">20</td>
+    <td class="lbl">DATE:</td>
+    <td class="val">${fmtDate(admin.fechaCargue)}</td>
+    <td class="lbl">PORT:</td>
+    <td class="val">SP CARTAGENA</td>
+    <td class="lbl">PALLET CERTIFICATE:</td>
+    <td class="val">${certText}</td>
+    <td class="lbl">VESSEL:</td>
+    <td class="val">${admin.vessel || ""}</td>
   </tr>
   <tr>
-    <td class="lbl">PESO BRUTO</td>
-    <td class="val">${peso} KG</td>
-    <td class="lbl">PESO NETO</td>
-    <td class="val">${peso} KG</td>
-    <td class="lbl">EMPRESA TRANSPOR</td>
-    <td class="val">${admin.empresaTransporte || ""}</td>
-    <td class="lbl">PLACA</td>
-    <td class="val">${admin.placa || ""}</td>
-  </tr>
-  <tr>
-    <td class="lbl">DEAL</td>
-    <td class="val">${admin.plNo || ""}</td>
-    <td class="lbl">DATALLOGERS 1</td>
-    <td class="val">${admin.tempRecorder || ""}</td>
-    <td class="lbl">FECHA DE CARGUE</td>
-    <td class="val">${fechaFmt}</td>
-    <td class="lbl">SEALS</td>
+    <td class="lbl">CONTAINER:</td>
+    <td class="val">${admin.container || ""}</td>
+    <td class="lbl">DESTINATION:</td>
+    <td class="val">${(admin.destino || "").toUpperCase()}</td>
+    <td class="lbl">TEMP RECORDER:</td>
+    <td class="val">${admin.tempRecorder || ""}<br>In Pallet # ${admin.tempRecorderPalletNo || ""}</td>
+    <td class="lbl">FINAL STAMPS:</td>
     <td class="val">${admin.finalStamps || ""}</td>
   </tr>
 </table>
 
-<!-- Fila 10: encabezados + filas 11+: pallets -->
-<table class="pal">
-  <thead><tr>
-    <th>Pallet No.</th>
-    <th>Peso / caja</th>
-    <th>Size</th>
-    <th>Product</th>
-    <th>Category</th>
-    <th>No. Boxes</th>
-    <th>Predio</th>
-    <th>Cantidad</th>
-    <th>Registro</th>
-  </tr></thead>
-  <tbody>${palletRows}</tbody>
-</table>
+<!-- CUERPO: dos paneles -->
+<div class="body">
+
+  <!-- Panel izquierdo: resumen por calibre -->
+  <table class="pl-panel">
+    <tr class="pl-hdr"><td colspan="2">PACKING LIST</td></tr>
+    ${summaryRows}
+  </table>
+
+  <!-- Panel derecho: distribución en contenedor -->
+  <div class="ct-panel">
+    <div class="ct-hdr">
+      <span>CONTAINER</span>
+      <span class="arrow"></span>
+      <span class="truck">&#x1F69A;</span>
+    </div>
+    <table class="ct-table">
+      <thead><tr>
+        <th>Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th>
+        <th class="sep"></th>
+        <th>Pallet ID #</th><th>Size</th><th>Pallet ISPM-15</th><th>Packing Date</th>
+      </tr></thead>
+      <tbody>${contRows}</tbody>
+      <tr class="door">
+        <td colspan="4">LEFT CONTAINER DOOR</td>
+        <td class="sep"></td>
+        <td colspan="4">RIGHT CONTAINER DOOR</td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>1001 S. Dairy Ashford, Suite 100-163 Houston, TX 77077</p>
+  <p>gerencia@princesseskingdom.com</p>
+</div>
 </body></html>`;
 
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const u = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = u;
-    a.download = `Packing-List-${admin.plNo || admin.container || "XXXX"}.html`;
+    a.download = `PL-Container-${admin.container || "XXXX"}.html`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(u);
   };
