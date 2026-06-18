@@ -1,7 +1,19 @@
-import { useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase.js";
 
 export function usePackingList() {
+  const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
+
+  // Real-time: notifica cuando alguien guarda un packing list
+  useEffect(() => {
+    const ch = supabase.channel(`packing-lists-changes-${Date.now()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "packing_lists" }, ({ new: row }) => {
+        setUltimaActualizacion(row?.updated_at || new Date().toISOString());
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
   const cargarPorContenedor = useCallback(async (contenedorId) => {
     const { data, error } = await supabase
       .from("packing_lists")
@@ -35,5 +47,5 @@ export function usePackingList() {
     return { data, error };
   }, []);
 
-  return { cargarPorContenedor, cargarTodos, guardar };
+  return { cargarPorContenedor, cargarTodos, guardar, ultimaActualizacion };
 }

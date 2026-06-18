@@ -198,6 +198,11 @@ export function usePersonal() {
     return !error;
   }, []);
 
+  const eliminarEval = useCallback(async (id) => {
+    const { error } = await supabase.from("evaluaciones").delete().eq("id", id);
+    return !error;
+  }, []);
+
   const upsertSeguridad = useCallback(async (empNum, form) => {
     const { error } = await supabase.from("seguridad_social").upsert({
       emp_num: empNum, eps: form.eps || null, fecha_eps: form.fechaEPS || null,
@@ -212,6 +217,6 @@ export function usePersonal() {
     loading, error,
     agregarEmpleado, editarEmpleado, eliminarEmpleado,
     upsertContrato, agregarPago, eliminarPago,
-    toggleDoc, agregarEval, upsertSeguridad,
+    toggleDoc, agregarEval, eliminarEval, upsertSeguridad,
   };
 }

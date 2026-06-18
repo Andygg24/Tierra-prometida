@@ -72,5 +72,23 @@ export function usePedidos() {
     if (error && removed) setPedidos(prev => [...prev, removed]);
   }, []);
 
-  return { pedidos, loading, agregarPedido, avanzarEstado, eliminarPedido };
+  const editarPedido = useCallback(async (id, campos) => {
+    let anterior;
+    setPedidos(prev => {
+      anterior = prev.find(p => p.id === id);
+      return prev.map(p => p.id === id ? { ...p, ...campos } : p);
+    });
+    const { error } = await supabase.from("pedidos").update({
+      cliente:     campos.cliente,
+      producto:    campos.producto,
+      cantidad_kg: campos.cantidadKg,
+      precio_usd:  campos.precioUSD,
+      contenedor:  campos.contenedor || null,
+      obs:         campos.notas      || null,
+    }).eq("id", id);
+    if (error && anterior) setPedidos(prev => prev.map(p => p.id === id ? anterior : p));
+    return !error;
+  }, []);
+
+  return { pedidos, loading, agregarPedido, avanzarEstado, eliminarPedido, editarPedido };
 }

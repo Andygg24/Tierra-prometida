@@ -135,5 +135,10 @@ export function useInventario(seedData = []) {
     return !error;
   }, []);
 
-  return { items, historial, loading, actualizarItem, registrarMovimiento, agregarItem, ajustarLotes };
+  const eliminarItem = useCallback(async (id) => {
+    const { error } = await supabase.from("inventario").delete().eq("id", id);
+    return !error;
+  }, []);
+
+  return { items, historial, loading, actualizarItem, registrarMovimiento, agregarItem, ajustarLotes, eliminarItem };
 }

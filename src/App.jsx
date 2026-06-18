@@ -163,7 +163,7 @@ function PersonalDemo() {
     loading:    loadingPersonal,
     agregarEmpleado, editarEmpleado, eliminarEmpleado,
     upsertContrato,  agregarPago:    agregarPagoSB, eliminarPago: eliminarPagoSB,
-    toggleDoc:  toggleDocSB, agregarEval: agregarEvalSB, upsertSeguridad,
+    toggleDoc:  toggleDocSB, agregarEval: agregarEvalSB, eliminarEval: eliminarEvalSB, upsertSeguridad,
   } = usePersonal();
 
   // ── Tab 1: Contratos ──
@@ -840,6 +840,14 @@ function PersonalDemo() {
                         ))}
                       </div>
                       {ev.nota && <div style={{ fontSize:10, color:"rgba(249,168,38,0.7)", fontStyle:"italic" }}>📝 {ev.nota}</div>}
+                      {ev.id && (
+                        <button onClick={() => pedir(`¿Eliminar evaluación del ${ev.fecha}?`, async () => {
+                          const ok = await eliminarEvalSB(ev.id);
+                          if (!ok) alert("Error al eliminar evaluación");
+                        })} style={{ marginTop:6, background:"rgba(255,80,80,0.07)", border:"1px solid rgba(255,80,80,0.18)", borderRadius:6, padding:"3px 10px", fontSize:10, color:"rgba(255,110,110,0.6)", cursor:"pointer", fontFamily:"inherit" }}>
+                          🗑 Eliminar
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1971,7 +1979,7 @@ const PLANTILLAS_CC = [
 ];
 
 function InventarioDemo() {
-  const { items, historial, loading: loadingInv, actualizarItem, registrarMovimiento, agregarItem } = useInventario(INVENTARIO_BASE);
+  const { items, historial, loading: loadingInv, actualizarItem, registrarMovimiento, agregarItem, eliminarItem } = useInventario(INVENTARIO_BASE);
 
   const [filtro, setFiltro] = useState("Todos");
   const [busqueda, setBusqueda] = useState("");
@@ -2224,7 +2232,7 @@ function InventarioDemo() {
                 <div style={{ width:1, background:"rgba(255,255,255,0.06)" }} />
                 <button onClick={() => { setEditando(item.id); setEditForm({...item}); }}
                   style={{ background:"rgba(255,255,255,0.04)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,255,255,0.5)" }}>✏️</button>
-                <button onClick={() => pedir(`¿Eliminar "${item.nombre}"?`, () => supabase.from("inventario").delete().eq("id", item.id))}
+                <button onClick={() => pedir(`¿Eliminar "${item.nombre}"?`, async () => { const ok = await eliminarItem(item.id); if (!ok) alert("Error al eliminar del inventario"); })}
                   style={{ background:"rgba(255,80,80,0.06)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
               </div>
             </div>
@@ -5143,10 +5151,15 @@ function DocumentosDemo() {
     { key:"san_juan",     icon:"🇵🇷", label:"San Juan",    sub:"Puerto Rico",                     molde:"709" },
   ];
 
+  const { config: cfgDocs, guardar: guardarCfgDocs } = useConfiguracion();
   const [destino, setDestino]     = useState(null);
-  const [facturaNum, setFacturaNum] = useState(() => {
-    const s = localStorage.getItem("tp_factura_num"); return s ? parseInt(s) : 693;
-  });
+  const [facturaNum, setFacturaNum] = useState(693);
+
+  // Cargar consecutivo desde Supabase cuando el config esté listo
+  useEffect(() => {
+    const num = cfgDocs.factura_num;
+    if (num !== undefined) setFacturaNum(Number(num));
+  }, [cfgDocs.factura_num]);
   const [generado, setGenerado]   = useState(false);
   const [loading, setLoading]     = useState({ carta:false, proforma:false, isf:false });
   const [backendErr, setBackendErr] = useState("");
@@ -5714,7 +5727,7 @@ para garantizar la calidad e inocuidad de la carga a su llegada al destino.</em>
             fn: () => destino && descargarDoc("/api/proforma", `proforma-${facturaNum}-${form.booking||"export"}.xlsx`, "proforma", () => {
               const next = facturaNum + 1;
               setFacturaNum(next);
-              localStorage.setItem("tp_factura_num", next);
+              guardarCfgDocs("factura_num", next);
             }),
           },
           {
@@ -5973,25 +5986,20 @@ function EstadisticasDemo() {
   const { liquidaciones: liqStats } = useLiquidaciones();
   const { pedidos: pedidosReales } = usePedidos();
   const { config: estCfg } = useConfiguracion();
+  const { registros: asistRegs } = useAsistencia();
 
-  // Asistencia del mes desde localStorage
+  // Asistencia del mes desde Supabase
   const asistMes = (() => {
-    try {
-      const regs = JSON.parse(localStorage.getItem("tp_asistencia_registros") || "{}");
-      const dias  = Object.keys(regs).filter(k => k.startsWith(mesActual));
-      const mapa  = {};
-      for (const dia of dias) {
-        for (const [nombre, v] of Object.entries(regs[dia] || {})) {
-          if (!v?.estado) continue;
-          if (!mapa[nombre]) {
-            const emp = EMPLEADOS_DB.find(e => e.nombre === nombre);
-            mapa[nombre] = { nombre: emp ? emp.nombre : nombre, P:0, A:0, T:0, LP:0 };
-          }
-          mapa[nombre][v.estado] = (mapa[nombre][v.estado] || 0) + 1;
-        }
+    const dias = Object.keys(asistRegs).filter(k => k.startsWith(mesActual));
+    const mapa = {};
+    for (const dia of dias) {
+      for (const [nombre, v] of Object.entries(asistRegs[dia] || {})) {
+        if (!v?.estado) continue;
+        if (!mapa[nombre]) mapa[nombre] = { nombre, P:0, A:0, T:0, LP:0 };
+        mapa[nombre][v.estado] = (mapa[nombre][v.estado] || 0) + 1;
       }
-      return { datos: Object.values(mapa).sort((a,b)=>b.P-a.P), dias: dias.length };
-    } catch { return { datos:[], dias:0 }; }
+    }
+    return { datos: Object.values(mapa).sort((a,b) => b.P-a.P), dias: dias.length };
   })();
 
   // Historial REAL desde Supabase (via useContenedores) — agrupado por mes
@@ -6611,7 +6619,7 @@ const PEDIDO_ESTADOS = [
 
 function PedidosDemo() {
   const mob = useM();
-  const { pedidos, loading: loadingPed, agregarPedido, avanzarEstado, eliminarPedido } = usePedidos();
+  const { pedidos, loading: loadingPed, agregarPedido, avanzarEstado, eliminarPedido, editarPedido } = usePedidos();
   const { config: cfgPed } = useConfiguracion();
 
   const clientes = (() => {
@@ -6621,15 +6629,18 @@ function PedidosDemo() {
   const primerCliente = clientes[0]?.nombre || "Princess Kingdom Corp";
 
   const [showForm,       setShowForm]       = useState(false);
+  const [editId,         setEditId]         = useState(null);
   const [detalle,        setDetalle]        = useState(null);
   const [filtroEst,      setFiltroEst]      = useState("todos");
   const [confirm,        setConfirm]        = useState(null);
+  const [toast,          setToastPed]       = useState(null);
   const [busqPedidos,    setBusqPedidos]    = useState("");
   const [filtroPedDesde, setFiltroPedDesde] = useState("");
   const [filtroPedHasta, setFiltroPedHasta] = useState("");
   const [nuevo,          setNuevo]          = useState({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
 
   const pedir     = (msg, fn) => setConfirm({ msg, fn });
+  const showToastPed = (msg, ok=true) => { setToastPed({ msg, ok }); setTimeout(() => setToastPed(null), 3000); };
   const estInfo   = (key) => PEDIDO_ESTADOS.find(e => e.key === key) || PEDIDO_ESTADOS[0];
   const nextEst   = (key) => { const i = PEDIDO_ESTADOS.findIndex(e=>e.key===key); return PEDIDO_ESTADOS[Math.min(i+1, PEDIDO_ESTADOS.length-1)]; };
   const filtrados = pedidos.filter(p => {
@@ -6641,9 +6652,22 @@ function PedidosDemo() {
   });
   const totalUSD  = pedidos.reduce((s,p) => s + p.cantidadKg * p.precioUSD, 0);
 
-  const agregar = () => {
+  const abrirEditar = (p) => {
+    setNuevo({ cliente:p.cliente, producto:p.producto, cantidadKg:String(p.cantidadKg), precioUSD:String(p.precioUSD), estado:p.estado, contenedor:p.contenedor||"", notas:p.notas||"" });
+    setEditId(p.id);
+    setShowForm(true);
+  };
+
+  const agregar = async () => {
     if (!nuevo.cantidadKg) return;
-    agregarPedido({ ...nuevo, id:Date.now(), fecha:new Date().toISOString().split("T")[0], cantidadKg:Number(nuevo.cantidadKg), precioUSD:Number(nuevo.precioUSD) });
+    const campos = { ...nuevo, cantidadKg:Number(nuevo.cantidadKg), precioUSD:Number(nuevo.precioUSD) };
+    if (editId) {
+      const ok = await editarPedido(editId, campos);
+      showToastPed(ok ? "Pedido actualizado ✓" : "Error al actualizar", ok);
+      setEditId(null);
+    } else {
+      agregarPedido({ ...campos, id:Date.now(), fecha:new Date().toISOString().split("T")[0] });
+    }
     setNuevo({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
     setShowForm(false);
   };
@@ -6659,6 +6683,7 @@ function PedidosDemo() {
   return (
     <div>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={()=>{confirm.fn();setConfirm(null);}} onCancel={()=>setConfirm(null)} />}
+      {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:toast.ok?"#064e3b":"#450a0a", border:`1px solid ${toast.ok?"#059669":"#dc2626"}`, color:toast.ok?"#6ee7b7":"#fca5a5", borderRadius:10, padding:"10px 20px", fontSize:12, fontWeight:600, zIndex:9999, pointerEvents:"none", whiteSpace:"nowrap" }}>{toast.ok?"✅":"❌"} {toast.msg}</div>}
 
       {/* Detalle modal */}
       {detalle && (
@@ -6721,12 +6746,12 @@ function PedidosDemo() {
       </div>
 
       {/* Botón nuevo */}
-      <button onClick={()=>setShowForm(!showForm)} style={{ marginBottom:10, background:showForm?"rgba(14,165,233,0.2)":"rgba(14,165,233,0.1)", border:"1px solid rgba(14,165,233,0.35)", borderRadius:8, padding:"6px 14px", fontSize:11, color:"#0EA5E9", cursor:"pointer", fontWeight:700 }}>➕ Nuevo pedido</button>
+      <button onClick={()=>{ setEditId(null); setNuevo({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" }); setShowForm(!showForm || !!editId); }} style={{ marginBottom:10, background:showForm?"rgba(14,165,233,0.2)":"rgba(14,165,233,0.1)", border:"1px solid rgba(14,165,233,0.35)", borderRadius:8, padding:"6px 14px", fontSize:11, color:"#0EA5E9", cursor:"pointer", fontWeight:700 }}>➕ Nuevo pedido</button>
 
       {/* Formulario */}
       {showForm && (
         <div style={{ background:"rgba(14,165,233,0.05)", border:"1px solid rgba(14,165,233,0.2)", borderRadius:12, padding:14, marginBottom:12 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#0EA5E9", marginBottom:10 }}>📋 Nuevo pedido</div>
+          <div style={{ fontSize:12, fontWeight:700, color:"#0EA5E9", marginBottom:10 }}>{editId ? "✏️ Editar pedido" : "📋 Nuevo pedido"}</div>
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
             <div style={{ display:"flex", gap:6 }}>
               <div style={{ flex:2 }}>
@@ -6767,8 +6792,8 @@ function PedidosDemo() {
               <input placeholder="Observaciones..." value={nuevo.notas} onChange={e=>setNuevo(p=>({...p,notas:e.target.value}))} style={inp} />
             </div>
             <div style={{ display:"flex", gap:6 }}>
-              <button onClick={()=>pedir("¿Crear este pedido?", agregar)} style={{ flex:1, background:"linear-gradient(135deg,#0EA5E9,#845EF7)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Crear pedido</button>
-              <button onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
+              <button onClick={()=>pedir(editId?"¿Guardar cambios en este pedido?":"¿Crear este pedido?", agregar)} style={{ flex:1, background:"linear-gradient(135deg,#0EA5E9,#845EF7)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>{editId ? "✅ Guardar cambios" : "✅ Crear pedido"}</button>
+              <button onClick={()=>{ setShowForm(false); setEditId(null); }} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -6810,6 +6835,8 @@ function PedidosDemo() {
                   <button onClick={()=>avanzar(p.id)} style={{ flex:2, background:`${nxt.color}12`, border:"none", padding:"10px", fontSize:11, color:nxt.color, cursor:"pointer", fontWeight:700 }}>→ {nxt.label}</button>
                 )}
                 <div style={{ width:1, background:"rgba(255,255,255,0.05)" }}/>
+                <button onClick={()=>abrirEditar(p)} style={{ background:"rgba(249,168,38,0.07)", border:"none", padding:"10px 14px", fontSize:13, cursor:"pointer", color:"rgba(249,168,38,0.7)" }} title="Editar">✏️</button>
+                <div style={{ width:1, background:"rgba(255,255,255,0.05)" }}/>
                 <button onClick={()=>pedir(`¿Eliminar pedido #${p.id}?`,()=>eliminarPedido(p.id))} style={{ background:"rgba(255,80,80,0.05)", border:"none", padding:"10px 14px", fontSize:13, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
               </div>
             </div>
@@ -6828,6 +6855,7 @@ function InicioDemo({ onNavigate }) {
   const [clima, setClima] = useState(null);
   const { items: invInicio } = useInventario();
   const { pedidos } = usePedidos();
+  const { registros: asistRegs } = useAsistencia();
 
   useEffect(() => {
     const id = setInterval(() => setHora(new Date()), 1000);
@@ -6845,57 +6873,46 @@ function InicioDemo({ onNavigate }) {
 
   const hoy = hora.toISOString().split("T")[0];
 
-  // Asistencia hoy — lee desde localStorage (módulo Asistencia persiste ahí)
+  // Asistencia hoy — desde Supabase via useAsistencia
   const asistHoy = (() => {
-    try {
-      const regs = JSON.parse(localStorage.getItem("tp_asistencia_registros") || "{}");
-      const vals = Object.values(regs[hoy] || {});
-      return {
-        p:  vals.filter(v => v?.estado === "P").length,
-        a:  vals.filter(v => v?.estado === "A").length,
-        t:  vals.filter(v => v?.estado === "T").length,
-        lp: vals.filter(v => v?.estado === "LP").length,
-        total: vals.filter(v => v?.estado).length,
-      };
-    } catch { return { p:0, a:0, t:0, lp:0, total:0 }; }
+    const vals = Object.values(asistRegs[hoy] || {});
+    return {
+      p:     vals.filter(v => v?.estado === "P").length,
+      a:     vals.filter(v => v?.estado === "A").length,
+      t:     vals.filter(v => v?.estado === "T").length,
+      lp:    vals.filter(v => v?.estado === "LP").length,
+      total: vals.filter(v => v?.estado).length,
+    };
   })();
 
-  // Tendencia asistencia — últimos 7 días desde localStorage
-  const tendencia = (() => {
-    try {
-      const regs = JSON.parse(localStorage.getItem("tp_asistencia_registros") || "{}");
-      return Array.from({ length:7 }, (_, i) => {
-        const d = new Date(hora); d.setDate(d.getDate() - (6 - i));
-        const key = d.toISOString().split("T")[0];
-        const vals = Object.values(regs[key] || {});
-        return {
-          label: ["D","L","M","X","J","V","S"][d.getDay()],
-          p: vals.filter(v => v?.estado === "P").length,
-          a: vals.filter(v => v?.estado === "A").length,
-          esHoy: i === 6,
-        };
-      });
-    } catch { return []; }
-  })();
+  // Tendencia asistencia — últimos 7 días desde Supabase
+  const tendencia = Array.from({ length:7 }, (_, i) => {
+    const d = new Date(hora); d.setDate(d.getDate() - (6 - i));
+    const key = d.toISOString().split("T")[0];
+    const vals = Object.values(asistRegs[key] || {});
+    return {
+      label: ["D","L","M","X","J","V","S"][d.getDay()],
+      p: vals.filter(v => v?.estado === "P").length,
+      a: vals.filter(v => v?.estado === "A").length,
+      esHoy: i === 6,
+    };
+  });
 
-  // Actividad reciente desde localStorage de asistencia
+  // Actividad reciente desde Supabase
   const actividadReciente = (() => {
-    try {
-      const regs = JSON.parse(localStorage.getItem("tp_asistencia_registros") || "{}");
-      const items = [];
-      for (let i = 0; i <= 7 && items.length < 3; i++) {
-        const d = new Date(hora); d.setDate(d.getDate() - i);
-        const key = d.toISOString().split("T")[0];
-        const vals = Object.values(regs[key] || {});
-        const total = vals.filter(v => v?.estado).length;
-        if (total > 0) {
-          const p = vals.filter(v => v?.estado === "P").length;
-          const label = key === hoy ? "Hoy" : key.split("-").slice(1).join("/");
-          items.push({ icon:"📅", text:`Asistencia ${label}: ${p} presentes de ${total}`, time:label, color:"#4ECDC4" });
-        }
+    const items = [];
+    for (let i = 0; i <= 7 && items.length < 3; i++) {
+      const d = new Date(hora); d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      const vals = Object.values(asistRegs[key] || {});
+      const total = vals.filter(v => v?.estado).length;
+      if (total > 0) {
+        const p = vals.filter(v => v?.estado === "P").length;
+        const label = key === hoy ? "Hoy" : key.split("-").slice(1).join("/");
+        items.push({ icon:"📅", text:`Asistencia ${label}: ${p} presentes de ${total}`, time:label, color:"#4ECDC4" });
       }
-      return items;
-    } catch { return []; }
+    }
+    return items;
   })();
 
   const inventarioReal = invInicio.length > 0 ? invInicio : INVENTARIO_BASE;
@@ -7698,10 +7715,12 @@ function ConfigForm({ config, guardar }) {
                 </div>
               ))}
             </div>
-            <button onClick={() => {
+            <button onClick={async () => {
               if (!pw.actual) { showToast("Ingresa tu contraseña actual", false); return; }
               if (pw.nuevo !== pw.confirmar) { showToast("Las contraseñas no coinciden", false); return; }
               if (pw.nuevo.length < 6) { showToast("Mínimo 6 caracteres", false); return; }
+              const { error } = await supabase.auth.updateUser({ password: pw.nuevo });
+              if (error) { showToast(`Error: ${error.message}`, false); return; }
               setPw({actual:"",nuevo:"",confirmar:""});
               showToast("Contraseña actualizada ✓");
             }} style={{ marginTop:16, background:"linear-gradient(135deg,#00C9A7,#845EF7)", border:"none", borderRadius:10, padding:"10px 22px", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
