@@ -45,8 +45,12 @@ empresa      = str(data.get("empresaTransporte", ""))
 placa        = str(data.get("placa", ""))
 temp_rec     = str(data.get("tempRecorder", ""))
 final_stamps = str(data.get("finalStamps", ""))
-total_cajas  = int(data.get("totalCajas", 1400))
 pallets      = data.get("pallets", [])
+
+# Usar la suma real de cajas de los pallets (no el valor manual del usuario)
+total_cajas  = sum(int(c.get("cajas", 0)) for p in pallets for c in p.get("calibres", []))
+if total_cajas == 0:
+    total_cajas = int(data.get("totalCajas", 1400))
 
 PESO_KG    = 16.2
 DATA_START = 11
@@ -206,7 +210,7 @@ for i, rd in enumerate(rows):
         ws[f"A{excel_row}"].value = rd["pid"]
         ws[f"B{excel_row}"].value = "16.2 KG"
 
-    ws[f"C{excel_row}"].value = rd["size"] if rd["size"] != "" else None
+    ws[f"C{excel_row}"].value = rd["size"] if rd["size"] else None
     ws[f"D{excel_row}"].value = "LIMON TAHITI"
     ws[f"E{excel_row}"].value = 1
     ws[f"F{excel_row}"].value = rd["cajas"]

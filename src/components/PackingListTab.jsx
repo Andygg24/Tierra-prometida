@@ -625,7 +625,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         pallets: pallets.map(p => ({
           id:       p.id,
           calibres: p.calibres.map(c => ({
-            size:   Number(c.size  || 0),
+            size:   c.size ? Number(c.size) : "",
             cajas:  Number(c.cajas || 0),
             predio: c.predio || "",
             ica:    c.ica    || "",
