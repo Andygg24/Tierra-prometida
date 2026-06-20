@@ -263,6 +263,7 @@ out_buf = io.BytesIO()
 with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
      zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as dst_zip:
 
+    already_written = set()
     for name in src_zip.namelist():
         data = src_zip.read(name)
 
@@ -277,10 +278,8 @@ with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
         elif name == "xl/worksheets/sheet1.xml":
             text = data.decode("utf-8")
             if "<drawing" not in text:
-                # Verificar que xmlns:r esté en el elemento <worksheet> raíz
-                # (openpyxl lo pone solo en elementos hijos como <hyperlink>)
                 XMLNS_R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
-                ws_close = text.find(">")          # fin del tag <worksheet ...>
+                ws_close = text.find(">")
                 if XMLNS_R not in text[:ws_close]:
                     text = text.replace("<worksheet ", f"<worksheet {XMLNS_R} ", 1)
                 text = text.replace("</worksheet>", '<drawing r:id="rId3"/></worksheet>', 1)
@@ -293,10 +292,12 @@ with zipfile.ZipFile(opxl_buf, "r") as src_zip, \
             data = text.encode("utf-8")
 
         dst_zip.writestr(name, data)
+        already_written.add(name)
 
-    # Copiar archivos de dibujo/imagen desde el molde (openpyxl los descarta)
+    # Copiar archivos de dibujo/imagen desde el molde SOLO si openpyxl los descartó
     for path, fdata in tmpl_files.items():
-        dst_zip.writestr(path, fdata)
+        if path not in already_written:
+            dst_zip.writestr(path, fdata)
 
 out_buf.seek(0)
 sys.stdout.buffer.write(out_buf.read())
