@@ -668,8 +668,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     // ── Resumen de cajas por calibre (panel izquierdo) ────────────
     const sizeQty = {};
     pallets.forEach(p => p.calibres.forEach(c => {
-      const s = Number(c.size);
-      if (s > 0) sizeQty[s] = (sizeQty[s] || 0) + Number(c.cajas || 0);
+      const s = c.size !== "" && c.size != null ? Number(c.size) : null;
+      if (s !== null) sizeQty[s] = (sizeQty[s] || 0) + Number(c.cajas || 0);
     }));
     const totalReal = Object.values(sizeQty).reduce((a, b) => a + b, 0);
     const summaryRows = Object.keys(sizeQty)
@@ -683,8 +683,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       const p = pallets.find(pp => pp.id === pid);
       if (!p) return { id: pid, size: "" };
       const sz = p.calibres.length > 1
-        ? p.calibres.map(c => `${c.size} (${c.cajas} cj)`).join("<br>")
-        : `${p.calibres[0]?.size || ""} (${p.calibres[0]?.cajas || ""} cj)`;
+        ? p.calibres.map(c => c.size ?? "").join("<br>")
+        : `${p.calibres[0]?.size ?? ""}`;
       return { id: pid, size: sz };
     };
     const contRows = Array.from({ length: 10 }, (_, i) => {
@@ -725,12 +725,12 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 <title>Packing List ${admin.container || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px 20px}
+body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px 20px;position:relative}
 
 /* ── Título + logo ── */
-.title-row{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:14px}
+.title-row{display:flex;align-items:center;justify-content:center;margin-bottom:14px}
 .title-row h1{font-size:22px;font-weight:900;text-align:center}
-.title-row .logo{position:absolute;right:0;top:-6px}
+.logo{position:absolute;top:16px;right:20px}
 
 /* ── Tabla de encabezado (2 filas × 8 cols) ── */
 .hdr{width:100%;border-collapse:collapse;border:2px solid ${G};margin-bottom:14px}
@@ -778,10 +778,12 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
 </style>
 </head><body>
 
-<!-- TÍTULO + LOGO -->
+<!-- LOGO (esquina superior derecha, fuera del flujo) -->
+${logo ? `<div class="logo">${logo}</div>` : ""}
+
+<!-- TÍTULO -->
 <div class="title-row">
   <h1>Pallet Distribution Inside Container</h1>
-  <div class="logo">${logo}</div>
 </div>
 
 <!-- ENCABEZADO (2 filas) -->
