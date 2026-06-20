@@ -5,6 +5,20 @@ import { usePackingList } from "../hooks/usePackingList.js";
 
 const CALIBRES = [110, 150, 175, 200, 230, 250];
 const DESTINOS = ["Philadelphia", "Miami, FL", "San Juan"];
+
+const PREDIOS = [
+  { registro:"430003503", nombre:"La Esperanza",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"650002801", nombre:"El Molino",      dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"580004907", nombre:"La Esmeralda",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"980005905", nombre:"Las Brisas",     dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"590004304", nombre:"La Ponderosa",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"350001906", nombre:"Los Charcos",    dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"15000896",  nombre:"Los Almendros",  dir:"Vereda Peñas",     ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"55000592",  nombre:"Villa Isabel",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"25000843",  nombre:"San Nicolás",    dir:"Vereda El Pilón",  ciudad:"Zapatoca", dpto:"Santander" },
+  { registro:"180003708", nombre:"Vista Hermosa",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"790004802", nombre:"La Arenosa",     dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+];
 const PESO_STR = "16.2 KG";
 
 const COL_CAL = {
@@ -115,6 +129,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
     conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
+    growerAssignments:{}, growerETA:"", growerBL:"",
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
@@ -624,12 +639,17 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         totalCajas,
         pallets: pallets.map(p => ({
           id:       p.id,
-          calibres: p.calibres.map(c => ({
-            size:   c.size ? Number(c.size) : "",
-            cajas:  Number(c.cajas || 0),
-            predio: c.predio || "",
-            ica:    c.ica    || "",
-          })),
+          calibres: p.calibres.map(c => {
+            const cal      = c.size ? Number(c.size) : null;
+            const registro = cal ? ((admin.growerAssignments || {})[cal] || "") : "";
+            const predio   = PREDIOS.find(pr => pr.registro === registro);
+            return {
+              size:   c.size ? Number(c.size) : "",
+              cajas:  Number(c.cajas || 0),
+              predio: predio?.nombre || c.predio || "",
+              ica:    c.ica    || "",
+            };
+          }),
         })),
       };
 
@@ -659,6 +679,82 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     } finally {
       setGenerandoExcel(false);
     }
+  };
+
+  const generarGrowerList = () => {
+    const assignments = admin.growerAssignments || {};
+
+    // Cajas por calibre
+    const cajasPerCal = {};
+    pallets.forEach(p => p.calibres.forEach(c => {
+      const cal = c.size ? Number(c.size) : null;
+      if (cal) cajasPerCal[cal] = (cajasPerCal[cal] || 0) + Number(c.cajas || 0);
+    }));
+
+    // ETA → MM-DD-YY
+    const etaFmt = (() => {
+      const d = admin.growerETA || admin.fechaCargue || "";
+      if (!d) return "";
+      const [y, mo, dd] = d.split("-");
+      return `${mo}-${dd}-${y.slice(2)}`;
+    })();
+
+    const headers = [
+      "Importer", "ETA", "Exporter/Shipper\nName", "Port of\nDischarge",
+      "Grower Numer", "Grower Name\n", "Grower Address\n", "City/Municipality",
+      "Department", "Packing Facility \n(Name and Address)",
+      "Packing Facility\nFDA Registration Number", "Commodity\nDescription\n",
+      "Quantity\n(# of cartons, boxes, crates, \netc. do not use pallets)",
+      "Packing\n(Type of packing -\ncartons, boxes,\ncrates, etc. do not use \npallets)",
+      "Net Kilos\nper unit", "Ocean\nMaster B/L", "Ocean\nContainer",
+    ];
+
+    const rows = [
+      ["EMAIL COMPLETED SPREADSHEET TO:      DOCS@JKFRESHEAST.COM"],
+      headers,
+    ];
+
+    let totalCajasGL = 0;
+    // Ordenar por calibre descendente para consistencia
+    CALIBRES.slice().reverse().forEach(cal => {
+      const registro = assignments[cal];
+      if (!registro) return;
+      const predio = PREDIOS.find(p => p.registro === registro);
+      if (!predio) return;
+      const cajas = cajasPerCal[cal] || 0;
+      totalCajasGL += cajas;
+      rows.push([
+        "PRINCESSES KINGDOM CORP",
+        etaFmt,
+        "TIERRA PROMETIDA TRADING S.A.S.",
+        (admin.destino || "").toUpperCase(),
+        predio.registro,
+        predio.nombre,
+        predio.dir,
+        predio.ciudad,
+        predio.dpto,
+        "C.I. GRAMALUZ CRA 35 A 46-04 BUCARAMANGA",
+        null,
+        "LIMON TAHITI",
+        cajas,
+        "CAJAS",
+        16.2,
+        admin.growerBL || "",
+        admin.container || "",
+      ]);
+    });
+
+    // Fila de totales
+    const totRow = new Array(17).fill(null);
+    totRow[12] = totalCajasGL;
+    rows.push(totRow);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    // Ancho de columnas
+    ws["!cols"] = [12,8,20,10,12,14,18,12,10,28,14,12,14,10,8,14,14].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Master Spreadsheet");
+    XLSX.writeFile(wb, `Grower-List-${admin.container || "export"}.xlsx`);
   };
 
   const generarPDF = async () => {
@@ -1194,6 +1290,58 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
             </div>
           </div>
 
+          {/* ── GROWER LIST ─────────────────────────────────────────── */}
+          <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
+            <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 12 : 8, fontWeight:700 }}>🌿 GROWER LIST — Asignación de Predios</div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+              <div>
+                <div style={lbl}>ETA (fecha llegada puerto)</div>
+                <input type="date" value={admin.growerETA} onChange={e => sa("growerETA", e.target.value)} style={inp} />
+              </div>
+              <div>
+                <div style={lbl}>Ocean Master B/L</div>
+                <input value={admin.growerBL} onChange={e => sa("growerBL", e.target.value)} placeholder="ZIMUCRT914086" style={inp} />
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"64px 1fr 114px", gap: m ? 8 : 6, marginBottom: m ? 6 : 4 }}>
+              {["CALIBRE","PREDIO","REGISTRO"].map(h => (
+                <div key={h} style={{ fontSize: m ? 10 : 8, color:"rgba(255,255,255,0.3)", fontWeight:700 }}>{h}</div>
+              ))}
+            </div>
+
+            {CALIBRES.slice().reverse().filter(cal =>
+              pallets.some(p => p.calibres.some(c => Number(c.size) === cal && Number(c.cajas) > 0))
+            ).map(cal => {
+              const assignments = admin.growerAssignments || {};
+              const assigned    = assignments[cal] || "";
+              const usados      = Object.entries(assignments).filter(([k]) => Number(k) !== cal).map(([,v]) => v).filter(Boolean);
+              const predio      = PREDIOS.find(p => p.registro === assigned);
+              const colores     = COL_CAL[cal] || { bg:"#94a3b8", light:"rgba(148,163,184,0.15)", border:"rgba(148,163,184,0.4)" };
+              return (
+                <div key={cal} style={{ display:"grid", gridTemplateColumns:"64px 1fr 114px", gap: m ? 8 : 6, marginBottom: m ? 8 : 6, alignItems:"center" }}>
+                  <div style={{ background:colores.light, border:`1px solid ${colores.border}`, borderRadius:6, padding: m ? "6px 4px" : "4px 4px", textAlign:"center", fontWeight:800, fontSize: m ? 14 : 12, color:colores.bg }}>
+                    {cal}
+                  </div>
+                  <CustomSelect
+                    value={assigned}
+                    onChange={e => sa("growerAssignments", { ...(admin.growerAssignments || {}), [cal]: e.target.value })}
+                    style={{ ...inp, cursor:"pointer" }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {PREDIOS.filter(p => !usados.includes(p.registro)).map(p => (
+                      <option key={p.registro} value={p.registro}>{p.nombre}</option>
+                    ))}
+                  </CustomSelect>
+                  <div style={{ fontSize: m ? 11 : 10, color: assigned ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)", fontFamily:"monospace", background:"rgba(255,255,255,0.04)", borderRadius:6, padding: m ? "8px 6px" : "6px 6px", textAlign:"center" }}>
+                    {predio?.registro || "—"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           <div style={{ background:"rgba(14,165,233,0.07)", border:"1px solid rgba(14,165,233,0.25)", borderRadius:10, padding: m ? "10px 14px" : "8px 14px", marginBottom: m ? 12 : 10, fontSize: m ? 12 : 11, color:"rgba(14,165,233,0.9)" }}>
             🚢 Ajusta el orden final de los pallets tal como quedaron cargados dentro del contenedor.
           </div>
@@ -1206,8 +1354,11 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
             <button onClick={generarExcel} disabled={generandoExcel} style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
               {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
             </button>
+            <button onClick={generarGrowerList} style={{ flex:1, background:"linear-gradient(135deg,#059669,#047857)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
+              🌿 Grower List
+            </button>
             <button onClick={() => generarPDF()} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
-              📄 Descargar PDF (Administrativo)
+              📄 Descargar PDF
             </button>
           </div>
 
