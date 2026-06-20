@@ -129,7 +129,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
     conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
-    growerAssignments:{}, growerETA:"", growerBL:"",
+    growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
@@ -691,12 +691,12 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       if (cal) cajasPerCal[cal] = (cajasPerCal[cal] || 0) + Number(c.cajas || 0);
     }));
 
-    // ETA → MM-DD-YY
+    // ETA → DD-MM-YY (formato JKFresh)
     const etaFmt = (() => {
       const d = admin.growerETA || admin.fechaCargue || "";
       if (!d) return "";
       const [y, mo, dd] = d.split("-");
-      return `${mo}-${dd}-${y.slice(2)}`;
+      return `${dd}-${mo}-${y.slice(2)}`;
     })();
 
     const headers = [
@@ -740,7 +740,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         "CAJAS",
         16.2,
         admin.growerBL || "",
-        admin.container || "",
+        admin.growerContainer || admin.container || "",
       ]);
     });
 
@@ -1294,14 +1294,23 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
           <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
             <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 12 : 8, fontWeight:700 }}>🌿 GROWER LIST — Asignación de Predios</div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "1fr 1fr 1fr", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
               <div>
                 <div style={lbl}>ETA (fecha llegada puerto)</div>
                 <input type="date" value={admin.growerETA} onChange={e => sa("growerETA", e.target.value)} style={inp} />
               </div>
               <div>
-                <div style={lbl}>Ocean Master B/L</div>
+                <div style={lbl}>Booking / B/L</div>
                 <input value={admin.growerBL} onChange={e => sa("growerBL", e.target.value)} placeholder="ZIMUCRT914086" style={inp} />
+              </div>
+              <div>
+                <div style={lbl}>Contenedor</div>
+                <input
+                  value={admin.growerContainer ?? admin.container ?? ""}
+                  onChange={e => sa("growerContainer", e.target.value)}
+                  placeholder={admin.container || "TLLU1194289"}
+                  style={{ ...inp, color: admin.growerContainer ? undefined : "rgba(255,255,255,0.45)" }}
+                />
               </div>
             </div>
 
