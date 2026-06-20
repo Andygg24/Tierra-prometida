@@ -661,7 +661,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     }
   };
 
-  const generarPDF = () => {
+  const generarPDF = async () => {
     const G  = "#1f5c1f";   // verde oscuro del molde
     const GB = "#2d7a2d";   // verde medio
 
@@ -705,24 +705,20 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       .map(c => `${c.ica}${c.palletNo ? ` — Pallet #${c.palletNo}` : ""}`)
       .join("<br>") || "";
 
-    // ── Logo Princesses Kingdom (SVG inline) ──────────────────────
-    const logo = `<svg width="82" height="82" viewBox="0 0 82 82" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="41" cy="41" r="40" fill="${G}" stroke="#0d3d0d" stroke-width="1.5"/>
-      <circle cx="41" cy="41" r="33" fill="${GB}"/>
-      <circle cx="41" cy="37" r="15" fill="#5aaa28"/>
-      <circle cx="41" cy="37" r="12" fill="#7dc63f"/>
-      <circle cx="43" cy="34" r="5" fill="#5aaa28" opacity="0.55"/>
-      <ellipse cx="53" cy="21" rx="7" ry="3" fill="${G}" transform="rotate(-42 53 21)"/>
-      <ellipse cx="57" cy="26" rx="5" ry="2.2" fill="${GB}" transform="rotate(-28 57 26)"/>
-      <path d="M14 41 A27 27 0 0 1 68 41" fill="none" id="tp"/>
-      <text font-family="Arial Black,Arial" font-size="6.5" font-weight="900" fill="white" letter-spacing="1.2">
-        <textPath href="#tp" startOffset="8%">PRINCESSES KINGDOM</textPath>
-      </text>
-      <path d="M68 55 A27 27 0 0 1 14 55" fill="none" id="bp"/>
-      <text font-family="Arial" font-size="5.5" fill="rgba(255,255,255,0.7)" letter-spacing="0.8">
-        <textPath href="#bp" startOffset="22%">gerencia@princesseskingdom.com</textPath>
-      </text>
-    </svg>`;
+    // ── Logo Tierra Prometida (PNG embebido como base64) ──────────
+    let logoSrc = "";
+    try {
+      const res  = await fetch("/logo-tp.png");
+      const blob = await res.blob();
+      logoSrc = await new Promise(resolve => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.readAsDataURL(blob);
+      });
+    } catch (_) { /* si falla, logo vacío */ }
+    const logo = logoSrc
+      ? `<img src="${logoSrc}" style="width:82px;height:82px;object-fit:contain;display:block" />`
+      : "";
 
     const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
@@ -1208,7 +1204,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
             <button onClick={generarExcel} disabled={generandoExcel} style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
               {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
             </button>
-            <button onClick={generarPDF} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
+            <button onClick={() => generarPDF()} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
               📄 Descargar PDF (Administrativo)
             </button>
           </div>
