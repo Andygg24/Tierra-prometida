@@ -2,11 +2,11 @@
 carta_temp.py — Edita CARTA DE TEMPERATURA .docx
 Recibe JSON por argv[1], escribe el .docx editado a stdout (binario).
 """
-import sys, json, os, tempfile
+import sys, json, os, tempfile, io
 from docx import Document
 from datetime import datetime
 
-data   = json.load(sys.stdin)
+data   = json.load(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8-sig"))
 fecha  = data.get("fecha", "")          # "YYYY-MM-DD"
 booking    = data.get("booking", "")
 motonave   = data.get("motonave", "")
@@ -62,28 +62,32 @@ else:
     reemplaza_parrafo(para_fecha, f"Barranquilla, {fecha_fmt}")
 
 # ── P07: Motonave ─────────────────────────────────────────────────────
-reemplaza_parrafo(doc.paragraphs[7], motonave)
+if motonave:
+    reemplaza_parrafo(doc.paragraphs[7], motonave)
 
 # ── P08: "Booking 270711823" — reemplazar solo el número ─────────────
-if not reemplaza_en_runs(doc.paragraphs[8], "270711823", booking):
-    # Fallback: el número puede estar en cualquier run del párrafo
-    for run in doc.paragraphs[8].runs:
-        run_text = run.text.strip()
-        if run_text.isdigit() or run_text == "":
-            continue
-        if "Booking" not in run_text:
-            run.text = booking
-            break
+if booking:
+    if not reemplaza_en_runs(doc.paragraphs[8], "270711823", booking):
+        # Fallback: el número puede estar en cualquier run del párrafo
+        for run in doc.paragraphs[8].runs:
+            run_text = run.text.strip()
+            if run_text.isdigit() or run_text == "":
+                continue
+            if "Booking" not in run_text:
+                run.text = booking
+                break
 
 # ── P09: Naviera ──────────────────────────────────────────────────────
-reemplaza_parrafo(doc.paragraphs[9], naviera)
+if naviera:
+    reemplaza_parrafo(doc.paragraphs[9], naviera)
 
 # ── P16: número de contenedor en la oración larga ────────────────────
-if not reemplaza_en_runs(doc.paragraphs[16], "MNBU4355023", contenedor):
-    # Fallback: buscar en todos los runs del documento
-    for para in doc.paragraphs:
-        if reemplaza_en_runs(para, "MNBU4355023", contenedor):
-            break
+if contenedor:
+    if not reemplaza_en_runs(doc.paragraphs[16], "MNBU4355023", contenedor):
+        # Fallback: buscar en todos los runs del documento
+        for para in doc.paragraphs:
+            if reemplaza_en_runs(para, "MNBU4355023", contenedor):
+                break
 
 # ── Guardar a bytes y enviar por stdout ───────────────────────────────
 tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
@@ -93,4 +97,7 @@ doc.save(tmp.name)
 with open(tmp.name, "rb") as f:
     sys.stdout.buffer.write(f.read())
 
-os.unlink(tmp.name)
+try:
+    os.unlink(tmp.name)
+except Exception:
+    pass

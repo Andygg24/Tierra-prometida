@@ -11,13 +11,13 @@ Celdas a editar (Sheet1, referencias Excel 1-indexed):
   E63 → House B/L         (row=62, col=4)
   F63 → Ocean B/L         (row=62, col=5)
 """
-import sys, json, os, tempfile
+import sys, json, os, tempfile, io
 from datetime import datetime
 import xlrd
 from xlutils.copy import copy as xl_copy
 import xlwt
 
-data         = json.load(sys.stdin)
+data         = json.load(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8-sig"))
 loading_date = data.get("loadingDate", "")
 arrival_date = data.get("arrivalDate", "")
 house_bl     = data.get("houseBL", "")
@@ -66,12 +66,9 @@ try:
     if house_bl:
         ws.write(62, 4, str(house_bl))
 
-    # F63 → Ocean B/L (0-indexed: row=62, col=5)
+    # F63 → Ocean B/L (0-indexed: row=62, col=5) — siempre string; los B/L son identificadores
     if ocean_bl:
-        try:
-            ws.write(62, 5, float(ocean_bl))
-        except (ValueError, TypeError):
-            ws.write(62, 5, str(ocean_bl))
+        ws.write(62, 5, str(ocean_bl))
 
     wb.save(tmp_path)
 

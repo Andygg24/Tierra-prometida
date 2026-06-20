@@ -13,7 +13,7 @@ from datetime import datetime
 from xml.etree import ElementTree as ET
 from lxml import etree
 
-data        = json.load(sys.stdin)
+data        = json.load(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8-sig"))
 num_factura = str(data.get("numFactura", ""))
 fecha_exp   = data.get("fechaExpedicion", "")
 fecha_venc  = data.get("fechaVencimiento", "")
