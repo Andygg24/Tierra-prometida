@@ -666,15 +666,16 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     const GB = "#2d7a2d";   // verde medio
 
     // ── Resumen de cajas por calibre (panel izquierdo) ────────────
-    const sizeQty = { 250:0, 230:0, 200:0, 175:0, 150:0, 110:0 };
+    const sizeQty = {};
     pallets.forEach(p => p.calibres.forEach(c => {
       const s = Number(c.size);
-      if (s in sizeQty) sizeQty[s] += Number(c.cajas || 0);
+      if (s > 0) sizeQty[s] = (sizeQty[s] || 0) + Number(c.cajas || 0);
     }));
     const totalReal = Object.values(sizeQty).reduce((a, b) => a + b, 0);
-    const summaryRows = [250, 230, 200, 175, 150, 110].map(s =>
-      `<tr><td class="sc">${s}</td><td class="sq">${sizeQty[s].toLocaleString("es-CO")}</td></tr>`
-    ).join("") +
+    const summaryRows = Object.keys(sizeQty)
+      .map(Number).sort((a, b) => b - a)
+      .map(s => `<tr><td class="sc">${s}</td><td class="sq">${sizeQty[s].toLocaleString("es-CO")}</td></tr>`)
+      .join("") +
     `<tr class="stot"><td>TOTAL</td><td>${totalReal.toLocaleString("es-CO")}</td></tr>`;
 
     // ── Distribución en contenedor (panel derecho) ─────────────────
@@ -682,8 +683,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       const p = pallets.find(pp => pp.id === pid);
       if (!p) return { id: pid, size: "" };
       const sz = p.calibres.length > 1
-        ? p.calibres.map(c => `${c.cajas}/${c.size}`).join("<br>")
-        : String(p.calibres[0]?.size || "");
+        ? p.calibres.map(c => `${c.size} (${c.cajas} cj)`).join("<br>")
+        : `${p.calibres[0]?.size || ""} (${p.calibres[0]?.cajas || ""} cj)`;
       return { id: pid, size: sz };
     };
     const contRows = Array.from({ length: 10 }, (_, i) => {
@@ -698,11 +699,11 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       </tr>`;
     }).join("");
 
-    // ── Pallet Certificate (primer cert) ──────────────────────────
-    const cert0 = admin.palletCerts[0] || {};
-    const certText = cert0.ica
-      ? `${cert0.ica}<br>in Pallet # ${cert0.palletNo || ""}`
-      : "";
+    // ── Pallet Certificates (todos los ICA) ──────────────────────
+    const certText = admin.palletCerts
+      .filter(c => c.ica)
+      .map(c => `${c.ica}${c.palletNo ? ` — Pallet #${c.palletNo}` : ""}`)
+      .join("<br>") || "";
 
     // ── Logo Princesses Kingdom (SVG inline) ──────────────────────
     const logo = `<svg width="82" height="82" viewBox="0 0 82 82" xmlns="http://www.w3.org/2000/svg">
