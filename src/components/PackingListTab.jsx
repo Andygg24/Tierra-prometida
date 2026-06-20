@@ -666,7 +666,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     const GB = "#2d7a2d";   // verde medio
 
     // ── Resumen de cajas por calibre (panel izquierdo) ────────────
-    const sizeQty = {};
+    // Siempre muestra todos los calibres de la lista, aunque sean 0
+    const sizeQty = Object.fromEntries(CALIBRES.map(c => [c, 0]));
     pallets.forEach(p => p.calibres.forEach(c => {
       const s = c.size !== "" && c.size != null ? Number(c.size) : null;
       if (s !== null) sizeQty[s] = (sizeQty[s] || 0) + Number(c.cajas || 0);
@@ -725,12 +726,12 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 <title>Packing List ${admin.container || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px 20px;position:relative}
+body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padding:16px 20px}
 
 /* ── Título + logo ── */
-.title-row{display:flex;align-items:center;justify-content:center;margin-bottom:14px}
-.title-row h1{font-size:22px;font-weight:900;text-align:center}
-.logo{position:absolute;top:16px;right:20px}
+.title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.title-row h1{font-size:22px;font-weight:900;text-align:center;flex:1}
+.title-row .logo{width:82px;flex-shrink:0;text-align:right}
 
 /* ── Tabla de encabezado (2 filas × 8 cols) ── */
 .hdr{width:100%;border-collapse:collapse;border:2px solid ${G};margin-bottom:14px}
@@ -778,12 +779,11 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
 </style>
 </head><body>
 
-<!-- LOGO (esquina superior derecha, fuera del flujo) -->
-${logo ? `<div class="logo">${logo}</div>` : ""}
-
-<!-- TÍTULO -->
+<!-- TÍTULO + LOGO -->
 <div class="title-row">
+  <div style="width:82px;flex-shrink:0"></div>
   <h1>Pallet Distribution Inside Container</h1>
+  ${logo ? `<div class="logo">${logo}</div>` : `<div style="width:82px;flex-shrink:0"></div>`}
 </div>
 
 <!-- ENCABEZADO (2 filas) -->
