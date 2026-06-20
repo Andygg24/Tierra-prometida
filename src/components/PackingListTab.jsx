@@ -356,72 +356,250 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         </div>
       )}
       {m ? (
-        <div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6 }}>◀ FONDO — LADO IZQUIERDO</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6, marginBottom:6 }}>
-            {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
-          </div>
-          <div style={{ height:5, background:"rgba(255,255,255,0.04)", borderRadius:3, margin:"2px 0 6px", border:"1px solid rgba(255,255,255,0.06)" }} />
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6 }}>
-            {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
-          </div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right", marginTop:6 }}>LADO DERECHO — PUERTA ▶</div>
-        </div>
-      ) : (
-        <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginRight:6 }}>
-            <div style={{ display:"flex", gap:3, marginBottom:4 }}>
-              {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
-            </div>
-            <div style={{ width:52, background:"linear-gradient(180deg,#3a3a3a,#1f1f1f)", border:"2px solid #555", borderRadius:"8px 4px 4px 8px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"8px 4px", flex:1, gap:4 }}>
-              <div style={{ fontSize:18 }}>{vehicleIcon}</div>
-              <div style={{ fontSize:7, color:"rgba(255,255,255,0.4)", textAlign:"center", lineHeight:1.2 }}>{vehicleLabel}</div>
-            </div>
-            <div style={{ display:"flex", gap:3, marginTop:4 }}>
-              {[0,1].map(i => <div key={i} style={{ width:8, height:14, background:"#333", borderRadius:3, border:"1px solid #555" }} />)}
-            </div>
-          </div>
-          <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
-            <div style={{ display:"flex", justifyContent:"space-around", marginBottom:4, paddingLeft:20, paddingRight:20 }}>
-              {[0,1,2,3,4].map(i => (
-                <div key={i} style={{ display:"flex", gap:2 }}>
-                  {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"3px 3px 0 0", border:"1px solid #555" }} />)}
+        <div style={{ display:"flex", flexDirection:"column", gap:0, alignItems:"stretch" }}>
+          {/* ═══ CABINA (frente) ═══ */}
+          <div style={{ display:"flex", alignItems:"stretch", gap:2, marginBottom:3 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingTop:6 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:10, height:16, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
                 </div>
               ))}
             </div>
-            <div style={{ flex:1, background:"linear-gradient(180deg,#1a1a2e 0%,#16213e 100%)", border:"3px solid #4a4a6a", borderRadius:"0 6px 6px 0", position:"relative", overflow:"hidden" }}>
-              {[...Array(9)].map((_, i) => (
-                <div key={i} style={{ position:"absolute", left:`${(i+1)*10}%`, top:0, bottom:0, width:1, background:"rgba(255,255,255,0.04)", pointerEvents:"none" }} />
-              ))}
-              <div style={{ padding:"8px 10px", display:"flex", flexDirection:"column", gap:4 }}>
-                <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)", marginBottom:2, letterSpacing:1 }}>◀ FONDO</div>
-                <div style={{ display:"flex", gap:4 }}>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", writingMode:"vertical-rl", transform:"rotate(180deg)", display:"flex", alignItems:"center", minWidth:12 }}>IZQ</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:4, flex:1 }}>
-                    {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
-                  </div>
+            <div style={{ flex:1, background:"linear-gradient(180deg,#3d4a5c 0%,#2a3545 60%,#1a2230 100%)", border:"2px solid #5a7a9a", borderRadius:"12px 12px 4px 4px", overflow:"hidden", boxShadow:"0 -4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)" }}>
+              <div style={{ display:"flex", alignItems:"center", padding:"7px 10px 5px", gap:5 }}>
+                <div style={{ width:14, height:10, background:"linear-gradient(135deg,#fffaaa,#ffdd00)", borderRadius:"3px 6px 6px 3px", boxShadow:"0 0 8px rgba(255,230,0,0.8)", border:"1px solid #bba" }} />
+                <div style={{ flex:1, height:22, background:"linear-gradient(180deg,rgba(120,200,255,0.3),rgba(80,160,230,0.12))", borderRadius:4, border:"1px solid rgba(120,200,255,0.22)", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                  <div style={{ fontSize:16 }}>{vehicleIcon}</div>
+                  <div style={{ fontSize:7, fontWeight:700, color:"rgba(255,255,255,0.3)", letterSpacing:1 }}>{vehicleLabel}</div>
                 </div>
-                <div style={{ height:6, background:"rgba(255,255,255,0.03)", borderRadius:2, margin:"0 12px", border:"1px solid rgba(255,255,255,0.05)" }} />
-                <div style={{ display:"flex", gap:4 }}>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", writingMode:"vertical-rl", transform:"rotate(180deg)", display:"flex", alignItems:"center", minWidth:12 }}>DER</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(10,1fr)", gap:4, flex:1 }}>
-                    {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
-                  </div>
+                <div style={{ width:14, height:10, background:"linear-gradient(225deg,#fffaaa,#ffdd00)", borderRadius:"6px 3px 3px 6px", boxShadow:"0 0 8px rgba(255,230,0,0.8)", border:"1px solid #bba" }} />
+              </div>
+              <div style={{ background:"linear-gradient(180deg,#1e2a38,#141e28)", borderTop:"1px solid #3a5a7a", padding:"3px 10px 4px", display:"flex", flexDirection:"column", gap:2 }}>
+                {[0,1].map(i => (
+                  <div key={i} style={{ height:2, background:"linear-gradient(90deg,transparent 5%,#3a5a7a 20%,#5a8aaa 50%,#3a5a7a 80%,transparent 95%)", borderRadius:1 }} />
+                ))}
+                <div style={{ display:"flex", justifyContent:"center" }}>
+                  <div style={{ fontSize:7, fontWeight:800, color:"rgba(90,160,210,0.5)", letterSpacing:2 }}>TP</div>
                 </div>
-                <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)", textAlign:"right", marginTop:2, letterSpacing:1 }}>PUERTA ▶</div>
               </div>
             </div>
-            <div style={{ display:"flex", justifyContent:"space-around", marginTop:4, paddingLeft:20, paddingRight:20 }}>
-              {[0,1,2,3,4].map(i => (
-                <div key={i} style={{ display:"flex", gap:2 }}>
-                  {[0,1].map(j => <div key={j} style={{ width:8, height:12, background:"#333", borderRadius:"0 0 3px 3px", border:"1px solid #555" }} />)}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingTop:6 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:10, height:16, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", marginLeft:6 }}>
-            <div style={{ width:18, background:"linear-gradient(180deg,#2a2a2a,#1a1a1a)", border:"2px solid #555", borderRadius:"2px 6px 6px 2px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"6px 2px", flex:1, gap:6 }}>
-              {[...Array(6)].map((_, i) => <div key={i} style={{ width:4, height:4, background:"#666", borderRadius:"50%" }} />)}
+          {/* ═══ CARROCERÍA ═══ */}
+          <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
+            <div style={{ display:"flex", flexDirection:"column", justifyContent:"space-around", padding:"4px 1px", background:"linear-gradient(90deg,#0d0d0d,#161616)", borderTop:"1px solid #2a3a4a", borderBottom:"1px solid #2a3a4a" }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                  {[0,1].map(j => (
+                    <div key={j} style={{ width:10, height:14, background:"linear-gradient(90deg,#111,#3a3a3a,#111)", borderRadius:3, border:"1px solid #555", position:"relative" }}>
+                      <div style={{ position:"absolute", inset:3, background:"#252525", borderRadius:2, border:"1px solid #404040" }} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div style={{ width:5, background:"linear-gradient(90deg,#1e3040,#2a4560)", borderTop:"3px solid #3a6080", borderBottom:"3px solid #3a6080" }} />
+            <div style={{ flex:1, background:"linear-gradient(180deg,#0a0e14 0%,#111827 40%,#0d1520 100%)", position:"relative", overflow:"hidden", borderTop:"3px solid #3a6080", borderBottom:"3px solid #3a6080" }}>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} style={{ position:"absolute", top:`${(i+1)*14}%`, left:0, right:0, height:1, background:"rgba(255,255,255,0.02)", pointerEvents:"none" }} />
+              ))}
+              <div style={{ padding:"8px 10px", display:"flex", flexDirection:"column", gap:5 }}>
+                <div style={{ fontSize:9, fontWeight:700, color:"rgba(90,160,210,0.4)", textAlign:"center", letterSpacing:3 }}>▲ FONDO</div>
+                <div style={{ display:"flex", gap:5 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
+                    <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:5 }}>
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
+                    </div>
+                  </div>
+                  <div style={{ width:7, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
+                  <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
+                    <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:5 }}>
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize:9, fontWeight:700, color:"rgba(90,160,210,0.4)", textAlign:"center", letterSpacing:3 }}>▼ PUERTA</div>
+              </div>
+            </div>
+            <div style={{ width:5, background:"linear-gradient(90deg,#2a4560,#1e3040)", borderTop:"3px solid #3a6080", borderBottom:"3px solid #3a6080" }} />
+            <div style={{ display:"flex", flexDirection:"column", justifyContent:"space-around", padding:"4px 1px", background:"linear-gradient(90deg,#161616,#0d0d0d)", borderTop:"1px solid #2a3a4a", borderBottom:"1px solid #2a3a4a" }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                  {[0,1].map(j => (
+                    <div key={j} style={{ width:10, height:14, background:"linear-gradient(90deg,#111,#3a3a3a,#111)", borderRadius:3, border:"1px solid #555", position:"relative" }}>
+                      <div style={{ position:"absolute", inset:3, background:"#252525", borderRadius:2, border:"1px solid #404040" }} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* ═══ PUERTA TRASERA ═══ */}
+          <div style={{ display:"flex", alignItems:"stretch", gap:2, marginTop:3 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingBottom:6 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:10, height:16, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ flex:1, background:"linear-gradient(180deg,#1e2a38,#141e28)", border:"2px solid #3a5a7a", borderRadius:"4px 4px 12px 12px", overflow:"hidden", boxShadow:"0 4px 12px rgba(0,0,0,0.5)" }}>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} style={{ height:6, background: i%2===0 ? "linear-gradient(180deg,#243040,#1e2838)" : "linear-gradient(180deg,#1a2430,#141e28)", borderBottom:"1px solid rgba(90,140,180,0.08)" }} />
+              ))}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"3px 12px" }}>
+                <div style={{ width:5, height:5, background:"#3a5a7a", borderRadius:"50%", border:"1px solid #5a8aaa", boxShadow:"0 0 4px rgba(90,160,210,0.4)" }} />
+                <div style={{ flex:1, height:2, background:"linear-gradient(90deg,transparent,rgba(90,140,180,0.3),transparent)", margin:"0 8px" }} />
+                <div style={{ width:5, height:5, background:"#3a5a7a", borderRadius:"50%", border:"1px solid #5a8aaa", boxShadow:"0 0 4px rgba(90,160,210,0.4)" }} />
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingBottom:6 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:10, height:16, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:0, alignItems:"stretch" }}>
+          {/* ═══ CABINA (frente) ═══ */}
+          <div style={{ display:"flex", alignItems:"stretch", gap:3, marginBottom:3 }}>
+            {/* Ruedas delanteras izq */}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingTop:8 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:11, height:18, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", boxShadow:"inset 0 1px 2px rgba(255,255,255,0.12)", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
+                </div>
+              ))}
+            </div>
+            {/* Frente del camión */}
+            <div style={{ flex:1, background:"linear-gradient(180deg,#3d4a5c 0%,#2a3545 60%,#1a2230 100%)", border:"2px solid #5a7a9a", borderRadius:"12px 12px 4px 4px", overflow:"hidden", boxShadow:"0 -6px 18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.12)" }}>
+              {/* Parabrisas + faros */}
+              <div style={{ display:"flex", alignItems:"center", padding:"8px 10px 5px", gap:6 }}>
+                <div style={{ width:16, height:11, background:"linear-gradient(135deg,#fffaaa,#ffdd00)", borderRadius:"4px 7px 7px 4px", boxShadow:"0 0 10px rgba(255,230,0,0.8), 0 0 20px rgba(255,230,0,0.3)", border:"1px solid #bba" }} />
+                <div style={{ flex:1, height:24, background:"linear-gradient(180deg,rgba(120,200,255,0.3),rgba(80,160,230,0.12))", borderRadius:5, border:"1px solid rgba(120,200,255,0.25)", display:"flex", alignItems:"center", justifyContent:"center", gap:6, boxShadow:"inset 0 1px 4px rgba(0,0,0,0.4)" }}>
+                  <div style={{ fontSize:18 }}>{vehicleIcon}</div>
+                  <div style={{ fontSize:7, fontWeight:700, color:"rgba(255,255,255,0.35)", letterSpacing:1 }}>{vehicleLabel}</div>
+                </div>
+                <div style={{ width:16, height:11, background:"linear-gradient(225deg,#fffaaa,#ffdd00)", borderRadius:"7px 4px 4px 7px", boxShadow:"0 0 10px rgba(255,230,0,0.8), 0 0 20px rgba(255,230,0,0.3)", border:"1px solid #bba" }} />
+              </div>
+              {/* Parrilla */}
+              <div style={{ background:"linear-gradient(180deg,#1e2a38,#141e28)", borderTop:"1px solid #3a5a7a", padding:"4px 10px 5px", display:"flex", flexDirection:"column", gap:2 }}>
+                {[0,1,2].map(i => (
+                  <div key={i} style={{ height:2, background:"linear-gradient(90deg,transparent 5%,#3a5a7a 20%,#5a8aaa 50%,#3a5a7a 80%,transparent 95%)", borderRadius:1 }} />
+                ))}
+                {/* Logo / placa */}
+                <div style={{ display:"flex", justifyContent:"center", marginTop:1 }}>
+                  <div style={{ fontSize:7, fontWeight:800, color:"rgba(90,160,210,0.6)", letterSpacing:2 }}>TP</div>
+                </div>
+              </div>
+            </div>
+            {/* Ruedas delanteras der */}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingTop:8 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:11, height:18, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", boxShadow:"inset 0 1px 2px rgba(255,255,255,0.12)", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ CARROCERÍA ═══ */}
+          <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
+            {/* Ruedas izquierda */}
+            <div style={{ display:"flex", flexDirection:"column", justifyContent:"space-around", padding:"6px 2px", gap:3, background:"linear-gradient(90deg,#0d0d0d,#161616)", borderTop:"1px solid #2a3a4a", borderBottom:"1px solid #2a3a4a" }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                  {[0,1].map(j => (
+                    <div key={j} style={{ width:11, height:15, background:"linear-gradient(90deg,#111,#3a3a3a,#111)", borderRadius:3, border:"1px solid #555", position:"relative", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.07)" }}>
+                      <div style={{ position:"absolute", inset:3, background:"#252525", borderRadius:2, border:"1px solid #404040" }} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {/* Pared lateral izq */}
+            <div style={{ width:6, background:"linear-gradient(90deg,#1e3040,#2a4560)", borderTop:"3px solid #3a6080", borderBottom:"3px solid #3a6080" }} />
+            {/* Interior */}
+            <div style={{ flex:1, background:"linear-gradient(180deg,#0a0e14 0%,#111827 40%,#0d1520 100%)", position:"relative", overflow:"hidden", borderTop:"3px solid #3a6080", borderBottom:"3px solid #3a6080" }}>
+              {[...Array(8)].map((_, i) => (
+                <div key={i} style={{ position:"absolute", top:`${(i+1)*11}%`, left:0, right:0, height:1, background:"rgba(255,255,255,0.02)", pointerEvents:"none" }} />
+              ))}
+              <div style={{ padding:"10px 12px", display:"flex", flexDirection:"column", gap:6 }}>
+                <div style={{ fontSize:9, fontWeight:700, color:"rgba(90,160,210,0.4)", textAlign:"center", letterSpacing:3, textTransform:"uppercase" }}>▲ FONDO</div>
+                <div style={{ display:"flex", gap:6 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
+                    <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:4 }}>
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
+                    </div>
+                  </div>
+                  <div style={{ width:8, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
+                  <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
+                    <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:4 }}>
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize:9, fontWeight:700, color:"rgba(90,160,210,0.4)", textAlign:"center", letterSpacing:3, textTransform:"uppercase" }}>▼ PUERTA</div>
+              </div>
+            </div>
+            {/* Pared lateral der */}
+            <div style={{ width:6, background:"linear-gradient(90deg,#2a4560,#1e3040)", borderTop:"3px solid #3a6080", borderBottom:"3px solid #3a6080" }} />
+            {/* Ruedas derecha */}
+            <div style={{ display:"flex", flexDirection:"column", justifyContent:"space-around", padding:"6px 2px", gap:3, background:"linear-gradient(90deg,#161616,#0d0d0d)", borderTop:"1px solid #2a3a4a", borderBottom:"1px solid #2a3a4a" }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                  {[0,1].map(j => (
+                    <div key={j} style={{ width:11, height:15, background:"linear-gradient(90deg,#111,#3a3a3a,#111)", borderRadius:3, border:"1px solid #555", position:"relative", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.07)" }}>
+                      <div style={{ position:"absolute", inset:3, background:"#252525", borderRadius:2, border:"1px solid #404040" }} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ PUERTA TRASERA ═══ */}
+          <div style={{ display:"flex", alignItems:"stretch", gap:3, marginTop:3 }}>
+            {/* Ruedas traseras izq */}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingBottom:8 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:11, height:18, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
+                </div>
+              ))}
+            </div>
+            {/* Panel puerta trasera */}
+            <div style={{ flex:1, background:"linear-gradient(180deg,#1e2a38,#141e28)", border:"2px solid #3a5a7a", borderRadius:"4px 4px 12px 12px", overflow:"hidden", boxShadow:"0 6px 18px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(255,255,255,0.05)" }}>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} style={{ height:6, background: i % 2 === 0 ? "linear-gradient(180deg,#243040,#1e2838)" : "linear-gradient(180deg,#1a2430,#141e28)", borderBottom:"1px solid rgba(90,140,180,0.08)" }} />
+              ))}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"3px 14px" }}>
+                <div style={{ width:5, height:5, background:"#3a5a7a", borderRadius:"50%", border:"1px solid #5a8aaa", boxShadow:"0 0 4px rgba(90,160,210,0.4)" }} />
+                <div style={{ flex:1, height:2, background:"linear-gradient(90deg,transparent,rgba(90,140,180,0.3),transparent)", margin:"0 8px" }} />
+                <div style={{ width:5, height:5, background:"#3a5a7a", borderRadius:"50%", border:"1px solid #5a8aaa", boxShadow:"0 0 4px rgba(90,160,210,0.4)" }} />
+              </div>
+            </div>
+            {/* Ruedas traseras der */}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, paddingBottom:8 }}>
+              {[0,1].map(i => (
+                <div key={i} style={{ width:11, height:18, background:"linear-gradient(90deg,#1a1a1a,#444,#1a1a1a)", borderRadius:3, border:"1px solid #666", position:"relative" }}>
+                  <div style={{ position:"absolute", inset:3, background:"#2a2a2a", borderRadius:1, border:"1px solid #505050" }} />
+                </div>
+              ))}
             </div>
           </div>
         </div>
