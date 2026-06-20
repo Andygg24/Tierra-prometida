@@ -113,6 +113,24 @@ app.post("/api/packing-list", async (req, res) => {
   }
 });
 
+// ── POST /api/grower-list ─────────────────────────────────────────────
+app.post("/api/grower-list", async (req, res) => {
+  const err = validate(req.body, ["growers"]);
+  if (err) return res.status(400).json({ error: err });
+
+  try {
+    const buffer   = await runPython("grower_list.py", req.body);
+    const filename = `Grower-List-${req.body.container || "export"}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  } catch (e) {
+    console.error("[grower-list]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── POST /api/isf ─────────────────────────────────────────────────────
 app.post("/api/isf", async (req, res) => {
   const err = validate(req.body, ["loadingDate", "arrivalDate", "houseBL", "oceanBL"]);

@@ -683,7 +683,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     }
   };
 
-  const generarGrowerList = () => {
+  const [generandoGrower, setGenerandoGrower] = useState(false);
+  const generarGrowerList = async () => {
     const assignments = admin.growerAssignments || {};
 
     // Cajas por calibre
@@ -693,7 +694,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       if (cal) cajasPerCal[cal] = (cajasPerCal[cal] || 0) + Number(c.cajas || 0);
     }));
 
-    // ETA → DD-MM-YY (formato JKFresh)
+    // ETA → DD-MM-YY
     const etaFmt = (() => {
       const d = admin.growerETA || admin.fechaCargue || "";
       if (!d) return "";
@@ -701,62 +702,57 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       return `${dd}-${mo}-${y.slice(2)}`;
     })();
 
-    const headers = [
-      "Importer", "ETA", "Exporter/Shipper\nName", "Port of\nDischarge",
-      "Grower Numer", "Grower Name\n", "Grower Address\n", "City/Municipality",
-      "Department", "Packing Facility \n(Name and Address)",
-      "Packing Facility\nFDA Registration Number", "Commodity\nDescription\n",
-      "Quantity\n(# of cartons, boxes, crates, \netc. do not use pallets)",
-      "Packing\n(Type of packing -\ncartons, boxes,\ncrates, etc. do not use \npallets)",
-      "Net Kilos\nper unit", "Ocean\nMaster B/L", "Ocean\nContainer",
-    ];
+    // Construir lista de predios ordenada por calibre desc
+    const growers = CALIBRES.slice().reverse()
+      .filter(cal => assignments[cal])
+      .map(cal => {
+        const predio = PREDIOS.find(p => p.registro === assignments[cal]);
+        if (!predio) return null;
+        return { ...predio, cajas: cajasPerCal[cal] || 0 };
+      })
+      .filter(Boolean);
 
-    const rows = [
-      ["EMAIL COMPLETED SPREADSHEET TO:      DOCS@JKFRESHEAST.COM"],
-      headers,
-    ];
+    if (!growers.length) {
+      alert("Asigna al menos un predio en la sección Grower List antes de generar.");
+      return;
+    }
 
-    let totalCajasGL = 0;
-    // Ordenar por calibre descendente para consistencia
-    CALIBRES.slice().reverse().forEach(cal => {
-      const registro = assignments[cal];
-      if (!registro) return;
-      const predio = PREDIOS.find(p => p.registro === registro);
-      if (!predio) return;
-      const cajas = cajasPerCal[cal] || 0;
-      totalCajasGL += cajas;
-      rows.push([
-        "PRINCESSES KINGDOM CORP",
-        etaFmt,
-        "TIERRA PROMETIDA TRADING S.A.S.",
-        (admin.destino || "").toUpperCase(),
-        predio.registro,
-        predio.nombre,
-        predio.dir,
-        predio.ciudad,
-        predio.dpto,
-        "C.I. GRAMALUZ CRA 35 A 46-04 BUCARAMANGA",
-        null,
-        "LIMON TAHITI",
-        cajas,
-        "CAJAS",
-        16.2,
-        admin.growerBL || "",
-        admin.growerContainer || admin.container || "",
-      ]);
-    });
+    setGenerandoGrower(true);
+    try {
+      const payload = {
+        importer:  "PRINCESSES KINGDOM CORP",
+        eta:       etaFmt,
+        exporter:  "TIERRA PROMETIDA TRADING S.A.S.",
+        destino:   (admin.destino || "").toUpperCase(),
+        booking:   admin.growerBL || "",
+        container: admin.growerContainer || admin.container || "",
+        growers,
+      };
 
-    // Fila de totales
-    const totRow = new Array(17).fill(null);
-    totRow[12] = totalCajasGL;
-    rows.push(totRow);
+      const res = await fetch("http://localhost:3001/api/grower-list", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+      });
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    // Ancho de columnas
-    ws["!cols"] = [12,8,20,10,12,14,18,12,10,28,14,12,14,10,8,14,14].map(w => ({ wch: w }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Master Spreadsheet");
-    XLSX.writeFile(wb, `Grower-List-${admin.container || "export"}.xlsx`);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(e.error || res.statusText);
+      }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url;
+      a.download = `Grower-List-${admin.container || "export"}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Error generando Grower List: " + e.message +
+        "\n\nAsegúrate de que el servidor backend esté corriendo:\n  cd backend && node server.js");
+    } finally {
+      setGenerandoGrower(false);
+    }
   };
 
   const generarPDF = async () => {
@@ -1369,8 +1365,8 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
             <button onClick={generarExcel} disabled={generandoExcel} style={{ flex:1, background:"linear-gradient(135deg,#22C55E,#16A34A)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoExcel ? "wait" : "pointer", fontWeight:700, opacity: generandoExcel ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
               {generandoExcel ? "⏳ Generando..." : "📊 Descargar Excel (Planta)"}
             </button>
-            <button onClick={generarGrowerList} style={{ flex:1, background:"linear-gradient(135deg,#059669,#047857)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
-              🌿 Grower List
+            <button onClick={generarGrowerList} disabled={generandoGrower} style={{ flex:1, background:"linear-gradient(135deg,#059669,#047857)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoGrower ? "wait" : "pointer", fontWeight:700, opacity: generandoGrower ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
+              {generandoGrower ? "⏳ Generando..." : "🌿 Grower List"}
             </button>
             <button onClick={() => generarPDF()} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
               📄 Descargar PDF
