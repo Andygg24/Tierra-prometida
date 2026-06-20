@@ -415,14 +415,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                 <div style={{ display:"flex", gap:5 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:5 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
                       {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
                     </div>
                   </div>
                   <div style={{ width:7, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:5 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
                       {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
                     </div>
                   </div>
@@ -541,14 +541,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                 <div style={{ display:"flex", gap:6 }}>
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:4 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
                       {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
                     </div>
                   </div>
                   <div style={{ width:8, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:4 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
                       {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
                     </div>
                   </div>
