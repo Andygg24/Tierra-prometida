@@ -671,10 +671,11 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       const s = Number(c.size);
       if (s in sizeQty) sizeQty[s] += Number(c.cajas || 0);
     }));
+    const totalReal = Object.values(sizeQty).reduce((a, b) => a + b, 0);
     const summaryRows = [250, 230, 200, 175, 150, 110].map(s =>
       `<tr><td class="sc">${s}</td><td class="sq">${sizeQty[s].toLocaleString("es-CO")}</td></tr>`
     ).join("") +
-    `<tr class="stot"><td>TOTAL</td><td>${totalCajas.toLocaleString("es-CO")}</td></tr>`;
+    `<tr class="stot"><td>TOTAL</td><td>${totalReal.toLocaleString("es-CO")}</td></tr>`;
 
     // ── Distribución en contenedor (panel derecho) ─────────────────
     const pcell = (pid) => {
