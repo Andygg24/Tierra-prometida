@@ -130,6 +130,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
     conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
     growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
+    ispm15:"CO-68-001 HT",
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
@@ -644,10 +645,11 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
             const registro = cal ? ((admin.growerAssignments || {})[cal] || "") : "";
             const predio   = PREDIOS.find(pr => pr.registro === registro);
             return {
-              size:   c.size ? Number(c.size) : "",
-              cajas:  Number(c.cajas || 0),
-              predio: predio?.nombre || c.predio || "",
-              ica:    c.ica    || "",
+              size:     c.size ? Number(c.size) : "",
+              cajas:    Number(c.cajas || 0),
+              predio:   predio?.nombre || c.predio || "",
+              registro: predio?.registro || "",
+              ica:      c.ica || "",
             };
           }),
         })),
@@ -780,7 +782,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       const p = pallets.find(pp => pp.id === pid);
       if (!p) return { id: pid, size: "" };
       const sz = p.calibres.length > 1
-        ? p.calibres.map(c => c.size ?? "").join("<br>")
+        ? p.calibres.map(c => `${c.cajas}/${c.size ?? ""}`).join("<br>")
         : `${p.calibres[0]?.size ?? ""}`;
       return { id: pid, size: sz };
     };
@@ -789,10 +791,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       const pr = pcell(layout.right[i]);
       return `<tr>
         <td class="pc">Pallet ${pl.id}</td><td class="ps">${pl.size}</td>
-        <td class="pi">CO-68-001<br>HT</td><td class="pd">${fmtDate(admin.packingDate)}</td>
+        <td class="pi">${(admin.ispm15 || "CO-68-001 HT").replace(" ", "<br>")}</td><td class="pd">${fmtDate(admin.packingDate)}</td>
         <td class="sep"></td>
         <td class="pc">Pallet ${pr.id}</td><td class="ps">${pr.size}</td>
-        <td class="pi">CO-68-001<br>HT</td><td class="pd">${fmtDate(admin.packingDate)}</td>
+        <td class="pi">${(admin.ispm15 || "CO-68-001 HT").replace(" ", "<br>")}</td><td class="pd">${fmtDate(admin.packingDate)}</td>
       </tr>`;
     }).join("");
 
@@ -1282,10 +1284,14 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
               ))}
             </div>
             <div style={cardS}>
-              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TEMP RECORDER (DATALOGGER)</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6 }}>
-                <div><div style={lbl}>Número</div><input value={admin.tempRecorder} onChange={e => sa("tempRecorder", e.target.value)} placeholder="V1-0041573" style={inp} /></div>
+              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TEMP RECORDER / ISPM-15</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap: m ? 10 : 6, marginBottom: m ? 8 : 6 }}>
+                <div><div style={lbl}>Número Datalogger</div><input value={admin.tempRecorder} onChange={e => sa("tempRecorder", e.target.value)} placeholder="V1-0041573" style={inp} /></div>
                 <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.tempRecorderPalletNo} onChange={e => sa("tempRecorderPalletNo", e.target.value)} style={inp} /></div>
+              </div>
+              <div>
+                <div style={lbl}>Código ISPM-15 (Pallet Certificate)</div>
+                <input value={admin.ispm15} onChange={e => sa("ispm15", e.target.value)} placeholder="CO-68-001 HT" style={inp} />
               </div>
             </div>
           </div>

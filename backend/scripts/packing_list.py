@@ -150,12 +150,12 @@ for p in sorted_pallets:
 
     for ci, c in enumerate(calibres):
         rows.append({
-            "pid":     pid if ci == 0 else None,
-            "size":    c.get("size", ""),
-            "cajas":   int(c.get("cajas", 0)),
-            "predio":  c.get("predio", ""),
-            "ica":     str(c.get("ica", "")),
-            "is_cont": ci > 0,
+            "pid":      pid if ci == 0 else None,
+            "size":     c.get("size", ""),
+            "cajas":    int(c.get("cajas", 0)),
+            "predio":   c.get("predio", ""),
+            "registro": str(c.get("registro", "") or c.get("ica", "")),
+            "is_cont":  ci > 0,
         })
 
     if len(calibres) > 1:
@@ -214,9 +214,9 @@ for i, rd in enumerate(rows):
     ws[f"D{excel_row}"].value = "LIMON TAHITI"
     ws[f"E{excel_row}"].value = 1
     ws[f"F{excel_row}"].value = rd["cajas"]
-    ws[f"G{excel_row}"].value = rd["predio"] or None
+    ws[f"G{excel_row}"].value = rd["predio"]   or None
     ws[f"H{excel_row}"].value = rd["cajas"]
-    ws[f"I{excel_row}"].value = rd["ica"] or None
+    ws[f"I{excel_row}"].value = rd["registro"] or None
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PASO 7 — Agregar merges para pallets mixtos
