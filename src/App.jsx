@@ -7990,7 +7990,7 @@ export default function App() {
   const [searchQ,      setSearchQ]      = useState("");
   const { items: invApp } = useInventario();
 
-  const { config: cfgApp } = useConfiguracion();
+  const { config: cfgApp, loading: cfgLoading } = useConfiguracion();
   const apariencia = cfgApp.cfg_apariencia || {};
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -8017,6 +8017,13 @@ export default function App() {
     setRipples(prev => [...prev, { id, cardIdx, x, y }]);
     setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
   };
+
+  // Esperar config antes de mostrar login (para que cfg_usuarios esté disponible)
+  if (cfgLoading && !usuario) return (
+    <div style={{ minHeight:"100vh", background:"#0a0a0f", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:14, fontFamily:"DM Sans,sans-serif" }}>Cargando...</div>
+    </div>
+  );
 
   // Mostrar login si no hay sesión
   const usuariosLogin = cfgApp.cfg_usuarios?.length ? cfgApp.cfg_usuarios : USUARIOS;
