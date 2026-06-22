@@ -655,7 +655,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         })),
       };
 
-      const res = await fetch("http://localhost:3001/api/packing-list", {
+      const res = await fetch("/api/packing-list", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -674,10 +674,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(
-        "Error generando Excel: " + e.message +
-        "\n\nAsegúrate de que el servidor backend esté corriendo:\n  cd backend && node server.js"
-      );
+      alert("Error generando Packing List: " + e.message);
     } finally {
       setGenerandoExcel(false);
     }
@@ -729,7 +726,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         growers,
       };
 
-      const res = await fetch("http://localhost:3001/api/grower-list", {
+      const res = await fetch("/api/grower-list", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -748,8 +745,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Error generando Grower List: " + e.message +
-        "\n\nAsegúrate de que el servidor backend esté corriendo:\n  cd backend && node server.js");
+      alert("Error generando Grower List: " + e.message);
     } finally {
       setGenerandoGrower(false);
     }

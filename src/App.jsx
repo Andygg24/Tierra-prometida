@@ -987,14 +987,16 @@ function NominaDemo() {
   const getTipo = (num) => tiposPago[num] || "contenedor";
   // Datos de contenedores y grupos para Tab Contenedores
   const { procesos, grupos } = useContenedores();
+  // Empleados reales desde Supabase
+  const { empleados, loading: loadingEmp } = usePersonal();
 
   const inp = {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"white",fontSize:11,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
   const lbl = {fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:3};
 
-  if (loadingLiq) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando nómina...</div>;
+  if (loadingLiq || loadingEmp) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando nómina...</div>;
 
   // ── Empleado seleccionado ──
-  const empSel = EMPLEADOS_DB.find(e=>e.num===selEmp) || null;
+  const empSel = empleados.find(e=>e.num===selEmp) || null;
 
   // ── Leer ausencias de asistencia (desde Supabase) ──
   const readAusencias = async (nombreEmp, per) => {
@@ -1157,9 +1159,9 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
           <div style={{display:"flex",gap:6,marginBottom:10}}>
             <div style={{flex:2}}>
               <div style={lbl}>Empleado</div>
-              <CustomSelect value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=EMPLEADOS_DB.find(x=>x.num===e.target.value);if(em){readAusencias(em.nombre,periodo).then(setDiasAus);}}} style={inp}>
+              <CustomSelect value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=empleados.find(x=>x.num===e.target.value);if(em){readAusencias(em.nombre,periodo).then(setDiasAus);}}} style={inp}>
                 <option value="" style={{background:"#1a1a2e"}}>— Seleccionar empleado —</option>
-                {EMPLEADOS_DB.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre} · {e.area}</option>)}
+                {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre} · {e.area}</option>)}
               </CustomSelect>
             </div>
             <div style={{flex:1}}>
@@ -1532,23 +1534,23 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               <div style={lbl}>Buscar empleado</div>
               <input value={tabEmpBusq} onChange={e=>setTabEmpBusq(e.target.value)} placeholder="Nombre o área..." style={inp} />
             </div>
-            <button onClick={()=>setTodosTipos("contenedor", EMPLEADOS_DB)}
+            <button onClick={()=>setTodosTipos("contenedor", empleados)}
               style={{padding:"7px 11px",fontSize:10,background:"rgba(0,201,167,0.12)",border:"1px solid rgba(0,201,167,0.25)",borderRadius:8,color:"#00C9A7",cursor:"pointer",flexShrink:0}}>
               Todos → 🚢 Contenedor
             </button>
-            <button onClick={()=>setTodosTipos("nomina", EMPLEADOS_DB)}
+            <button onClick={()=>setTodosTipos("nomina", empleados)}
               style={{padding:"7px 11px",fontSize:10,background:"rgba(99,102,241,0.12)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:8,color:"#a5b4fc",cursor:"pointer",flexShrink:0}}>
               Todos → 📋 Nómina
             </button>
           </div>
           <div style={{display:"flex",gap:10,marginBottom:10,fontSize:10}}>
             {[["contenedor","🚢","#00C9A7"],["nomina","📋","#a5b4fc"]].map(([t,ic,c])=>{
-              const cnt=EMPLEADOS_DB.filter(e=>getTipo(e.num)===t).length;
+              const cnt=empleados.filter(e=>getTipo(e.num)===t).length;
               return <span key={t} style={{color:c,fontWeight:600}}>{ic} {cnt} por {t==="contenedor"?"contenedor":"nómina"}</span>;
             })}
           </div>
           <div style={{maxHeight:440,overflowY:"auto"}}>
-            {EMPLEADOS_DB.filter(e=>!tabEmpBusq||(e.nombre+e.area).toLowerCase().includes(tabEmpBusq.toLowerCase())).map(e=>{
+            {empleados.filter(e=>!tabEmpBusq||(e.nombre+e.area).toLowerCase().includes(tabEmpBusq.toLowerCase())).map(e=>{
               const t=getTipo(e.num);
               return (
                 <div key={e.num} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${t==="contenedor"?"rgba(0,201,167,0.12)":"rgba(99,102,241,0.12)"}`,borderRadius:10,padding:"8px 12px",marginBottom:5,display:"flex",alignItems:"center",gap:8}}>
@@ -1600,7 +1602,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               const gDia=grupos.find(g=>g.nombre===p.grupoDia);
               const gNoche=grupos.find(g=>g.nombre===p.grupoNoche);
               const nums=[...new Set([...(gDia?gDia.miembros:[]),...(gNoche?gNoche.miembros:[])])];
-              const miembros=nums.map(n=>EMPLEADOS_DB.find(e=>e.num===n)).filter(Boolean);
+              const miembros=nums.map(n=>empleados.find(e=>e.num===n)).filter(Boolean);
               const col={"En proceso":"#F9A826","Completado":"#00C9A7","Pausado":"#845EF7","Cancelado":"#FF6B6B"}[p.estado]||"#6366F1";
               return (
                 <div key={p.id} style={{background:`${col}06`,border:`1px solid ${col}20`,borderRadius:12,marginBottom:10,overflow:"hidden"}}>
@@ -1643,7 +1645,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
           <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
             <CustomSelect value={histFiltEmp} onChange={e=>setHistFiltEmp(e.target.value)} style={{...inp,flex:2,minWidth:120}}>
               <option value="" style={{background:"#1a1a2e"}}>— Todos los empleados —</option>
-              {EMPLEADOS_DB.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
+              {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
             </CustomSelect>
             <input type="month" value={histFiltDesde} onChange={e=>setHistFiltDesde(e.target.value)} title="Desde" style={{...inp,flex:1,minWidth:100}} />
             <input type="month" value={histFiltHasta} onChange={e=>setHistFiltHasta(e.target.value)} title="Hasta" style={{...inp,flex:1,minWidth:100}} />

@@ -128,7 +128,12 @@ export function useAsistencia() {
       if (!reg.contenedor && !reg.obs) {
         ({ error } = await supabase.from("asistencia").delete().eq("fecha", fecha).eq("emp_nombre", nombre));
       } else {
-        ({ error } = await supabase.from("asistencia").upsert({ fecha, emp_nombre: nombre, estado: null }, { onConflict: "fecha,emp_nombre" }));
+        // estado queda vacío pero hay contenedor u obs — se borra el registro y se re-inserta sin estado
+        ({ error } = await supabase.from("asistencia").delete().eq("fecha", fecha).eq("emp_nombre", nombre));
+        if (!error) {
+          const reg = registros[fecha]?.[nombre] || {};
+          ({ error } = await supabase.from("asistencia").insert({ fecha, emp_nombre: nombre, contenedor: reg.contenedor || null, obs: reg.obs || null }));
+        }
       }
     }
     if (error) setRegistros(prev => ({ ...prev, [fecha]: { ...(prev[fecha] || {}), [nombre]: { ...(prev[fecha]?.[nombre] || {}), estado: actual } } }));

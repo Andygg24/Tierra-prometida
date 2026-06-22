@@ -96,7 +96,7 @@ export function useLiquidaciones() {
   const setTipo = useCallback(async (empNum, tipo) => {
     setTiposPago(prev => ({ ...prev, [empNum]: tipo }));
     await supabase.from("tipos_pago").upsert(
-      { emp_num: empNum, tipo, updated_at: new Date().toISOString() },
+      { emp_num: empNum, tipo },
       { onConflict: "emp_num" }
     );
   }, []);
@@ -106,7 +106,7 @@ export function useLiquidaciones() {
     empleadosList.forEach(e => { mapa[e.num] = tipoStr; });
     setTiposPago(mapa);
     const rows = empleadosList.map(e => ({
-      emp_num: e.num, tipo: tipoStr, updated_at: new Date().toISOString(),
+      emp_num: e.num, tipo: tipoStr,
     }));
     await supabase.from("tipos_pago").upsert(rows, { onConflict: "emp_num" });
   }, []);
