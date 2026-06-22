@@ -4679,6 +4679,41 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 </div>`;
           }).join("");
 
+          // ── Calibres agregados (todos los camiones) ──────────────────
+          const calibreAgg = {};
+          rendsDelCont.forEach(r => {
+            (r.calibres || []).forEach(cal => {
+              const calKg = cal.tipo === "cajas"
+                ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS)
+                : Number(cal.cantidad);
+              if (!calibreAgg[cal.nombre]) calibreAgg[cal.nombre] = 0;
+              calibreAgg[cal.nombre] += calKg;
+            });
+          });
+          const calibreEntries = Object.entries(calibreAgg).sort(([a],[b]) => a.localeCompare(b));
+
+          const calibreSection = calibreEntries.length > 0 ? `
+<h2>Desglose por calibre</h2>
+<table>
+  <thead>
+    <tr><th>Calibre</th><th>Kg total</th><th>% Procesado</th><th>% Empacado</th><th>Barra</th></tr>
+  </thead>
+  <tbody>
+    ${calibreEntries.map(([nombre, kg]) => {
+      const pctPro = totales.kilosProcesados > 0 ? (kg / totales.kilosProcesados) * 100 : 0;
+      const pctEmp = totales.kgEmp > 0 ? (kg / totales.kgEmp) * 100 : 0;
+      const cc = pctPro >= 80 ? "#15803d" : pctPro >= 60 ? "#b45309" : "#374151";
+      return `<tr>
+  <td><span style="font-size:14px;font-weight:800;color:#1e1b4b;">${nombre}</span></td>
+  <td style="font-weight:600;color:#15803d;">${kg.toFixed(1)} kg</td>
+  <td><span style="font-weight:700;color:${cc};">${pctPro.toFixed(1)}%</span></td>
+  <td><span style="font-weight:700;color:#6366f1;">${pctEmp.toFixed(1)}%</span></td>
+  <td><div class="bar-cell"><div class="bar-bg" style="width:90px;"><div class="bar-fill" style="width:${Math.min(pctPro,100).toFixed(1)}%;background:${cc};"></div></div></div></td>
+</tr>`;
+    }).join("")}
+  </tbody>
+</table>` : "";
+
           // ── Tabla detalle con observaciones ─────────────────────────
           const truckRows = rendsDelCont.map((r, i) => {
             const c = calcRend(r);
@@ -4686,6 +4721,11 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             const obsChips = (r.observaciones || []).map(o => `<span class="obs-chip">${o}</span>`).join(" ");
             const obsDetalle = r.obsDetalle ? `<div style="margin-top:3px;font-style:italic;color:#64748b;font-size:10px;">${r.obsDetalle}</div>` : "";
             const obsCell = (obsChips || obsDetalle) ? `${obsChips}${obsDetalle}` : `<span class="dim">—</span>`;
+            const calChips = (r.calibres || []).map(cal => {
+              const calKg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
+              const pct = r.kilosProcesados > 0 ? (calKg / r.kilosProcesados * 100).toFixed(1) : "0.0";
+              return `<span style="background:#ede9fe;color:#4c1d95;border-radius:4px;padding:1px 7px;font-size:9px;font-weight:700;margin-right:3px;display:inline-block;">${cal.nombre}: ${pct}%</span>`;
+            }).join("");
             return `<tr>
   <td class="num-cell">${i+1}</td>
   <td>${r.fecha}</td>
@@ -4695,6 +4735,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
   <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
   <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
+  <td>${calChips || `<span class="dim">—</span>`}</td>
   <td>${obsCell}</td>
 </tr>`;
           }).join("");
@@ -4800,6 +4841,8 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
 
 ${providerSection}
 
+${calibreSection}
+
 <h2>Rendimiento del proceso</h2>
 <div class="chart-wrap">
   ${truckBars}
@@ -4810,7 +4853,7 @@ ${providerSection}
   <thead>
     <tr>
       <th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg proc.</th><th>Devueltos</th>
-      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Observaciones</th>
+      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Calibres</th><th>Observaciones</th>
     </tr>
   </thead>
   <tbody>${truckRows}</tbody>
@@ -4999,7 +5042,7 @@ ${providerSection}
                       </div>
                     </div>
 
-                    {/* Preview en tiempo real — kg empacados (siempre visible) + rdto % (solo si hay kilos procesados) */}
+                    {/* Preview en tiempo real — kg empacados + rdto % + rdto por calibre */}
                     {(() => {
                       const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
                       const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
@@ -5012,31 +5055,61 @@ ${providerSection}
                       const rpri = hayProc ? ((kgPri / proc) * 100).toFixed(1) : null;
                       if (!hayKgEmp) return null;
                       return (
-                        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : hayProc ? "1fr 1fr 1fr 1fr" : "1fr", gap: 8, marginBottom: 8 }}>
-                          <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kg empacados</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
-                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>
-                              DM: {kgDM.toFixed(0)} kg · Pri: {kgPri.toFixed(0)} kg
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : hayProc ? "1fr 1fr 1fr 1fr" : "1fr", gap: 8, marginBottom: 8 }}>
+                            <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px" }}>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kg empacados</div>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
+                              <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>DM: {kgDM.toFixed(0)} kg · Pri: {kgPri.toFixed(0)} kg</div>
                             </div>
+                            {hayProc && (
+                              <>
+                                <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px" }}>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. general</div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
+                                </div>
+                                <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", borderRadius: 8, padding: "7px 10px" }}>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Del Monte</div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
+                                </div>
+                                <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px" }}>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Princess</div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
+                                </div>
+                              </>
+                            )}
                           </div>
-                          {hayProc && (
-                            <>
-                              <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px" }}>
-                                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. general</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
+
+                          {/* Rendimiento por calibre en tiempo real */}
+                          {hayProc && formRend.calibres.length > 0 && (
+                            <div style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(129,140,248,0.8)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>📐 Rdto. por calibre</div>
+                              <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : `repeat(${Math.min(formRend.calibres.length, 4)}, 1fr)`, gap: 6 }}>
+                                {formRend.calibres.map((cal, i) => {
+                                  const calKg  = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
+                                  const pctPro = proc > 0 ? (calKg / proc) * 100 : 0;
+                                  const pctEmp = kgEmp > 0 ? (calKg / kgEmp) * 100 : 0;
+                                  return (
+                                    <div key={i} style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "6px 10px" }}>
+                                      <div style={{ fontSize: 13, fontWeight: 800, color: "#a5b4fc", marginBottom: 2 }}>{cal.nombre}</div>
+                                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{calKg.toFixed(0)} kg</div>
+                                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                                        <div>
+                                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% procesado</div>
+                                          <div style={{ fontSize: 12, fontWeight: 700, color: colorRend(pctPro) }}>{pctPro.toFixed(1)}%</div>
+                                        </div>
+                                        <div>
+                                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% empacado</div>
+                                          <div style={{ fontSize: 12, fontWeight: 700, color: "#818CF8" }}>{pctEmp.toFixed(1)}%</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Del Monte</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
-                              </div>
-                              <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Princess</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
-                              </div>
-                            </>
+                            </div>
                           )}
-                        </div>
+                        </>
                       );
                     })()}
 
