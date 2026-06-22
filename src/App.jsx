@@ -4852,7 +4852,7 @@ ${providerSection}
             setShowFormRend(false); setFormRend(rendFormDef); setEditRendId(null);
             showToast("Camión registrado correctamente", true);
           } else {
-            showToast("Error al guardar — verifica la conexión o ejecuta la migración SQL pendiente", false);
+            showToast("Error al guardar — verifica la conexión", false);
           }
         };
 
@@ -5076,7 +5076,7 @@ ${providerSection}
                         </div>
                         <div style={{ display: "flex", gap: 6 }}>
                           <button onClick={() => abrirFormRend(r)} style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#a5b4fc", cursor: "pointer" }}>✏️</button>
-                          <button onClick={() => pedir("¿Eliminar este registro de rendimiento?", async () => { await eliminarRendimientoSB(r.id); })}
+                          <button onClick={() => pedir("¿Eliminar este registro de rendimiento?", async () => { const ok = await eliminarRendimientoSB(r.id); showToast(ok ? "Camión eliminado ✓" : "Error al eliminar", ok); })}
                             style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#fca5a5", cursor: "pointer" }}>🗑</button>
                         </div>
                       </div>
