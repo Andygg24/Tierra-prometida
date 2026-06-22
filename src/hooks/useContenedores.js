@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase.js";
 
-// ── Conversor Supabase → formato que usa el frontend ────────────
 const rowToCont = (r) => ({
   id:            r.id,
   fecha:         r.fecha,
@@ -92,7 +91,7 @@ export function useContenedores() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Suscripciones en tiempo real ─────────────────────────────
+  // ── Suscripciones en tiempo real (sync con otros usuarios) ──
   useEffect(() => {
     const refetch = (table, setter, mapper) => () => {
       const q = supabase.from(table).select("*");
@@ -139,21 +138,37 @@ export function useContenedores() {
       destino:        form.destino        || null,
       trazabilidad:   form.trazabilidad   || [],
     };
+
     if (id) {
+      // Optimistic update
+      setProcesos(prev => prev.map(p => p.id === id ? rowToCont({ ...row, id }) : p));
       const { error } = await supabase.from("contenedores").update(row).eq("id", id);
+      if (error) {
+        // Revertir — recargar desde DB
+        supabase.from("contenedores").select("*").order("fecha", { ascending: false })
+          .then(({ data }) => data && setProcesos(data.map(rowToCont)));
+      }
       return !error;
     } else {
       row.id = Date.now();
+      // Optimistic insert
+      setProcesos(prev => [rowToCont(row), ...prev]);
       const { error } = await supabase.from("contenedores").insert(row);
+      if (error) setProcesos(prev => prev.filter(p => p.id !== row.id));
       return !error;
     }
   }, []);
 
   const eliminarContenedor = useCallback(async (id) => {
+    const removed = procesos.find(p => p.id === id);
+    // Optimistic remove
+    setProcesos(prev => prev.filter(p => p.id !== id));
+    setContInsumos(prev => prev.filter(c => c.contId !== id));
     await supabase.from("contenedor_insumos").delete().eq("cont_id", id);
     const { error } = await supabase.from("contenedores").delete().eq("id", id);
+    if (error && removed) setProcesos(prev => [removed, ...prev]);
     return !error;
-  }, []);
+  }, [procesos]);
 
   const agregarTrazabilidad = useCallback(async (contId, evento) => {
     const cont = procesos.find(p => p.id === contId);
@@ -171,10 +186,12 @@ export function useContenedores() {
     if (!cont) return false;
     const ev = { evento: `Estado cambiado a: ${nuevoEstado}`, detalle: "", responsable: "JARVIS", fecha: new Date().toISOString() };
     const nuevaTraz = [...(cont.trazabilidad || []), ev];
+    // Optimistic update
     setProcesos(prev => prev.map(p => p.id === contId ? { ...p, estado: nuevoEstado, trazabilidad: nuevaTraz } : p));
     const { error } = await supabase.from("contenedores")
       .update({ estado: nuevoEstado, trazabilidad: nuevaTraz })
       .eq("id", contId);
+    if (error) setProcesos(prev => prev.map(p => p.id === contId ? cont : p));
     return !error;
   }, [procesos]);
 
@@ -183,19 +200,32 @@ export function useContenedores() {
   const guardarGrupo = useCallback(async (form, id = null) => {
     const row = { nombre: form.nombre, turno: form.turno, miembros: form.miembros };
     if (id) {
+      // Optimistic update
+      setGrupos(prev => prev.map(g => g.id === id ? rowToGrupo({ ...row, id }) : g));
       const { error } = await supabase.from("grupos_trabajo").update(row).eq("id", id);
+      if (error) {
+        supabase.from("grupos_trabajo").select("*").order("nombre")
+          .then(({ data }) => data && setGrupos(data.map(rowToGrupo)));
+      }
       return !error;
     } else {
       row.id = Date.now();
+      // Optimistic insert
+      setGrupos(prev => [...prev, rowToGrupo(row)].sort((a, b) => a.nombre.localeCompare(b.nombre)));
       const { error } = await supabase.from("grupos_trabajo").insert(row);
+      if (error) setGrupos(prev => prev.filter(g => g.id !== row.id));
       return !error;
     }
   }, []);
 
   const eliminarGrupo = useCallback(async (id) => {
+    const removed = grupos.find(g => g.id === id);
+    // Optimistic remove
+    setGrupos(prev => prev.filter(g => g.id !== id));
     const { error } = await supabase.from("grupos_trabajo").delete().eq("id", id);
+    if (error && removed) setGrupos(prev => [...prev, removed].sort((a, b) => a.nombre.localeCompare(b.nombre)));
     return !error;
-  }, []);
+  }, [grupos]);
 
   // ── CENTRO DE COSTOS ─────────────────────────────────────────
 
@@ -209,19 +239,32 @@ export function useContenedores() {
       total:    total  || 0,
     };
     if (editId) {
+      // Optimistic update
+      setContInsumos(prev => prev.map(c => c.id === editId ? rowToInsumo({ ...row, id: editId }) : c));
       const { error } = await supabase.from("contenedor_insumos").update(row).eq("id", editId);
+      if (error) {
+        supabase.from("contenedor_insumos").select("*").order("fecha", { ascending: false })
+          .then(({ data }) => data && setContInsumos(data.map(rowToInsumo)));
+      }
       return !error;
     } else {
       row.id = Date.now();
+      // Optimistic insert
+      setContInsumos(prev => [rowToInsumo(row), ...prev]);
       const { error } = await supabase.from("contenedor_insumos").insert(row);
+      if (error) setContInsumos(prev => prev.filter(c => c.id !== row.id));
       return !error;
     }
   }, []);
 
   const eliminarCC = useCallback(async (id) => {
+    const removed = contInsumos.find(c => c.id === id);
+    // Optimistic remove
+    setContInsumos(prev => prev.filter(c => c.id !== id));
     const { error } = await supabase.from("contenedor_insumos").delete().eq("id", id);
+    if (error && removed) setContInsumos(prev => [removed, ...prev]);
     return !error;
-  }, []);
+  }, [contInsumos]);
 
   // ── RENDIMIENTOS ─────────────────────────────────────────────
 
@@ -240,6 +283,15 @@ export function useContenedores() {
       observaciones:    form.observaciones   || [],
       obs_detalle:      form.obsDetalle      || null,
     };
+
+    const newRend = rowToRendimiento(row);
+
+    // Optimistic update
+    if (editId) {
+      setRendimientos(prev => prev.map(r => r.id === editId ? newRend : r));
+    } else {
+      setRendimientos(prev => [newRend, ...prev]);
+    }
 
     const tryUpsert = async (r) => {
       if (editId) {
@@ -260,22 +312,27 @@ export function useContenedores() {
       }
     }
 
-    if (!error) {
-      const newRend = rowToRendimiento(row);
-      setRendimientos(prev =>
-        editId
-          ? prev.map(r => r.id === editId ? newRend : r)
-          : [...prev, newRend]
-      );
+    if (error) {
+      // Revertir
+      if (editId) {
+        supabase.from("contenedor_rendimientos").select("*").order("fecha", { ascending: false })
+          .then(({ data }) => data && setRendimientos(data.map(rowToRendimiento)));
+      } else {
+        setRendimientos(prev => prev.filter(r => r.id !== newId));
+      }
     }
 
     return !error;
   }, []);
 
   const eliminarRendimiento = useCallback(async (id) => {
+    const removed = rendimientos.find(r => r.id === id);
+    // Optimistic remove
+    setRendimientos(prev => prev.filter(r => r.id !== id));
     const { error } = await supabase.from("contenedor_rendimientos").delete().eq("id", id);
+    if (error && removed) setRendimientos(prev => [removed, ...prev]);
     return !error;
-  }, []);
+  }, [rendimientos]);
 
   return {
     procesos, grupos, contInsumos, rendimientos, loading,

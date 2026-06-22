@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase.js";
 
-// Convierte fila de Supabase → formato que usa PersonalDemo
 const rowToEmp = (r) => ({
   no: r.no, nombre: r.nombre, doc: r.doc, num: r.num,
   tel: r.tel || "-", area: r.area || "", banco: r.banco || "", cuenta: r.cuenta || "",
@@ -9,11 +8,11 @@ const rowToEmp = (r) => ({
 
 export function usePersonal() {
   const [empleados,  setEmpleados]  = useState([]);
-  const [contratos,  setContratos]  = useState({});  // {empNum: {tipo,fechaInicio,fechaFin,notas}}
-  const [pagosHist,  setPagosHist]  = useState({});  // {empNum: [{id,fecha,monto,tipo,ref}]}
-  const [docs,       setDocs]       = useState({});  // {empNum: {cedula,contrato,foto,eps,arl}}
-  const [desempeno,  setDesempeno]  = useState({});  // {empNum: [{id,fecha,...criterios,nota}]}
-  const [seguridad,  setSeguridad]  = useState({});  // {empNum: {eps,fechaEPS,arl,fechaARL,estado}}
+  const [contratos,  setContratos]  = useState({});
+  const [pagosHist,  setPagosHist]  = useState({});
+  const [docs,       setDocs]       = useState({});
+  const [desempeno,  setDesempeno]  = useState({});
+  const [seguridad,  setSeguridad]  = useState({});
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
 
@@ -44,14 +43,12 @@ export function usePersonal() {
 
       setEmpleados((emps || []).map(rowToEmp));
 
-      // contratos: último contrato por empleado como objeto plano {empNum: {...}}
       const contMap = {};
       (conts || []).forEach(c => {
         contMap[c.emp_num] = { tipo: c.tipo, fechaInicio: c.fecha_inicio || "", fechaFin: c.fecha_fin || "", notas: c.notas || "" };
       });
       setContratos(contMap);
 
-      // pagos: agrupados por empNum
       const pagMap = {};
       (pagos || []).forEach(p => {
         if (!pagMap[p.emp_num]) pagMap[p.emp_num] = [];
@@ -59,14 +56,12 @@ export function usePersonal() {
       });
       setPagosHist(pagMap);
 
-      // docs: {empNum: {cedula, contrato, foto, eps, arl}}
       const docMap = {};
       (docsR || []).forEach(d => {
         docMap[d.emp_num] = { cedula: d.cedula, contrato: d.contrato, foto: d.foto, eps: d.eps, arl: d.arl };
       });
       setDocs(docMap);
 
-      // desempeño: agrupado por empNum
       const evalMap = {};
       (evals || []).forEach(ev => {
         if (!evalMap[ev.emp_num]) evalMap[ev.emp_num] = [];
@@ -74,7 +69,6 @@ export function usePersonal() {
       });
       setDesempeno(evalMap);
 
-      // seguridad social
       const segMap = {};
       (segs || []).forEach(s => {
         segMap[s.emp_num] = { eps: s.eps || "", fechaEPS: s.fecha_eps || "", arl: s.arl || "", fechaARL: s.fecha_arl || "", estado: s.estado || "Activo" };
@@ -87,7 +81,7 @@ export function usePersonal() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Suscripciones en tiempo real ─────────────────────────────
+  // ── Suscripciones en tiempo real (sync con otros usuarios) ──
   useEffect(() => {
     const ch = supabase.channel(`personal-changes-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "empleados" }, () => {
@@ -138,29 +132,50 @@ export function usePersonal() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  // ── Mutaciones ───────────────────────────────────────────────
+  // ── Mutaciones con optimistic updates ───────────────────────
 
   const agregarEmpleado = useCallback(async (emp) => {
+    const nuevoEmp = rowToEmp({ ...emp, tel: emp.tel || "-", area: emp.area || "", banco: emp.banco || "Nequi", cuenta: emp.cuenta || "" });
+    // Optimistic insert
+    setEmpleados(prev => [...prev, nuevoEmp]);
     const { error } = await supabase.from("empleados").insert({
       no: emp.no, nombre: emp.nombre, doc: emp.doc, num: emp.num,
       tel: emp.tel, area: emp.area, banco: emp.banco || "Nequi", cuenta: emp.cuenta || "",
     });
+    if (error) setEmpleados(prev => prev.filter(e => e.num !== emp.num));
     return !error;
   }, []);
 
   const editarEmpleado = useCallback(async (num, campos) => {
+    // Optimistic update
+    setEmpleados(prev => prev.map(e => e.num === num ? { ...e, ...campos } : e));
     const { error } = await supabase.from("empleados").update({
       nombre: campos.nombre, doc: campos.doc, tel: campos.tel, area: campos.area,
     }).eq("num", num);
+    if (error) {
+      supabase.from("empleados").select("*").eq("activo", true).order("no")
+        .then(({ data }) => data && setEmpleados(data.map(rowToEmp)));
+    }
     return !error;
   }, []);
 
   const eliminarEmpleado = useCallback(async (num) => {
+    // Optimistic soft-delete
+    setEmpleados(prev => prev.filter(e => e.num !== num));
     const { error } = await supabase.from("empleados").update({ activo: false }).eq("num", num);
+    if (error) {
+      supabase.from("empleados").select("*").eq("activo", true).order("no")
+        .then(({ data }) => data && setEmpleados(data.map(rowToEmp)));
+    }
     return !error;
   }, []);
 
   const upsertContrato = useCallback(async (empNum, form) => {
+    // Optimistic update
+    setContratos(prev => ({
+      ...prev,
+      [empNum]: { tipo: form.tipo, fechaInicio: form.fechaInicio || "", fechaFin: form.fechaFin || "", notas: form.notas || "" },
+    }));
     const { error } = await supabase.from("contratos").upsert({
       emp_num: empNum, tipo: form.tipo,
       fecha_inicio: form.fechaInicio || null, fecha_fin: form.fechaFin || null, notas: form.notas || null,
@@ -169,41 +184,81 @@ export function usePersonal() {
   }, []);
 
   const agregarPago = useCallback(async (empNum, form) => {
+    const tempId = Date.now();
+    const nuevoPago = { id: tempId, fecha: form.fecha, monto: Number(form.monto), tipo: form.tipo, ref: form.ref || "" };
+    // Optimistic insert
+    setPagosHist(prev => ({ ...prev, [empNum]: [nuevoPago, ...(prev[empNum] || [])] }));
     const { error } = await supabase.from("pagos").insert({
       emp_num: empNum, fecha: form.fecha, monto: Number(form.monto), tipo: form.tipo, ref: form.ref || null,
     });
+    if (error) setPagosHist(prev => ({ ...prev, [empNum]: (prev[empNum] || []).filter(p => p.id !== tempId) }));
     return !error;
   }, []);
 
   const eliminarPago = useCallback(async (id) => {
+    let empNumFound, removed;
+    // Optimistic remove
+    setPagosHist(prev => {
+      const next = { ...prev };
+      for (const [num, pagos] of Object.entries(next)) {
+        const idx = pagos.findIndex(p => p.id === id);
+        if (idx >= 0) { empNumFound = num; removed = pagos[idx]; next[num] = pagos.filter(p => p.id !== id); break; }
+      }
+      return next;
+    });
     const { error } = await supabase.from("pagos").delete().eq("id", id);
+    if (error && removed) setPagosHist(prev => ({ ...prev, [empNumFound]: [removed, ...(prev[empNumFound] || [])] }));
     return !error;
   }, []);
 
   const toggleDoc = useCallback(async (empNum, key) => {
     const actual = docs[empNum]?.[key] ?? false;
+    // Optimistic toggle
+    setDocs(prev => ({ ...prev, [empNum]: { ...(prev[empNum] || {}), [key]: !actual } }));
     const { error } = await supabase.from("documentos").upsert(
       { emp_num: empNum, [key]: !actual, updated_at: new Date().toISOString() },
       { onConflict: "emp_num" }
     );
+    if (error) setDocs(prev => ({ ...prev, [empNum]: { ...(prev[empNum] || {}), [key]: actual } }));
     return !error;
   }, [docs]);
 
   const agregarEval = useCallback(async (empNum, form) => {
+    const tempId = Date.now();
+    const nuevaEval = { id: tempId, fecha: form.fecha, puntualidad: form.puntualidad, calidad: form.calidad, actitud: form.actitud, productividad: form.productividad, nota: form.nota || "" };
+    // Optimistic insert
+    setDesempeno(prev => ({ ...prev, [empNum]: [nuevaEval, ...(prev[empNum] || [])] }));
     const { error } = await supabase.from("evaluaciones").insert({
       emp_num: empNum, fecha: form.fecha,
       puntualidad: form.puntualidad, calidad: form.calidad, actitud: form.actitud, productividad: form.productividad,
       nota: form.nota || null,
     });
+    if (error) setDesempeno(prev => ({ ...prev, [empNum]: (prev[empNum] || []).filter(e => e.id !== tempId) }));
     return !error;
   }, []);
 
   const eliminarEval = useCallback(async (id) => {
+    let empNumFound, removed;
+    // Optimistic remove
+    setDesempeno(prev => {
+      const next = { ...prev };
+      for (const [num, evals] of Object.entries(next)) {
+        const idx = evals.findIndex(e => e.id === id);
+        if (idx >= 0) { empNumFound = num; removed = evals[idx]; next[num] = evals.filter(e => e.id !== id); break; }
+      }
+      return next;
+    });
     const { error } = await supabase.from("evaluaciones").delete().eq("id", id);
+    if (error && removed) setDesempeno(prev => ({ ...prev, [empNumFound]: [removed, ...(prev[empNumFound] || [])] }));
     return !error;
   }, []);
 
   const upsertSeguridad = useCallback(async (empNum, form) => {
+    // Optimistic update
+    setSeguridad(prev => ({
+      ...prev,
+      [empNum]: { eps: form.eps || "", fechaEPS: form.fechaEPS || "", arl: form.arl || "", fechaARL: form.fechaARL || "", estado: form.estado },
+    }));
     const { error } = await supabase.from("seguridad_social").upsert({
       emp_num: empNum, eps: form.eps || null, fecha_eps: form.fechaEPS || null,
       arl: form.arl || null, fecha_arl: form.fechaARL || null, estado: form.estado,

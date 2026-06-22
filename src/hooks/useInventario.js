@@ -99,7 +99,13 @@ export function useInventario(seedData = []) {
       obs:       campos.obs || null,
       updated_at: new Date().toISOString(),
     };
+    // Optimistic update
+    setItems(prev => prev.map(i => i.id === id ? { ...i, ...campos, cant: Number(campos.cant), minimo: Number(campos.minimo), costo: Number(campos.costo || 0) } : i));
     const { error } = await supabase.from("inventario").update(row).eq("id", id);
+    if (error) {
+      supabase.from("inventario").select("*").order("id")
+        .then(({ data }) => data && setItems(data.map(rowToItem)));
+    }
     return !error;
   }, []);
 
@@ -121,7 +127,9 @@ export function useInventario(seedData = []) {
       obs:       nuevoItem.obs || null,
       costo:     Number(nuevoItem.costo || 0),
     };
-    const { error } = await supabase.from("inventario").insert(row);
+    const { data, error } = await supabase.from("inventario").insert(row).select().single();
+    // Insertar con ID real devuelto por la DB
+    if (!error && data) setItems(prev => [...prev, rowToItem(data)]);
     return !error;
   }, []);
 
@@ -136,9 +144,13 @@ export function useInventario(seedData = []) {
   }, []);
 
   const eliminarItem = useCallback(async (id) => {
+    const removed = items.find(i => i.id === id);
+    // Optimistic remove
+    setItems(prev => prev.filter(i => i.id !== id));
     const { error } = await supabase.from("inventario").delete().eq("id", id);
+    if (error && removed) setItems(prev => [...prev, removed].sort((a, b) => a.id - b.id));
     return !error;
-  }, []);
+  }, [items]);
 
   return { items, historial, loading, actualizarItem, registrarMovimiento, agregarItem, ajustarLotes, eliminarItem };
 }
