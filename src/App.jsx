@@ -4988,7 +4988,7 @@ ${providerSection}
                         <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={inp} />
                       </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
                         <div style={lbl}>Cajas Del Monte (16.8 kg)</div>
                         <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={inp} />
@@ -4997,36 +4997,48 @@ ${providerSection}
                         <div style={lbl}>Cajas Princess (15.7 kg)</div>
                         <input type="number" min="0" value={formRend.cajasPrincess} onChange={e => setFormRend(f => ({ ...f, cajasPrincess: e.target.value }))} placeholder="0" style={inp} />
                       </div>
-                      {formRend.kilosProcesados > 0 && (() => {
-                        const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
-                        const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
-                        const kgEmp = kgDM + kgPri;
-                        const proc  = Number(formRend.kilosProcesados);
-                        const rg    = ((kgEmp / proc) * 100).toFixed(1);
-                        const rdm   = ((kgDM  / proc) * 100).toFixed(1);
-                        const rpri  = ((kgPri / proc) * 100).toFixed(1);
-                        return (
-                          <>
-                            <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kg empacados</div>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
-                            </div>
-                            <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. general</div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
-                            </div>
-                            <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Del Monte</div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
-                            </div>
-                            <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Princess</div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
-                            </div>
-                          </>
-                        );
-                      })()}
                     </div>
+
+                    {/* Preview en tiempo real — kg empacados (siempre visible) + rdto % (solo si hay kilos procesados) */}
+                    {(() => {
+                      const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
+                      const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
+                      const kgEmp = kgDM + kgPri;
+                      const proc  = Number(formRend.kilosProcesados) || 0;
+                      const hayKgEmp = kgEmp > 0;
+                      const hayProc  = proc > 0 && hayKgEmp;
+                      const rg   = hayProc ? ((kgEmp / proc) * 100).toFixed(1) : null;
+                      const rdm  = hayProc ? ((kgDM  / proc) * 100).toFixed(1) : null;
+                      const rpri = hayProc ? ((kgPri / proc) * 100).toFixed(1) : null;
+                      if (!hayKgEmp) return null;
+                      return (
+                        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : hayProc ? "1fr 1fr 1fr 1fr" : "1fr", gap: 8, marginBottom: 8 }}>
+                          <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px" }}>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kg empacados</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
+                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>
+                              DM: {kgDM.toFixed(0)} kg · Pri: {kgPri.toFixed(0)} kg
+                            </div>
+                          </div>
+                          {hayProc && (
+                            <>
+                              <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px" }}>
+                                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. general</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
+                              </div>
+                              <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", borderRadius: 8, padding: "7px 10px" }}>
+                                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Del Monte</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
+                              </div>
+                              <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px" }}>
+                                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Princess</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Observaciones tipo chips */}
                     <div style={{ marginBottom: 8 }}>
