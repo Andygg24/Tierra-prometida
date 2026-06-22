@@ -52,6 +52,7 @@ const rowToRendimiento = (r) => ({
   cajasPrincess:   Number(r.cajas_princess)   || 0,
   observaciones:   Array.isArray(r.observaciones) ? r.observaciones : [],
   obsDetalle:      r.obs_detalle || "",
+  calibres:        Array.isArray(r.calibres) ? r.calibres : [],
 });
 
 export function useContenedores() {
@@ -282,6 +283,7 @@ export function useContenedores() {
       cajas_princess:   Number(form.cajasPrincess)   || 0,
       observaciones:    form.observaciones   || [],
       obs_detalle:      form.obsDetalle      || null,
+      calibres:         form.calibres        || [],
     };
 
     const newRend = rowToRendimiento(row);

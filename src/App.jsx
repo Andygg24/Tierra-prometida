@@ -3286,7 +3286,8 @@ function ContenedoresDemo() {
   const KG_DEL_MONTE = 16.8;
   const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
-  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "" };
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
+  const calFormDef   = { nombre: "", tipo: "cajas", cantidad: "", marca: "Del Monte" };
   const parseProveedores = (str) => {
     if (!str) return [];
     try { const p = JSON.parse(str); return Array.isArray(p) ? p.filter(Boolean) : [str]; }
@@ -3296,6 +3297,7 @@ function ContenedoresDemo() {
   const [showFormRend,  setShowFormRend]  = useState(false);
   const [editRendId,    setEditRendId]    = useState(null);
   const [formRend,      setFormRend]      = useState(rendFormDef);
+  const [calForm,       setCalForm]       = useState(calFormDef);
 
   const guardar = async () => {
     if (!form.numContenedor.trim()) return;
@@ -4836,12 +4838,13 @@ ${providerSection}
 
         const abrirFormRend = (r = null) => {
           if (r) {
-            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle });
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
             setEditRendId(r.id);
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
             setEditRendId(null);
           }
+          setCalForm(calFormDef);
           setShowFormRend(true);
         };
 
@@ -5046,6 +5049,75 @@ ${providerSection}
                       <textarea value={formRend.obsDetalle} onChange={e => setFormRend(f => ({ ...f, obsDetalle: e.target.value }))} rows={2} placeholder="Ej: El limón venía muy mojado, tuvimos que limpiar la máquina a mitad del proceso..." style={{ ...inp, resize: "vertical" }} />
                     </div>
 
+                    {/* ── Calibres (opcional) ── */}
+                    <div style={{ marginBottom: 12, background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(129,140,248,0.9)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                        📐 Desglose por calibre <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                      </div>
+
+                      {/* Calibres ya agregados */}
+                      {formRend.calibres.length > 0 && (
+                        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                          {formRend.calibres.map((c, i) => {
+                            const kg = c.tipo === "cajas" ? c.cantidad * (c.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(c.cantidad);
+                            return (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.04)", borderRadius: 7, padding: "5px 8px" }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", minWidth: 40 }}>{c.nombre}</span>
+                                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", flex: 1 }}>
+                                  {c.tipo === "cajas" ? `${c.cantidad} cajas ${c.marca}` : `${c.cantidad} kg`} → <strong style={{ color: "#00C9A7" }}>{kg.toFixed(1)} kg</strong>
+                                </span>
+                                <button onClick={() => setFormRend(f => ({ ...f, calibres: f.calibres.filter((_, j) => j !== i) }))}
+                                  style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>×</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Mini-formulario para agregar calibre */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "flex-end" }}>
+                        <div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Calibre</div>
+                          <input type="text" value={calForm.nombre} onChange={e => setCalForm(f => ({ ...f, nombre: e.target.value.toUpperCase() }))}
+                            placeholder="C48" style={{ ...inp, width: 56, textAlign: "center", fontWeight: 700 }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Tipo</div>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {["cajas", "kg"].map(t => (
+                              <button key={t} onClick={() => setCalForm(f => ({ ...f, tipo: t }))}
+                                style={{ background: calForm.tipo === t ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.05)", border: `1px solid ${calForm.tipo === t ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.1)"}`, borderRadius: 6, padding: "4px 10px", fontSize: 10, color: calForm.tipo === t ? "#a5b4fc" : "rgba(255,255,255,0.45)", cursor: "pointer", fontWeight: calForm.tipo === t ? 700 : 400 }}>
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Cantidad</div>
+                          <input type="number" min="0" value={calForm.cantidad} onChange={e => setCalForm(f => ({ ...f, cantidad: e.target.value }))}
+                            placeholder={calForm.tipo === "cajas" ? "ej. 300" : "ej. 4800"} style={{ ...inp, width: 90 }} />
+                        </div>
+                        {calForm.tipo === "cajas" && (
+                          <div>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Marca</div>
+                            <CustomSelect value={calForm.marca} onChange={e => setCalForm(f => ({ ...f, marca: e.target.value }))} style={{ ...inp }}>
+                              <option>Del Monte</option>
+                              <option>Princess</option>
+                            </CustomSelect>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (!calForm.nombre.trim() || !calForm.cantidad) return;
+                            setFormRend(f => ({ ...f, calibres: [...f.calibres, { ...calForm, cantidad: Number(calForm.cantidad) }] }));
+                            setCalForm(calFormDef);
+                          }}
+                          style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 7, padding: "6px 14px", fontSize: 11, color: "#a5b4fc", cursor: "pointer", fontWeight: 700 }}>
+                          + Agregar
+                        </button>
+                      </div>
+                    </div>
+
                     <div style={{ display: "flex", gap: 8 }}>
                       <button onClick={guardarRend} style={{ flex: 1, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "8px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
                         {editRendId ? "Guardar cambios" : "Registrar camión"}
@@ -5118,6 +5190,38 @@ ${providerSection}
                             </div>
                           )}
                           {r.obsDetalle && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", fontStyle: "italic" }}>{r.obsDetalle}</div>}
+                        </div>
+                      )}
+
+                      {/* Desglose por calibre */}
+                      {r.calibres && r.calibres.length > 0 && (
+                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(99,102,241,0.15)" }}>
+                          <div style={{ fontSize: 9, color: "rgba(129,140,248,0.7)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>📐 Calibres</div>
+                          <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 4 }}>
+                            {r.calibres.map((cal, i) => {
+                              const calKg  = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
+                              const pctPro = r.kilosProcesados > 0 ? (calKg / r.kilosProcesados) * 100 : 0;
+                              const pctEmp = c.kgEmp > 0 ? (calKg / c.kgEmp) * 100 : 0;
+                              return (
+                                <div key={i} style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.14)", borderRadius: 7, padding: "5px 8px" }}>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: "#a5b4fc" }}>{cal.nombre}</div>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
+                                    {cal.tipo === "cajas" ? `${cal.cantidad} cajas · ${calKg.toFixed(0)} kg` : `${calKg.toFixed(0)} kg`}
+                                  </div>
+                                  <div style={{ marginTop: 3, display: "flex", gap: 8 }}>
+                                    <div>
+                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% procesado</div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: colorRend(pctPro) }}>{pctPro.toFixed(1)}%</div>
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% empacado</div>
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: "#818CF8" }}>{pctEmp.toFixed(1)}%</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
