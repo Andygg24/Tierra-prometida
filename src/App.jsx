@@ -10,6 +10,7 @@ import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import CustomSelect from "./components/CustomSelect.jsx";
+import LimonLoader from "./components/LimonLoader.jsx";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -239,11 +240,7 @@ function PersonalDemo() {
   const empPagoActual  = selEmpPago  || empleados[0]?.num || "";
   const empDesempActual= selEmpDesemp|| empleados[0]?.num || "";
 
-  if (loadingPersonal) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40, color:"rgba(255,255,255,0.4)", fontSize:13 }}>
-      ⏳ Cargando datos del equipo...
-    </div>
-  );
+  if (loadingPersonal) return <LimonLoader texto="Cargando equipo" />;
 
   return (
     <div>
@@ -993,7 +990,7 @@ function NominaDemo() {
   const inp = {background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 10px",color:"white",fontSize:11,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
   const lbl = {fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:3};
 
-  if (loadingLiq || loadingEmp) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando nómina...</div>;
+  if (loadingLiq || loadingEmp) return <LimonLoader texto="Cargando nómina" />;
 
   // ── Empleado seleccionado ──
   const empSel = empleados.find(e=>e.num===selEmp) || null;
@@ -1996,7 +1993,7 @@ function InventarioDemo() {
 
   const pedir = (msg, fn) => setConfirm({ msg, fn });
 
-  if (loadingInv) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando inventario...</div>;
+  if (loadingInv) return <LimonLoader texto="Cargando inventario" />;
 
   const categorias = ["Todos", "Insumos", "Herramientas"];
   const filtrados = items.filter(i => {
@@ -2784,11 +2781,7 @@ ${seccionObs}
   // ─────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────
-  if (loadingAsis) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40, color:"rgba(255,255,255,0.4)", fontSize:13 }}>
-      ⏳ Cargando registros de asistencia...
-    </div>
-  );
+  if (loadingAsis) return <LimonLoader texto="Cargando asistencia" />;
   return (
     <div>
       {/* Confirmación */}
@@ -3328,7 +3321,7 @@ function ContenedoresDemo() {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html],{type:"text/html"})); a.download = `Contenedores_${hoy}.html`; a.click();
   };
 
-  if (loadingCont) return <div style={{textAlign:"center",padding:"40px 0",color:"rgba(255,255,255,0.3)",fontSize:14}}>⏳ Cargando contenedores...</div>;
+  if (loadingCont) return <LimonLoader texto="Cargando contenedores" />;
 
   return (
     <div>
