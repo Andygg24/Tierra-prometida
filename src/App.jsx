@@ -1826,14 +1826,9 @@ function InformesDemo() {
       } else {
         messages = [{ role:"user", content:`Analiza este archivo como JARVIS de Tierra Prometida Trading 🍋. Genera informe ejecutivo con resumen, hallazgos y recomendaciones.\n\nContenido:\n${archivoTexto.slice(0,8000)}` }];
       }
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/informe-analisis", {
         method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
+        headers:{ "Content-Type":"application/json" },
         body:JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:2000, system:"Eres JARVIS, asistente de Tierra Prometida Trading 🍋, empresa colombiana de procesamiento y exportación de frutas en Lebrija y Girón, Santander. Generas informes ejecutivos claros, profesionales y en español. Incluye resumen ejecutivo, hallazgos clave, métricas importantes y recomendaciones accionables para los socios.", messages }) });
       if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message||`Error ${res.status}`); }
       const data = await res.json();
@@ -7049,6 +7044,8 @@ function InicioDemo({ onNavigate }) {
   const { items: invInicio } = useInventario();
   const { pedidos } = usePedidos();
   const { registros: asistRegs } = useAsistencia();
+  const { empleados: empleadosInicio } = usePersonal();
+  const empleadosReal = empleadosInicio.length > 0 ? empleadosInicio : EMPLEADOS_DB;
 
   useEffect(() => {
     const id = setInterval(() => setHora(new Date()), 1000);
@@ -7112,8 +7109,8 @@ function InicioDemo({ onNavigate }) {
 
   // Stats
   const bajoStock   = inventarioReal.filter(i => i.categoria === "Herramientas" ? i.cant === 0 : i.cant <= i.minimo);
-  const sinCuenta   = EMPLEADOS_DB.filter(e => !e.cuenta || e.cuenta === "-").length;
-  const sinTel      = EMPLEADOS_DB.filter(e => !e.tel    || e.tel    === "-").length;
+  const sinCuenta   = empleadosReal.filter(e => !e.cuenta || e.cuenta === "-").length;
+  const sinTel      = empleadosReal.filter(e => !e.tel    || e.tel    === "-").length;
   const alertaCount = bajoStock.length + (sinCuenta > 0 ? 1 : 0) + (sinTel > 0 ? 1 : 0);
   const nominaFija  = SALARIO_MINIMO + QUINCENA_DESCARGUE * 2 * 3;
   const ingresoUSD  = pedidos.reduce((s, p) => s + p.cantidadKg * p.precioUSD, 0);
@@ -7207,12 +7204,12 @@ function InicioDemo({ onNavigate }) {
         {/* Personal */}
         <div style={{ background:"rgba(0,201,167,0.05)", border:"1px solid rgba(0,201,167,0.14)", borderRadius:12, padding:"12px 14px" }}>
           <div style={{ fontSize:9, color:"rgba(0,201,167,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>👥 Personal</div>
-          <div style={{ fontSize:28, fontWeight:800, color:"#00C9A7", lineHeight:1, marginBottom:4 }}>{EMPLEADOS_DB.length}</div>
+          <div style={{ fontSize:28, fontWeight:800, color:"#00C9A7", lineHeight:1, marginBottom:4 }}>{empleadosReal.length}</div>
           <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:8 }}>empleados registrados</div>
           <div style={{ display:"flex", gap:4 }}>
-            {[["CC Col",EMPLEADOS_DB.filter(e=>e.doc==="CC Nacional").length,"#00C9A7"],
-              ["Venezuela",EMPLEADOS_DB.filter(e=>e.doc==="CC Venezuela").length,"#F9A826"],
-              ["PPT",EMPLEADOS_DB.filter(e=>e.doc==="PPT").length,"#845EF7"]].map(([l,v,c])=>(
+            {[["CC Col",empleadosReal.filter(e=>e.doc==="CC Nacional").length,"#00C9A7"],
+              ["Venezuela",empleadosReal.filter(e=>e.doc==="CC Venezuela").length,"#F9A826"],
+              ["PPT",empleadosReal.filter(e=>e.doc==="PPT").length,"#845EF7"]].map(([l,v,c])=>(
               <div key={l} style={{ flex:1, textAlign:"center", background:`${c}10`, borderRadius:6, padding:"3px 2px" }}>
                 <div style={{ fontSize:11, fontWeight:800, color:c }}>{v}</div>
                 <div style={{ fontSize:7, color:"rgba(255,255,255,0.3)", lineHeight:1.3 }}>{l}</div>

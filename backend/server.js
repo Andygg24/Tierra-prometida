@@ -14,6 +14,10 @@ const cors     = require("cors");
 const path     = require("path");
 const { execFile } = require("child_process");
 
+// Carga backend/.env (API keys de servidor — nunca deben llevar el prefijo VITE_
+// para que Vite no las incruste en el bundle del navegador)
+try { process.loadEnvFile(path.join(__dirname, ".env")); } catch { /* .env opcional */ }
+
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
@@ -182,6 +186,32 @@ app.post("/api/exportar-zip", async (req, res) => {
   }
 });
 
+// ── POST /api/informe-analisis — proxy seguro a Anthropic ─────────────
+// La API key vive solo en el servidor (backend/.env → ANTHROPIC_API_KEY).
+// El frontend nunca ve la key; solo envía { model, max_tokens, system, messages }.
+app.post("/api/informe-analisis", async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: "ANTHROPIC_API_KEY no configurada en backend/.env" });
+  }
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(req.body),
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json(data);
+    res.json(data);
+  } catch (e) {
+    console.error("[informe-analisis]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Health check ──────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", version: "1.0.0", service: "Tierra Prometida Export Docs" });
@@ -196,7 +226,8 @@ if (require.main === module) {
     console.log(`     POST /api/carta-temp`);
     console.log(`     POST /api/proforma`);
     console.log(`     POST /api/isf`);
-    console.log(`     POST /api/exportar-zip\n`);
+    console.log(`     POST /api/exportar-zip`);
+    console.log(`     POST /api/informe-analisis\n`);
   });
 }
 
