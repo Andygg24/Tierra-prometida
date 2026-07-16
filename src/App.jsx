@@ -107,9 +107,9 @@ function ConfirmModal({ mensaje, onConfirm, onCancel }) {
       <div style={{ background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.17)", borderRadius:16, padding:24, maxWidth:300, width:"100%", textAlign:"center" }}>
         <div style={{ fontSize:32, marginBottom:10 }}>⚠️</div>
         <div style={{ fontSize:14, color:"white", fontWeight:600, marginBottom:8 }}>¿Estás seguro?</div>
-        <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginBottom:20, lineHeight:1.5 }}>{mensaje}</div>
+        <div style={{ fontSize:12, color:"rgba(255,255,255,0.62)", marginBottom:20, lineHeight:1.5 }}>{mensaje}</div>
         <div style={{ display:"flex", gap:10 }}>
-          <button onClick={onCancel} style={{ flex:1, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.17)", borderRadius:10, padding:"10px", fontSize:13, color:"rgba(255,255,255,0.6)", cursor:"pointer" }}>Cancelar</button>
+          <button onClick={onCancel} style={{ flex:1, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.17)", borderRadius:10, padding:"10px", fontSize:13, color:"rgba(255,255,255,0.68)", cursor:"pointer" }}>Cancelar</button>
           <button onClick={onConfirm} style={{ flex:1, background:"linear-gradient(135deg,#FF6B6B,#845EF7)", border:"none", borderRadius:10, padding:"10px", fontSize:13, color:"white", cursor:"pointer", fontWeight:700 }}>Confirmar</button>
         </div>
       </div>
@@ -265,7 +265,7 @@ function PersonalDemo() {
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
                 <button onClick={()=>pedir("¿Guardar cambios?",guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
-                <button onClick={()=>setEditando(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
+                <button onClick={()=>setEditando(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
               </div>
             </div>
           </div>
@@ -279,31 +279,31 @@ function PersonalDemo() {
           <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.82)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div style={{ background:"#1a1a2e", border:"1px solid rgba(249,168,38,0.35)", borderRadius:16, padding:24, maxWidth:340, width:"100%" }}>
               <div style={{ fontSize:14, fontWeight:700, color:"#F9A826", marginBottom:3 }}>📄 Contrato</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:14 }}>{emp?.nombre}</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginBottom:14 }}>{emp?.nombre}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 <div>
-                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Tipo de contrato</div>
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Tipo de contrato</div>
                   <CustomSelect value={contratoForm.tipo} onChange={e=>setContratoForm(f=>({...f,tipo:e.target.value}))} style={inp}>
                     {["OPS","Término fijo","Término indefinido","Obra o labor","Aprendizaje"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
                   </CustomSelect>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Fecha inicio</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha inicio</div>
                     <input type="date" value={contratoForm.fechaInicio} onChange={e=>setContratoForm(f=>({...f,fechaInicio:e.target.value}))} style={inp} />
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Fecha vencimiento</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha vencimiento</div>
                     <input type="date" value={contratoForm.fechaFin} onChange={e=>setContratoForm(f=>({...f,fechaFin:e.target.value}))} style={inp} />
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Notas</div>
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Notas</div>
                   <input placeholder="Observaciones..." value={contratoForm.notas} onChange={e=>setContratoForm(f=>({...f,notas:e.target.value}))} style={inp} />
                 </div>
                 <div style={{ display:"flex", gap:8, marginTop:4 }}>
                   <button onClick={saveContrato} style={{ flex:1, background:"linear-gradient(135deg,#F9A826,#845EF7)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
-                  <button onClick={()=>setContratoEmp(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
+                  <button onClick={()=>setContratoEmp(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
                 </div>
               </div>
             </div>
@@ -318,37 +318,37 @@ function PersonalDemo() {
           <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.82)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div style={{ background:"#1a1a2e", border:"1px solid rgba(255,107,107,0.35)", borderRadius:16, padding:24, maxWidth:340, width:"100%" }}>
               <div style={{ fontSize:14, fontWeight:700, color:"#FF6B6B", marginBottom:3 }}>🏥 Seguridad Social</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:14 }}>{emp?.nombre}</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginBottom:14 }}>{emp?.nombre}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 <div style={{ display:"flex", gap:6 }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>EPS</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>EPS</div>
                     <input placeholder="Sura, Nueva EPS..." value={formSeg.eps} onChange={e=>setFormSeg(f=>({...f,eps:e.target.value}))} style={inp} />
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Fecha afiliación EPS</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha afiliación EPS</div>
                     <input type="date" value={formSeg.fechaEPS} onChange={e=>setFormSeg(f=>({...f,fechaEPS:e.target.value}))} style={inp} />
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>ARL</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>ARL</div>
                     <input placeholder="Sura, Colmena..." value={formSeg.arl} onChange={e=>setFormSeg(f=>({...f,arl:e.target.value}))} style={inp} />
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Fecha afiliación ARL</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha afiliación ARL</div>
                     <input type="date" value={formSeg.fechaARL} onChange={e=>setFormSeg(f=>({...f,fechaARL:e.target.value}))} style={inp} />
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Estado</div>
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Estado</div>
                   <CustomSelect value={formSeg.estado} onChange={e=>setFormSeg(f=>({...f,estado:e.target.value}))} style={inp}>
                     {["Activo","Inactivo","En trámite","Sin afiliación"].map(s=><option key={s} style={{background:"#1a1a2e"}}>{s}</option>)}
                   </CustomSelect>
                 </div>
                 <div style={{ display:"flex", gap:8, marginTop:4 }}>
                   <button onClick={saveSeg} style={{ flex:1, background:"linear-gradient(135deg,#FF6B6B,#845EF7)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
-                  <button onClick={()=>setEditSeg(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
+                  <button onClick={()=>setEditSeg(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
                 </div>
               </div>
             </div>
@@ -373,7 +373,7 @@ function PersonalDemo() {
             {[{l:"Total",v:stats.total,c:"rgba(255,255,255,0.6)"},{l:"CC Col",v:stats.cc,c:"#00C9A7"},{l:"Venezuela",v:stats.ven,c:"#F9A826"},{l:"PPT",v:stats.ppt,c:"#845EF7"}].map((s,i)=>(
               <div key={i} style={{ flex:1, background:"rgba(255,255,255,0.06)", borderRadius:8, padding:"6px 8px", textAlign:"center" }}>
                 <div style={{ fontSize:16, fontWeight:700, color:s.c }}>{s.v}</div>
-                <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{s.l}</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)" }}>{s.l}</div>
               </div>
             ))}
           </div>
@@ -398,7 +398,7 @@ function PersonalDemo() {
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
                   <button onClick={guardar} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
-                  <button onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
+                  <button onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
                 </div>
               </div>
             </div>
@@ -407,7 +407,7 @@ function PersonalDemo() {
             <div style={{ background:"rgba(37,211,102,0.06)", border:"1px solid rgba(37,211,102,0.2)", borderRadius:12, padding:14, marginBottom:10 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#25D366", marginBottom:8 }}>📢 Notificación de turno</div>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>⏰ Hora:</span>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.58)" }}>⏰ Hora:</span>
                 <input value={hora} onChange={e=>setHora(e.target.value)} style={{...inp,width:100}} />
               </div>
               {selected.length>0 && selected.map((emp,i)=>{
@@ -419,7 +419,7 @@ function PersonalDemo() {
                   </div>
                 );
               })}
-              {selected.length===0 && <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Selecciona empleados abajo 👇</div>}
+              {selected.length===0 && <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>Selecciona empleados abajo 👇</div>}
               {selected.length>0 && <button onClick={()=>setSelected([])} style={{ marginTop:6, background:"rgba(255,100,100,0.1)", border:"1px solid rgba(255,100,100,0.3)", borderRadius:6, padding:"5px 10px", fontSize:11, color:"#ff6b6b", cursor:"pointer" }}>🗑 Limpiar</button>}
             </div>
           )}
@@ -448,10 +448,10 @@ function PersonalDemo() {
                         <span style={{ fontSize:13, color:"white", fontWeight:700 }}>{emp.nombre}</span>
                         {isExtra && <span style={{ fontSize:9, background:"rgba(132,94,247,0.2)", color:"#845EF7", borderRadius:5, padding:"2px 6px", fontWeight:700 }}>NUEVO</span>}
                       </div>
-                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", lineHeight:1.6 }}>
-                        <span style={{ color:"rgba(255,255,255,0.55)" }}>{emp.area}</span>
-                        {emp.num!=="-" && <><span style={{ color:"rgba(255,255,255,0.2)" }}> · </span><span>{emp.num}</span></>}
-                        {emp.tel!=="-" && <><span style={{ color:"rgba(255,255,255,0.2)" }}> · </span><span>📞 {emp.tel}</span></>}
+                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.52)", lineHeight:1.6 }}>
+                        <span style={{ color:"rgba(255,255,255,0.62)" }}>{emp.area}</span>
+                        {emp.num!=="-" && <><span style={{ color:"rgba(255,255,255,0.28)" }}> · </span><span>{emp.num}</span></>}
+                        {emp.tel!=="-" && <><span style={{ color:"rgba(255,255,255,0.28)" }}> · </span><span>📞 {emp.tel}</span></>}
                       </div>
                       <div style={{ display:"flex", gap:4, marginTop:5, flexWrap:"wrap" }}>
                         {cont && <span style={{ fontSize:8, background:`${contColor(dias)}15`, color:contColor(dias), borderRadius:4, padding:"1px 6px", fontWeight:700, border:`1px solid ${contColor(dias)}28` }}>📄 {cont.tipo}{dias!==null?` · ${dias<0?"VENCIDO":`${dias}d`}`:""}</span>}
@@ -465,7 +465,7 @@ function PersonalDemo() {
                   {!showBroadcast && (
                     <div style={{ borderTop:"1px solid rgba(255,255,255,0.09)", display:"flex" }}>
                       <button onClick={e=>{e.stopPropagation();setEditando(emp.num);setEditForm({nombre:emp.nombre,doc:emp.doc,num:emp.num,tel:emp.tel,area:emp.area});}}
-                        style={{ flex:1, background:"rgba(255,255,255,0.05)", border:"none", borderRight:"1px solid rgba(255,255,255,0.09)", padding:"9px", fontSize:11, color:"rgba(255,255,255,0.5)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                        style={{ flex:1, background:"rgba(255,255,255,0.05)", border:"none", borderRight:"1px solid rgba(255,255,255,0.09)", padding:"9px", fontSize:11, color:"rgba(255,255,255,0.58)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
                         ✏️ Editar
                       </button>
                       <button onClick={()=>{setContratoEmp(emp.num);setContratoForm(contratos[emp.num]||{tipo:"OPS",fechaInicio:"",fechaFin:"",notas:""});}}
@@ -508,7 +508,7 @@ function PersonalDemo() {
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 6px", textAlign:"center" }}>
                   <div style={{ fontSize:18 }}>{k.icon}</div>
                   <div style={{ fontSize:18, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2 }}>{k.l}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2 }}>{k.l}</div>
                 </div>
               ))}
             </div>
@@ -537,11 +537,11 @@ function PersonalDemo() {
                   <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${c?col+"28":"rgba(255,255,255,0.06)"}`, borderRadius:10, padding:"10px 12px", display:"flex", alignItems:"center", gap:8 }}>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:11, fontWeight:700, color:"white", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{emp.nombre}</div>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>{emp.area}</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:4 }}>{emp.area}</div>
                       {c ? (
                         <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                           <span style={{ fontSize:9, background:`${col}14`, color:col, borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.tipo}</span>
-                          {c.fechaInicio && <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>Desde {c.fechaInicio}</span>}
+                          {c.fechaInicio && <span style={{ fontSize:9, color:"rgba(255,255,255,0.42)" }}>Desde {c.fechaInicio}</span>}
                           {dias !== null && (
                             <span style={{ fontSize:9, background:dias<0?"rgba(255,107,107,0.14)":dias<30?"rgba(249,168,38,0.14)":"rgba(0,201,167,0.1)", color:col, borderRadius:4, padding:"1px 6px", fontWeight:700 }}>
                               {dias<0?`Vencido hace ${Math.abs(dias)}d`:dias===0?"Vence hoy":`${dias}d restantes`}
@@ -550,7 +550,7 @@ function PersonalDemo() {
                           {c.notas && <span style={{ fontSize:9, color:"rgba(249,168,38,0.6)", fontStyle:"italic" }}>{c.notas}</span>}
                         </div>
                       ) : (
-                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>Sin contrato registrado</span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.33)" }}>Sin contrato registrado</span>
                       )}
                     </div>
                     <button onClick={()=>{setContratoEmp(emp.num);setContratoForm(c||{tipo:"OPS",fechaInicio:"",fechaFin:"",notas:""});}}
@@ -579,7 +579,7 @@ function PersonalDemo() {
         return (
           <div>
             <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Empleado</div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:4 }}>Empleado</div>
               <CustomSelect value={empPagoActual} onChange={e=>setSelEmpPago(e.target.value)}
                 style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
@@ -594,7 +594,7 @@ function PersonalDemo() {
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
                   <div style={{ fontSize:15 }}>{k.icon}</div>
                   <div style={{ fontSize:12, fontWeight:800, color:k.c, marginTop:1 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:1, lineHeight:1.3 }}>{k.l}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:1, lineHeight:1.3 }}>{k.l}</div>
                 </div>
               ))}
             </div>
@@ -615,42 +615,42 @@ function PersonalDemo() {
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   <div style={{ display:"flex", gap:6 }}>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Fecha *</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha *</div>
                       <input type="date" value={formPago.fecha} onChange={e=>setFormPago(f=>({...f,fecha:e.target.value}))} style={inp} />
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Monto COP *</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Monto COP *</div>
                       <input type="number" placeholder="180000" value={formPago.monto} onChange={e=>setFormPago(f=>({...f,monto:e.target.value}))} style={inp} />
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:6 }}>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Tipo</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Tipo</div>
                       <CustomSelect value={formPago.tipo} onChange={e=>setFormPago(f=>({...f,tipo:e.target.value}))} style={inp}>
                         {["Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
                       </CustomSelect>
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Referencia</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Referencia</div>
                       <input placeholder="CONT-2026-044" value={formPago.ref} onChange={e=>setFormPago(f=>({...f,ref:e.target.value}))} style={inp} />
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:6 }}>
                     <button onClick={agregarPago} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar pago</button>
-                    <button onClick={()=>setShowFormPago(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
+                    <button onClick={()=>setShowFormPago(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
                   </div>
                 </div>
               </div>
             )}
             {histEmp.length===0 ? (
-              <div style={{ textAlign:"center", padding:"30px", color:"rgba(255,255,255,0.3)", fontSize:12 }}>Sin pagos registrados para {empSelObj?.nombre?.split(" ")[0]}</div>
+              <div style={{ textAlign:"center", padding:"30px", color:"rgba(255,255,255,0.38)", fontSize:12 }}>Sin pagos registrados para {empSelObj?.nombre?.split(" ")[0]}</div>
             ) : (
               <div>
                 {histEmp.map((p,i)=>(
                   <div key={p.id||i} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(132,94,247,0.18)", borderRadius:10, padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                     <div>
                       <div style={{ fontSize:11, color:"white", fontWeight:700 }}>{p.tipo}</div>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginTop:1 }}>{p.fecha}{p.ref?` · ${p.ref}`:""}</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginTop:1 }}>{p.fecha}{p.ref?` · ${p.ref}`:""}</div>
                     </div>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <div style={{ fontSize:14, fontWeight:800, color:"#845EF7" }}>{fmtCOP(p.monto)}</div>
@@ -660,7 +660,7 @@ function PersonalDemo() {
                   </div>
                 ))}
                 <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", borderTop:"1px solid rgba(255,255,255,0.10)", marginTop:4 }}>
-                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Total pagado</span>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>Total pagado</span>
                   <span style={{ fontSize:15, fontWeight:800, color:"#00C9A7" }}>{fmtCOP(totalPag)}</span>
                 </div>
               </div>
@@ -683,7 +683,7 @@ function PersonalDemo() {
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
                   <div style={{ fontSize:18 }}>{k.icon}</div>
                   <div style={{ fontSize:18, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2 }}>{k.l}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2 }}>{k.l}</div>
                 </div>
               ))}
             </div>
@@ -710,7 +710,7 @@ function PersonalDemo() {
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
                       <div>
                         <div style={{ fontSize:11, fontWeight:700, color:"white" }}>{emp.nombre}</div>
-                        <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{emp.area} · {n}/{DOC_TIPOS_PERS.length} docs</div>
+                        <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)" }}>{emp.area} · {n}/{DOC_TIPOS_PERS.length} docs</div>
                       </div>
                       <span style={{ fontSize:10, background:`${col}18`, color:col, borderRadius:6, padding:"2px 8px", fontWeight:700 }}>{pct}%</span>
                     </div>
@@ -742,7 +742,7 @@ function PersonalDemo() {
         return (
           <div>
             <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Empleado</div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:4 }}>Empleado</div>
               <CustomSelect value={empDesempActual} onChange={e=>setSelEmpDesemp(e.target.value)}
                 style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
                 {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
@@ -756,7 +756,7 @@ function PersonalDemo() {
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                 <div style={{ flex:1, background:"rgba(249,168,38,0.06)", border:"1px solid rgba(249,168,38,0.18)", borderRadius:12, padding:"12px", textAlign:"center" }}>
                   <div style={{ fontSize:30, fontWeight:800, color:"#F9A826" }}>{prom.toFixed(1)}</div>
-                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>promedio / 5</div>
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)" }}>promedio / 5</div>
                   <div style={{ fontSize:16, marginTop:3 }}>{"⭐".repeat(Math.round(prom))}</div>
                 </div>
                 <div style={{ flex:2, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px" }}>
@@ -766,7 +766,7 @@ function PersonalDemo() {
                     return (
                       <div key={c} style={{ marginBottom:5 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.45)", textTransform:"capitalize" }}>{c}</span>
+                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.52)", textTransform:"capitalize" }}>{c}</span>
                           <span style={{ fontSize:9, fontWeight:700, color:col }}>{p2.toFixed(1)}</span>
                         </div>
                         <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:3, height:5 }}>
@@ -786,13 +786,13 @@ function PersonalDemo() {
               <div style={{ background:"rgba(249,168,38,0.05)", border:"1px solid rgba(249,168,38,0.18)", borderRadius:12, padding:14, marginBottom:12 }}>
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                   <div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Fecha *</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha *</div>
                     <input type="date" value={formDesemp.fecha} onChange={e=>setFormDesemp(f=>({...f,fecha:e.target.value}))} style={inp} />
                   </div>
                   {CRITERIOS_DESEMP.map(c=>(
                     <div key={c}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)", textTransform:"capitalize" }}>{c}</span>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.68)", textTransform:"capitalize" }}>{c}</span>
                         <div style={{ display:"flex", gap:3, alignItems:"center" }}>
                           {[1,2,3,4,5].map(n=>(
                             <button key={n} onClick={()=>setFormDesemp(f=>({...f,[c]:n}))}
@@ -806,18 +806,18 @@ function PersonalDemo() {
                     </div>
                   ))}
                   <div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Notas</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Notas</div>
                     <input placeholder="Observaciones..." value={formDesemp.nota} onChange={e=>setFormDesemp(f=>({...f,nota:e.target.value}))} style={inp} />
                   </div>
                   <div style={{ display:"flex", gap:6 }}>
                     <button onClick={agregarEval} style={{ flex:1, background:"linear-gradient(135deg,#F9A826,#845EF7)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar evaluación</button>
-                    <button onClick={()=>setShowFormDesemp(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
+                    <button onClick={()=>setShowFormDesemp(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
                   </div>
                 </div>
               </div>
             )}
             {histDesemp.length===0 ? (
-              <div style={{ textAlign:"center", padding:"30px", color:"rgba(255,255,255,0.3)", fontSize:12 }}>Sin evaluaciones para {empSelObj?.nombre?.split(" ")[0]}</div>
+              <div style={{ textAlign:"center", padding:"30px", color:"rgba(255,255,255,0.38)", fontSize:12 }}>Sin evaluaciones para {empSelObj?.nombre?.split(" ")[0]}</div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                 {histDesemp.map((ev,i)=>{
@@ -826,12 +826,12 @@ function PersonalDemo() {
                   return (
                     <div key={ev.id||i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${col}22`, borderRadius:10, padding:"10px 14px" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>{ev.fecha}</div>
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.58)" }}>{ev.fecha}</div>
                         <div style={{ fontSize:14, fontWeight:800, color:col }}>{p2.toFixed(1)}/5</div>
                       </div>
                       <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:ev.nota?5:0 }}>
                         {CRITERIOS_DESEMP.map(c=>(
-                          <span key={c} style={{ fontSize:9, background:"rgba(255,255,255,0.07)", borderRadius:4, padding:"2px 7px", color:"rgba(255,255,255,0.45)" }}>
+                          <span key={c} style={{ fontSize:9, background:"rgba(255,255,255,0.07)", borderRadius:4, padding:"2px 7px", color:"rgba(255,255,255,0.52)" }}>
                             {c.charAt(0).toUpperCase()+c.slice(1)}: {ev[c]}/5
                           </span>
                         ))}
@@ -871,7 +871,7 @@ function PersonalDemo() {
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 6px", textAlign:"center" }}>
                   <div style={{ fontSize:18 }}>{k.icon}</div>
                   <div style={{ fontSize:18, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2 }}>{k.l}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2 }}>{k.l}</div>
                 </div>
               ))}
             </div>
@@ -902,10 +902,10 @@ function PersonalDemo() {
                       <div style={{ display:"flex", gap:5, marginTop:4, flexWrap:"wrap" }}>
                         {s?.eps
                           ? <span style={{ fontSize:9, background:"rgba(255,107,107,0.1)", color:"#FF6B6B", borderRadius:4, padding:"1px 7px", fontWeight:700 }}>🏥 {s.eps}{s.fechaEPS?` · ${s.fechaEPS}`:""}</span>
-                          : <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>🏥 Sin EPS</span>}
+                          : <span style={{ fontSize:9, color:"rgba(255,255,255,0.33)" }}>🏥 Sin EPS</span>}
                         {s?.arl
                           ? <span style={{ fontSize:9, background:"rgba(249,168,38,0.1)", color:"#F9A826", borderRadius:4, padding:"1px 7px", fontWeight:700 }}>🦺 {s.arl}{s.fechaARL?` · ${s.fechaARL}`:""}</span>
-                          : <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>🦺 Sin ARL</span>}
+                          : <span style={{ fontSize:9, color:"rgba(255,255,255,0.33)" }}>🦺 Sin ARL</span>}
                         {s?.estado && <span style={{ fontSize:9, background:`${ok?"rgba(0,201,167,0.1)":"rgba(249,168,38,0.1)"}`, color:ok?"#00C9A7":"#F9A826", borderRadius:4, padding:"1px 7px", fontWeight:700 }}>{s.estado}</span>}
                       </div>
                     </div>
@@ -988,7 +988,7 @@ function NominaDemo() {
   const { empleados, loading: loadingEmp } = usePersonal();
 
   const inp = {background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"7px 10px",color:"white",fontSize:11,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
-  const lbl = {fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:3};
+  const lbl = {fontSize:9,color:"rgba(255,255,255,0.48)",marginBottom:3};
 
   if (loadingLiq || loadingEmp) return <LimonLoader texto="Cargando nómina" />;
 
@@ -1133,7 +1133,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
             <span style={{color:"white",fontWeight:700,fontSize:13}}>👁 Vista Previa — {previewData.filename}</span>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{const a=document.createElement("a");a.href=previewData.url;a.download=previewData.filename;a.click();}} style={{background:"linear-gradient(135deg,#1D6F42,#21A366)",border:"none",borderRadius:8,padding:"7px 16px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>📥 Descargar</button>
-              <button onClick={()=>setPreviewData(null)} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.20)",borderRadius:8,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.7)",cursor:"pointer"}}>✕ Cerrar</button>
+              <button onClick={()=>setPreviewData(null)} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.20)",borderRadius:8,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.78)",cursor:"pointer"}}>✕ Cerrar</button>
             </div>
           </div>
           <iframe src={previewData.url} style={{flex:1,border:"none",background:"white"}} title="Vista previa del documento" />
@@ -1171,11 +1171,11 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
             <div style={{background:"rgba(249,168,38,0.07)",border:"1px solid rgba(249,168,38,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:10,fontSize:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
                 {[["CC",empSel.num],["Banco",empSel.banco],["Cuenta",empSel.cuenta||"—"]].map(([k,v])=>(
-                  <div key={k}><span style={{color:"rgba(255,255,255,0.35)"}}>{k}: </span><span style={{color:"white",fontWeight:600}}>{v}</span></div>
+                  <div key={k}><span style={{color:"rgba(255,255,255,0.42)"}}>{k}: </span><span style={{color:"white",fontWeight:600}}>{v}</span></div>
                 ))}
               </div>
               <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
-                <span style={{fontSize:9,color:"rgba(255,255,255,0.35)",marginRight:4}}>Tipo de pago:</span>
+                <span style={{fontSize:9,color:"rgba(255,255,255,0.42)",marginRight:4}}>Tipo de pago:</span>
                 {["contenedor","nomina"].map(t=>{
                   const act=getTipo(empSel.num)===t;
                   return (
@@ -1224,11 +1224,11 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
                 {k:"hrd",  l:"Recargo Dom/Fest Ord. +75%",       v:HRD},
               ].map(({k,l,v})=>(
                 <div key={k} style={{background:"rgba(255,255,255,0.05)",borderRadius:8,padding:"8px 10px"}}>
-                  <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:4}}>{l}</div>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.48)",marginBottom:4}}>{l}</div>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <input type="number" min="0" value={extras[k]} onChange={e=>setExtras(p=>({...p,[k]:Number(e.target.value)||0}))}
                       style={{...inp,width:60,padding:"5px 8px"}} />
-                    <span style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>h</span>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.38)"}}>h</span>
                     {v>0&&<span style={{fontSize:10,color:"#a5b4fc",marginLeft:"auto"}}>{fmtCOP(v)}</span>}
                   </div>
                 </div>
@@ -1251,7 +1251,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
           <div style={{background:"rgba(249,168,38,0.06)",border:"1px solid rgba(249,168,38,0.2)",borderRadius:12,padding:14,marginBottom:10}}>
             <div style={{fontSize:12,fontWeight:700,color:"#F9A826",marginBottom:10}}>Resumen de liquidación — {periodo}</div>
             <div style={{marginBottom:8}}>
-              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Devengado</div>
+              <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Devengado</div>
               {[
                 ["Salario básico", fmtCOP(salBase), "#F9A826"],
                 auxT>0 && ["Auxilio de transporte", fmtCOP(auxT), "#F9A826"],
@@ -1259,7 +1259,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
                 totalExtras>0 && ["Extras y recargos", fmtCOP(totalExtras), "#a5b4fc"],
               ].filter(Boolean).map(([l,v,c],i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-                  <span style={{color:"rgba(255,255,255,0.55)"}}>{l}</span><span style={{color:c,fontWeight:600}}>{v}</span>
+                  <span style={{color:"rgba(255,255,255,0.62)"}}>{l}</span><span style={{color:c,fontWeight:600}}>{v}</span>
                 </div>
               ))}
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,color:"#F9A826",padding:"5px 0",marginTop:2}}>
@@ -1267,7 +1267,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
               </div>
             </div>
             <div style={{marginBottom:8}}>
-              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Deducciones</div>
+              <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Deducciones</div>
               {[
                 ["Salud empleado 4%", fmtCOP(saludEmp)],
                 ["Pensión empleado 4%", fmtCOP(pensionEmp)],
@@ -1276,7 +1276,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
                 otrosDesc>0 && [otrosDescLbl||"Otros descuentos", fmtCOP(otrosDesc)],
               ].filter(Boolean).map(([l,v],i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-                  <span style={{color:"rgba(255,255,255,0.55)"}}>{l}</span><span style={{color:"#FF6B6B",fontWeight:600}}>-{v}</span>
+                  <span style={{color:"rgba(255,255,255,0.62)"}}>{l}</span><span style={{color:"#FF6B6B",fontWeight:600}}>-{v}</span>
                 </div>
               ))}
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,color:"#FF6B6B",padding:"5px 0",marginTop:2}}>
@@ -1300,7 +1300,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
                 ["ARL Nivel I 0.52%",fmtCOP(arl)],["Caja Comp. Fam. 4%",fmtCOP(caja)],
               ].map(([l,v])=>(
                 <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-                  <span style={{color:"rgba(255,255,255,0.35)"}}>{l}</span><span style={{color:"#a5b4fc",fontWeight:600}}>{v}</span>
+                  <span style={{color:"rgba(255,255,255,0.42)"}}>{l}</span><span style={{color:"#a5b4fc",fontWeight:600}}>{v}</span>
                 </div>
               ))}
             </div>
@@ -1322,7 +1322,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
               📄 Generar y Descargar Colilla
             </button>
             <button onClick={()=>{setExtras({hed:0,hen:0,hrn:0,hedd:0,hedn:0,hrd:0});setDiasAus(0);setAnticipo(0);setRetencion(0);setOtrosDesc(0);setOtrosDescLbl("");setSalBase(SALARIO_MINIMO);}}
-              style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"11px 14px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer"}}>
+              style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"11px 14px",fontSize:12,color:"rgba(255,255,255,0.48)",cursor:"pointer"}}>
               🔄 Limpiar
             </button>
           </div>
@@ -1438,8 +1438,8 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                               </div>
                               <div style={{flex:1,minWidth:0}}>
                                 <span style={{fontSize:11,fontWeight:700,color:"white"}}>🚢 {p.numContenedor}</span>
-                                <span style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginLeft:6}}>📅 {p.fecha}</span>
-                                {p.producto&&<span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginLeft:6}}>{p.producto}</span>}
+                                <span style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginLeft:6}}>📅 {p.fecha}</span>
+                                {p.producto&&<span style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginLeft:6}}>{p.producto}</span>}
                               </div>
                               <span style={{fontSize:10,fontWeight:700,color:tCol,background:`${tCol}18`,borderRadius:5,padding:"2px 7px",flexShrink:0}}>
                                 {p.turno==="Día"?"☀️ Día":p.turno==="Noche"?"🌙 Noche":"☀️🌙 Ambos"}
@@ -1455,7 +1455,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                       <div style={lbl}>Contenedores trabajados</div>
                       <input type="number" min="0" value={numConts} onChange={e=>setNumConts(Number(e.target.value)||0)}
                         style={{...inp,fontSize:18,fontWeight:700,textAlign:"center",color:"#00C9A7"}} />
-                      <div style={{fontSize:9,color:"rgba(255,255,255,0.25)",marginTop:4}}>Sin contenedores registrados en el sistema — entrada manual</div>
+                      <div style={{fontSize:9,color:"rgba(255,255,255,0.33)",marginTop:4}}>Sin contenedores registrados en el sistema — entrada manual</div>
                     </div>
                   )}
 
@@ -1472,7 +1472,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                           const act=metodoPago===m.id;
                           return (
                             <button key={m.id} onClick={()=>setMetodoPago(m.id)}
-                              style={{flex:1,padding:"6px 2px",borderRadius:7,border:`1px solid ${act?m.color:"rgba(255,255,255,0.1)"}`,background:act?`${m.color}22`:"transparent",color:act?m.color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:10,fontWeight:act?700:400}}>
+                              style={{flex:1,padding:"6px 2px",borderRadius:7,border:`1px solid ${act?m.color:"rgba(255,255,255,0.15)"}`,background:act?`${m.color}22`:"transparent",color:act?m.color:"rgba(255,255,255,0.38)",cursor:"pointer",fontSize:10,fontWeight:act?700:400}}>
                               {m.icon} {m.id}
                             </button>
                           );
@@ -1481,7 +1481,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                     </div>
                   </div>
                   {metodoPago!=="Efectivo"&&(
-                    <div style={{padding:"6px 10px",background:"rgba(255,255,255,0.05)",borderRadius:7,fontSize:10,color:"rgba(255,255,255,0.4)"}}>
+                    <div style={{padding:"6px 10px",background:"rgba(255,255,255,0.05)",borderRadius:7,fontSize:10,color:"rgba(255,255,255,0.48)"}}>
                       {empSel.banco} · Cuenta: <span style={{color:"white",fontWeight:600}}>{empSel.cuenta && empSel.cuenta!=="-" ? empSel.cuenta : "sin registrar"}</span>
                     </div>
                   )}
@@ -1490,8 +1490,8 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 {/* Total */}
                 <div style={{background:"rgba(0,201,167,0.09)",border:"1px solid rgba(0,201,167,0.3)",borderRadius:12,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <div>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{cantEfectiva} contenedor{cantEfectiva!==1?"es":""} × {fmtCOP(valorCont)}</div>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:2}}>{infoPago}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>{cantEfectiva} contenedor{cantEfectiva!==1?"es":""} × {fmtCOP(valorCont)}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginTop:2}}>{infoPago}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontSize:9,color:"rgba(0,201,167,0.6)",textTransform:"uppercase",letterSpacing:0.5}}>Total a pagar</div>
@@ -1513,7 +1513,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                     📄 Generar Comprobante
                   </button>
                   <button onClick={()=>{setSelectedConts([]);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");}}
-                    style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"11px 14px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer"}}>
+                    style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"11px 14px",fontSize:12,color:"rgba(255,255,255,0.48)",cursor:"pointer"}}>
                     🔄
                   </button>
                 </div>
@@ -1553,7 +1553,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 <div key={e.num} style={{background:"rgba(255,255,255,0.05)",border:`1px solid ${t==="contenedor"?"rgba(0,201,167,0.12)":"rgba(99,102,241,0.12)"}`,borderRadius:10,padding:"8px 12px",marginBottom:5,display:"flex",alignItems:"center",gap:8}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:11,fontWeight:600,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.nombre}</div>
-                    <div style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>{e.area} · {e.doc} {e.num}</div>
+                    <div style={{fontSize:9,color:"rgba(255,255,255,0.42)"}}>{e.area} · {e.doc} {e.num}</div>
                   </div>
                   <div style={{display:"flex",gap:3,flexShrink:0}}>
                     {["contenedor","nomina"].map(tipo=>{
@@ -1570,7 +1570,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               );
             })}
           </div>
-          <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:8,fontSize:10,color:"rgba(255,255,255,0.3)",lineHeight:1.7}}>
+          <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:8,fontSize:10,color:"rgba(255,255,255,0.38)",lineHeight:1.7}}>
             <b style={{color:"rgba(0,201,167,0.7)"}}>🚢 Por Contenedor:</b> Pago de {fmtCOP(VALOR_CONTENEDOR)} por cada contenedor trabajado. Se genera comprobante por periodo.&nbsp;
             <b style={{color:"rgba(99,102,241,0.7)"}}>📋 Por Nómina:</b> Salario base + prestaciones + horas extras + deducciones legales. Se genera colilla oficial.
           </div>
@@ -1587,11 +1587,11 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
         },0);
         return (
           <div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:12}}>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.48)",marginBottom:12}}>
               Pago por contenedor: <span style={{color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)} / persona</span>
             </div>
             {procesos.length===0?(
-              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
+              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.33)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>🚢</div>
                 <div style={{fontSize:13}}>Sin contenedores — ve al módulo Contenedores y crea grupos de trabajo</div>
               </div>
@@ -1605,14 +1605,14 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 <div key={p.id} style={{background:`${col}06`,border:`1px solid ${col}20`,borderRadius:12,marginBottom:10,overflow:"hidden"}}>
                   <div style={{padding:"10px 14px",borderBottom:`1px solid ${col}15`,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontWeight:800,color:"white"}}>🚢 {p.numContenedor}</span>
-                    <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>📅 {p.fecha}</span>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>📅 {p.fecha}</span>
                     <span style={{fontSize:10,background:`${col}22`,color:col,borderRadius:6,padding:"2px 7px",fontWeight:700}}>{p.estado}</span>
                     {p.grupoDia&&<span style={{fontSize:10,background:"rgba(249,168,38,0.15)",color:"#F9A826",borderRadius:6,padding:"2px 7px"}}>☀️ {p.grupoDia}</span>}
                     {p.grupoNoche&&<span style={{fontSize:10,background:"rgba(132,94,247,0.15)",color:"#a78bfa",borderRadius:6,padding:"2px 7px"}}>🌙 {p.grupoNoche}</span>}
                     <span style={{marginLeft:"auto",fontSize:13,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(miembros.length*VALOR)}</span>
                   </div>
                   {miembros.length===0?(
-                    <div style={{padding:"10px 14px",fontSize:11,color:"rgba(255,255,255,0.25)"}}>Sin grupo asignado</div>
+                    <div style={{padding:"10px 14px",fontSize:11,color:"rgba(255,255,255,0.33)"}}>Sin grupo asignado</div>
                   ):(
                     <div style={{padding:"8px 14px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
                       {miembros.map(e=>(
@@ -1628,7 +1628,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
             })}
             {procesos.length>0&&(
               <div style={{background:"rgba(0,201,167,0.08)",border:"1px solid rgba(0,201,167,0.25)",borderRadius:12,padding:"12px 16px",textAlign:"center"}}>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:4}}>Total nómina acumulada contenedores</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.48)",marginBottom:4}}>Total nómina acumulada contenedores</div>
                 <div style={{fontSize:20,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(totalGlobal)}</div>
               </div>
             )}
@@ -1656,7 +1656,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               return true;
             });
             return hist.length===0?(
-              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
+              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.33)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>📜</div>
                 <div style={{fontSize:13}}>Sin colillas generadas — ve a Liquidador y genera una</div>
               </div>
@@ -1665,7 +1665,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
                   <div>
                     <div style={{fontSize:12,fontWeight:700,color:"white"}}>{l.nombre}</div>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{l.area} · {l.periodo} · Generado {l.fecha}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>{l.area} · {l.periodo} · Generado {l.fecha}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontSize:14,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(l.neto)}</div>
@@ -1675,7 +1675,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4}}>
                   {[["Devengado",fmtCOP(l.devengado),"#F9A826"],["Deducciones",`-${fmtCOP(l.totalDeduc)}`,"#FF6B6B"],["Neto",fmtCOP(l.neto),"#00C9A7"]].map(([k,v,c])=>(
                     <div key={k} style={{background:"rgba(255,255,255,0.05)",borderRadius:6,padding:"4px 8px",textAlign:"center"}}>
-                      <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>{k}</div>
+                      <div style={{fontSize:9,color:"rgba(255,255,255,0.38)"}}>{k}</div>
                       <div style={{fontSize:11,fontWeight:700,color:c}}>{v}</div>
                     </div>
                   ))}
@@ -1739,12 +1739,12 @@ ${tabNomina}${tabCont}
               {[{l:"Colillas",v:histMes.length,c:"#6366F1"},{l:"Total devengado",v:fmtCOP(totales.dev),c:"#F9A826"},{l:"Total neto",v:fmtCOP(totales.net),c:"#00C9A7"}].map((s,i)=>(
                 <div key={i} style={{background:`${s.c}12`,border:`1px solid ${s.c}30`,borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
                   <div style={{fontSize:14,fontWeight:800,color:s.c}}>{s.v}</div>
-                  <div style={{fontSize:9,color:"rgba(255,255,255,0.4)"}}>{s.l}</div>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.48)"}}>{s.l}</div>
                 </div>
               ))}
             </div>
             {histMes.length===0?(
-              <div style={{textAlign:"center",padding:"24px 0",color:"rgba(255,255,255,0.25)",fontSize:12}}>
+              <div style={{textAlign:"center",padding:"24px 0",color:"rgba(255,255,255,0.33)",fontSize:12}}>
                 Sin colillas para {periodoCtad} — genera colillas en la pestaña Liquidador
               </div>
             ):(
@@ -1769,7 +1769,7 @@ ${tabNomina}${tabCont}
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:`repeat(${detalles.length},1fr)`,gap:4,fontSize:10}}>
                         {detalles.map(([k,v])=>(
-                          <div key={k} style={{color:"rgba(255,255,255,0.35)"}}>{k}: <span style={{color:"rgba(255,255,255,0.65)"}}>{v}</span></div>
+                          <div key={k} style={{color:"rgba(255,255,255,0.42)"}}>{k}: <span style={{color:"rgba(255,255,255,0.72)"}}>{v}</span></div>
                         ))}
                       </div>
                     </div>
@@ -1843,18 +1843,18 @@ function InformesDemo() {
     <div>
       <div onClick={() => fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} style={{ border:`2px dashed ${archivo?"#FF6B6B":"rgba(255,107,107,0.3)"}`, borderRadius:12, padding:16, textAlign:"center", cursor:"pointer", background:archivo?"rgba(255,107,107,0.06)":"rgba(255,255,255,0.02)", marginBottom:10 }}>
         <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,.png,.jpg,.jpeg" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} />
-        {archivo ? <div><div style={{fontSize:20,marginBottom:4}}>📄</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>{archivo.name}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{(archivo.size/1024).toFixed(1)} KB · Listo</div></div>
-        : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:4}}>Excel, CSV, PDF, imágenes</div></div>}
+        {archivo ? <div><div style={{fontSize:20,marginBottom:4}}>📄</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>{archivo.name}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>{(archivo.size/1024).toFixed(1)} KB · Listo</div></div>
+        : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.58)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>Excel, CSV, PDF, imágenes</div></div>}
       </div>
       {archivo && !analisis && <button onClick={analizar} disabled={loading} style={{ width:"100%", background:loading?"rgba(255,107,107,0.2)":"linear-gradient(135deg,#FF6B6B,#845EF7)", border:"none", borderRadius:10, padding:10, fontSize:13, color:"white", cursor:loading?"default":"pointer", fontWeight:700, marginBottom:10 }}>{loading?"🤖 Analizando...":"🔍 Analizar con JARVIS"}</button>}
       {analisis && (
         <div style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,107,107,0.2)", borderRadius:10, padding:12, marginBottom:10 }}>
           <div style={{ fontSize:11, color:"#FF6B6B", fontWeight:700, marginBottom:8 }}>📋 Informe JARVIS</div>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", lineHeight:1.6, maxHeight:140, overflowY:"auto", whiteSpace:"pre-wrap" }}>{analisis}</div>
-          <button onClick={() => { setArchivo(null); setAnalisis(""); setArchivoTexto(""); }} style={{ marginTop:10, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"6px 12px", fontSize:11, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>🔄 Nuevo análisis</button>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.88)", lineHeight:1.6, maxHeight:140, overflowY:"auto", whiteSpace:"pre-wrap" }}>{analisis}</div>
+          <button onClick={() => { setArchivo(null); setAnalisis(""); setArchivoTexto(""); }} style={{ marginTop:10, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"6px 12px", fontSize:11, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>🔄 Nuevo análisis</button>
         </div>
       )}
-      {historial.length > 0 && <div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Recientes</div>{historial.map((h,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)"}}>📄 {h.nombre}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>{h.fecha}</div></div>)}</div>}
+      {historial.length > 0 && <div><div style={{fontSize:11,color:"rgba(255,255,255,0.38)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Recientes</div>{historial.map((h,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.68)"}}>📄 {h.nombre}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)"}}>{h.fecha}</div></div>)}</div>}
     </div>
   );
 }
@@ -2040,31 +2040,31 @@ function InventarioDemo() {
               <input value={editForm.nombre||""} onChange={e=>setEditForm(f=>({...f,nombre:e.target.value}))} placeholder="Nombre" style={{...inp,width:"100%"}} />
               <div style={{ display:"flex", gap:6 }}>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Cantidad</div>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cantidad</div>
                   <input type="number" value={editForm.cant||0} onChange={e=>setEditForm(f=>({...f,cant:e.target.value}))} style={{...inp,width:"100%"}} />
                 </div>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Mínimo</div>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Mínimo</div>
                   <input type="number" value={editForm.minimo||0} onChange={e=>setEditForm(f=>({...f,minimo:e.target.value}))} style={{...inp,width:"100%"}} />
                 </div>
               </div>
               <div style={{ display:"flex", gap:6 }}>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Unidad</div>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Unidad</div>
                   <input value={editForm.unidad||""} onChange={e=>setEditForm(f=>({...f,unidad:e.target.value}))} style={{...inp,width:"100%"}} />
                 </div>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Costo unit.</div>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Costo unit.</div>
                   <input type="number" value={editForm.costo||0} onChange={e=>setEditForm(f=>({...f,costo:e.target.value}))} style={{...inp,width:"100%"}} />
                 </div>
               </div>
               <div>
-                <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Observaciones</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Observaciones</div>
                 <input value={editForm.obs||""} onChange={e=>setEditForm(f=>({...f,obs:e.target.value}))} style={{...inp,width:"100%"}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
                 <button onClick={() => pedir("¿Guardar cambios?", guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
-                <button onClick={() => setEditando(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
+                <button onClick={() => setEditando(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>Cancelar</button>
               </div>
             </div>
           </div>
@@ -2079,21 +2079,21 @@ function InventarioDemo() {
               {movModal.tipo==="entrada"?"📥 Registrar Entrada":"📤 Registrar Salida"}
             </div>
             <div style={{ fontSize:12, color:"white", fontWeight:600, marginBottom:14 }}>{movModal.item.nombre}</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>Stock actual: <b style={{color:"white"}}>{movModal.item.cant} {movModal.item.unidad}</b></div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginBottom:12 }}>Stock actual: <b style={{color:"white"}}>{movModal.item.cant} {movModal.item.unidad}</b></div>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <div>
-                <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Cantidad *</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cantidad *</div>
                 <input type="number" min="1" value={movCant} onChange={e=>setMovCant(e.target.value)} placeholder="0" style={{...inp,width:"100%"}} autoFocus />
               </div>
               <div>
-                <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Observación</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Observación</div>
                 <input value={movObs} onChange={e=>setMovObs(e.target.value)} placeholder="Opcional..." style={{...inp,width:"100%"}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
                 <button onClick={confirmarMovimiento} style={{ flex:1, background:movModal.tipo==="entrada"?"linear-gradient(135deg,#845EF7,#6366F1)":"linear-gradient(135deg,#FF6B6B,#F9A826)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>
                   {movModal.tipo==="entrada"?"📥 Confirmar entrada":"📤 Confirmar salida"}
                 </button>
-                <button onClick={() => { setMovModal(null); setMovCant(""); setMovObs(""); }} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 12px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>✕</button>
+                <button onClick={() => { setMovModal(null); setMovCant(""); setMovObs(""); }} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 12px", fontSize:12, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>✕</button>
               </div>
             </div>
           </div>
@@ -2111,7 +2111,7 @@ function InventarioDemo() {
           <div key={i} style={{ flex:1, background:"rgba(255,255,255,0.06)", borderRadius:8, padding:"8px 6px", textAlign:"center", border:s.l==="⚠️ Stock bajo"&&bajoStock.length>0?"1px solid rgba(255,107,107,0.3)":"1px solid transparent" }}>
             <div style={{ fontSize:14 }}>{s.i}</div>
             <div style={{ fontSize:16, fontWeight:700, color:s.c }}>{s.v}</div>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>{s.l}</div>
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)" }}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -2160,7 +2160,7 @@ function InventarioDemo() {
             <input placeholder="Observaciones" value={nuevoItem.obs} onChange={e=>setNuevoItem(p=>({...p,obs:e.target.value}))} style={{...inp,width:"100%"}} />
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={() => pedir(`¿Agregar "${nuevoItem.nombre}" al inventario?`, confirmarAgregarItem)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:7, padding:"7px", fontSize:11, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Agregar</button>
-              <button onClick={() => setShowAdd(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:7, padding:"7px 12px", fontSize:11, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
+              <button onClick={() => setShowAdd(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:7, padding:"7px 12px", fontSize:11, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -2168,7 +2168,7 @@ function InventarioDemo() {
 
       {/* Lista de productos */}
       <div style={{ maxHeight:480, overflowY:"auto" }}>
-        {filtrados.length === 0 && <div style={{ textAlign:"center", color:"rgba(255,255,255,0.3)", fontSize:12, padding:20 }}>Sin resultados</div>}
+        {filtrados.length === 0 && <div style={{ textAlign:"center", color:"rgba(255,255,255,0.38)", fontSize:12, padding:20 }}>Sin resultados</div>}
         {filtrados.map((item) => {
           const esHerramienta = item.categoria === "Herramientas";
           const bajo = esHerramienta ? item.cant === 0 : item.cant <= item.minimo;
@@ -2198,14 +2198,14 @@ function InventarioDemo() {
                   {/* Stock actual */}
                   <div style={{ textAlign:"center", background:`${bajo?"#FF6B6B":"#00C9A7"}15`, border:`1px solid ${bajo?"rgba(255,107,107,0.3)":"rgba(0,201,167,0.3)"}`, borderRadius:10, padding:"6px 12px", flexShrink:0 }}>
                     <div style={{ fontSize:20, fontWeight:800, color:bajo?"#FF6B6B":"#00C9A7", lineHeight:1 }}>{item.cant}</div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.45)", marginTop:2 }}>{item.unidad}</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.52)", marginTop:2 }}>{item.unidad}</div>
                   </div>
                 </div>
                 {/* Barra de stock */}
                 <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:4, height:5, overflow:"hidden", marginBottom:4 }}>
                   <div style={{ width:`${porcentaje}%`, height:"100%", background:bajo?"#FF6B6B":catColor, borderRadius:4, transition:"width 0.5s ease" }} />
                 </div>
-                <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)" }}>
                   {esHerramienta
                     ? `🔧 Herramienta${item.costo > 0 ? ` · ${fmtCOP(item.costo)}/u` : ""}`
                     : `Mínimo: ${item.minimo} ${item.unidad}${item.costo > 0 ? ` · ${fmtCOP(item.costo)}/u` : ""}`
@@ -2225,7 +2225,7 @@ function InventarioDemo() {
                 </button>
                 <div style={{ width:1, background:"rgba(255,255,255,0.08)" }} />
                 <button onClick={() => { setEditando(item.id); setEditForm({...item}); }}
-                  style={{ background:"rgba(255,255,255,0.06)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,255,255,0.5)" }}>✏️</button>
+                  style={{ background:"rgba(255,255,255,0.06)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,255,255,0.58)" }}>✏️</button>
                 <button onClick={() => pedir(`¿Eliminar "${item.nombre}"?`, async () => { const ok = await eliminarItem(item.id); if (!ok) alert("Error al eliminar del inventario"); })}
                   style={{ background:"rgba(255,80,80,0.06)", border:"none", padding:"10px 12px", fontSize:14, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
               </div>
@@ -2237,16 +2237,16 @@ function InventarioDemo() {
       {/* Historial de movimientos */}
       {historial.length > 0 && (
         <div style={{ marginTop:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:10, padding:"10px 12px" }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📋 Últimos movimientos</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.42)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📋 Últimos movimientos</div>
           {historial.slice(0,5).map((h,i) => (
             <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
               <div>
                 <span style={{ fontSize:11, color:h.tipo==="entrada"?"#00C9A7":"#FF6B6B", fontWeight:600 }}>{h.tipo==="entrada"?"📥":"📤"} {h.nombre}</span>
-                {h.obs && <span style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginLeft:6 }}>— {h.obs}</span>}
+                {h.obs && <span style={{ fontSize:10, color:"rgba(255,255,255,0.42)", marginLeft:6 }}>— {h.obs}</span>}
               </div>
               <div style={{ textAlign:"right" }}>
                 <div style={{ fontSize:11, fontWeight:700, color:h.tipo==="entrada"?"#00C9A7":"#FF6B6B" }}>{h.tipo==="entrada"?"+":"-"}{h.cant}</div>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>{h.fecha} {h.hora}</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)" }}>{h.fecha} {h.hora}</div>
               </div>
             </div>
           ))}
@@ -2998,8 +2998,8 @@ ${seccionObs}
           </div>
         ))}
         <div style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.10)",borderRadius:8,padding:"5px 3px",textAlign:"center"}}>
-          <div style={{fontSize:14,fontWeight:800,color:"rgba(255,255,255,0.3)"}}>{sinRegistro}</div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.2)"}}>⬜</div>
+          <div style={{fontSize:14,fontWeight:800,color:"rgba(255,255,255,0.38)"}}>{sinRegistro}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.28)"}}>⬜</div>
         </div>
       </div>
 
@@ -3061,10 +3061,10 @@ ${seccionObs}
                     )}
                   </div>
                   {/* Área y documento */}
-                  <div style={{fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.4}}>
+                  <div style={{fontSize:11, color:"rgba(255,255,255,0.48)", lineHeight:1.4}}>
                     {emp.area}
-                    {emp.doc ? <span style={{color:"rgba(255,255,255,0.25)"}}> · </span> : null}
-                    {emp.doc ? <span style={{color:"rgba(255,255,255,0.35)"}}>{emp.doc} {emp.num}</span> : null}
+                    {emp.doc ? <span style={{color:"rgba(255,255,255,0.33)"}}> · </span> : null}
+                    {emp.doc ? <span style={{color:"rgba(255,255,255,0.42)"}}>{emp.doc} {emp.num}</span> : null}
                   </div>
                 </div>
                 {/* Badge de estado actual */}
@@ -3162,7 +3162,7 @@ ${seccionObs}
                     )}
                   </div>
                   <div>
-                    <div style={{fontSize:10, color:"rgba(255,255,255,0.5)", marginBottom:5, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5}}>
+                    <div style={{fontSize:10, color:"rgba(255,255,255,0.58)", marginBottom:5, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5}}>
                       📝 Observación
                     </div>
                     <input
@@ -3182,7 +3182,7 @@ ${seccionObs}
       {/* Leyenda */}
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
         {ESTADOS.map(s => (
-          <div key={s.key} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"rgba(255,255,255,0.4)"}}>
+          <div key={s.key} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"rgba(255,255,255,0.48)"}}>
             <span style={{color:s.color}}>{s.icon}</span>{s.label}
           </div>
         ))}
@@ -3214,7 +3214,7 @@ function ContenedoresDemo() {
   const pedir = (msg, fn) => setConfirm({ msg, fn });
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
   const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
-  const lbl = { fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 };
+  const lbl = { fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 };
 
   // ── Hook Supabase ──
   const {
@@ -3353,7 +3353,7 @@ function ContenedoresDemo() {
             {[{i:"🚢",l:"Total",v:stats.total,c:"#6366F1"},{i:"✅",l:"Completados",v:stats.comp,c:"#00C9A7"},{i:"⏳",l:"En proceso",v:stats.enProc,c:"#F9A826"},{i:"📦",l:"Cajas",v:stats.cajas.toLocaleString("es-CO"),c:"#845EF7"}].map((s,i)=>(
               <div key={i} style={{background:`${s.c}12`,border:`1px solid ${s.c}30`,borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
                 <div style={{fontSize:16}}>{s.i}</div><div style={{fontSize:15,fontWeight:800,color:s.c}}>{s.v}</div>
-                <div style={{fontSize:9,color:"rgba(255,255,255,0.4)"}}>{s.l}</div>
+                <div style={{fontSize:9,color:"rgba(255,255,255,0.48)"}}>{s.l}</div>
               </div>
             ))}
           </div>
@@ -3443,14 +3443,14 @@ function ContenedoresDemo() {
                     style={{flex:1,background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:8,padding:"9px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>
                     ✅ {editIdx!==null?"Guardar cambios":"Registrar proceso"}
                   </button>
-                  <button onClick={()=>setShowForm(false)} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"9px 14px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer"}}>Cancelar</button>
+                  <button onClick={()=>setShowForm(false)} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"9px 14px",fontSize:12,color:"rgba(255,255,255,0.48)",cursor:"pointer"}}>Cancelar</button>
                 </div>
               </div>
             </div>
           )}
           <div style={{maxHeight:480,overflowY:"auto",marginBottom:10}}>
             {filtrados.length === 0 ? (
-              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
+              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.33)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>🚢</div>
                 <div style={{fontSize:13}}>Sin registros — toca ➕ Nuevo para empezar</div>
               </div>
@@ -3464,15 +3464,15 @@ function ContenedoresDemo() {
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
                       <span style={{fontSize:15,fontWeight:800,color:"white"}}>🚢 {p.numContenedor}</span>
                       <span style={{fontSize:10,background:`${col}22`,color:col,borderRadius:6,padding:"3px 8px",fontWeight:700,border:`1px solid ${col}40`}}>{p.estado}</span>
-                      <span style={{fontSize:10,background:"rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"3px 8px",fontWeight:600}}>
+                      <span style={{fontSize:10,background:"rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.58)",borderRadius:6,padding:"3px 8px",fontWeight:600}}>
                         {p.turno==="Día"?"☀️":p.turno==="Noche"?"🌙":"🌗"} {p.turno}
                       </span>
-                      <span style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginLeft:"auto"}}>📅 {p.fecha}</span>
+                      <span style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginLeft:"auto"}}>📅 {p.fecha}</span>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
                       {[{l:"Proveedor Limón",v:parseProveedores(p.proveedor).join(", ")||"—"},{l:"Tipo de caja",v:p.producto||"—"},{l:"Cajas salida",v:p.cajasSalida||"0"}].map((d,j)=>(
                         <div key={j} style={{background:"rgba(255,255,255,0.06)",borderRadius:8,padding:"7px 10px"}}>
-                          <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>{d.l}</div>
+                          <div style={{fontSize:9,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>{d.l}</div>
                           <div style={{fontSize:12,color:"white",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.v}</div>
                         </div>
                       ))}
@@ -3488,13 +3488,13 @@ function ContenedoresDemo() {
                         📋 {[p.booking&&`Booking: ${p.booking}`,p.naviera,p.destino&&`→ ${p.destino}`].filter(Boolean).join(" · ")}
                       </div>
                     )}
-                    {p.operadores && <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:3}}>🧑‍💼 {p.operadores}</div>}
+                    {p.operadores && <div style={{fontSize:11,color:"rgba(255,255,255,0.58)",marginBottom:3}}>🧑‍💼 {p.operadores}</div>}
                     {(p.transporte||p.placa||p.trailer) && <div style={{fontSize:11,color:"rgba(99,102,241,0.8)"}}>🚛 {[p.transporte,p.placa,p.trailer].filter(Boolean).join(" · ")}</div>}
                     {p.obs && <div style={{fontSize:11,color:"rgba(249,168,38,0.7)",marginTop:3}}>📌 {p.obs}</div>}
                   </div>
                   <div style={{borderTop:`1px solid ${col}20`,display:"flex"}}>
                     <button onClick={()=>{setForm({...formDef,...p});setEditIdx(p.id);setShowForm(true);}}
-                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"none",padding:"10px",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"none",padding:"10px",fontSize:13,color:"rgba(255,255,255,0.58)",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       ✏️ <span style={{fontSize:12}}>Editar</span>
                     </button>
                     <div style={{width:1,background:`${col}20`}} />
@@ -3546,7 +3546,7 @@ function ContenedoresDemo() {
         return (
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.58)"}}>
                 {grupos.length} grupo{grupos.length!==1?"s":""} registrado{grupos.length!==1?"s":""}
               </div>
               <button onClick={()=>{setShowFormGrupo(!showFormGrupo);setEditGrupoId(null);setFormGrupo({nombre:"",turno:"Día",miembros:[]});}}
@@ -3576,7 +3576,7 @@ function ContenedoresDemo() {
                         <span style={{fontSize:14}}>{sel?"✅":"⬜"}</span>
                         <div>
                           <div style={{fontSize:11,color:"white",fontWeight:sel?700:400}}>{e.nombre}</div>
-                          <div style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>{e.area} · CC {e.num}</div>
+                          <div style={{fontSize:9,color:"rgba(255,255,255,0.42)"}}>{e.area} · CC {e.num}</div>
                         </div>
                       </div>
                     );
@@ -3590,14 +3590,14 @@ function ContenedoresDemo() {
                     style={{flex:1,background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:8,padding:"9px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>
                     ✅ {editGrupoId!==null?"Guardar cambios":"Crear grupo"}
                   </button>
-                  <button onClick={()=>{setShowFormGrupo(false);setBusqGrupoList("");}} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"9px 14px",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer"}}>Cancelar</button>
+                  <button onClick={()=>{setShowFormGrupo(false);setBusqGrupoList("");}} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"9px 14px",fontSize:12,color:"rgba(255,255,255,0.48)",cursor:"pointer"}}>Cancelar</button>
                 </div>
               </div>
             )}
             <input value={busqGrupoList} onChange={e=>setBusqGrupoList(e.target.value)} placeholder="🔍 Buscar grupo por nombre o turno..." style={{...inp,marginBottom:8}} />
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {grupos.length === 0 ? (
-                <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
+                <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.33)"}}>
                   <div style={{fontSize:36,marginBottom:10}}>👥</div>
                   <div style={{fontSize:13}}>Sin grupos — crea el primero con ➕ Nuevo grupo</div>
                 </div>
@@ -3610,11 +3610,11 @@ function ContenedoresDemo() {
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
                       <span style={{fontSize:14,fontWeight:800,color:"white"}}>{g.turno==="Día"?"☀️":g.turno==="Noche"?"🌙":"🌗"} {g.nombre}</span>
                       <span style={{fontSize:10,background:`${turnoCol}22`,color:turnoCol,borderRadius:6,padding:"3px 8px",fontWeight:700,border:`1px solid ${turnoCol}40`}}>{g.turno}</span>
-                      <span style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginLeft:"auto"}}>👤 {g.miembros.length} personas</span>
+                      <span style={{fontSize:10,color:"rgba(255,255,255,0.48)",marginLeft:"auto"}}>👤 {g.miembros.length} personas</span>
                     </div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
                       {miembrosInfo.map(e=>(
-                        <span key={e.num} style={{fontSize:10,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:6,padding:"2px 7px",color:"rgba(255,255,255,0.7)"}}>{e.nombre}</span>
+                        <span key={e.num} style={{fontSize:10,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:6,padding:"2px 7px",color:"rgba(255,255,255,0.78)"}}>{e.nombre}</span>
                       ))}
                     </div>
                     {contsAsig.length > 0 && (
@@ -3624,7 +3624,7 @@ function ContenedoresDemo() {
                     )}
                     <div style={{display:"flex",gap:6}}>
                       <button onClick={()=>{setFormGrupo({nombre:g.nombre,turno:g.turno,miembros:[...g.miembros]});setEditGrupoId(g.id);setShowFormGrupo(true);}}
-                        style={{fontSize:11,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:6,padding:"5px 10px",color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>
+                        style={{fontSize:11,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:6,padding:"5px 10px",color:"rgba(255,255,255,0.58)",cursor:"pointer"}}>
                         ✏️ Editar
                       </button>
                       <button onClick={()=>pedir(`¿Eliminar grupo "${g.nombre}"?`,()=>eliminarGrupoSB(g.id))}
@@ -3655,11 +3655,11 @@ function ContenedoresDemo() {
               <input type="month" value={filtroMesNom} onChange={e=>setFiltroMesNom(e.target.value)} style={{...inp,flex:1}} placeholder="Filtrar por mes" />
               {filtroMesNom && <button onClick={()=>setFiltroMesNom("")} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕ Todo</button>}
             </div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:12}}>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.48)",marginBottom:12}}>
               Pago por contenedor procesado: <span style={{color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)} COP / persona</span>
             </div>
             {procesosFilt.length === 0 ? (
-              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
+              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.33)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>💰</div>
                 <div style={{fontSize:13}}>{procesos.length===0?"Registra contenedores y asigna grupos para ver la nómina":"Sin contenedores para el mes seleccionado"}</div>
               </div>
@@ -3674,7 +3674,7 @@ function ContenedoresDemo() {
                 <div key={p.id} style={{background:`${col}06`,border:`1px solid ${col}20`,borderRadius:12,marginBottom:12,overflow:"hidden"}}>
                   <div style={{padding:"10px 14px",borderBottom:`1px solid ${col}20`,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontWeight:800,color:"white"}}>🚢 {p.numContenedor}</span>
-                    <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>📅 {p.fecha}</span>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>📅 {p.fecha}</span>
                     <span style={{fontSize:10,background:`${col}22`,color:col,borderRadius:6,padding:"2px 7px",fontWeight:700}}>{p.estado}</span>
                     {p.grupoDia && <span style={{fontSize:10,background:"rgba(249,168,38,0.15)",color:"#F9A826",borderRadius:6,padding:"2px 7px"}}>☀️ {p.grupoDia}</span>}
                     {p.grupoNoche && <span style={{fontSize:10,background:"rgba(132,94,247,0.15)",color:"#a78bfa",borderRadius:6,padding:"2px 7px"}}>🌙 {p.grupoNoche}</span>}
@@ -3688,7 +3688,7 @@ function ContenedoresDemo() {
                   </div>
                   {expandidos[p.id] && (
                     miembros.length === 0 ? (
-                      <div style={{padding:"12px 14px",fontSize:11,color:"rgba(255,255,255,0.25)"}}>Sin grupo asignado — ve a Contenedores y asigna un grupo.</div>
+                      <div style={{padding:"12px 14px",fontSize:11,color:"rgba(255,255,255,0.33)"}}>Sin grupo asignado — ve a Contenedores y asigna un grupo.</div>
                     ) : (
                       <div style={{padding:"10px 14px"}}>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
@@ -3696,13 +3696,13 @@ function ContenedoresDemo() {
                             <div key={e.num} style={{background:"rgba(255,255,255,0.05)",borderRadius:8,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                               <div>
                                 <div style={{fontSize:11,color:"white",fontWeight:600}}>{e.nombre}</div>
-                                <div style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>{e.area}</div>
+                                <div style={{fontSize:9,color:"rgba(255,255,255,0.42)"}}>{e.area}</div>
                               </div>
                               <span style={{fontSize:11,color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)}</span>
                             </div>
                           ))}
                         </div>
-                        <div style={{marginTop:8,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.5)"}}>
+                        <div style={{marginTop:8,textAlign:"right",fontSize:12,color:"rgba(255,255,255,0.58)"}}>
                           {miembros.length} persona{miembros.length!==1?"s":""} · Total: <span style={{color:"#00C9A7",fontWeight:800}}>{fmtCOP(totalNom)}</span>
                         </div>
                       </div>
@@ -3713,7 +3713,7 @@ function ContenedoresDemo() {
             })}
             {procesos.length > 0 && (
               <div style={{background:"rgba(0,201,167,0.08)",border:"1px solid rgba(0,201,167,0.25)",borderRadius:12,padding:"12px 16px",textAlign:"center"}}>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:4}}>Total nómina acumulada por contenedores</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.58)",marginBottom:4}}>Total nómina acumulada por contenedores</div>
                 <div style={{fontSize:20,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(totalGlobal)}</div>
               </div>
             )}
@@ -3746,7 +3746,7 @@ function ContenedoresDemo() {
               </CustomSelect>
             </div>
             {!contSel ? (
-              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.25)"}}>
+              <div style={{textAlign:"center",padding:"36px 0",color:"rgba(255,255,255,0.33)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>🗺</div>
                 <div style={{fontSize:13}}>Selecciona un contenedor para ver su trazabilidad</div>
               </div>
@@ -3759,12 +3759,12 @@ function ContenedoresDemo() {
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:11}}>
                     {[["Fecha",contSel.fecha],["Producto",contSel.producto||"—"],["Cajas",contSel.cajasSalida||"0"],["Booking",contSel.booking||"—"],["Naviera",contSel.naviera||"—"],["Destino",contSel.destino||"—"]].map(([k,v],i)=>(
-                      <div key={i}><span style={{color:"rgba(255,255,255,0.35)"}}>{k}: </span><span style={{color:"white",fontWeight:600}}>{v}</span></div>
+                      <div key={i}><span style={{color:"rgba(255,255,255,0.42)"}}>{k}: </span><span style={{color:"white",fontWeight:600}}>{v}</span></div>
                     ))}
                   </div>
                 </div>
                 <div style={{marginBottom:12}}>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:6}}>CAMBIO RÁPIDO DE ESTADO</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginBottom:6}}>CAMBIO RÁPIDO DE ESTADO</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                     {ESTADOS_CONT.map(s=>(
                       <button key={s} onClick={()=>pedir(`¿Cambiar estado a "${s}"?`,()=>cambiarEstado(s))}
@@ -3795,9 +3795,9 @@ function ContenedoresDemo() {
                     </div>
                   </div>
                 )}
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:8}}>LÍNEA DE TRAZABILIDAD — {(contSel.trazabilidad||[]).length} evento{(contSel.trazabilidad||[]).length!==1?"s":""}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginBottom:8}}>LÍNEA DE TRAZABILIDAD — {(contSel.trazabilidad||[]).length} evento{(contSel.trazabilidad||[]).length!==1?"s":""}</div>
                 {(!contSel.trazabilidad||contSel.trazabilidad.length===0) ? (
-                  <div style={{textAlign:"center",padding:"20px 0",color:"rgba(255,255,255,0.2)",fontSize:12}}>Sin eventos — agrega el primero con ➕</div>
+                  <div style={{textAlign:"center",padding:"20px 0",color:"rgba(255,255,255,0.28)",fontSize:12}}>Sin eventos — agrega el primero con ➕</div>
                 ) : (
                   <div style={{position:"relative",paddingLeft:24}}>
                     <div style={{position:"absolute",left:8,top:0,bottom:0,width:2,background:"rgba(99,102,241,0.2)"}} />
@@ -3810,9 +3810,9 @@ function ContenedoresDemo() {
                           <div style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.11)",borderRadius:10,padding:"9px 12px"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
                               <span style={{fontSize:12,fontWeight:700,color:"white"}}>{ev.evento}</span>
-                              <span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{fmt}</span>
+                              <span style={{fontSize:10,color:"rgba(255,255,255,0.42)"}}>{fmt}</span>
                             </div>
-                            {ev.detalle && <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>{ev.detalle}</div>}
+                            {ev.detalle && <div style={{fontSize:11,color:"rgba(255,255,255,0.68)",marginBottom:2}}>{ev.detalle}</div>}
                             {ev.responsable && <div style={{fontSize:10,color:"rgba(99,102,241,0.7)"}}>👤 {ev.responsable}</div>}
                           </div>
                         </div>
@@ -3911,7 +3911,7 @@ function ContenedoresDemo() {
             {/* ── Resumen: contenedores con registros ── */}
             {contsConCC.length > 0 && (
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:700}}>
+                <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,fontWeight:700}}>
                   📦 Contenedores con centro de costos ({contsConCC.length})
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -3926,14 +3926,14 @@ function ContenedoresDemo() {
                           style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:expanded?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.03)",padding:"10px 14px",cursor:"pointer",textAlign:"left",width:"100%",border:"none"}}>
                           <div>
                             <div style={{fontSize:12,fontWeight:700,color:expanded?"#a5b4fc":"white"}}>🚢 {p.numContenedor}</div>
-                            <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:2}}>{p.fecha} · {recs.length} registro{recs.length!==1?"s":""}</div>
+                            <div style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginTop:2}}>{p.fecha} · {recs.length} registro{recs.length!==1?"s":""}</div>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:10}}>
                             <div style={{textAlign:"right"}}>
-                              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>TOTAL ACUMULADO</div>
+                              <div style={{fontSize:9,color:"rgba(255,255,255,0.38)"}}>TOTAL ACUMULADO</div>
                               <div style={{fontSize:13,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(total)}</div>
                             </div>
-                            <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{expanded?"▲":"▼"}</span>
+                            <span style={{fontSize:11,color:"rgba(255,255,255,0.38)"}}>{expanded?"▲":"▼"}</span>
                           </div>
                         </button>
 
@@ -3943,10 +3943,10 @@ function ContenedoresDemo() {
                             {recs.map(rec => (
                               <div key={rec.id} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.10)",borderRadius:8,padding:"8px 10px"}}>
                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                                  <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>📅 {rec.fecha}</span>
+                                  <span style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>📅 {rec.fecha}</span>
                                   <span style={{fontSize:12,fontWeight:800,color:"#F9A826"}}>{fmtCOP(rec.total)}</span>
                                 </div>
-                                <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:6}}>
+                                <div style={{fontSize:10,color:"rgba(255,255,255,0.42)",marginBottom:6}}>
                                   {rec.items.length} insumo{rec.items.length!==1?"s":""}{rec.extras?.length>0?` · ${rec.extras.length} extra${rec.extras.length!==1?"s":""}`:""}</div>
                                 <div style={{display:"flex",gap:6}}>
                                   <button onClick={() => {
@@ -4019,7 +4019,7 @@ function ContenedoresDemo() {
             </div>
 
             {procesos.length === 0 && (
-              <div style={{textAlign:"center",padding:"30px 0",color:"rgba(255,255,255,0.25)",fontSize:12}}>
+              <div style={{textAlign:"center",padding:"30px 0",color:"rgba(255,255,255,0.33)",fontSize:12}}>
                 Sin contenedores registrados — crea uno en la pestaña 🚢 primero.
               </div>
             )}
@@ -4030,17 +4030,17 @@ function ContenedoresDemo() {
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:10}}>
                   <div>
                     <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc"}}>🚢 {selCont.numContenedor}</div>
-                    {selCont.producto && <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{selCont.producto} · {selCont.cajasSalida||"?"} cajas</div>}
+                    {selCont.producto && <div style={{fontSize:10,color:"rgba(255,255,255,0.48)",marginTop:2}}>{selCont.producto} · {selCont.cajasSalida||"?"} cajas</div>}
                   </div>
                   <div>
-                    <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",textAlign:"right"}}>COSTO TOTAL ACUMULADO</div>
+                    <div style={{fontSize:9,color:"rgba(255,255,255,0.42)",textAlign:"right"}}>COSTO TOTAL ACUMULADO</div>
                     <div style={{fontSize:16,fontWeight:800,color:"#00C9A7"}}>{fmtCOP(totalHist)}</div>
                   </div>
                 </div>
 
                 {/* Selector de plantillas */}
                 <div style={{marginBottom:10}}>
-                  <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>
                     Plantilla predeterminada
                   </div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -4072,7 +4072,7 @@ function ContenedoresDemo() {
                             {pl.label.split("·")[1]?.trim()}
                           </div>
                           <div style={{marginTop:6,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"3px 0"}}>
-                            <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:0.3}}>REF. TOTAL</div>
+                            <div style={{fontSize:9,color:"rgba(255,255,255,0.58)",letterSpacing:0.3}}>REF. TOTAL</div>
                             <div style={{fontSize:11,fontWeight:700,color:activa?"#fff":"#F9A826"}}>{fmtCOP(pl.totalRef)}</div>
                           </div>
                         </button>
@@ -4088,7 +4088,7 @@ function ContenedoresDemo() {
                       {editingRec ? `✏️ Editando registro del ${editingRec.fecha}` : "📦 Registrar insumos usados"}
                     </div>
                     {editingRec && (
-                      <button onClick={cancelarEdicion} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"3px 10px",fontSize:10,color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>
+                      <button onClick={cancelarEdicion} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"3px 10px",fontSize:10,color:"rgba(255,255,255,0.58)",cursor:"pointer"}}>
                         ✕ Cancelar
                       </button>
                     )}
@@ -4097,7 +4097,7 @@ function ContenedoresDemo() {
                   {/* Cabecera tabla */}
                   <div style={{display:"grid",gridTemplateColumns:"1.8fr 54px 72px 84px 72px",gap:4,marginBottom:4,padding:"0 4px"}}>
                     {["Insumo","Stock","Cantidad","$/Unidad","Subtotal"].map((h,i)=>(
-                      <div key={i} style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</div>
+                      <div key={i} style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</div>
                     ))}
                   </div>
 
@@ -4110,7 +4110,7 @@ function ContenedoresDemo() {
                       <div key={ins.id} style={{display:"grid",gridTemplateColumns:"1.8fr 54px 72px 84px 72px",gap:4,alignItems:"center",marginBottom:5,padding:"4px",borderRadius:8,background:cant>0?"rgba(99,102,241,0.06)":"transparent"}}>
                         <div>
                           <div style={{fontSize:11,color:"white",fontWeight:600,lineHeight:1.2}}>{ins.nombre}</div>
-                          <div style={{fontSize:9,color:"rgba(255,255,255,0.35)"}}>{ins.unidad}</div>
+                          <div style={{fontSize:9,color:"rgba(255,255,255,0.42)"}}>{ins.unidad}</div>
                         </div>
                         <div style={{fontSize:11,fontWeight:700,color:low?"#FF6B6B":"rgba(255,255,255,0.45)",textAlign:"center"}}>{ins.cantActual}</div>
                         <input type="number" min="0" step="any"
@@ -4135,15 +4135,15 @@ function ContenedoresDemo() {
                   {/* Otros costos */}
                   <div style={{borderTop:"1px solid rgba(255,255,255,0.09)",marginTop:8,paddingTop:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                      <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:0.5,fontWeight:700}}>Otros costos (MO, varios, etc.)</div>
+                      <div style={{fontSize:9,color:"rgba(255,255,255,0.48)",textTransform:"uppercase",letterSpacing:0.5,fontWeight:700}}>Otros costos (MO, varios, etc.)</div>
                       <button onClick={()=>setFormExtras(f=>[...f,{id:Date.now(),nombre:"",unidad:"global",cant:"",costoUnit:""}])}
-                        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"3px 10px",fontSize:10,color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>
+                        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"3px 10px",fontSize:10,color:"rgba(255,255,255,0.58)",cursor:"pointer"}}>
                         + Agregar concepto
                       </button>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1.8fr 72px 84px 72px 22px",gap:4,marginBottom:4,padding:"0 2px"}}>
                       {["Concepto","Cantidad","$/Unidad","Subtotal",""].map((h,i)=>(
-                        <div key={i} style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</div>
+                        <div key={i} style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</div>
                       ))}
                     </div>
                     {formExtras.map((ex,i)=>{
@@ -4170,7 +4170,7 @@ function ContenedoresDemo() {
                       );
                     })}
                     {totalExtrasCC>0 && (
-                      <div style={{display:"flex",justifyContent:"flex-end",fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:4}}>
+                      <div style={{display:"flex",justifyContent:"flex-end",fontSize:10,color:"rgba(255,255,255,0.42)",marginTop:4}}>
                         Subtotal otros costos: <span style={{color:"#F9A826",fontWeight:700,marginLeft:6}}>{fmtCOP(totalExtrasCC)}</span>
                       </div>
                     )}
@@ -4178,7 +4178,7 @@ function ContenedoresDemo() {
 
                   {/* Total del registro */}
                   <div style={{borderTop:"1px solid rgba(99,102,241,0.2)",marginTop:8,paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{editingRec?"Nuevo total":"Total este registro"}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.48)"}}>{editingRec?"Nuevo total":"Total este registro"}</span>
                     <span style={{fontSize:14,fontWeight:800,color:"#F9A826"}}>{fmtCOP(totalFormCC)}</span>
                   </div>
 
@@ -4191,27 +4191,27 @@ function ContenedoresDemo() {
                 {/* Historial de registros */}
                 {recsCont.length > 0 && (
                   <div>
-                    <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>
+                    <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>
                       Historial · {recsCont.length} registro{recsCont.length!==1?"s":""} · Total acumulado: {fmtCOP(totalHist)}
                     </div>
                     {recsCont.map(rec=>(
                       <div key={rec.id} style={{background: editingRecId===rec.id?"rgba(249,168,38,0.07)":"rgba(255,255,255,0.03)",border:`1px solid ${editingRecId===rec.id?"rgba(249,168,38,0.3)":"rgba(255,255,255,0.07)"}`,borderRadius:10,padding:"10px 12px",marginBottom:6}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                          <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>📅 {rec.fecha}</span>
+                          <span style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>📅 {rec.fecha}</span>
                           <span style={{fontSize:12,fontWeight:800,color:"#F9A826"}}>{fmtCOP(rec.total)}</span>
                         </div>
                         {rec.items.map(it=>(
-                          <div key={it.id} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:2}}>
-                            <span>{it.nombre} <span style={{color:"rgba(255,255,255,0.3)"}}>{it.cant} {it.unidad}</span></span>
+                          <div key={it.id} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"rgba(255,255,255,0.62)",marginBottom:2}}>
+                            <span>{it.nombre} <span style={{color:"rgba(255,255,255,0.38)"}}>{it.cant} {it.unidad}</span></span>
                             <span style={{color:"white",fontWeight:600}}>{fmtCOP(it.cant*it.costoUnit)}</span>
                           </div>
                         ))}
                         {rec.extras?.length>0 && (
                           <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",marginTop:4,paddingTop:4}}>
-                            <div style={{fontSize:9,color:"rgba(255,255,255,0.25)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:3}}>Otros costos</div>
+                            <div style={{fontSize:9,color:"rgba(255,255,255,0.33)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:3}}>Otros costos</div>
                             {rec.extras.map((ex,i)=>(
                               <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"rgba(255,200,100,0.6)",marginBottom:2}}>
-                                <span>{ex.nombre} <span style={{color:"rgba(255,255,255,0.25)"}}>{ex.cant} {ex.unidad}</span></span>
+                                <span>{ex.nombre} <span style={{color:"rgba(255,255,255,0.33)"}}>{ex.cant} {ex.unidad}</span></span>
                                 <span style={{color:"#F9A826",fontWeight:600}}>{fmtCOP(ex.cant*ex.costoUnit)}</span>
                               </div>
                             ))}
@@ -4479,15 +4479,15 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
               <div>
                 <div style={{fontSize:mob?15:13,fontWeight:800,color:"white"}}>📋 Packing List</div>
-                <div style={{fontSize:mob?11:9,color:"rgba(255,255,255,0.35)",marginTop:2}}>Selecciona un contenedor para crear o continuar su Packing List</div>
+                <div style={{fontSize:mob?11:9,color:"rgba(255,255,255,0.42)",marginTop:2}}>Selecciona un contenedor para crear o continuar su Packing List</div>
               </div>
-              <button onClick={handleTabPL} style={{marginLeft:"auto",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"rgba(255,255,255,0.5)",cursor:"pointer",fontFamily:"inherit"}}>
+              <button onClick={handleTabPL} style={{marginLeft:"auto",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"rgba(255,255,255,0.58)",cursor:"pointer",fontFamily:"inherit"}}>
                 🔄 Actualizar
               </button>
             </div>
 
             {procesos.length === 0 ? (
-              <div style={{textAlign:"center",padding:"48px 0",color:"rgba(255,255,255,0.25)"}}>
+              <div style={{textAlign:"center",padding:"48px 0",color:"rgba(255,255,255,0.33)"}}>
                 <div style={{fontSize:36,marginBottom:10}}>🚢</div>
                 <div style={{fontSize:13}}>No hay contenedores registrados</div>
                 <button onClick={()=>setTabCont(0)} style={{marginTop:14,background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:8,padding:"8px 18px",fontSize:12,color:"#a5b4fc",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>
@@ -4522,16 +4522,16 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                               {FASE_BADGE[fase]}
                             </span>
                           )}
-                          <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginLeft:"auto"}}>📅 {p.fecha}</span>
+                          <span style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginLeft:"auto"}}>📅 {p.fecha}</span>
                         </div>
                         <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                          {p.cajasSalida > 0 && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.45)"}}>📦 {Number(p.cajasSalida).toLocaleString("es-CO")} cajas</span>}
-                          {p.transporte  && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.45)"}}>🚛 {p.transporte}</span>}
-                          {p.placa       && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.45)"}}>🪧 {p.placa}</span>}
+                          {p.cajasSalida > 0 && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.52)"}}>📦 {Number(p.cajasSalida).toLocaleString("es-CO")} cajas</span>}
+                          {p.transporte  && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.52)"}}>🚛 {p.transporte}</span>}
+                          {p.placa       && <span style={{fontSize:mob?11:10,color:"rgba(255,255,255,0.52)"}}>🪧 {p.placa}</span>}
                           {p.destino     && <span style={{fontSize:mob?11:10,color:"rgba(99,102,241,0.8)"}}>→ {p.destino}</span>}
                         </div>
                       </div>
-                      <div style={{fontSize:mob?22:18,color:"rgba(255,255,255,0.2)",flexShrink:0}}>›</div>
+                      <div style={{fontSize:mob?22:18,color:"rgba(255,255,255,0.28)",flexShrink:0}}>›</div>
                     </button>
                   );
                 })}
@@ -4917,9 +4917,9 @@ ${calibreSection}
 
         const card = (label, value, color = "white", sub = null) => (
           <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.11)", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)", marginBottom: 4 }}>{label}</div>
             <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
-            {sub && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{sub}</div>}
+            {sub && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginTop: 2 }}>{sub}</div>}
           </div>
         );
 
@@ -4927,7 +4927,7 @@ ${calibreSection}
           <div>
             {/* Selector de contenedor */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Seleccionar contenedor</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)", marginBottom: 4 }}>Seleccionar contenedor</div>
               <CustomSelect value={selContRend ?? ""} onChange={e => { setSelContRend(e.target.value ? Number(e.target.value) : null); setShowFormRend(false); }}
                 style={{ ...inp, maxWidth: 340 }}>
                 <option value="">— Elige un contenedor —</option>
@@ -4941,7 +4941,7 @@ ${calibreSection}
             </div>
 
             {!contSelRend && (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>
+              <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.33)", fontSize: 13 }}>
                 Selecciona un contenedor para ver o registrar rendimientos
               </div>
             )}
@@ -4952,7 +4952,7 @@ ${calibreSection}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
                   <div>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "#a5b4fc" }}>🚢 {contSelRend.numContenedor}</span>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 10 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.48)", marginLeft: 10 }}>
                       {proveedoresCont.length > 0 ? proveedoresCont.join(" · ") : contSelRend.proveedor} · {contSelRend.producto}
                     </span>
                   </div>
@@ -4986,18 +4986,18 @@ ${calibreSection}
                 {/* Estadísticas por proveedor (solo si hay 2+ proveedores con datos) */}
                 {rendsDelCont.length > 0 && proveedoresCont.length > 1 && statsPorProveedor.some(s => s.camiones > 0) && (
                   <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Rendimiento por proveedor</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.48)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Rendimiento por proveedor</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {statsPorProveedor.map(s => (
                         <div key={s.pv} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: "10px 12px", display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "2fr 1fr 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
                           <div>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "#e2e8f0" }}>{s.pv}</div>
-                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 1 }}>{s.camiones} camión{s.camiones !== 1 ? "es" : ""}</div>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginTop: 1 }}>{s.camiones} camión{s.camiones !== 1 ? "es" : ""}</div>
                           </div>
-                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg procesados</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.kgProc.toLocaleString("es-CO")}</div></div>
-                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg empacados</div><div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{s.kgEmp.toFixed(0)}</div></div>
-                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Cajas</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.cajDM + s.cajPri}</div></div>
-                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Rendimiento</div><div style={{ fontSize: 14, fontWeight: 700, color: colorRend(s.rdto) }}>{s.rdto.toFixed(1)}%</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg procesados</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.kgProc.toLocaleString("es-CO")}</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg empacados</div><div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{s.kgEmp.toFixed(0)}</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Cajas</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.cajDM + s.cajPri}</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Rendimiento</div><div style={{ fontSize: 14, fontWeight: 700, color: colorRend(s.rdto) }}>{s.rdto.toFixed(1)}%</div></div>
                         </div>
                       ))}
                     </div>
@@ -5064,22 +5064,22 @@ ${calibreSection}
                         <>
                           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : hayProc ? "1fr 1fr 1fr 1fr" : "1fr", gap: 8, marginBottom: 8 }}>
                             <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Kg empacados</div>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Kg empacados</div>
                               <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
-                              <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>DM: {kgDM.toFixed(0)} kg · Pri: {kgPri.toFixed(0)} kg</div>
+                              <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)", marginTop: 1 }}>DM: {kgDM.toFixed(0)} kg · Pri: {kgPri.toFixed(0)} kg</div>
                             </div>
                             {hayProc && (
                               <>
                                 <div style={{ background: `rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(rg) >= 80 ? "0,201,167" : Number(rg) >= 60 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px" }}>
-                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. general</div>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Rdto. general</div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: colorRend(Number(rg)) }}>{rg}%</div>
                                 </div>
                                 <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Del Monte</div>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Rdto. Del Monte</div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
                                 </div>
                                 <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Rdto. Princess</div>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Rdto. Princess</div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
                                 </div>
                               </>
@@ -5098,14 +5098,14 @@ ${calibreSection}
                                   return (
                                     <div key={i} style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: 8, padding: "6px 10px" }}>
                                       <div style={{ fontSize: 13, fontWeight: 800, color: "#a5b4fc", marginBottom: 2 }}>{cal.nombre}</div>
-                                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{calKg.toFixed(0)} kg</div>
+                                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)" }}>{calKg.toFixed(0)} kg</div>
                                       <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                                         <div>
-                                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% procesado</div>
+                                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>% procesado</div>
                                           <div style={{ fontSize: 12, fontWeight: 700, color: colorRend(pctPro) }}>{pctPro.toFixed(1)}%</div>
                                         </div>
                                         <div>
-                                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% empacado</div>
+                                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>% empacado</div>
                                           <div style={{ fontSize: 12, fontWeight: 700, color: "#818CF8" }}>{pctEmp.toFixed(1)}%</div>
                                         </div>
                                       </div>
@@ -5143,7 +5143,7 @@ ${calibreSection}
                     {/* ── Calibres (opcional) ── */}
                     <div style={{ marginBottom: 12, background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(129,140,248,0.9)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
-                        📐 Desglose por calibre <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                        📐 Desglose por calibre <span style={{ color: "rgba(255,255,255,0.38)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                       </div>
 
                       {/* Calibres ya agregados */}
@@ -5154,7 +5154,7 @@ ${calibreSection}
                             return (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "5px 8px" }}>
                                 <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", minWidth: 40 }}>{c.nombre}</span>
-                                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", flex: 1 }}>
+                                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.58)", flex: 1 }}>
                                   {c.tipo === "cajas" ? `${c.cantidad} cajas ${c.marca}` : `${c.cantidad} kg`} → <strong style={{ color: "#00C9A7" }}>{kg.toFixed(1)} kg</strong>
                                 </span>
                                 <button onClick={() => setFormRend(f => ({ ...f, calibres: f.calibres.filter((_, j) => j !== i) }))}
@@ -5168,12 +5168,12 @@ ${calibreSection}
                       {/* Mini-formulario para agregar calibre */}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "flex-end" }}>
                         <div>
-                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Calibre</div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Calibre</div>
                           <input type="text" value={calForm.nombre} onChange={e => setCalForm(f => ({ ...f, nombre: e.target.value.toUpperCase() }))}
                             placeholder="C48" style={{ ...inp, width: 56, textAlign: "center", fontWeight: 700 }} />
                         </div>
                         <div>
-                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Tipo</div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Tipo</div>
                           <div style={{ display: "flex", gap: 4 }}>
                             {["cajas", "kg"].map(t => (
                               <button key={t} onClick={() => setCalForm(f => ({ ...f, tipo: t }))}
@@ -5184,13 +5184,13 @@ ${calibreSection}
                           </div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Cantidad</div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Cantidad</div>
                           <input type="number" min="0" value={calForm.cantidad} onChange={e => setCalForm(f => ({ ...f, cantidad: e.target.value }))}
                             placeholder={calForm.tipo === "cajas" ? "ej. 300" : "ej. 4800"} style={{ ...inp, width: 90 }} />
                         </div>
                         {calForm.tipo === "cajas" && (
                           <div>
-                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginBottom: 3 }}>Marca</div>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Marca</div>
                             <CustomSelect value={calForm.marca} onChange={e => setCalForm(f => ({ ...f, marca: e.target.value }))} style={{ ...inp }}>
                               <option>Del Monte</option>
                               <option>Princess</option>
@@ -5213,7 +5213,7 @@ ${calibreSection}
                       <button onClick={guardarRend} style={{ flex: 1, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "8px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
                         {editRendId ? "Guardar cambios" : "Registrar camión"}
                       </button>
-                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); }} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer" }}>
+                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); }} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.68)", cursor: "pointer" }}>
                         Cancelar
                       </button>
                     </div>
@@ -5222,7 +5222,7 @@ ${calibreSection}
 
                 {/* Lista de registros */}
                 {rendsDelCont.length === 0 && !showFormRend && (
-                  <div style={{ textAlign: "center", padding: "30px 0", color: "rgba(255,255,255,0.25)", fontSize: 12 }}>
+                  <div style={{ textAlign: "center", padding: "30px 0", color: "rgba(255,255,255,0.33)", fontSize: 12 }}>
                     Sin registros de rendimiento para este contenedor. Presiona "+ Registrar camión" para comenzar.
                   </div>
                 )}
@@ -5234,7 +5234,7 @@ ${calibreSection}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6 }}>
                         <div>
                           <span style={{ fontSize: 11, fontWeight: 700, color: "white" }}>🚛 Camión {idx + 1}</span>
-                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>{r.fecha}</span>
+                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.48)", marginLeft: 8 }}>{r.fecha}</span>
                           {r.proveedor && <span style={{ fontSize: 9, background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 10, padding: "1px 8px", color: "#a5b4fc", marginLeft: 6 }}>{r.proveedor}</span>}
                         </div>
                         <div style={{ display: "flex", gap: 6 }}>
@@ -5246,27 +5246,27 @@ ${calibreSection}
 
                       <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: 6, marginTop: 8 }}>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg procesados</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg procesados</div>
                           <div style={{ fontSize: 12, fontWeight: 700 }}>{r.kilosProcesados.toLocaleString("es-CO")} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Kg empacados</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg empacados</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{c.kgEmp.toFixed(1)} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Devueltos</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Devueltos</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#F9A826" }}>{r.kilosDevueltos.toLocaleString("es-CO")} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Rdto. general</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Rdto. general</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: colorRend(c.rendGen) }}>{c.rendGen.toFixed(1)}%</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Del Monte ({r.cajasDelMonte} cajas)</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Del Monte ({r.cajasDelMonte} cajas)</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#818CF8" }}>{c.rendDM.toFixed(1)}%</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)" }}>Princess ({r.cajasPrincess} cajas)</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Princess ({r.cajasPrincess} cajas)</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#C084FC" }}>{c.rendPri.toFixed(1)}%</div>
                         </div>
                       </div>
@@ -5280,7 +5280,7 @@ ${calibreSection}
                               ))}
                             </div>
                           )}
-                          {r.obsDetalle && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", fontStyle: "italic" }}>{r.obsDetalle}</div>}
+                          {r.obsDetalle && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.52)", fontStyle: "italic" }}>{r.obsDetalle}</div>}
                         </div>
                       )}
 
@@ -5296,16 +5296,16 @@ ${calibreSection}
                               return (
                                 <div key={i} style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.14)", borderRadius: 7, padding: "5px 8px" }}>
                                   <div style={{ fontSize: 11, fontWeight: 800, color: "#a5b4fc" }}>{cal.nombre}</div>
-                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)", marginTop: 1 }}>
                                     {cal.tipo === "cajas" ? `${cal.cantidad} cajas · ${calKg.toFixed(0)} kg` : `${calKg.toFixed(0)} kg`}
                                   </div>
                                   <div style={{ marginTop: 3, display: "flex", gap: 8 }}>
                                     <div>
-                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% procesado</div>
+                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>% procesado</div>
                                       <div style={{ fontSize: 11, fontWeight: 700, color: colorRend(pctPro) }}>{pctPro.toFixed(1)}%</div>
                                     </div>
                                     <div>
-                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>% empacado</div>
+                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>% empacado</div>
                                       <div style={{ fontSize: 11, fontWeight: 700, color: "#818CF8" }}>{pctEmp.toFixed(1)}%</div>
                                     </div>
                                   </div>
@@ -5367,12 +5367,12 @@ function DocumentosDemo() {
     fontFamily:"inherit", width:"100%", boxSizing:"border-box",
   };
   const lbl = (t) => (
-    <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{t}</div>
+    <div style={{fontSize:10,color:"rgba(255,255,255,0.48)",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{t}</div>
   );
 
   return (
     <div>
-      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:12,lineHeight:1.7}}>
+      <div style={{fontSize:11,color:"rgba(255,255,255,0.48)",marginBottom:12,lineHeight:1.7}}>
         Completa los datos del embarque y genera los 3 documentos de exportación listos para descargar e imprimir.
       </div>
 
@@ -5421,7 +5421,7 @@ function DocumentosDemo() {
               }}>
                 <div style={{fontSize:22}}>{d.icon}</div>
                 <div style={{fontSize:11,color:destino===d.key?"#38bdf8":"rgba(255,255,255,0.7)",fontWeight:700,marginTop:5,lineHeight:1.3}}>{d.label}</div>
-                <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",marginTop:3,lineHeight:1.4}}>{d.sub}</div>
+                <div style={{fontSize:9,color:"rgba(255,255,255,0.42)",marginTop:3,lineHeight:1.4}}>{d.sub}</div>
                 {destino===d.key && <div style={{fontSize:9,color:"#0EA5E9",fontWeight:700,marginTop:4}}>✓ Seleccionado</div>}
               </button>
             ))}
@@ -5691,7 +5691,7 @@ function TasaCambioWidget() {
     <div style={{ background:"rgba(56,189,248,0.05)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:12, padding:"10px 10px 8px", marginTop:6 }}>
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:7 }}>
-        <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:1 }}>💵 USD / COP</div>
+        <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:1 }}>💵 USD / COP</div>
         <button onClick={fetchTasa} disabled={cargando} title="Actualizar tasa"
           style={{ background:cargando?"rgba(56,189,248,0.12)":"rgba(56,189,248,0.07)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:6, cursor:cargando?"default":"pointer", fontSize:11, color:exito?"#00C9A7":errorApi?"#FF6B6B":"rgba(56,189,248,0.8)", padding:"3px 7px", display:"flex", alignItems:"center", gap:4, fontWeight:700, transition:"color 0.3s" }}>
           <span style={{ display:"inline-block", animation:cargando?"spin 0.7s linear infinite":"none" }}>🔄</span>
@@ -5706,7 +5706,7 @@ function TasaCambioWidget() {
         ) : tieneData ? (
           <>
             <span style={{ fontSize:19, fontWeight:800, color:lineColor, lineHeight:1 }}>{fmtCOP(actual)}</span>
-            <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>COP</span>
+            <span style={{ fontSize:9, color:"rgba(255,255,255,0.42)" }}>COP</span>
             {tasas.length > 1 && (
               <span style={{ marginLeft:"auto", fontSize:10, fontWeight:700, color:trendColor }}>
                 {trend==="up"?"▲":trend==="down"?"▼":"─"} {pct}%
@@ -5714,7 +5714,7 @@ function TasaCambioWidget() {
             )}
           </>
         ) : (
-          <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>—</span>
+          <span style={{ fontSize:11, color:"rgba(255,255,255,0.38)" }}>—</span>
         )}
       </div>
 
@@ -5736,8 +5736,8 @@ function TasaCambioWidget() {
       {/* Timestamps */}
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
         {tasas.length >= 2
-          ? <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>{historial[0].label}</span>
-          : <span style={{ fontSize:8, color:"rgba(255,255,255,0.15)" }}>La gráfica se forma con actualizaciones</span>
+          ? <span style={{ fontSize:8, color:"rgba(255,255,255,0.28)" }}>{historial[0].label}</span>
+          : <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>La gráfica se forma con actualizaciones</span>
         }
         {ultimaAct && (
           <span style={{ fontSize:8, color:exito?"#00C9A7":"rgba(56,189,248,0.55)" }}>
@@ -5760,7 +5760,7 @@ function TasaCambioWidget() {
             onChange={e=>setInputVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&guardar()}
             style={{ flex:1, background:"rgba(255,255,255,0.10)", border:"1px solid rgba(56,189,248,0.4)", borderRadius:6, padding:"4px 6px", color:"white", fontSize:10, fontFamily:"inherit" }} />
           <button onClick={guardar} style={{ background:"rgba(56,189,248,0.2)", border:"none", borderRadius:6, padding:"4px 8px", color:lineColor, cursor:"pointer", fontSize:11, fontWeight:700 }}>✓</button>
-          <button onClick={()=>setEditando(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.3)", cursor:"pointer" }}>✕</button>
+          <button onClick={()=>setEditando(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.38)", cursor:"pointer" }}>✕</button>
         </div>
       ) : (
         <button onClick={()=>setEditando(true)} style={{ width:"100%", background:"rgba(56,189,248,0.07)", border:"1px solid rgba(56,189,248,0.18)", borderRadius:6, padding:"5px", fontSize:9, color:"rgba(56,189,248,0.65)", cursor:"pointer", fontWeight:700 }}>
@@ -5954,7 +5954,7 @@ function EstadisticasDemo() {
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 6px", textAlign:"center" }}>
                   <div style={{ fontSize:18 }}>{k.icon}</div>
                   <div style={{ fontSize:15, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
                 </div>
               ))}
             </div>
@@ -5962,7 +5962,7 @@ function EstadisticasDemo() {
             {/* Gráfica contenedores */}
             <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>🚢 Contenedores por mes</div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)" }}>🚢 Contenedores por mes</div>
                 {btnCSV("CSV", ()=>descargarCSV(["Mes","Contenedores","Cajas","Kg estimados","Costo proceso COP"],histConFinal.map(h=>[h.mes,h.num,h.cajas,h.cajas*10,(h.num*PROCESO_BASE.length*VALOR_CONTENEDOR)]),"produccion_contenedores.csv"))}
               </div>
               <div style={{ display:"flex", alignItems:"flex-end", gap:5, height:90 }}>
@@ -5972,9 +5972,9 @@ function EstadisticasDemo() {
                   const color = h.esReal ? "#00C9A7" : "#6366F1";
                   return (
                     <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.35)", fontWeight:esAct?700:400 }}>{h.num}</div>
+                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.42)", fontWeight:esAct?700:400 }}>{h.num}</div>
                       <div style={{ width:"80%", height:`${barH}px`, background:esAct?color:`rgba(99,102,241,0.35)`, borderRadius:"3px 3px 0 0" }}/>
-                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.28)", textAlign:"center", lineHeight:1.2 }}>{h.mes}{h.esReal?" ✓":""}</div>
+                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.36)", textAlign:"center", lineHeight:1.2 }}>{h.mes}{h.esReal?" ✓":""}</div>
                     </div>
                   );
                 })}
@@ -5983,7 +5983,7 @@ function EstadisticasDemo() {
 
             {/* Gráfica cajas */}
             <div style={{ background:"rgba(0,201,167,0.04)", border:"1px solid rgba(0,201,167,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)", marginBottom:10 }}>📦 Cajas procesadas por mes</div>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)", marginBottom:10 }}>📦 Cajas procesadas por mes</div>
               <div style={{ display:"flex", alignItems:"flex-end", gap:5, height:80 }}>
                 {histConFinal.map((h,i)=>{
                   const barH  = ((h.cajas/maxC)*60).toFixed(1);
@@ -5991,9 +5991,9 @@ function EstadisticasDemo() {
                   const color = h.esReal ? "#00C9A7" : "#6366F1";
                   return (
                     <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.3)" }}>{h.cajas >= 1000 ? `${(h.cajas/1000).toFixed(1)}k` : h.cajas}</div>
+                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.38)" }}>{h.cajas >= 1000 ? `${(h.cajas/1000).toFixed(1)}k` : h.cajas}</div>
                       <div style={{ width:"80%", height:`${barH}px`, background:esAct?color:"rgba(0,201,167,0.3)", borderRadius:"3px 3px 0 0" }}/>
-                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.28)", textAlign:"center" }}>{h.mes}</div>
+                      <div style={{ fontSize:7, color:esAct?color:"rgba(255,255,255,0.36)", textAlign:"center" }}>{h.mes}</div>
                     </div>
                   );
                 })}
@@ -6002,10 +6002,10 @@ function EstadisticasDemo() {
 
             {/* Tabla detalle */}
             <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
-              <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>Detalle histórico</div>
+              <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)", marginBottom:8 }}>Detalle histórico</div>
               <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.11)", paddingBottom:5, marginBottom:4, gap:0 }}>
                 {["Mes","Cont.","Cajas","Kg est.","Costo proceso"].map((h,i)=>(
-                  <div key={i} style={{ flex:i===0?2:1, fontSize:8, color:"rgba(255,255,255,0.3)", fontWeight:700, textAlign:i===0?"left":"right" }}>{h}</div>
+                  <div key={i} style={{ flex:i===0?2:1, fontSize:8, color:"rgba(255,255,255,0.38)", fontWeight:700, textAlign:i===0?"left":"right" }}>{h}</div>
                 ))}
               </div>
               {histConFinal.map((h,i)=>{
@@ -6014,12 +6014,12 @@ function EstadisticasDemo() {
                 const color = h.esReal ? "#00C9A7" : "#6366F1";
                 return (
                   <div key={i} style={{ display:"flex", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,0.07)", background:esAct?`${color}08`:"transparent" }}>
-                    <div style={{ flex:2, fontSize:10, color:esAct?color:"rgba(255,255,255,0.6)", fontWeight:esAct?700:400 }}>
+                    <div style={{ flex:2, fontSize:10, color:esAct?color:"rgba(255,255,255,0.68)", fontWeight:esAct?700:400 }}>
                       {h.mes}{esAct?(h.esReal?" ✅ Real":" ●"):""}
                     </div>
-                    <div style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.5)", textAlign:"right" }}>{h.num}</div>
-                    <div style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.5)", textAlign:"right" }}>{h.cajas.toLocaleString()}</div>
-                    <div style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.5)", textAlign:"right" }}>{(h.cajas*10).toLocaleString()}</div>
+                    <div style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.58)", textAlign:"right" }}>{h.num}</div>
+                    <div style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.58)", textAlign:"right" }}>{h.cajas.toLocaleString()}</div>
+                    <div style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.58)", textAlign:"right" }}>{(h.cajas*10).toLocaleString()}</div>
                     <div style={{ flex:1, fontSize:10, color:"#F9A826", textAlign:"right", fontWeight:700 }}>{h.cajas>0?`$${(proc/1000000).toFixed(2)}M`:"—"}</div>
                   </div>
                 );
@@ -6034,8 +6034,8 @@ function EstadisticasDemo() {
         if (nominaMeses.length === 0) return (
           <div style={{ textAlign:"center", padding:"50px 20px" }}>
             <div style={{ fontSize:32, marginBottom:10 }}>💰</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>Sin liquidaciones registradas aún</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)" }}>Genera nóminas en el módulo "Nómina" para ver el historial aquí</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.58)", marginBottom:6 }}>Sin liquidaciones registradas aún</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)" }}>Genera nóminas en el módulo "Nómina" para ver el historial aquí</div>
           </div>
         );
         const totalNom  = nominaMeses.reduce((s,m)=>s+m.total,0);
@@ -6052,7 +6052,7 @@ function EstadisticasDemo() {
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
                   <div style={{ fontSize:20 }}>{k.icon}</div>
                   <div style={{ fontSize:16, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
                 </div>
               ))}
             </div>
@@ -6060,10 +6060,10 @@ function EstadisticasDemo() {
             {/* Stacked bar chart nómina */}
             <div style={{ background:"rgba(249,168,38,0.04)", border:"1px solid rgba(249,168,38,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>💰 Nómina mensual — comparativo</div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)" }}>💰 Nómina mensual — comparativo</div>
                 <div style={{ display:"flex", gap:8 }}>
                   {[["Roger","#845EF7"],["Descargue","#F9A826"],["Proceso","#6366F1"]].map(([l,c])=>(
-                    <div key={l} style={{ display:"flex", alignItems:"center", gap:3, fontSize:8, color:"rgba(255,255,255,0.35)" }}>
+                    <div key={l} style={{ display:"flex", alignItems:"center", gap:3, fontSize:8, color:"rgba(255,255,255,0.42)" }}>
                       <div style={{ width:7, height:7, borderRadius:1, background:c }}/>{l}
                     </div>
                   ))}
@@ -6093,7 +6093,7 @@ function EstadisticasDemo() {
             {/* Tabla nómina */}
             <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)" }}>Detalle mensual</div>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)" }}>Detalle mensual</div>
                 {btnCSV("CSV nómina", ()=>descargarCSV(
                   ["Mes","Roger COP","Descargue COP","Proceso COP","Total COP"],
                   nominaMeses.map(m=>[m.mes,m.roger,m.desc,m.proc,m.total]),
@@ -6102,7 +6102,7 @@ function EstadisticasDemo() {
               </div>
               <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.11)", paddingBottom:5, marginBottom:4 }}>
                 {["Mes","Roger","Descargue","Proceso","Total"].map((h,i)=>(
-                  <div key={i} style={{ flex:i===0?2:1.4, fontSize:8, color:"rgba(255,255,255,0.3)", fontWeight:700, textAlign:i===0?"left":"right" }}>{h}</div>
+                  <div key={i} style={{ flex:i===0?2:1.4, fontSize:8, color:"rgba(255,255,255,0.38)", fontWeight:700, textAlign:i===0?"left":"right" }}>{h}</div>
                 ))}
               </div>
               {nominaMeses.map((m,i)=>{
@@ -6128,8 +6128,8 @@ function EstadisticasDemo() {
           {asistMes.datos.length === 0 ? (
             <div style={{ textAlign:"center", padding:"50px 20px" }}>
               <div style={{ fontSize:32, marginBottom:10 }}>📅</div>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>Sin datos de asistencia para {hoy.toLocaleDateString("es-CO",{month:"long",year:"numeric"})}</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)" }}>Registra asistencia en el módulo "Asistencia" para ver estadísticas aquí</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.58)", marginBottom:6 }}>Sin datos de asistencia para {hoy.toLocaleDateString("es-CO",{month:"long",year:"numeric"})}</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)" }}>Registra asistencia en el módulo "Asistencia" para ver estadísticas aquí</div>
             </div>
           ) : (
             <>
@@ -6143,14 +6143,14 @@ function EstadisticasDemo() {
                   <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 6px", textAlign:"center" }}>
                     <div style={{ fontSize:18 }}>{k.icon}</div>
                     <div style={{ fontSize:16, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                    <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
+                    <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
                   </div>
                 ))}
               </div>
 
               <div style={{ background:"rgba(78,205,196,0.04)", border:"1px solid rgba(78,205,196,0.12)", borderRadius:12, padding:"12px 14px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.45)" }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.52)" }}>
                     Asistencia por empleado — {hoy.toLocaleDateString("es-CO",{month:"long",year:"numeric"})}
                   </div>
                   {btnCSV("CSV asistencia", ()=>descargarCSV(
@@ -6161,7 +6161,7 @@ function EstadisticasDemo() {
                 </div>
                 <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.11)", paddingBottom:5, marginBottom:4 }}>
                   {["Empleado","P","A","T","LP","%"].map((h,i)=>(
-                    <div key={i} style={{ flex:i===0?5:1, fontSize:8, color:"rgba(255,255,255,0.3)", fontWeight:700, textAlign:i===0?"left":"center" }}>{h}</div>
+                    <div key={i} style={{ flex:i===0?5:1, fontSize:8, color:"rgba(255,255,255,0.38)", fontWeight:700, textAlign:i===0?"left":"center" }}>{h}</div>
                   ))}
                 </div>
                 <div style={{ maxHeight:320, overflowY:"auto" }}>
@@ -6171,7 +6171,7 @@ function EstadisticasDemo() {
                     const col = pct>=90?"#00C9A7":pct>=70?"#F9A826":"#FF6B6B";
                     return (
                       <div key={i} style={{ display:"flex", alignItems:"center", padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-                        <div style={{ flex:5, fontSize:10, color:"rgba(255,255,255,0.7)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{e.nombre}</div>
+                        <div style={{ flex:5, fontSize:10, color:"rgba(255,255,255,0.78)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{e.nombre}</div>
                         <div style={{ flex:1, fontSize:10, color:"#00C9A7", textAlign:"center", fontWeight:700 }}>{e.P}</div>
                         <div style={{ flex:1, fontSize:10, color:"#FF6B6B", textAlign:"center" }}>{e.A}</div>
                         <div style={{ flex:1, fontSize:10, color:"#F9A826", textAlign:"center" }}>{e.T}</div>
@@ -6194,8 +6194,8 @@ function EstadisticasDemo() {
         if (finMeses.length === 0) return (
           <div style={{ textAlign:"center", padding:"50px 20px" }}>
             <div style={{ fontSize:32, marginBottom:10 }}>📈</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>Sin datos de contenedores aún</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)" }}>Registra contenedores en el módulo "Contenedores" para ver el análisis financiero</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.58)", marginBottom:6 }}>Sin datos de contenedores aún</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)" }}>Registra contenedores en el módulo "Contenedores" para ver el análisis financiero</div>
           </div>
         );
         const totalIng  = finMeses.reduce((s,m)=>s+m.ingresos,0);
@@ -6221,7 +6221,7 @@ function EstadisticasDemo() {
                   <div style={{ fontSize:22 }}>{k.icon}</div>
                   <div>
                     <div style={{ fontSize:15, fontWeight:800, color:k.c }}>{k.v}</div>
-                    <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", lineHeight:1.3 }}>{k.l}</div>
+                    <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", lineHeight:1.3 }}>{k.l}</div>
                   </div>
                 </div>
               ))}
@@ -6230,10 +6230,10 @@ function EstadisticasDemo() {
             {/* Chart ingresos vs gastos */}
             <div style={{ background:"rgba(0,201,167,0.04)", border:"1px solid rgba(0,201,167,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>📈 Ingresos vs Gastos por mes</div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)" }}>📈 Ingresos vs Gastos por mes</div>
                 <div style={{ display:"flex", gap:8 }}>
                   {[["Ingresos","#00C9A7"],["Gastos","#FF6B6B"]].map(([l,c])=>(
-                    <div key={l} style={{ display:"flex", alignItems:"center", gap:3, fontSize:8, color:"rgba(255,255,255,0.35)" }}>
+                    <div key={l} style={{ display:"flex", alignItems:"center", gap:3, fontSize:8, color:"rgba(255,255,255,0.42)" }}>
                       <div style={{ width:7, height:7, borderRadius:1, background:c }}/>{l}
                     </div>
                   ))}
@@ -6260,20 +6260,20 @@ function EstadisticasDemo() {
             {/* Desglose + notas */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
               <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>💸 Desglose gastos (prom. mensual)</div>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)", marginBottom:8 }}>💸 Desglose gastos (prom. mensual)</div>
                 {[
                   ["Nómina fija", salMin+valQuin*6, "#845EF7"],
                   ["Proceso (4 cont.)", 4*PROCESO_BASE.length*valCont, "#6366F1"],
                   ...GASTOS_OP_EST.map(g=>[g.cat, g.cop*4, "#F9A826"]),
                 ].map(([l,v,c],i)=>(
                   <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)", maxWidth:"60%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l}</span>
+                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.48)", maxWidth:"60%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l}</span>
                     <span style={{ fontSize:9, color:c, fontWeight:700 }}>${(v/1e6).toFixed(2)}M</span>
                   </div>
                 ))}
               </div>
               <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>📌 Supuestos del cálculo</div>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)", marginBottom:8 }}>📌 Supuestos del cálculo</div>
                 {[
                   `TRM: $${trmReal.toLocaleString("es-CO")} COP/USD ${trmReal===TRM_USD?"(estimada, configura en widget)":"(tiempo real ✅)"}`,
                   `Precio: $${precioUSDkg} USD/kg exportado`,
@@ -6283,8 +6283,8 @@ function EstadisticasDemo() {
                   "Margen bruto ≠ utilidad neta",
                 ].map((n,i)=>(
                   <div key={i} style={{ display:"flex", gap:5, alignItems:"flex-start", marginBottom:4 }}>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", flexShrink:0, marginTop:1 }}>•</span>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", lineHeight:1.4 }}>{n}</span>
+                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.28)", flexShrink:0, marginTop:1 }}>•</span>
+                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.42)", lineHeight:1.4 }}>{n}</span>
                   </div>
                 ))}
                 <button onClick={()=>descargarCSV(
@@ -6310,7 +6310,7 @@ function EstadisticasDemo() {
               <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
                 <div style={{ fontSize:18 }}>{k.icon}</div>
                 <div style={{ fontSize:16, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                <div style={{ fontSize:8, color:"rgba(255,255,255,0.35)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
+                <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
               </div>
             ))}
           </div>
@@ -6318,7 +6318,7 @@ function EstadisticasDemo() {
           {/* Cards por cliente */}
           <div style={{ marginBottom:10 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.45)" }}>🤝 Por cliente</div>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.52)" }}>🤝 Por cliente</div>
               {btnCSV("CSV exportaciones", ()=>descargarCSV(
                 ["Cliente","País","Pedidos","Kg totales","Valor USD","Precio USD/kg"],
                 expArr.map(e=>[e.cliente,"USA",e.pedidos,e.kg,e.usd.toFixed(0),(e.usd/e.kg).toFixed(2)]),
@@ -6338,7 +6338,7 @@ function EstadisticasDemo() {
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:2 }}>{e.cliente}</div>
-                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)" }}>
                         {dest?.pais || "🌎 Internacional"}
                         {dest?.contacto && dest.contacto!=="—" && <> · {dest.contacto}</>}
                         {dest?.tel && dest.tel!=="—" && <> · {dest.tel}</>}
@@ -6346,7 +6346,7 @@ function EstadisticasDemo() {
                     </div>
                     <div style={{ textAlign:"right" }}>
                       <div style={{ fontSize:16, fontWeight:800, color:"#F9A826" }}>${e.usd.toLocaleString("en-US",{maximumFractionDigits:0})}</div>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>USD · {pct}% del total</div>
+                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)" }}>USD · {pct}% del total</div>
                     </div>
                   </div>
                   <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:3, height:5, marginBottom:8 }}>
@@ -6359,7 +6359,7 @@ function EstadisticasDemo() {
                       ["estado", estadoLabel, entregados>0?"#00C9A7":enProceso>0?"#F9A826":"#6366F1"]].map(([l,v,c])=>(
                       <div key={l} style={{ flex:1, background:`${c}0d`, borderRadius:6, padding:"4px 3px", textAlign:"center" }}>
                         <div style={{ fontSize:10, color:c, fontWeight:700 }}>{v}</div>
-                        <div style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginTop:1 }}>{l}</div>
+                        <div style={{ fontSize:7, color:"rgba(255,255,255,0.38)", marginTop:1 }}>{l}</div>
                       </div>
                     ))}
                   </div>
@@ -6370,14 +6370,14 @@ function EstadisticasDemo() {
 
           {/* Pedidos detalle */}
           <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>📋 Pedidos activos en pipeline</div>
+            <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)", marginBottom:8 }}>📋 Pedidos activos en pipeline</div>
             {pedidosReales.map((p,i)=>{
               const est = PEDIDO_ESTADOS.find(e=>e.key===p.estado)||{label:p.estado,color:"#aaa",icon:"📦"};
               return (
                 <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
                   <div>
                     <div style={{ fontSize:10, color:"white", fontWeight:600 }}>{p.producto} · {p.cantidadKg.toLocaleString("es-CO")} kg</div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginTop:1 }}>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:1 }}>
                       {p.fecha}{p.contenedor?` · ${p.contenedor}`:""} · {p.cliente}
                     </div>
                   </div>
@@ -6389,7 +6389,7 @@ function EstadisticasDemo() {
               );
             })}
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.09)" }}>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Total pipeline</span>
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.48)" }}>Total pipeline</span>
               <span style={{ fontSize:13, fontWeight:800, color:"#F9A826" }}>${totalExpUSD.toLocaleString("en-US",{maximumFractionDigits:0})} USD</span>
             </div>
           </div>
@@ -6402,7 +6402,7 @@ function EstadisticasDemo() {
           style={{ background:"linear-gradient(135deg,rgba(99,102,241,0.12),rgba(132,94,247,0.12))", border:"1px solid rgba(99,102,241,0.28)", borderRadius:10, padding:"8px 22px", fontSize:11, color:"#6366F1", cursor:"pointer", fontWeight:700 }}>
           🖨 Imprimir / Guardar como PDF
         </button>
-        <div style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>En el diálogo de impresión selecciona "Guardar como PDF" para compartir con socios</div>
+        <div style={{ fontSize:9, color:"rgba(255,255,255,0.28)" }}>En el diálogo de impresión selecciona "Guardar como PDF" para compartir con socios</div>
       </div>
     </div>
   );
@@ -6484,7 +6484,7 @@ function PedidosDemo() {
 
   const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:6, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
 
-  if (loadingPed) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.3)", fontSize:13 }}>Cargando pedidos...</div>;
+  if (loadingPed) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.38)", fontSize:13 }}>Cargando pedidos...</div>;
 
   return (
     <div>
@@ -6498,7 +6498,7 @@ function PedidosDemo() {
             <div style={{ fontSize:13, fontWeight:700, color:"#0EA5E9", marginBottom:14 }}>📋 Pedido #{detalle.id}</div>
             {[["Cliente",detalle.cliente],["Producto",detalle.producto],["Cantidad",`${Number(detalle.cantidadKg).toLocaleString("es-CO")} kg`],["Precio",`$${detalle.precioUSD} USD/kg`],["Total USD",`$${(detalle.cantidadKg*detalle.precioUSD).toLocaleString("en-US",{maximumFractionDigits:0})}`],["Fecha",detalle.fecha],["Contenedor",detalle.contenedor||"Sin asignar"],["Notas",detalle.notas||"—"]].map(([l,v])=>(
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{l}</span>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>{l}</span>
                 <span style={{ fontSize:11, color:"white", fontWeight:600, maxWidth:"58%", textAlign:"right" }}>{v}</span>
               </div>
             ))}
@@ -6509,7 +6509,7 @@ function PedidosDemo() {
                   → {nextEst(detalle.estado).label}
                 </button>
               )}
-              <button onClick={()=>setDetalle(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>✕</button>
+              <button onClick={()=>setDetalle(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>✕</button>
             </div>
           </div>
         </div>
@@ -6525,7 +6525,7 @@ function PedidosDemo() {
           <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${s.color}22`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
             <div style={{ fontSize:20 }}>{s.icon}</div>
             <div style={{ fontSize:17, fontWeight:800, color:s.color, marginTop:2 }}>{s.value}</div>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginTop:2 }}>{s.label}</div>
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:2 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -6544,7 +6544,7 @@ function PedidosDemo() {
           const cnt = e.key==="todos"?pedidos.length:pedidos.filter(p=>p.estado===e.key).length;
           return (
             <button key={e.key} onClick={()=>setFiltroEst(e.key)}
-              style={{ background:filtroEst===e.key?`${e.color}25`:"rgba(255,255,255,0.04)", border:`1px solid ${filtroEst===e.key?e.color+"60":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:10, color:filtroEst===e.key?e.color:"rgba(255,255,255,0.45)", fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
+              style={{ background:filtroEst===e.key?`${e.color}25`:"rgba(255,255,255,0.04)", border:`1px solid ${filtroEst===e.key?e.color+"60":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:10, color:filtroEst===e.key?e.color:"rgba(255,255,255,0.52)", fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
               {e.icon} {e.label} {cnt>0&&<span style={{ background:`${e.color}30`, borderRadius:20, padding:"0 5px", fontSize:9 }}>{cnt}</span>}
             </button>
           );
@@ -6561,13 +6561,13 @@ function PedidosDemo() {
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
             <div style={{ display:"flex", gap:6 }}>
               <div style={{ flex:2 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Cliente</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cliente</div>
                 <CustomSelect value={nuevo.cliente} onChange={e=>setNuevo(p=>({...p,cliente:e.target.value}))} style={inp}>
                   {clientes.map(c=><option key={c.id} style={{background:"#1a1a2e"}}>{c.nombre}</option>)}
                 </CustomSelect>
               </div>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Estado inicial</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Estado inicial</div>
                 <CustomSelect value={nuevo.estado} onChange={e=>setNuevo(p=>({...p,estado:e.target.value}))} style={inp}>
                   {PEDIDO_ESTADOS.map(e=><option key={e.key} value={e.key} style={{background:"#1a1a2e"}}>{e.label}</option>)}
                 </CustomSelect>
@@ -6575,31 +6575,31 @@ function PedidosDemo() {
             </div>
             <div style={{ display:"flex", gap:6 }}>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Cantidad (kg) *</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cantidad (kg) *</div>
                 <input type="number" placeholder="20000" value={nuevo.cantidadKg} onChange={e=>setNuevo(p=>({...p,cantidadKg:e.target.value}))} style={inp} />
               </div>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Precio USD/kg</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Precio USD/kg</div>
                 <input type="number" step="0.01" placeholder="0.45" value={nuevo.precioUSD} onChange={e=>setNuevo(p=>({...p,precioUSD:e.target.value}))} style={inp} />
               </div>
             </div>
             <div style={{ display:"flex", gap:6 }}>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Producto</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Producto</div>
                 <input placeholder="Limón Tahití" value={nuevo.producto} onChange={e=>setNuevo(p=>({...p,producto:e.target.value}))} style={inp} />
               </div>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>N° Contenedor</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>N° Contenedor</div>
                 <input placeholder="CONT-2026-XXX" value={nuevo.contenedor} onChange={e=>setNuevo(p=>({...p,contenedor:e.target.value}))} style={inp} />
               </div>
             </div>
             <div>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:3 }}>Notas</div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Notas</div>
               <input placeholder="Observaciones..." value={nuevo.notas} onChange={e=>setNuevo(p=>({...p,notas:e.target.value}))} style={inp} />
             </div>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={()=>pedir(editId?"¿Guardar cambios en este pedido?":"¿Crear este pedido?", agregar)} style={{ flex:1, background:"linear-gradient(135deg,#0EA5E9,#845EF7)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>{editId ? "✅ Guardar cambios" : "✅ Crear pedido"}</button>
-              <button onClick={()=>{ setShowForm(false); setEditId(null); }} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
+              <button onClick={()=>{ setShowForm(false); setEditId(null); }} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -6607,7 +6607,7 @@ function PedidosDemo() {
 
       {/* Lista */}
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-        {filtrados.length === 0 && <div style={{ textAlign:"center", color:"rgba(255,255,255,0.3)", fontSize:12, padding:20 }}>Sin pedidos en este estado</div>}
+        {filtrados.length === 0 && <div style={{ textAlign:"center", color:"rgba(255,255,255,0.38)", fontSize:12, padding:20 }}>Sin pedidos en este estado</div>}
         {filtrados.map(p => {
           const est = estInfo(p.estado);
           const nxt = nextEst(p.estado);
@@ -6619,10 +6619,10 @@ function PedidosDemo() {
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, flexWrap:"wrap" }}>
                       <span style={{ fontSize:10, background:`${est.color}20`, color:est.color, borderRadius:6, padding:"2px 8px", fontWeight:700, border:`1px solid ${est.color}40` }}>{est.icon} {est.label}</span>
-                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>#{p.id} · {p.fecha}</span>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)" }}>#{p.id} · {p.fecha}</span>
                     </div>
                     <div style={{ fontSize:13, color:"white", fontWeight:700 }}>{p.cliente}</div>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:2 }}>
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.52)", marginTop:2 }}>
                       {p.producto} · {Number(p.cantidadKg).toLocaleString("es-CO")} kg
                       {p.contenedor && <> · <span style={{color:"#6366F1"}}>{p.contenedor}</span></>}
                     </div>
@@ -6630,12 +6630,12 @@ function PedidosDemo() {
                   </div>
                   <div style={{ textAlign:"right", flexShrink:0 }}>
                     <div style={{ fontSize:14, fontWeight:800, color:"#F9A826" }}>${valorUSD.toLocaleString("en-US",{maximumFractionDigits:0})}</div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>USD</div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)" }}>USD</div>
                   </div>
                 </div>
               </div>
               <div style={{ borderTop:`1px solid ${est.color}15`, display:"flex" }}>
-                <button onClick={()=>setDetalle(p)} style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"none", padding:"10px", fontSize:11, color:"rgba(255,255,255,0.5)", cursor:"pointer", fontWeight:600 }}>👁 Detalle</button>
+                <button onClick={()=>setDetalle(p)} style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"none", padding:"10px", fontSize:11, color:"rgba(255,255,255,0.58)", cursor:"pointer", fontWeight:600 }}>👁 Detalle</button>
                 <div style={{ width:1, background:"rgba(255,255,255,0.07)" }}/>
                 {p.estado !== "entregado" && (
                   <button onClick={()=>avanzar(p.id)} style={{ flex:2, background:`${nxt.color}12`, border:"none", padding:"10px", fontSize:11, color:nxt.color, cursor:"pointer", fontWeight:700 }}>→ {nxt.label}</button>
@@ -6767,7 +6767,7 @@ function InicioDemo({ onNavigate }) {
       {/* ── HEADER: Fecha/Hora + Clima ── */}
       <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr auto", gap:10, marginBottom:14 }}>
         <div style={{ background:"linear-gradient(135deg,rgba(0,201,167,0.07),rgba(132,94,247,0.07))", border:"1px solid rgba(255,255,255,0.10)", borderRadius:14, padding: mob ? "10px 14px" : "14px 18px" }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:2, textTransform:"capitalize" }}>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:2, textTransform:"capitalize" }}>
             {mob
               ? hora.toLocaleDateString("es-CO",{weekday:"short",month:"short",day:"numeric"})
               : hora.toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})
@@ -6775,13 +6775,13 @@ function InicioDemo({ onNavigate }) {
           </div>
           <div style={{ fontSize: mob ? 30 : 36, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"white", letterSpacing:-1, lineHeight:1 }}>
             {hora.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}
-            <span style={{ fontSize: mob ? 13 : 16, color:"rgba(255,255,255,0.3)", marginLeft:6, fontFamily:"'DM Sans',sans-serif", fontWeight:400 }}>:{String(hora.getSeconds()).padStart(2,"0")}</span>
+            <span style={{ fontSize: mob ? 13 : 16, color:"rgba(255,255,255,0.38)", marginLeft:6, fontFamily:"'DM Sans',sans-serif", fontWeight:400 }}>:{String(hora.getSeconds()).padStart(2,"0")}</span>
           </div>
           <div style={{ display:"flex", gap:8, marginTop:6, alignItems:"center", flexWrap:"wrap" }}>
             <span style={{ fontSize:9, background:"rgba(0,201,167,0.15)", color:"#00C9A7", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>● En línea</span>
             {alertaCount > 0 && <span style={{ fontSize:9, background:"rgba(255,107,107,0.15)", color:"#FF6B6B", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>⚠️ {alertaCount} alertas</span>}
             {mob && clima && <span style={{ fontSize:9, color:"rgba(56,189,248,0.8)", fontWeight:600 }}>{w.icon} {Math.round(clima.temperature_2m)}°C · Girón</span>}
-            {!mob && <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>🍋 Girón, Santander</span>}
+            {!mob && <span style={{ fontSize:9, color:"rgba(255,255,255,0.38)" }}>🍋 Girón, Santander</span>}
           </div>
         </div>
 
@@ -6791,8 +6791,8 @@ function InicioDemo({ onNavigate }) {
           {clima ? (
             <>
               <div style={{ fontSize:22, fontWeight:800, color:"#38bdf8", lineHeight:1 }}>{Math.round(clima.temperature_2m)}°C</div>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.45)" }}>{w.desc}</div>
-              <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginTop:2 }}>💧{clima.relative_humidity_2m}% · 💨{Math.round(clima.wind_speed_10m)}km/h</div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.52)" }}>{w.desc}</div>
+              <div style={{ fontSize:8, color:"rgba(255,255,255,0.38)", marginTop:2 }}>💧{clima.relative_humidity_2m}% · 💨{Math.round(clima.wind_speed_10m)}km/h</div>
             </>
           ) : (
             <div style={{ fontSize:9, color:"rgba(56,189,248,0.4)" }}>Conectando…</div>
@@ -6808,9 +6808,9 @@ function InicioDemo({ onNavigate }) {
           <div style={{ fontSize:9, color:"rgba(78,205,196,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>📅 Asistencia hoy</div>
           <div style={{ display:"flex", alignItems:"baseline", gap:5, marginBottom:4 }}>
             <span style={{ fontSize:28, fontWeight:800, color:"#4ECDC4", lineHeight:1 }}>{asistHoy.total > 0 ? asistHoy.p : "—"}</span>
-            {asistHoy.total > 0 && <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>presentes</span>}
+            {asistHoy.total > 0 && <span style={{ fontSize:10, color:"rgba(255,255,255,0.48)" }}>presentes</span>}
           </div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:8 }}>
+          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:8 }}>
             {asistHoy.total > 0 ? `${asistHoy.a} ausentes · ${asistHoy.t} tardanzas` : "Sin registros aún — ve a Asistencia"}
           </div>
           <div style={{ display:"flex", gap:4 }}>
@@ -6827,14 +6827,14 @@ function InicioDemo({ onNavigate }) {
         <div style={{ background:"rgba(0,201,167,0.05)", border:"1px solid rgba(0,201,167,0.14)", borderRadius:12, padding:"12px 14px" }}>
           <div style={{ fontSize:9, color:"rgba(0,201,167,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>👥 Personal</div>
           <div style={{ fontSize:28, fontWeight:800, color:"#00C9A7", lineHeight:1, marginBottom:4 }}>{empleadosReal.length}</div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:8 }}>empleados registrados</div>
+          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:8 }}>empleados registrados</div>
           <div style={{ display:"flex", gap:4 }}>
             {[["CC Col",empleadosReal.filter(e=>e.doc==="CC Nacional").length,"#00C9A7"],
               ["Venezuela",empleadosReal.filter(e=>e.doc==="CC Venezuela").length,"#F9A826"],
               ["PPT",empleadosReal.filter(e=>e.doc==="PPT").length,"#845EF7"]].map(([l,v,c])=>(
               <div key={l} style={{ flex:1, textAlign:"center", background:`${c}10`, borderRadius:6, padding:"3px 2px" }}>
                 <div style={{ fontSize:11, fontWeight:800, color:c }}>{v}</div>
-                <div style={{ fontSize:7, color:"rgba(255,255,255,0.3)", lineHeight:1.3 }}>{l}</div>
+                <div style={{ fontSize:7, color:"rgba(255,255,255,0.38)", lineHeight:1.3 }}>{l}</div>
               </div>
             ))}
           </div>
@@ -6844,7 +6844,7 @@ function InicioDemo({ onNavigate }) {
         <div style={{ background:"rgba(249,168,38,0.05)", border:"1px solid rgba(249,168,38,0.14)", borderRadius:12, padding:"12px 14px" }}>
           <div style={{ fontSize:9, color:"rgba(249,168,38,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>💰 Nómina fija/mes</div>
           <div style={{ fontSize:22, fontWeight:800, color:"#F9A826", lineHeight:1, marginBottom:4 }}>${(nominaFija/1000000).toFixed(2)}M</div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:6 }}>COP · base mensual estimada</div>
+          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:6 }}>COP · base mensual estimada</div>
           <div style={{ fontSize:9, color:"rgba(249,168,38,0.5)", lineHeight:1.7 }}>
             Roger: ${SALARIO_MINIMO.toLocaleString("es-CO")}<br/>
             Desc. ×3: ${(QUINCENA_DESCARGUE*6).toLocaleString("es-CO")}
@@ -6855,7 +6855,7 @@ function InicioDemo({ onNavigate }) {
         <div onClick={()=>onNavigate("inventario")} style={{ background:bajoStock.length>0?"rgba(255,107,107,0.06)":"rgba(0,201,167,0.04)", border:`1px solid ${bajoStock.length>0?"rgba(255,107,107,0.22)":"rgba(0,201,167,0.14)"}`, borderRadius:12, padding:"12px 14px", cursor:"pointer" }}>
           <div style={{ fontSize:9, color:bajoStock.length>0?"rgba(255,107,107,0.8)":"rgba(0,201,167,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>📦 Inventario</div>
           <div style={{ fontSize:28, fontWeight:800, color:bajoStock.length>0?"#FF6B6B":"#00C9A7", lineHeight:1, marginBottom:4 }}>{bajoStock.length}</div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:4 }}>productos bajo mínimo</div>
+          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:4 }}>productos bajo mínimo</div>
           {bajoStock.length > 0
             ? <div style={{ fontSize:9, color:"rgba(255,107,107,0.6)", lineHeight:1.4 }}>{bajoStock.slice(0,2).map(i=>i.nombre).join(", ")}{bajoStock.length>2?` +${bajoStock.length-2}`:""}</div>
             : <div style={{ fontSize:9, color:"rgba(0,201,167,0.55)" }}>✓ Stock en niveles normales</div>
@@ -6866,7 +6866,7 @@ function InicioDemo({ onNavigate }) {
         <div onClick={()=>onNavigate("pedidos")} style={{ background:"rgba(14,165,233,0.05)", border:"1px solid rgba(14,165,233,0.14)", borderRadius:12, padding:"12px 14px", cursor:"pointer" }}>
           <div style={{ fontSize:9, color:"rgba(14,165,233,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>📋 Pedidos activos</div>
           <div style={{ fontSize:28, fontWeight:800, color:"#0EA5E9", lineHeight:1, marginBottom:4 }}>{pedidos.length}</div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:4 }}>en pipeline de exportación</div>
+          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:4 }}>en pipeline de exportación</div>
           <div style={{ fontSize:9, color:"rgba(14,165,233,0.65)" }}>💵 ${ingresoUSD.toLocaleString("en-US",{maximumFractionDigits:0})} USD estimado</div>
         </div>
 
@@ -6874,7 +6874,7 @@ function InicioDemo({ onNavigate }) {
         <div onClick={()=>onNavigate("nomina")} style={{ background:"rgba(132,94,247,0.05)", border:"1px solid rgba(132,94,247,0.14)", borderRadius:12, padding:"12px 14px", cursor:"pointer" }}>
           <div style={{ fontSize:9, color:"rgba(132,94,247,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>🏭 Proceso</div>
           <div style={{ fontSize:28, fontWeight:800, color:"#845EF7", lineHeight:1, marginBottom:4 }}>{PROCESO_BASE.length}</div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:4 }}>personas en proceso hoy</div>
+          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:4 }}>personas en proceso hoy</div>
           <div style={{ fontSize:9, color:"rgba(132,94,247,0.6)" }}>📦 ${VALOR_CONTENEDOR.toLocaleString("es-CO")} por contenedor</div>
         </div>
       </div>
@@ -6895,17 +6895,17 @@ function InicioDemo({ onNavigate }) {
                     <span style={{ fontSize:13 }}>⚠️</span>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:10, color:"#F9A826", fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.nombre}</div>
-                      <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)" }}>{item.cant} {item.unidad} — mín: {item.minimo}</div>
+                      <div style={{ fontSize:8, color:"rgba(255,255,255,0.38)" }}>{item.cant} {item.unidad} — mín: {item.minimo}</div>
                     </div>
                   </div>
                 ))}
-                {bajoStock.length > 3 && <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textAlign:"center" }}>+{bajoStock.length-3} productos más en inventario</div>}
+                {bajoStock.length > 3 && <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", textAlign:"center" }}>+{bajoStock.length-3} productos más en inventario</div>}
                 {sinCuenta>0 && (
                   <div onClick={()=>onNavigate("personal")} style={{ display:"flex", alignItems:"center", gap:7, cursor:"pointer", padding:"6px 8px", borderRadius:8, background:"rgba(255,107,107,0.07)", border:"1px solid rgba(255,107,107,0.15)" }}>
                     <span style={{ fontSize:13 }}>🏦</span>
                     <div>
                       <div style={{ fontSize:10, color:"#FF6B6B", fontWeight:700 }}>{sinCuenta} sin cuenta bancaria</div>
-                      <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)" }}>No pueden recibir nómina digital</div>
+                      <div style={{ fontSize:8, color:"rgba(255,255,255,0.38)" }}>No pueden recibir nómina digital</div>
                     </div>
                   </div>
                 )}
@@ -6914,7 +6914,7 @@ function InicioDemo({ onNavigate }) {
                     <span style={{ fontSize:13 }}>📵</span>
                     <div>
                       <div style={{ fontSize:10, color:"#845EF7", fontWeight:700 }}>{sinTel} sin teléfono registrado</div>
-                      <div style={{ fontSize:8, color:"rgba(255,255,255,0.3)" }}>No reciben notificaciones WhatsApp</div>
+                      <div style={{ fontSize:8, color:"rgba(255,255,255,0.38)" }}>No reciben notificaciones WhatsApp</div>
                     </div>
                   </div>
                 )}
@@ -6924,16 +6924,16 @@ function InicioDemo({ onNavigate }) {
 
         {/* Actividad reciente */}
         <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.45)", marginBottom:10 }}>🕐 Actividad reciente</div>
+          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.52)", marginBottom:10 }}>🕐 Actividad reciente</div>
           <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
             {actividadReciente.length === 0 && (
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", textAlign:"center", padding:"10px 0" }}>Sin actividad reciente registrada</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)", textAlign:"center", padding:"10px 0" }}>Sin actividad reciente registrada</div>
             )}
             {actividadReciente.slice(0,4).map((a,i)=>(
               <div key={i} style={{ display:"flex", gap:8, alignItems:"center", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
                 <span style={{ fontSize:13, flexShrink:0 }}>{a.icon}</span>
-                <span style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.6)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.text}</span>
-                <span style={{ fontSize:8, color:"rgba(255,255,255,0.25)", flexShrink:0 }}>{a.time}</span>
+                <span style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.68)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.text}</span>
+                <span style={{ fontSize:8, color:"rgba(255,255,255,0.33)", flexShrink:0 }}>{a.time}</span>
               </div>
             ))}
           </div>
@@ -6944,10 +6944,10 @@ function InicioDemo({ onNavigate }) {
       {hayTendencia && (
         <div style={{ background:"rgba(78,205,196,0.04)", border:"1px solid rgba(78,205,196,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>📊 Tendencia asistencia — últimos 7 días</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)" }}>📊 Tendencia asistencia — últimos 7 días</div>
             <div style={{ display:"flex", gap:10 }}>
               {[["Presentes","#4ECDC4"],["Ausentes","rgba(255,107,107,0.6)"]].map(([l,c])=>(
-                <div key={l} style={{ display:"flex", alignItems:"center", gap:4, fontSize:8, color:"rgba(255,255,255,0.3)" }}>
+                <div key={l} style={{ display:"flex", alignItems:"center", gap:4, fontSize:8, color:"rgba(255,255,255,0.38)" }}>
                   <div style={{ width:8, height:8, borderRadius:2, background:c }}/>{l}
                 </div>
               ))}
@@ -6966,7 +6966,7 @@ function InicioDemo({ onNavigate }) {
                     {d.p === 0 && d.a === 0 && <div style={{ width:"70%", height:2, background:"rgba(255,255,255,0.08)", borderRadius:1 }}/>}
                   </div>
                   <div style={{ fontSize:8, color:d.esHoy?"#4ECDC4":"rgba(255,255,255,0.28)", fontWeight:d.esHoy?700:400 }}>{d.label}</div>
-                  {(d.p>0||d.a>0) && <div style={{ fontSize:7, color:"rgba(255,255,255,0.35)" }}>{d.p+d.a}</div>}
+                  {(d.p>0||d.a>0) && <div style={{ fontSize:7, color:"rgba(255,255,255,0.42)" }}>{d.p+d.a}</div>}
                 </div>
               );
             })}
@@ -6976,7 +6976,7 @@ function InicioDemo({ onNavigate }) {
 
       {/* ── ACCESO RÁPIDO ── */}
       <div style={{ marginBottom:14 }}>
-        <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>⚡ Acceso rápido</div>
+        <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>⚡ Acceso rápido</div>
         <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:6 }}>
           {quickMods.map((m,i)=>(
             <button key={i} onClick={()=>onNavigate(m.id)} style={{ background:`${m.color}0e`, border:`1px solid ${m.color}30`, borderRadius:10, padding:"10px 6px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
@@ -6990,19 +6990,19 @@ function InicioDemo({ onNavigate }) {
       {/* ── INFO EMPRESA + TARIFAS ── */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
         <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:10, padding:12 }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:700, marginBottom:8 }}>🏢 Empresa</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", fontWeight:700, marginBottom:8 }}>🏢 Empresa</div>
           {[["Nombre","Tierra Prometida Trading"],["Ubicación","Lebrija & Girón, Stder."],["Actividad","Proc. y exp. de frutas"],["Producto","Limón Tahití"]].map(([l,v])=>(
             <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{l}</span>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>{v}</span>
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)" }}>{l}</span>
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.78)", fontWeight:600 }}>{v}</span>
             </div>
           ))}
         </div>
         <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:10, padding:12 }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:700, marginBottom:8 }}>💼 Tarifas activas</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", fontWeight:700, marginBottom:8 }}>💼 Tarifas activas</div>
           {[["Por contenedor",`$${VALOR_CONTENEDOR.toLocaleString("es-CO")}`],["Salario mínimo",`$${SALARIO_MINIMO.toLocaleString("es-CO")}`],["Quincena desc.",`$${QUINCENA_DESCARGUE.toLocaleString("es-CO")}`],["Personal proceso",`${PROCESO_BASE.length} personas`]].map(([l,v])=>(
             <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>{l}</span>
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)" }}>{l}</span>
               <span style={{ fontSize:10, color:"#F9A826", fontWeight:700 }}>{v}</span>
             </div>
           ))}
@@ -7024,7 +7024,7 @@ function SaveBtn({ onClick, label = "Guardar cambios" }) {
 function Toggle({ value, onChange, label }) {
   return (
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 0", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
-      <span style={{ fontSize:13, color:"rgba(255,255,255,0.78)" }}>{label}</span>
+      <span style={{ fontSize:13, color:"rgba(255,255,255,0.85)" }}>{label}</span>
       <div onClick={() => onChange(!value)} style={{ width:44, height:25, borderRadius:13, background:value?"#00C9A7":"rgba(255,255,255,0.12)", cursor:"pointer", position:"relative", transition:"background 0.22s", flexShrink:0 }}>
         <div style={{ position:"absolute", top:3, left:value?21:3, width:19, height:19, borderRadius:"50%", background:"white", transition:"left 0.22s", boxShadow:"0 2px 5px rgba(0,0,0,0.35)" }} />
       </div>
@@ -7035,7 +7035,7 @@ function Toggle({ value, onChange, label }) {
 // ─── MÓDULO CONFIGURACIÓN ─────────────────────────────────────
 function ConfiguracionDemo() {
   const { config, loading, guardar } = useConfiguracion();
-  if (loading) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.3)", fontSize:13 }}>Cargando configuración...</div>;
+  if (loading) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.38)", fontSize:13 }}>Cargando configuración...</div>;
   return <ConfigForm config={config} guardar={guardar} />;
 }
 
@@ -7109,9 +7109,9 @@ function ConfigForm({ config, guardar }) {
 
   // ── Estilo helpers ──
   const iS = (extra) => ({ width:"100%", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 12px", color:"white", fontSize:13, fontFamily:"inherit", boxSizing:"border-box", outline:"none", ...extra });
-  const lS = { fontSize:10, color:"rgba(255,255,255,0.42)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.6, marginBottom:5, display:"block" };
+  const lS = { fontSize:10, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.6, marginBottom:5, display:"block" };
   const secS = { background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.10)", borderRadius:12, padding:"18px 20px", marginBottom:16 };
-  const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.88)" };
+  const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
   const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Configuración"];
@@ -7138,7 +7138,7 @@ function ConfigForm({ config, guardar }) {
           <div style={{ background:"#181a26", border:"1px solid rgba(255,107,107,0.3)", borderRadius:16, padding:28, maxWidth:320, width:"100%", textAlign:"center" }}>
             <div style={{ fontSize:30, marginBottom:10 }}>⚠️</div>
             <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>¿Eliminar este registro?</div>
-            <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:22 }}>Esta acción no se puede deshacer.</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.52)", marginBottom:22 }}>Esta acción no se puede deshacer.</div>
             <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
               <button onClick={() => { confirmDel.action(); setConfirmDel(null); }} style={{ background:"rgba(255,107,107,0.18)", border:"1px solid #FF6B6B", borderRadius:9, padding:"9px 22px", color:"#FF6B6B", cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"inherit" }}>Eliminar</button>
               <button onClick={() => setConfirmDel(null)} style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:9, padding:"9px 22px", color:"white", cursor:"pointer", fontSize:13, fontFamily:"inherit" }}>Cancelar</button>
@@ -7172,14 +7172,14 @@ function ConfigForm({ config, guardar }) {
             <div style={secH}>🖼️ Identidad Corporativa</div>
             <div style={{ display:"flex", gap:16, alignItems:"flex-start", flexWrap:"wrap" }}>
               <div onClick={() => logoRef.current?.click()} style={{ width:88, height:88, borderRadius:14, border:"2px dashed rgba(255,255,255,0.14)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, overflow:"hidden", background:"rgba(255,255,255,0.05)", transition:"border-color 0.2s" }}>
-                {empresa.logo ? <img src={empresa.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" /> : <div style={{ textAlign:"center", fontSize:11, color:"rgba(255,255,255,0.28)", lineHeight:1.6 }}>📷<br/>Logo</div>}
+                {empresa.logo ? <img src={empresa.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" /> : <div style={{ textAlign:"center", fontSize:11, color:"rgba(255,255,255,0.36)", lineHeight:1.6 }}>📷<br/>Logo</div>}
               </div>
               <input ref={logoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => {
                 const f = e.target.files[0]; if (!f) return;
                 const r = new FileReader(); r.onload = ev => setEmpresa(p => ({...p, logo:ev.target.result})); r.readAsDataURL(f);
               }} />
               <div style={{ flex:1, minWidth:180 }}>
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:6, lineHeight:1.5 }}>Haz clic en el recuadro para subir tu logo.<br/>PNG, JPG o SVG · Máx. 2 MB</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.58)", marginBottom:6, lineHeight:1.5 }}>Haz clic en el recuadro para subir tu logo.<br/>PNG, JPG o SVG · Máx. 2 MB</div>
                 {empresa.logo && <button onClick={() => setEmpresa(p=>({...p,logo:""}))} style={{ marginTop:8, background:"rgba(255,107,107,0.1)", border:"1px solid #FF6B6B50", borderRadius:6, padding:"5px 12px", fontSize:11, color:"#FF6B6B", cursor:"pointer", fontFamily:"inherit" }}>✕ Quitar logo</button>}
               </div>
             </div>
@@ -7226,7 +7226,7 @@ function ConfigForm({ config, guardar }) {
                 <div style={{ width:38, height:38, borderRadius:10, background:`${ROL_COLORS[u.rol]||"#64748B"}22`, border:`1px solid ${ROL_COLORS[u.rol]||"#64748B"}50`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:ROL_COLORS[u.rol]||"#94a3b8", flexShrink:0 }}>{u.avatar||u.nombre[0]}</div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:700, fontSize:13 }}>{u.nombre}</div>
-                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.38)", marginTop:1 }}>Cédula: {u.cedula}</div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:1 }}>Cédula: {u.cedula}</div>
                   <span style={{ display:"inline-block", marginTop:5, fontSize:10, fontWeight:700, color:ROL_COLORS[u.rol]||"#94a3b8", background:`${ROL_COLORS[u.rol]||"#64748B"}20`, padding:"2px 9px", borderRadius:5 }}>{u.rol}</span>
                   <div style={{ marginTop:9, display:"flex", flexWrap:"wrap", gap:4 }}>
                     {MOD_NAMES.map(mn => {
@@ -7417,10 +7417,10 @@ function ConfigForm({ config, guardar }) {
                 <div key={k}>
                   <label style={lS}>{l}</label>
                   <div style={{ position:"relative" }}>
-                    <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.38)", fontSize:13, pointerEvents:"none" }}>$</span>
+                    <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.45)", fontSize:13, pointerEvents:"none" }}>$</span>
                     <input type="number" style={iS({ paddingLeft:22 })} value={nominaCfg[k]} onChange={e=>setNominaCfg(p=>({...p,[k]:Number(e.target.value)}))} />
                   </div>
-                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.32)", marginTop:4 }}>{(nominaCfg[k]||0).toLocaleString("es-CO")} COP</div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:4 }}>{(nominaCfg[k]||0).toLocaleString("es-CO")} COP</div>
                 </div>
               ))}
             </div>
@@ -7431,7 +7431,7 @@ function ConfigForm({ config, guardar }) {
             <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:14 }}>
               {nominaCfg.areas.map((a, ai) => (
                 <div key={ai} style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:8, padding:"5px 10px" }}>
-                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.72)" }}>{a}</span>
+                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)" }}>{a}</span>
                   <button onClick={()=>setConfirmDel({action:()=>setNominaCfg(p=>({...p,areas:p.areas.filter((_,xi)=>xi!==ai)}))})} style={{ background:"none", border:"none", color:"rgba(255,107,107,0.65)", cursor:"pointer", fontSize:14, lineHeight:1, padding:0, fontFamily:"inherit" }}>×</button>
                 </div>
               ))}
@@ -7456,7 +7456,7 @@ function ConfigForm({ config, guardar }) {
         <div>
           <div style={secS}>
             <div style={secH}>🔔 Alertas Automáticas</div>
-            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginBottom:14 }}>Activa o desactiva las notificaciones del sistema JARVIS</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.42)", marginBottom:14 }}>Activa o desactiva las notificaciones del sistema JARVIS</div>
             <Toggle value={notifCfg.pagoQuincenal} onChange={v=>setNotifCfg(p=>({...p,pagoQuincenal:v}))} label="💰 Recordatorio pago quincenal — cada viernes" />
             <Toggle value={notifCfg.docsExport}    onChange={v=>setNotifCfg(p=>({...p,docsExport:v}))}    label="🚢 Recordatorio documentos de exportación pendientes" />
             <Toggle value={notifCfg.stockBajo}     onChange={v=>setNotifCfg(p=>({...p,stockBajo:v}))}     label="📦 Alertas de stock bajo en inventario" />
@@ -7466,7 +7466,7 @@ function ConfigForm({ config, guardar }) {
             <div style={secH}>📱 WhatsApp para Alertas Críticas</div>
             <label style={lS}>Número de WhatsApp (incluye código de país)</label>
             <input style={iS()} value={notifCfg.whatsapp} onChange={e=>setNotifCfg(p=>({...p,whatsapp:e.target.value}))} placeholder="+57 300 000 0000" />
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)", marginTop:7 }}>Las alertas críticas se enviarán a este número vía WhatsApp Business API</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.36)", marginTop:7 }}>Las alertas críticas se enviarán a este número vía WhatsApp Business API</div>
           </div>
           <SaveBtn onClick={() => save("cfg_notif", notifCfg)} />
         </div>
@@ -7501,13 +7501,13 @@ function ConfigForm({ config, guardar }) {
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ width:24, height:24, borderRadius:6, background:apariencia.colorPrincipal, boxShadow:`0 0 8px ${apariencia.colorPrincipal}80` }} />
-              <span style={{ fontSize:12, color:"rgba(255,255,255,0.55)" }}>Seleccionado: <span style={{ color:apariencia.colorPrincipal, fontWeight:700 }}>{apariencia.colorPrincipal}</span></span>
+              <span style={{ fontSize:12, color:"rgba(255,255,255,0.62)" }}>Seleccionado: <span style={{ color:apariencia.colorPrincipal, fontWeight:700 }}>{apariencia.colorPrincipal}</span></span>
             </div>
           </div>
 
           <div style={secS}>
             <div style={secH}>⚡ Rendimiento Visual</div>
-            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", marginBottom:12 }}>Desactiva en dispositivos lentos o con batería baja</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.42)", marginBottom:12 }}>Desactiva en dispositivos lentos o con batería baja</div>
             <Toggle value={apariencia.animaciones} onChange={v=>setApariencia(p=>({...p,animaciones:v}))} label="✨ Animaciones, transiciones y efectos de hover" />
           </div>
           <SaveBtn onClick={() => save("cfg_apariencia", apariencia)} />
@@ -7556,21 +7556,21 @@ function ConfigForm({ config, guardar }) {
 
           <div style={secS}>
             <div style={secH}>📋 Últimos 10 Accesos</div>
-            {seguridad.historial.length === 0 && <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", textAlign:"center", padding:"16px 0" }}>Aún no hay registro de accesos — esta función no está activa todavía</div>}
+            {seguridad.historial.length === 0 && <div style={{ fontSize:13, color:"rgba(255,255,255,0.38)", textAlign:"center", padding:"16px 0" }}>Aún no hay registro de accesos — esta función no está activa todavía</div>}
             {seguridad.historial.slice(0,10).map((h, i) => (
               <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
                 <div>
                   <div style={{ fontSize:12, fontWeight:600 }}>{h.usuario}</div>
-                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)" }}>IP: {h.ip}</div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>IP: {h.ip}</div>
                 </div>
-                <div style={{ fontSize:11, color:"rgba(255,255,255,0.38)", fontVariantNumeric:"tabular-nums" }}>{h.fecha}</div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", fontVariantNumeric:"tabular-nums" }}>{h.fecha}</div>
               </div>
             ))}
           </div>
 
           <div style={secS}>
             <div style={secH}>💾 Backup Completo del Sistema</div>
-            <div style={{ fontSize:12, color:"rgba(255,255,255,0.42)", marginBottom:14, lineHeight:1.6 }}>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:14, lineHeight:1.6 }}>
               Exporta toda la configuración guardada en Supabase a un archivo JSON.<br/>
               Guárdalo en un lugar seguro — puedes restaurarlo en cualquier dispositivo.
             </div>
@@ -7694,7 +7694,7 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
   };
 
   return (
-    <div style={{ minHeight:"100dvh", background:"#08090B", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:"'DM Sans',system-ui,sans-serif", overflowY:"auto" }}>
+    <div style={{ minHeight:"100dvh", background:"#020203", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:"'DM Sans',system-ui,sans-serif", overflowY:"auto" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; }
@@ -7728,17 +7728,17 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
         <div className="login-logo">
           <div className="login-logo-icon">🍋</div>
           <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:"white", letterSpacing:-0.5, margin:0 }}>Tierra Prometida Trading</h1>
-          <p style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:5, margin:"5px 0 0" }}>Sistema de gestión — JARVIS</p>
+          <p style={{ fontSize:12, color:"rgba(255,255,255,0.48)", marginTop:5, margin:"5px 0 0" }}>Sistema de gestión — JARVIS</p>
         </div>
 
         {/* Card */}
         <div className="login-card">
           <div style={{ fontSize:16, fontWeight:700, color:"white", marginBottom:4 }}>Bienvenido 👋</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginBottom:20 }}>Ingresa tus datos para continuar</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.48)", marginBottom:20 }}>Ingresa tus datos para continuar</div>
 
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:6, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Nombre completo</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.58)", marginBottom:6, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Nombre completo</div>
               <input
                 value={nombre}
                 onChange={e => { setNombre(e.target.value); setError(""); }}
@@ -7749,7 +7749,7 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
               />
             </div>
             <div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:6, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Cédula (contraseña)</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.58)", marginBottom:6, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>Cédula (contraseña)</div>
               <div style={{ position:"relative" }}>
                 <input
                   type={showPass ? "text" : "password"}
@@ -7763,7 +7763,7 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
                 />
                 <button
                   onClick={() => setShowPass(!showPass)}
-                  style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:18, lineHeight:1, padding:4, minWidth:32, minHeight:32, display:"flex", alignItems:"center", justifyContent:"center" }}
+                  style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.48)", cursor:"pointer", fontSize:18, lineHeight:1, padding:4, minWidth:32, minHeight:32, display:"flex", alignItems:"center", justifyContent:"center" }}
                 >
                   {showPass ? "🙈" : "👁"}
                 </button>
@@ -7782,7 +7782,7 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
           </div>
         </div>
 
-        <div className="login-footer" style={{ textAlign:"center", marginTop:18, fontSize:11, color:"rgba(255,255,255,0.2)" }}>
+        <div className="login-footer" style={{ textAlign:"center", marginTop:18, fontSize:11, color:"rgba(255,255,255,0.28)" }}>
           Powered by JARVIS 🤖 · Tierra Prometida Trading
         </div>
       </div>
@@ -7832,8 +7832,8 @@ export default function App() {
 
   // Esperar config antes de mostrar login (para que cfg_usuarios esté disponible)
   if (cfgLoading && !usuario) return (
-    <div style={{ minHeight:"100vh", background:"#08090B", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:14, fontFamily:"DM Sans,sans-serif" }}>Cargando...</div>
+    <div style={{ minHeight:"100vh", background:"#020203", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ color:"rgba(255,255,255,0.48)", fontSize:14, fontFamily:"DM Sans,sans-serif" }}>Cargando...</div>
     </div>
   );
 
@@ -7874,7 +7874,7 @@ export default function App() {
         {demo.items.map((item,i) => (
           <div key={i}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4, fontSize:13 }}>
-              <span style={{ color:"rgba(255,255,255,0.8)" }}>{item.label}</span>
+              <span style={{ color:"rgba(255,255,255,0.88)" }}>{item.label}</span>
               <span style={{ color:item.stock<item.min?"#FF6B6B":"#00C9A7", fontWeight:700 }}>{item.stock} uds {item.stock<item.min?"⚠️":""}</span>
             </div>
             <div style={{ background:"rgba(255,255,255,0.10)", borderRadius:4, height:8, overflow:"hidden" }}>
@@ -7889,7 +7889,7 @@ export default function App() {
   return (
     <MobCtx.Provider value={isMobile}>
     <SmallCtx.Provider value={isSmall}>
-    <div className="tp-app" style={{ minHeight:"100vh", background:"#08090B", fontFamily:"'DM Sans',system-ui,sans-serif", color:"white", "--cp":colorPrincipal }}>
+    <div className="tp-app" style={{ minHeight:"100vh", background:"#020203", fontFamily:"'DM Sans',system-ui,sans-serif", color:"white", "--cp":colorPrincipal }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
         :root { --cp: ${colorPrincipal}; }
@@ -8203,7 +8203,7 @@ export default function App() {
                 <div className="tp-header-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, letterSpacing:-0.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                   {isSmall ? "JARVIS 🍋" : "Tierra Prometida Trading"}
                 </div>
-                <div className="tp-header-sub" style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Sistema de gestión — JARVIS</div>
+                <div className="tp-header-sub" style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>Sistema de gestión — JARVIS</div>
               </div>
               <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
 
@@ -8232,14 +8232,14 @@ export default function App() {
                           <span style={{ fontSize:16 }}>{r.icon}</span>
                           <div>
                             <div style={{ fontSize:13, fontWeight:600 }}>{r.label}</div>
-                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{r.sub}</div>
+                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>{r.sub}</div>
                           </div>
                         </button>
                       ))}
                     </div>
                   )}
                   {showSearch && searchQ.trim().length >= 2 && searchResults.length === 0 && (
-                    <div className="tp-dropdown" style={{ position:"absolute", top:"calc(100% + 6px)", right:0, background:"#1a1c26", border:"1px solid rgba(255,255,255,0.15)", borderRadius:12, minWidth:260, zIndex:500, padding:"14px 16px", fontSize:13, color:"rgba(255,255,255,0.4)", boxShadow:"0 8px 32px rgba(0,0,0,0.6)" }}>
+                    <div className="tp-dropdown" style={{ position:"absolute", top:"calc(100% + 6px)", right:0, background:"#1a1c26", border:"1px solid rgba(255,255,255,0.15)", borderRadius:12, minWidth:260, zIndex:500, padding:"14px 16px", fontSize:13, color:"rgba(255,255,255,0.48)", boxShadow:"0 8px 32px rgba(0,0,0,0.6)" }}>
                       Sin resultados para "{searchQ}"
                     </div>
                   )}
@@ -8254,15 +8254,15 @@ export default function App() {
                     style={{ position:"relative", background:showNotif?"rgba(132,94,247,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${showNotif?"#845EF7":"rgba(255,255,255,0.12)"}`, borderRadius:9, width:34, height:34, cursor:"pointer", fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}
                   >
                     🔔
-                    {nNotif > 0 && <span style={{ position:"absolute", top:-4, right:-4, background:"#FF6B6B", color:"white", fontSize:9, fontWeight:800, borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #08090B" }}>{nNotif > 9 ? "9+" : nNotif}</span>}
+                    {nNotif > 0 && <span style={{ position:"absolute", top:-4, right:-4, background:"#FF6B6B", color:"white", fontSize:9, fontWeight:800, borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #020203" }}>{nNotif > 9 ? "9+" : nNotif}</span>}
                   </button>
                   {showNotif && (
                     <div className="tp-dropdown" style={{ position:"absolute", top:"calc(100% + 8px)", right:0, background:"#1a1c26", border:"1px solid rgba(255,255,255,0.15)", borderRadius:14, width:300, zIndex:500, overflow:"hidden", boxShadow:"0 8px 32px rgba(0,0,0,0.7)" }}>
                       <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(255,255,255,0.11)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                         <span style={{ fontWeight:700, fontSize:13 }}>Notificaciones</span>
-                        <button onClick={() => setShowNotif(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:16, lineHeight:1 }}>×</button>
+                        <button onClick={() => setShowNotif(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.48)", cursor:"pointer", fontSize:16, lineHeight:1 }}>×</button>
                       </div>
-                      {notifs.length === 0 && <div style={{ padding:"20px 16px", fontSize:13, color:"rgba(255,255,255,0.4)", textAlign:"center" }}>Todo en orden ✅</div>}
+                      {notifs.length === 0 && <div style={{ padding:"20px 16px", fontSize:13, color:"rgba(255,255,255,0.48)", textAlign:"center" }}>Todo en orden ✅</div>}
                       {notifs.map((n,i) => (
                         <div key={i} style={{ display:"flex", gap:10, padding:"11px 14px", borderBottom:"1px solid rgba(255,255,255,0.08)", alignItems:"flex-start", transition:"background 0.15s" }}
                           onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
@@ -8270,7 +8270,7 @@ export default function App() {
                           <div style={{ width:32, height:32, borderRadius:8, background:`${n.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0 }}>{n.icon}</div>
                           <div>
                             <div style={{ fontSize:12, fontWeight:700, color:"white", lineHeight:1.3 }}>{n.titulo}</div>
-                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:2 }}>{n.detalle}</div>
+                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginTop:2 }}>{n.detalle}</div>
                           </div>
                         </div>
                       ))}
@@ -8281,7 +8281,7 @@ export default function App() {
                 <div className="tp-header-sub" style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <div style={{ textAlign:"right", transition:"opacity 0.2s" }}>
                     <div style={{ fontSize:12, color:"white", fontWeight:600 }}>{usuario.nombre.split(" ")[0]} {usuario.nombre.split(" ")[1]}</div>
-                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>{usuario.rol}</div>
+                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.42)" }}>{usuario.rol}</div>
                   </div>
                 </div>
                 <div className="tp-hdr-avatar" style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,#845EF7,${colorPrincipal})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"white", flexShrink:0 }}>{usuario.avatar}</div>
@@ -8405,7 +8405,7 @@ export default function App() {
                 {!acceso && (
                   <div style={{ position:"absolute", inset:0, borderRadius:"inherit", background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", gap:5, zIndex:2 }}>
                     <span style={{ fontSize:11 }}>🔒</span>
-                    <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.45)", letterSpacing:0.5 }}>BLOQUEADO</span>
+                    <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.52)", letterSpacing:0.5 }}>BLOQUEADO</span>
                   </div>
                 )}
 
@@ -8443,7 +8443,7 @@ export default function App() {
             <span style={{ fontSize:20 }}>{mod.icon}</span>
             <div style={{ minWidth:0, flex:1 }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, color:"white", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{mod.title}</div>
-              {!isMobile && <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Tierra Prometida Trading 🍋</div>}
+              {!isMobile && <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>Tierra Prometida Trading 🍋</div>}
             </div>
             <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0, background:mod.color, boxShadow:`0 0 8px ${mod.color}` }} />
           </div>

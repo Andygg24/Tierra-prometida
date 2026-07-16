@@ -15,7 +15,7 @@ html {
 body {
   width: 100%;
   min-height: 100%;
-  background: #08090B;
+  background: #020203;
   color: white;
   font-family: 'DM Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -26,7 +26,7 @@ body {
 #root {
   width: 100%;
   min-height: 100vh;
-  background: #08090B;
+  background: #020203;
   display: flex;
   flex-direction: column;
 }
