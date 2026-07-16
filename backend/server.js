@@ -6,6 +6,7 @@
  *   POST /api/carta-temp   → descarga .docx
  *   POST /api/proforma     → descarga .xlsx
  *   POST /api/isf          → descarga .xlsx
+ *   POST /api/id-pallet    → descarga .xlsx
  *   POST /api/exportar-zip → descarga .zip con los 3 archivos
  */
 
@@ -153,6 +154,24 @@ app.post("/api/isf", async (req, res) => {
   }
 });
 
+// ── POST /api/id-pallet ────────────────────────────────────────────────
+app.post("/api/id-pallet", async (req, res) => {
+  const err = validate(req.body, ["container"]);
+  if (err) return res.status(400).json({ error: err });
+
+  try {
+    const buffer   = await runPython("id_pallet.py", req.body);
+    const filename = `ID-Pallet-${req.body.container || "export"}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  } catch (e) {
+    console.error("[id-pallet]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── POST /api/exportar-zip — devuelve ZIP con los 3 archivos ──────────
 app.post("/api/exportar-zip", async (req, res) => {
   try {
@@ -226,6 +245,7 @@ if (require.main === module) {
     console.log(`     POST /api/carta-temp`);
     console.log(`     POST /api/proforma`);
     console.log(`     POST /api/isf`);
+    console.log(`     POST /api/id-pallet`);
     console.log(`     POST /api/exportar-zip`);
     console.log(`     POST /api/informe-analisis\n`);
   });

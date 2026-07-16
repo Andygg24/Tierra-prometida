@@ -131,6 +131,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
     growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
     ispm15:"CO-68-001 HT",
+    // ── Formato ID Pallet — campos sin fuente en otro paso ──
+    port:"", puertoManual:"", moviad:"", temperatura:"",
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
@@ -677,6 +679,52 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       alert("Error generando Packing List: " + e.message);
     } finally {
       setGenerandoExcel(false);
+    }
+  };
+
+  const [generandoIdPallet, setGenerandoIdPallet] = useState(false);
+  const generarIdPallet = async () => {
+    setGenerandoIdPallet(true);
+    try {
+      const payload = {
+        fechaCargue:  admin.fechaCargue  || "",
+        port:         admin.port         || "",
+        vessel:       admin.vessel       || "",
+        destino:      admin.destino      || "",
+        container:    admin.container    || "",
+        temperatura:  admin.temperatura  || "",
+        tempRecorder: admin.tempRecorder || "",
+        finalStamps:  admin.finalStamps  || "",
+        moviad:       admin.moviad       || "",
+        puertoManual: admin.puertoManual || "",
+        pallets: pallets.map(p => ({
+          id:       p.id,
+          calibres: p.calibres.map(c => ({ size: c.size ? Number(c.size) : "", cajas: Number(c.cajas || 0) })),
+        })),
+      };
+
+      const res = await fetch("/api/id-pallet", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(e.error || res.statusText);
+      }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url;
+      a.download = `ID-Pallet-${admin.container || "export"}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Error generando Formato ID Pallet: " + e.message);
+    } finally {
+      setGenerandoIdPallet(false);
     }
   };
 
@@ -1288,6 +1336,17 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
             </div>
           </div>
 
+          {/* ── FORMATO ID PALLET — campos manuales sin otra fuente ─── */}
+          <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
+            <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🆔 FORMATO ID PALLET</div>
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: m ? 10 : 8 }}>
+              <div><div style={lbl}>Port</div><input value={admin.port} onChange={e => sa("port", e.target.value)} placeholder="SP CARTAGENA" style={inp} /></div>
+              <div><div style={lbl}>Puerto</div><input value={admin.puertoManual} onChange={e => sa("puertoManual", e.target.value)} style={inp} /></div>
+              <div><div style={lbl}>Moviad</div><input value={admin.moviad} onChange={e => sa("moviad", e.target.value)} style={inp} /></div>
+              <div><div style={lbl}>Temperature</div><input value={admin.temperatura} onChange={e => sa("temperatura", e.target.value)} placeholder="7.2°C" style={inp} /></div>
+            </div>
+          </div>
+
           {/* ── GROWER LIST ─────────────────────────────────────────── */}
           <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
             <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 12 : 8, fontWeight:700 }}>🌿 GROWER LIST — Asignación de Predios</div>
@@ -1366,6 +1425,9 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
             </button>
             <button onClick={() => generarPDF()} style={{ flex:1, background:"linear-gradient(135deg,#1a5c1a,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38 }}>
               📄 Descargar PDF
+            </button>
+            <button onClick={generarIdPallet} disabled={generandoIdPallet} style={{ flex:1, background:"linear-gradient(135deg,#6366F1,#4338CA)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoIdPallet ? "wait" : "pointer", fontWeight:700, opacity: generandoIdPallet ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
+              {generandoIdPallet ? "⏳ Generando..." : "🆔 Formato ID Pallet"}
             </button>
           </div>
 
