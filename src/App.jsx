@@ -264,7 +264,7 @@ function PersonalDemo() {
                 <input placeholder="Área"     value={editForm.area||""} onChange={e=>setEditForm(f=>({...f,area:e.target.value}))} style={{...inp,flex:1}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
-                <button onClick={()=>pedir("¿Guardar cambios?",guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#00C9A7,#845EF7)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
+                <button onClick={()=>pedir("¿Guardar cambios?",guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
                 <button onClick={()=>setEditando(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
               </div>
             </div>
@@ -360,7 +360,7 @@ function PersonalDemo() {
       <div style={{ display:"flex", gap:3, marginBottom:12, flexWrap:"wrap" }}>
         {TABS_PERS.map((t,i)=>(
           <button key={i} onClick={()=>setTabPers(i)}
-            style={{ background:tabPers===i?"rgba(0,201,167,0.18)":"rgba(255,255,255,0.04)", border:`1px solid ${tabPers===i?"rgba(0,201,167,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:10, color:tabPers===i?"#00C9A7":"rgba(255,255,255,0.4)", fontWeight:tabPers===i?700:400 }}>
+            style={{ background:tabPers===i?"rgba(132,94,247,0.18)":"rgba(255,255,255,0.04)", border:`1px solid ${tabPers===i?"rgba(132,94,247,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:10, color:tabPers===i?"#845EF7":"rgba(255,255,255,0.4)", fontWeight:tabPers===i?700:400 }}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -378,12 +378,12 @@ function PersonalDemo() {
             ))}
           </div>
           <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
-            <button onClick={()=>{setShowForm(!showForm);setShowBroadcast(false);}} style={{ background:showForm?"rgba(0,201,167,0.25)":"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#00C9A7", cursor:"pointer", fontWeight:700 }}>➕ Nuevo empleado</button>
+            <button onClick={()=>{setShowForm(!showForm);setShowBroadcast(false);}} style={{ background:showForm?"rgba(132,94,247,0.25)":"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>➕ Nuevo empleado</button>
             <button onClick={()=>{setShowBroadcast(!showBroadcast);setShowForm(false);}} style={{ background:showBroadcast?"rgba(37,211,102,0.25)":"rgba(37,211,102,0.1)", border:"1px solid rgba(37,211,102,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#25D366", cursor:"pointer", fontWeight:700 }}>📢 Broadcast {selected.length>0?`(${selected.length})`:""}</button>
           </div>
           {showForm && (
-            <div style={{ background:"rgba(0,201,167,0.06)", border:"1px solid rgba(0,201,167,0.2)", borderRadius:12, padding:14, marginBottom:10 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:"#00C9A7", marginBottom:10 }}>👤 Nuevo empleado</div>
+            <div style={{ background:"rgba(132,94,247,0.06)", border:"1px solid rgba(132,94,247,0.2)", borderRadius:12, padding:14, marginBottom:10 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#845EF7", marginBottom:10 }}>👤 Nuevo empleado</div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 <input placeholder="Nombre completo *" value={nuevoEmp.nombre} onChange={e=>setNuevoEmp({...nuevoEmp,nombre:e.target.value})} style={inp} />
                 <div style={{ display:"flex", gap:6 }}>
@@ -397,7 +397,7 @@ function PersonalDemo() {
                   <input placeholder="Área" value={nuevoEmp.area} onChange={e=>setNuevoEmp({...nuevoEmp,area:e.target.value})} style={{...inp,flex:1}} />
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
-                  <button onClick={guardar} style={{ flex:1, background:"linear-gradient(135deg,#00C9A7,#845EF7)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
+                  <button onClick={guardar} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
                   <button onClick={()=>setShowForm(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.5)", cursor:"pointer" }}>Cancelar</button>
                 </div>
               </div>
@@ -446,7 +446,7 @@ function PersonalDemo() {
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3, flexWrap:"wrap" }}>
                         {showBroadcast && <span style={{ fontSize:16, color:isSel?"#25D366":"rgba(255,255,255,0.2)" }}>{isSel?"☑️":"⬜"}</span>}
                         <span style={{ fontSize:13, color:"white", fontWeight:700 }}>{emp.nombre}</span>
-                        {isExtra && <span style={{ fontSize:9, background:"rgba(0,201,167,0.2)", color:"#00C9A7", borderRadius:5, padding:"2px 6px", fontWeight:700 }}>NUEVO</span>}
+                        {isExtra && <span style={{ fontSize:9, background:"rgba(132,94,247,0.2)", color:"#845EF7", borderRadius:5, padding:"2px 6px", fontWeight:700 }}>NUEVO</span>}
                       </div>
                       <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", lineHeight:1.6 }}>
                         <span style={{ color:"rgba(255,255,255,0.55)" }}>{emp.area}</span>
@@ -1509,7 +1509,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                   <button onClick={()=>{
                     if(cantEfectiva===0){alert(hayConts?"Selecciona al menos un contenedor":"Ingresa al menos 1 contenedor");return;}
                     pedir(`¿Generar comprobante de ${empSel.nombre}?\n${cantEfectiva} contenedor${cantEfectiva!==1?"es":""} · ${fmtCOP(totalCont)} · ${metodoPago}`,generarComprobante);
-                  }} style={{flex:1,background:"linear-gradient(135deg,#0a7c5c,#00C9A7)",border:"none",borderRadius:10,padding:"11px",fontSize:13,color:"white",cursor:"pointer",fontWeight:700}}>
+                  }} style={{flex:1,background:"linear-gradient(135deg,#6d28d9,#845EF7)",border:"none",borderRadius:10,padding:"11px",fontSize:13,color:"white",cursor:"pointer",fontWeight:700}}>
                     📄 Generar Comprobante
                   </button>
                   <button onClick={()=>{setSelectedConts([]);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");}}
@@ -2063,7 +2063,7 @@ function InventarioDemo() {
                 <input value={editForm.obs||""} onChange={e=>setEditForm(f=>({...f,obs:e.target.value}))} style={{...inp,width:"100%"}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
-                <button onClick={() => pedir("¿Guardar cambios?", guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#00C9A7)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
+                <button onClick={() => pedir("¿Guardar cambios?", guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
                 <button onClick={() => setEditando(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
               </div>
             </div>
@@ -2090,7 +2090,7 @@ function InventarioDemo() {
                 <input value={movObs} onChange={e=>setMovObs(e.target.value)} placeholder="Opcional..." style={{...inp,width:"100%"}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
-                <button onClick={confirmarMovimiento} style={{ flex:1, background:movModal.tipo==="entrada"?"linear-gradient(135deg,#00C9A7,#845EF7)":"linear-gradient(135deg,#FF6B6B,#F9A826)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>
+                <button onClick={confirmarMovimiento} style={{ flex:1, background:movModal.tipo==="entrada"?"linear-gradient(135deg,#845EF7,#6366F1)":"linear-gradient(135deg,#FF6B6B,#F9A826)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>
                   {movModal.tipo==="entrada"?"📥 Confirmar entrada":"📤 Confirmar salida"}
                 </button>
                 <button onClick={() => { setMovModal(null); setMovCant(""); setMovObs(""); }} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 12px", fontSize:12, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>✕</button>
@@ -2159,7 +2159,7 @@ function InventarioDemo() {
             </div>
             <input placeholder="Observaciones" value={nuevoItem.obs} onChange={e=>setNuevoItem(p=>({...p,obs:e.target.value}))} style={{...inp,width:"100%"}} />
             <div style={{ display:"flex", gap:6 }}>
-              <button onClick={() => pedir(`¿Agregar "${nuevoItem.nombre}" al inventario?`, confirmarAgregarItem)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#00C9A7)", border:"none", borderRadius:7, padding:"7px", fontSize:11, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Agregar</button>
+              <button onClick={() => pedir(`¿Agregar "${nuevoItem.nombre}" al inventario?`, confirmarAgregarItem)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:7, padding:"7px", fontSize:11, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Agregar</button>
               <button onClick={() => setShowAdd(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:7, padding:"7px 12px", fontSize:11, color:"rgba(255,255,255,0.4)", cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
@@ -3682,7 +3682,7 @@ function ContenedoresDemo() {
                   </div>
                   <div style={{padding:"8px 14px",borderBottom:expandidos[p.id]?`1px solid ${col}15`:"none"}}>
                     <button onClick={()=>toggleExpandido(p.id)}
-                      style={{background:expandidos[p.id]?"rgba(0,201,167,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${expandidos[p.id]?"rgba(0,201,167,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"6px 12px",fontSize:11,color:expandidos[p.id]?"#00C9A7":"rgba(255,255,255,0.45)",cursor:"pointer",fontWeight:600,width:"100%",textAlign:"left"}}>
+                      style={{background:expandidos[p.id]?"rgba(132,94,247,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${expandidos[p.id]?"rgba(132,94,247,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"6px 12px",fontSize:11,color:expandidos[p.id]?"#845EF7":"rgba(255,255,255,0.45)",cursor:"pointer",fontWeight:600,width:"100%",textAlign:"left"}}>
                       {expandidos[p.id]?"▲ Ocultar personal":"👥 Ver Personal del contenedor"}{miembros.length>0?` (${miembros.length} persona${miembros.length!==1?"s":""})`:""}
                     </button>
                   </div>
@@ -4436,7 +4436,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                 const _u6=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u6;a.download=`CentroCostos_General_${new Date().toISOString().split("T")[0]}.html`;a.click();URL.revokeObjectURL(_u6);
               };
               return (
-                <button onClick={descargarGeneral} style={{width:"100%",background:"linear-gradient(135deg,#00C9A7,#0EA5E9)",border:"none",borderRadius:10,padding:"10px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700,marginTop:10}}>
+                <button onClick={descargarGeneral} style={{width:"100%",background:"linear-gradient(135deg,#6366F1,#0EA5E9)",border:"none",borderRadius:10,padding:"10px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700,marginTop:10}}>
                   🌐 Descargar informe general — todos los contenedores
                 </button>
               );
@@ -4958,7 +4958,7 @@ ${calibreSection}
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {rendsDelCont.length > 0 && (
-                      <button onClick={generarInforme} style={{ background: "rgba(0,201,167,0.15)", border: "1px solid rgba(0,201,167,0.35)", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "#00C9A7", cursor: "pointer", fontWeight: 700 }}>
+                      <button onClick={generarInforme} style={{ background: "rgba(132,94,247,0.15)", border: "1px solid rgba(132,94,247,0.35)", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "#845EF7", cursor: "pointer", fontWeight: 700 }}>
                         📄 Informe
                       </button>
                     )}
@@ -6291,7 +6291,7 @@ function EstadisticasDemo() {
                   ["Mes","Ingresos COP","Gastos COP","Margen COP","Margen %"],
                   finMeses.map(m=>[m.mes,Math.round(m.ingresos),Math.round(m.gastos),Math.round(m.margen),m.ingresos>0?`${Math.round(m.margen/m.ingresos*100)}%`:"—"]),
                   "financiero_mensual.csv"
-                )} style={{ marginTop:10, width:"100%", background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.28)", borderRadius:6, padding:"5px", fontSize:9, color:"#00C9A7", cursor:"pointer", fontWeight:700 }}>⬇ Exportar CSV financiero</button>
+                )} style={{ marginTop:10, width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"5px", fontSize:9, color:"#6366F1", cursor:"pointer", fontWeight:700 }}>⬇ Exportar CSV financiero</button>
               </div>
             </div>
           </div>
@@ -7237,9 +7237,9 @@ function ConfigForm({ config, guardar }) {
                           const next = cur.includes(mn) ? cur.filter(x=>x!==mn) : [...cur, mn];
                           setCfgUsuarios(prev => prev.map(x => x.id===u.id ? {...x,permisos:next} : x));
                         }} style={{ fontSize:10, padding:"2px 7px", borderRadius:5, cursor:"pointer", fontWeight:600, transition:"all 0.15s",
-                          background: hasP ? "rgba(0,201,167,0.12)" : "rgba(255,255,255,0.04)",
-                          color: hasP ? "#00C9A7" : "rgba(255,255,255,0.28)",
-                          border: `1px solid ${hasP?"#00C9A740":"rgba(255,255,255,0.06)"}`,
+                          background: hasP ? "rgba(132,94,247,0.12)" : "rgba(255,255,255,0.04)",
+                          color: hasP ? "#845EF7" : "rgba(255,255,255,0.28)",
+                          border: `1px solid ${hasP?"#845EF740":"rgba(255,255,255,0.06)"}`,
                         }}>{mn}</div>
                       );
                     })}
@@ -7275,7 +7275,7 @@ function ConfigForm({ config, guardar }) {
               const n = { id:Date.now(), nombre:nuevoUsr.nombre.trim(), cedula:nuevoUsr.cedula.trim(), rol:nuevoUsr.rol, avatar:nuevoUsr.nombre.trim().split(" ").slice(0,2).map(x=>x[0]).join("").toUpperCase(), permisos:[] };
               setCfgUsuarios(prev => { const next=[...prev,n]; save("cfg_usuarios",next,"Usuario agregado ✓"); return next; });
               setNuevoUsr({nombre:"",cedula:"",rol:"Operario"});
-            }} style={{ marginTop:14, background:"linear-gradient(135deg,#00C9A7,#0891b2)", border:"none", borderRadius:10, padding:"10px 22px", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            }} style={{ marginTop:14, background:"linear-gradient(135deg,#6366F1,#0891b2)", border:"none", borderRadius:10, padding:"10px 22px", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               ➕ Agregar usuario
             </button>
           </div>
@@ -7330,7 +7330,7 @@ function ConfigForm({ config, guardar }) {
                 </div>
               </div>
             ))}
-            <button onClick={()=>setExpData(p=>({...p,clientes:[...p.clientes,{id:Date.now(),nombre:"",ciudad:"",pais:"",email:"",tel:""}]}))} style={{ marginTop:10, background:"rgba(0,201,167,0.1)", border:"1px solid #00C9A740", borderRadius:8, padding:"8px 16px", color:"#00C9A7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar cliente</button>
+            <button onClick={()=>setExpData(p=>({...p,clientes:[...p.clientes,{id:Date.now(),nombre:"",ciudad:"",pais:"",email:"",tel:""}]}))} style={{ marginTop:10, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar cliente</button>
           </div>
 
           {/* Navieras */}
@@ -7349,7 +7349,7 @@ function ConfigForm({ config, guardar }) {
                 </div>
               </div>
             ))}
-            <button onClick={()=>setExpData(p=>({...p,navieras:[...p.navieras,{id:Date.now(),nombre:"",codigo:"",contacto:""}]}))} style={{ marginTop:4, background:"rgba(0,201,167,0.1)", border:"1px solid #00C9A740", borderRadius:8, padding:"8px 16px", color:"#00C9A7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar naviera</button>
+            <button onClick={()=>setExpData(p=>({...p,navieras:[...p.navieras,{id:Date.now(),nombre:"",codigo:"",contacto:""}]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar naviera</button>
           </div>
 
           {/* Puertos */}
@@ -7361,7 +7361,7 @@ function ConfigForm({ config, guardar }) {
                 <button onClick={()=>setExpData(prev=>({...prev,puertos:prev.puertos.filter((_,xi)=>xi!==pi)}))} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B35", borderRadius:7, padding:"9px 11px", color:"#FF6B6B", cursor:"pointer", flexShrink:0, fontFamily:"inherit" }}>✕</button>
               </div>
             ))}
-            <button onClick={()=>setExpData(p=>({...p,puertos:[...p.puertos,""]}))} style={{ marginTop:4, background:"rgba(0,201,167,0.1)", border:"1px solid #00C9A740", borderRadius:8, padding:"8px 16px", color:"#00C9A7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar puerto</button>
+            <button onClick={()=>setExpData(p=>({...p,puertos:[...p.puertos,""]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar puerto</button>
           </div>
 
           {/* Brokers */}
@@ -7382,7 +7382,7 @@ function ConfigForm({ config, guardar }) {
                 </div>
               </div>
             ))}
-            <button onClick={()=>setExpData(p=>({...p,brokers:[...p.brokers,{id:Date.now(),nombre:"",empresa:"",email:"",tel:""}]}))} style={{ background:"rgba(0,201,167,0.1)", border:"1px solid #00C9A740", borderRadius:8, padding:"8px 16px", color:"#00C9A7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar broker</button>
+            <button onClick={()=>setExpData(p=>({...p,brokers:[...p.brokers,{id:Date.now(),nombre:"",empresa:"",email:"",tel:""}]}))} style={{ background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar broker</button>
           </div>
 
           <div style={secS}>
@@ -7438,7 +7438,7 @@ function ConfigForm({ config, guardar }) {
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <input style={iS({ flex:1 })} value={nominaCfg.nuevoArea||""} onChange={e=>setNominaCfg(p=>({...p,nuevoArea:e.target.value}))} placeholder="Nueva área o cargo…" onKeyDown={e=>{ if (e.key==="Enter" && nominaCfg.nuevoArea?.trim()) setNominaCfg(p=>({...p,areas:[...p.areas,p.nuevoArea.trim()],nuevoArea:""})); }} />
-              <button onClick={()=>{ if (nominaCfg.nuevoArea?.trim()) setNominaCfg(p=>({...p,areas:[...p.areas,p.nuevoArea.trim()],nuevoArea:""})); }} style={{ background:"rgba(0,201,167,0.14)", border:"1px solid #00C9A740", borderRadius:8, padding:"9px 18px", color:"#00C9A7", cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0, fontFamily:"inherit" }}>Agregar</button>
+              <button onClick={()=>{ if (nominaCfg.nuevoArea?.trim()) setNominaCfg(p=>({...p,areas:[...p.areas,p.nuevoArea.trim()],nuevoArea:""})); }} style={{ background:"rgba(132,94,247,0.14)", border:"1px solid #845EF740", borderRadius:8, padding:"9px 18px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0, fontFamily:"inherit" }}>Agregar</button>
             </div>
           </div>
           <SaveBtn onClick={() => {
@@ -7535,7 +7535,7 @@ function ConfigForm({ config, guardar }) {
               if (error) { showToast(`Error: ${error.message}`, false); return; }
               setPw({actual:"",nuevo:"",confirmar:""});
               showToast("Contraseña actualizada ✓");
-            }} style={{ marginTop:16, background:"linear-gradient(135deg,#00C9A7,#845EF7)", border:"none", borderRadius:10, padding:"10px 22px", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            }} style={{ marginTop:16, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:10, padding:"10px 22px", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               🔒 Actualizar contraseña
             </button>
           </div>
@@ -7648,9 +7648,9 @@ function ConfigForm({ config, guardar }) {
 
 // ─── APP PRINCIPAL ────────────────────────────────────────────
 const MODULES = [
-  { id:"inicio",        icon:"🏠", title:"Inicio",        color:"#00C9A7", demo:{ type:"inicio_live" },        capabilities:["Dashboard ejecutivo","KPIs en tiempo real","Acceso rápido a módulos","Alertas inteligentes","Reloj en vivo","Resumen del negocio"] },
+  { id:"inicio",        icon:"🏠", title:"Inicio",        color:"#845EF7", demo:{ type:"inicio_live" },        capabilities:["Dashboard ejecutivo","KPIs en tiempo real","Acceso rápido a módulos","Alertas inteligentes","Reloj en vivo","Resumen del negocio"] },
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Precio del limón","Nómina base estimada","Observaciones y alertas"] },
-  { id:"personal",      icon:"👥", title:"Personal",      color:"#00C9A7", demo:{ type:"personal_live" },     capabilities:["Base de datos 50+ empleados","Búsqueda y filtros","Agregar empleados","Broadcast WhatsApp","Editar fichas","Documentos: CC, PPT, Venezuela"] },
+  { id:"personal",      icon:"👥", title:"Personal",      color:"#a78bfa", demo:{ type:"personal_live" },     capabilities:["Base de datos 50+ empleados","Búsqueda y filtros","Agregar empleados","Broadcast WhatsApp","Editar fichas","Documentos: CC, PPT, Venezuela"] },
   { id:"contenedores",  icon:"🚢", title:"Contenedores",  color:"#6366F1", demo:{ type:"contenedores_live" }, capabilities:["Registro por fecha y proceso","N° contenedor y proveedor","Tipo de caja Del Monte / Princess","Supervisores a cargo","Empresa, placa y trailer","Informe descargable"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
@@ -7694,16 +7694,16 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
   };
 
   return (
-    <div style={{ minHeight:"100dvh", background:"#0D0F14", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:"'DM Sans',system-ui,sans-serif", overflowY:"auto" }}>
+    <div style={{ minHeight:"100dvh", background:"#08090B", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:"'DM Sans',system-ui,sans-serif", overflowY:"auto" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; }
         input:focus { outline: none; }
         .login-wrap { width: 100%; max-width: 400px; }
         .login-logo { text-align: center; margin-bottom: 36px; }
-        .login-logo-icon { width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg,#00C9A7,#845EF7); display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 14px; box-shadow: 0 8px 32px rgba(0,201,167,0.35), 0 0 0 1px rgba(255,255,255,0.06); }
+        .login-logo-icon { width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg,#845EF7,#6366F1); display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 14px; box-shadow: 0 8px 32px rgba(132,94,247,0.35), 0 0 0 1px rgba(255,255,255,0.06); }
         .login-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 28px 28px 24px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 24px 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); }
-        .login-btn { width: 100%; background: linear-gradient(135deg,#00C9A7,#845EF7); border: none; border-radius: 12px; padding: 15px; font-size: 15px; color: white; cursor: pointer; font-weight: 700; margin-top: 4px; font-family: inherit; transition: opacity 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(0,201,167,0.3); }
+        .login-btn { width: 100%; background: linear-gradient(135deg,#845EF7,#6366F1); border: none; border-radius: 12px; padding: 15px; font-size: 15px; color: white; cursor: pointer; font-weight: 700; margin-top: 4px; font-family: inherit; transition: opacity 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(132,94,247,0.3); }
         .login-btn:hover { opacity: 0.92; transform: translateY(-1px); }
         .login-btn:active { transform: scale(0.97); }
         /* Landscape: layout horizontal logo + card */
@@ -7832,7 +7832,7 @@ export default function App() {
 
   // Esperar config antes de mostrar login (para que cfg_usuarios esté disponible)
   if (cfgLoading && !usuario) return (
-    <div style={{ minHeight:"100vh", background:"#0a0a0f", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <div style={{ minHeight:"100vh", background:"#08090B", display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ color:"rgba(255,255,255,0.4)", fontSize:14, fontFamily:"DM Sans,sans-serif" }}>Cargando...</div>
     </div>
   );
@@ -7889,7 +7889,7 @@ export default function App() {
   return (
     <MobCtx.Provider value={isMobile}>
     <SmallCtx.Provider value={isSmall}>
-    <div className="tp-app" style={{ minHeight:"100vh", background:"#0D0F14", fontFamily:"'DM Sans',system-ui,sans-serif", color:"white", "--cp":colorPrincipal }}>
+    <div className="tp-app" style={{ minHeight:"100vh", background:"#08090B", fontFamily:"'DM Sans',system-ui,sans-serif", color:"white", "--cp":colorPrincipal }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
         :root { --cp: ${colorPrincipal}; }
@@ -8254,7 +8254,7 @@ export default function App() {
                     style={{ position:"relative", background:showNotif?"rgba(132,94,247,0.2)":"rgba(255,255,255,0.06)", border:`1px solid ${showNotif?"#845EF7":"rgba(255,255,255,0.12)"}`, borderRadius:9, width:34, height:34, cursor:"pointer", fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}
                   >
                     🔔
-                    {nNotif > 0 && <span style={{ position:"absolute", top:-4, right:-4, background:"#FF6B6B", color:"white", fontSize:9, fontWeight:800, borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #0D0F14" }}>{nNotif > 9 ? "9+" : nNotif}</span>}
+                    {nNotif > 0 && <span style={{ position:"absolute", top:-4, right:-4, background:"#FF6B6B", color:"white", fontSize:9, fontWeight:800, borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #08090B" }}>{nNotif > 9 ? "9+" : nNotif}</span>}
                   </button>
                   {showNotif && (
                     <div className="tp-dropdown" style={{ position:"absolute", top:"calc(100% + 8px)", right:0, background:"#1a1c26", border:"1px solid rgba(255,255,255,0.15)", borderRadius:14, width:300, zIndex:500, overflow:"hidden", boxShadow:"0 8px 32px rgba(0,0,0,0.7)" }}>
