@@ -5923,8 +5923,8 @@ para garantizar la calidad e inocuidad de la carga a su llegada al destino.</em>
           {
             key:"isf", icon:"📋",
             title:"ISF Template",
-            sub:"isf.xls · Molde Excel editado (Sheet1)",
-            fn: () => descargarDoc("/api/isf", `isf-${form.booking||"export"}.xls`, "isf"),
+            sub:"isf.xlsx · Molde Excel editado (Sheet1)",
+            fn: () => descargarDoc("/api/isf", `isf-${form.booking||"export"}.xlsx`, "isf"),
           },
         ];
 

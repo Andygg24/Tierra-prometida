@@ -1,21 +1,22 @@
 """
-isf.py — Edita ISF Template .xls con xlrd + xlutils + xlwt
-Multiplataforma: no requiere Excel instalado.
+isf.py — Edita ISF Template .xlsx
+Estrategia: copia binaria exacta del molde + edita SOLO las celdas en el XML.
+Preserva 100%: logos, imágenes, VML, estilos, fórmulas — todo intacto.
+(Igual que proforma.py — el molde antiguo era .xls y se editaba con
+xlrd/xlutils/xlwt, que no soportan imágenes: el logo se perdía en cada
+generación. El molde se convirtió una sola vez a .xlsx para poder usar
+esta misma estrategia quirúrgica.)
 
-El molde es .xls (Excel 97-2003). openpyxl no soporta .xls,
-por eso se usa el stack xlrd/xlutils/xlwt para este archivo.
-
-Celdas a editar (Sheet1, referencias Excel 1-indexed):
-  B13 → Est Loading Date  (row=12, col=1 en 0-indexed)
-  F13 → Est Arrival Date  (row=12, col=5)
-  E63 → House B/L         (row=62, col=4)
-  F63 → Ocean B/L         (row=62, col=5)
+Hoja "Sheet1":
+  B13 → Est Loading Date  (fecha)
+  F13 → Est Arrival Date  (fecha)
+  E63 → House B/L         (texto)
+  F63 → Ocean B/L         (texto)
 """
-import sys, json, os, tempfile, io
+import sys, json, os, tempfile, zipfile, shutil, re, io
 from datetime import datetime
-import xlrd
-from xlutils.copy import copy as xl_copy
-import xlwt
+from xml.etree import ElementTree as ET
+from lxml import etree
 
 data         = json.load(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8-sig"))
 loading_date = data.get("loadingDate", "")
@@ -25,52 +26,126 @@ ocean_bl     = data.get("oceanBL", "")
 
 BASE   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOLDES = os.path.join(os.path.dirname(BASE), "Moldes")
-TMPL   = os.path.abspath(os.path.join(MOLDES, "ISF Template - JKFE AND PRINCESSES KINGDOM 270711823.xls"))
+TMPL   = os.path.abspath(os.path.join(MOLDES, "ISF Template - JKFE AND PRINCESSES KINGDOM 270711823.xlsx"))
 
-def parse_date(date_str):
-    if not date_str:
-        return None
+# Namespaces del formato OOXML
+MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+R_NS    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PKG_NS  = "http://schemas.openxmlformats.org/package/2006/relationships"
+XML_NS  = "http://www.w3.org/XML/1998/namespace"
+
+def parse_date(s):
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d")
+        return datetime.strptime(s, "%Y-%m-%d") if s else None
     except Exception:
         return None
 
-def to_excel_serial(dt):
-    """Convierte datetime a número serial de Excel (epoch: 30-dic-1899)."""
-    epoch = datetime(1899, 12, 30)
-    return (dt - epoch).days
+def excel_serial(dt):
+    return (dt - datetime(1899, 12, 30)).days
 
-tmp = tempfile.NamedTemporaryFile(suffix=".xls", delete=False)
+def find_sheet_path(z, sheet_name):
+    """Devuelve la ruta interna del ZIP para la hoja con ese nombre."""
+    wb_root = ET.fromstring(z.read("xl/workbook.xml"))
+    rid = None
+    for sheet in wb_root.iter(f"{{{MAIN_NS}}}sheet"):
+        if sheet.get("name") == sheet_name:
+            rid = sheet.get(f"{{{R_NS}}}id")
+            break
+    if not rid:
+        raise ValueError(f"Hoja '{sheet_name}' no encontrada en el workbook")
+
+    rels_root = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+    for rel in rels_root.iter(f"{{{PKG_NS}}}Relationship"):
+        if rel.get("Id") == rid:
+            tgt = rel.get("Target")
+            return tgt if tgt.startswith("xl/") else "xl/" + tgt
+
+    raise ValueError(f"Relación {rid} no encontrada en workbook.xml.rels")
+
+def modify_sheet_xml(xml_bytes, changes):
+    """
+    changes: { "B13": ("date", datetime), "E63": ("str", valor), ... }
+    Preserva todos los atributos de las celdas (especialmente s= para el estilo).
+    """
+    parser = etree.XMLParser(remove_blank_text=False)
+    root   = etree.fromstring(xml_bytes, parser)
+    ns     = {"m": MAIN_NS}
+
+    for cell_ref, (kind, value) in changes.items():
+        row_num = int(re.match(r"[A-Z]+(\d+)", cell_ref).group(1))
+
+        row_el = root.find(f".//m:sheetData/m:row[@r='{row_num}']", ns)
+        if row_el is None:
+            sd = root.find("m:sheetData", ns)
+            row_el = etree.SubElement(sd, f"{{{MAIN_NS}}}row")
+            row_el.set("r", str(row_num))
+
+        cell_el = row_el.find(f"m:c[@r='{cell_ref}']", ns)
+        if cell_el is None:
+            cell_el = etree.SubElement(row_el, f"{{{MAIN_NS}}}c")
+            cell_el.set("r", cell_ref)
+
+        style = cell_el.get("s", "")
+
+        for child in list(cell_el):
+            cell_el.remove(child)
+
+        if kind == "str":
+            cell_el.set("t", "inlineStr")
+            if style:
+                cell_el.set("s", style)
+            is_el = etree.SubElement(cell_el, f"{{{MAIN_NS}}}is")
+            t_el  = etree.SubElement(is_el,  f"{{{MAIN_NS}}}t")
+            t_el.text = str(value)
+            t_el.set(f"{{{XML_NS}}}space", "preserve")
+
+        elif kind == "date":
+            for attr in ("t",):
+                if attr in cell_el.attrib:
+                    del cell_el.attrib[attr]
+            if style:
+                cell_el.set("s", style)
+            v_el = etree.SubElement(cell_el, f"{{{MAIN_NS}}}v")
+            v_el.text = str(excel_serial(value))
+
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+# ── Armar dict de cambios ──────────────────────────────────────────────
+changes = {}
+d = parse_date(loading_date)
+if d:
+    changes["B13"] = ("date", d)
+d = parse_date(arrival_date)
+if d:
+    changes["F13"] = ("date", d)
+if house_bl:
+    changes["E63"] = ("str", str(house_bl))
+if ocean_bl:
+    changes["F63"] = ("str", str(ocean_bl))
+
+# ── Edición quirúrgica del ZIP ─────────────────────────────────────────
+tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
 tmp_path = tmp.name
 tmp.close()
 
 try:
-    rb = xlrd.open_workbook(TMPL, formatting_info=True)
-    wb = xl_copy(rb)
-    ws = wb.get_sheet(0)
+    shutil.copy2(TMPL, tmp_path)
 
-    date_style = xlwt.XFStyle()
-    date_style.num_format_str = "MM/DD/YYYY"
+    if changes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(TMPL, "r") as zin:
+            sheet_path     = find_sheet_path(zin, "Sheet1")
+            modified_sheet = modify_sheet_xml(zin.read(sheet_path), changes)
 
-    # B13 → Est Loading Date (0-indexed: row=12, col=1)
-    d = parse_date(loading_date)
-    if d:
-        ws.write(12, 1, to_excel_serial(d), date_style)
+            with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    if item.filename == sheet_path:
+                        zout.writestr(item, modified_sheet)
+                    else:
+                        zout.writestr(item, zin.read(item.filename))
 
-    # F13 → Est Arrival Date (0-indexed: row=12, col=5)
-    d = parse_date(arrival_date)
-    if d:
-        ws.write(12, 5, to_excel_serial(d), date_style)
-
-    # E63 → House B/L (0-indexed: row=62, col=4)
-    if house_bl:
-        ws.write(62, 4, str(house_bl))
-
-    # F63 → Ocean B/L (0-indexed: row=62, col=5) — siempre string; los B/L son identificadores
-    if ocean_bl:
-        ws.write(62, 5, str(ocean_bl))
-
-    wb.save(tmp_path)
+        with open(tmp_path, "wb") as f:
+            f.write(buf.getvalue())
 
     with open(tmp_path, "rb") as f:
         sys.stdout.buffer.write(f.read())

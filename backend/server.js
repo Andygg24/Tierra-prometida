@@ -5,7 +5,7 @@
  * Endpoints:
  *   POST /api/carta-temp   → descarga .docx
  *   POST /api/proforma     → descarga .xlsx
- *   POST /api/isf          → descarga .xls
+ *   POST /api/isf          → descarga .xlsx
  *   POST /api/exportar-zip → descarga .zip con los 3 archivos
  */
 
@@ -142,8 +142,8 @@ app.post("/api/isf", async (req, res) => {
 
   try {
     const buffer   = await runPython("isf.py", req.body);
-    const filename = `isf-${req.body.booking || "export"}.xls`;
-    res.setHeader("Content-Type", "application/vnd.ms-excel");
+    const filename = `isf-${req.body.booking || "export"}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", buffer.length);
     res.send(buffer);
@@ -168,7 +168,7 @@ app.post("/api/exportar-zip", async (req, res) => {
     const archivos = [
       { nombre: `carta-temperatura-${booking}.docx`,  buf: carta },
       { nombre: `proforma-${req.body.numFactura || "706"}-${booking}.xlsx`, buf: proforma },
-      { nombre: `isf-${booking}.xls`,                 buf: isf   },
+      { nombre: `isf-${booking}.xlsx`,                buf: isf   },
     ];
 
     // Usar el módulo nativo 'node:zlib' + construcción manual de ZIP es complejo
