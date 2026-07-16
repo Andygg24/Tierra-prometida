@@ -3233,6 +3233,8 @@ function ContenedoresDemo() {
   const { cargarTodos: cargarPLTodos } = usePackingList();
   const { items: invItems, ajustarLotes } = useInventario();
   const invActual = invItems.length > 0 ? invItems : INVENTARIO_BASE;
+  const { empleados: empleadosCont } = usePersonal();
+  const empleadosContReal = empleadosCont.length > 0 ? empleadosCont : EMPLEADOS_DB;
 
   // ── Tab 0: Contenedores ──
   const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", destino:"Miami, FL", trazabilidad:[] };
@@ -3531,7 +3533,7 @@ function ContenedoresDemo() {
 
       {/* ═══ TAB 1: GRUPOS / TURNOS ═══ */}
       {tabCont === 1 && (() => {
-        const empFilt = EMPLEADOS_DB.filter(e =>
+        const empFilt = empleadosContReal.filter(e =>
           !busqGrupo || (e.nombre+e.num+e.area).toLowerCase().includes(busqGrupo.toLowerCase())
         );
         const guardarGrupo = () => {
@@ -3601,7 +3603,7 @@ function ContenedoresDemo() {
                 </div>
               ) : grupos.filter(g=>!busqGrupoList||(g.nombre+g.turno).toLowerCase().includes(busqGrupoList.toLowerCase())).map(g => {
                 const turnoCol = g.turno==="Día"?"#F9A826":g.turno==="Noche"?"#845EF7":"#6366F1";
-                const miembrosInfo = g.miembros.map(num=>EMPLEADOS_DB.find(e=>e.num===num)).filter(Boolean);
+                const miembrosInfo = g.miembros.map(num=>empleadosContReal.find(e=>e.num===num)).filter(Boolean);
                 const contsAsig = procesos.filter(p=>p.grupoDia===g.nombre||p.grupoNoche===g.nombre);
                 return (
                   <div key={g.id} style={{background:`${turnoCol}08`,border:`1px solid ${turnoCol}28`,borderRadius:12,padding:"12px 14px"}}>
@@ -3665,7 +3667,7 @@ function ContenedoresDemo() {
               const gDia   = grupos.find(g=>g.nombre===p.grupoDia);
               const gNoche = grupos.find(g=>g.nombre===p.grupoNoche);
               const allNums = [...new Set([...(gDia?gDia.miembros:[]),...(gNoche?gNoche.miembros:[])])];
-              const miembros = allNums.map(num=>EMPLEADOS_DB.find(e=>e.num===num)).filter(Boolean);
+              const miembros = allNums.map(num=>empleadosContReal.find(e=>e.num===num)).filter(Boolean);
               const totalNom = miembros.length * VALOR;
               const col = COL_EST[p.estado] || "#6366F1";
               return (
