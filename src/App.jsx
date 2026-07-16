@@ -4898,9 +4898,13 @@ ${calibreSection}
 
         const guardarRend = async () => {
           if (!formRend.kilosProcesados) return;
-          const ok = await guardarRendimientoSB(formRend, editRendId);
+          let formAGuardar = formRend;
+          if (calForm.nombre.trim() && calForm.cantidad) {
+            formAGuardar = { ...formRend, calibres: [...formRend.calibres, { ...calForm, cantidad: Number(calForm.cantidad) }] };
+          }
+          const ok = await guardarRendimientoSB(formAGuardar, editRendId);
           if (ok) {
-            setShowFormRend(false); setFormRend(rendFormDef); setEditRendId(null);
+            setShowFormRend(false); setFormRend(rendFormDef); setCalForm(calFormDef); setEditRendId(null);
             showToast("Camión registrado correctamente", true);
           } else {
             showToast("Error al guardar — verifica la conexión", false);
@@ -7824,7 +7828,13 @@ function ConfigForm({ config, guardar }) {
               <button onClick={()=>{ if (nominaCfg.nuevoArea?.trim()) setNominaCfg(p=>({...p,areas:[...p.areas,p.nuevoArea.trim()],nuevoArea:""})); }} style={{ background:"rgba(0,201,167,0.14)", border:"1px solid #00C9A740", borderRadius:8, padding:"9px 18px", color:"#00C9A7", cursor:"pointer", fontWeight:700, fontSize:12, flexShrink:0, fontFamily:"inherit" }}>Agregar</button>
             </div>
           </div>
-          <SaveBtn onClick={() => save("cfg_nomina", nominaCfg)} />
+          <SaveBtn onClick={() => {
+            const cfg = nominaCfg.nuevoArea?.trim()
+              ? { ...nominaCfg, areas:[...nominaCfg.areas, nominaCfg.nuevoArea.trim()], nuevoArea:"" }
+              : nominaCfg;
+            if (cfg !== nominaCfg) setNominaCfg(cfg);
+            save("cfg_nomina", cfg);
+          }} />
         </div>
       )}
 
