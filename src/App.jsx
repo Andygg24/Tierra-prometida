@@ -3301,7 +3301,12 @@ function ContenedoresDemo() {
 
   const guardar = async () => {
     if (!form.numContenedor.trim()) return;
-    const ok = await guardarContenedor(form, editIdx);
+    let formAGuardar = form;
+    if (nuevoProveedor.trim()) {
+      const arr = [...parseProveedores(form.proveedor), nuevoProveedor.trim()];
+      formAGuardar = { ...form, proveedor: JSON.stringify(arr) };
+    }
+    const ok = await guardarContenedor(formAGuardar, editIdx);
     if (ok) {
       if (editIdx !== null) setEditIdx(null);
       setForm(formDef); setNuevoProveedor(""); setShowForm(false);
@@ -3318,7 +3323,7 @@ function ContenedoresDemo() {
 <body><h1>🚢 Tierra Prometida Trading — Contenedores</h1>
 <p>Total: ${stats.total} · Completados: ${stats.comp} · Cajas: ${stats.cajas.toLocaleString("es-CO")}</p>
 <table><thead><tr><th>Fecha</th><th>N° Contenedor</th><th>Prov. Limón</th><th>Tipo Caja</th><th>Cajas</th><th>Booking</th><th>Naviera</th><th>Destino</th><th>Grupo Día</th><th>Grupo Noche</th><th>Supervisores</th><th>Estado</th></tr></thead>
-<tbody>${filtrados.map(p=>`<tr><td>${p.fecha}</td><td><b>${p.numContenedor}</b></td><td>${p.proveedor||"—"}</td><td>${p.producto||"—"}</td><td>${p.cajasSalida||0}</td><td>${p.booking||"—"}</td><td>${p.naviera||"—"}</td><td>${p.destino||"—"}</td><td>${p.grupoDia||"—"}</td><td>${p.grupoNoche||"—"}</td><td>${p.operadores||"—"}</td><td>${p.estado}</td></tr>`).join("")}
+<tbody>${filtrados.map(p=>`<tr><td>${p.fecha}</td><td><b>${p.numContenedor}</b></td><td>${parseProveedores(p.proveedor).join(", ")||"—"}</td><td>${p.producto||"—"}</td><td>${p.cajasSalida||0}</td><td>${p.booking||"—"}</td><td>${p.naviera||"—"}</td><td>${p.destino||"—"}</td><td>${p.grupoDia||"—"}</td><td>${p.grupoNoche||"—"}</td><td>${p.operadores||"—"}</td><td>${p.estado}</td></tr>`).join("")}
 </tbody></table><div class="footer">Tierra Prometida Trading 🍋 · JARVIS</div></body></html>`;
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html],{type:"text/html"})); a.download = `Contenedores_${hoy}.html`; a.click();
   };
@@ -3468,7 +3473,7 @@ function ContenedoresDemo() {
                       <span style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginLeft:"auto"}}>📅 {p.fecha}</span>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-                      {[{l:"Proveedor Limón",v:p.proveedor||"—"},{l:"Tipo de caja",v:p.producto||"—"},{l:"Cajas salida",v:p.cajasSalida||"0"}].map((d,j)=>(
+                      {[{l:"Proveedor Limón",v:parseProveedores(p.proveedor).join(", ")||"—"},{l:"Tipo de caja",v:p.producto||"—"},{l:"Cajas salida",v:p.cajasSalida||"0"}].map((d,j)=>(
                         <div key={j} style={{background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"7px 10px"}}>
                           <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>{d.l}</div>
                           <div style={{fontSize:12,color:"white",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.v}</div>
@@ -4323,7 +4328,7 @@ function ContenedoresDemo() {
   <div class="info-item"><div class="lbl">Estado</div><div class="val">${cont.estado||"—"}</div></div>
   <div class="info-item"><div class="lbl">Tipo de caja</div><div class="val">${cont.producto||"—"}</div></div>
   <div class="info-item"><div class="lbl">Cajas de salida</div><div class="val">${cont.cajasSalida||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Proveedor limón</div><div class="val">${cont.proveedor||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Proveedor limón</div><div class="val">${parseProveedores(cont.proveedor).join(", ")||"—"}</div></div>
   <div class="info-item"><div class="lbl">Naviera</div><div class="val">${cont.naviera||"—"}</div></div>
   <div class="info-item"><div class="lbl">Destino</div><div class="val">${cont.destino||"—"}</div></div>
   <div class="info-item"><div class="lbl">Booking</div><div class="val">${cont.booking||"—"}</div></div>

@@ -28,7 +28,7 @@ export default function CustomSelect({ value, onChange, children, style, disable
   const options = Children.toArray(children)
     .filter(child => isValidElement(child) && child.type === "option")
     .map(child => ({
-      value:    child.props.value,
+      value:    child.props.value !== undefined ? child.props.value : child.props.children,
       label:    child.props.children ?? child.props.value,
       disabled: !!child.props.disabled,
     }));
