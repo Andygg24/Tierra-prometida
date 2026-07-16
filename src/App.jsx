@@ -6659,10 +6659,10 @@ function InicioDemo({ onNavigate }) {
   const small = useS();
   const [hora,  setHora]  = useState(new Date());
   const [clima, setClima] = useState(null);
-  const { items: invInicio } = useInventario();
-  const { pedidos } = usePedidos();
-  const { registros: asistRegs } = useAsistencia();
-  const { empleados: empleadosInicio } = usePersonal();
+  const { items: invInicio, loading: loadingInvInicio } = useInventario();
+  const { pedidos, loading: loadingPedInicio } = usePedidos();
+  const { registros: asistRegs, loading: loadingAsistInicio } = useAsistencia();
+  const { empleados: empleadosInicio, loading: loadingPersonalInicio } = usePersonal();
   const empleadosReal = empleadosInicio.length > 0 ? empleadosInicio : EMPLEADOS_DB;
 
   useEffect(() => {
@@ -6757,6 +6757,10 @@ function InicioDemo({ onNavigate }) {
   ];
 
   const hayTendencia = tendencia.some(d => d.p > 0 || d.a > 0);
+
+  if (loadingInvInicio || loadingPedInicio || loadingAsistInicio || loadingPersonalInicio) {
+    return <LimonLoader texto="Cargando panel" />;
+  }
 
   return (
     <div>
