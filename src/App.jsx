@@ -8,6 +8,7 @@ import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 import { usePedidos } from "./hooks/usePedidos.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
+import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import CustomSelect from "./components/CustomSelect.jsx";
 import LimonLoader from "./components/LimonLoader.jsx";
@@ -6751,6 +6752,7 @@ function InicioDemo({ onNavigate }) {
     { icon:"📦", label:"Inventario",   color:"#845EF7", id:"inventario"   },
     { icon:"📅", label:"Asistencia",   color:"#4ECDC4", id:"asistencia"   },
     { icon:"🚢", label:"Contenedores", color:"#6366F1", id:"contenedores" },
+    { icon:"🍋", label:"Recepciones",  color:"#00C9A7", id:"recepciones"  },
     { icon:"📊", label:"Informes",     color:"#FF6B6B", id:"informes"     },
     { icon:"🚢", label:"Exportación",  color:"#0EA5E9", id:"documentos"   },
     { icon:"📋", label:"Pedidos",      color:"#38bdf8", id:"pedidos"      },
@@ -7114,7 +7116,7 @@ function ConfigForm({ config, guardar }) {
   const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
-  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Configuración"];
+  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepciones","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Configuración"];
   const TABS = [
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
@@ -7652,6 +7654,7 @@ const MODULES = [
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Precio del limón","Nómina base estimada","Observaciones y alertas"] },
   { id:"personal",      icon:"👥", title:"Personal",      color:"#a78bfa", demo:{ type:"personal_live" },     capabilities:["Base de datos 50+ empleados","Búsqueda y filtros","Agregar empleados","Broadcast WhatsApp","Editar fichas","Documentos: CC, PPT, Venezuela"] },
   { id:"contenedores",  icon:"🚢", title:"Contenedores",  color:"#6366F1", demo:{ type:"contenedores_live" }, capabilities:["Registro por fecha y proceso","N° contenedor y proveedor","Tipo de caja Del Monte / Princess","Supervisores a cargo","Empresa, placa y trailer","Informe descargable"] },
+  { id:"recepciones",   icon:"🍋", title:"Recepciones",   color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
   { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Excel, PDF o CSV","JARVIS analiza con IA real","Informe ejecutivo para socios","Historial de análisis","Comparativos con IA","Resumen ejecutivo en segundos"] },
@@ -7867,6 +7870,7 @@ export default function App() {
     if (demo.type === "inventario_live")  return <InventarioDemo />;
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo />;
+    if (demo.type === "recepciones_live") return <RecepcionesTab />;
     if (demo.type === "documentos_live")  return <DocumentosDemo />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
