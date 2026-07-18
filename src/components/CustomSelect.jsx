@@ -5,7 +5,7 @@ let _styleInjected = false;
 
 export default function CustomSelect({ value, onChange, children, style, disabled }) {
   const [open,       setOpen]       = useState(false);
-  const [pos,        setPos]        = useState({ top: 0, left: 0, width: 0 });
+  const [pos,        setPos]        = useState({ top: 0, left: 0, width: 0, maxHeight: 240, openUp: false });
   const [hoveredIdx, setHoveredIdx] = useState(-1);
   const triggerRef                  = useRef(null);
   const dropRef                     = useRef(null);
@@ -39,7 +39,21 @@ export default function CustomSelect({ value, onChange, children, style, disable
   const calcPos = () => {
     if (!triggerRef.current) return;
     const r = triggerRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom, left: r.left, width: r.width });
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 8;
+    const width = Math.max(r.width, 140);
+
+    let left = r.left;
+    if (left + width > vw - margin) left = vw - margin - width;
+    if (left < margin) left = margin;
+
+    const spaceBelow = vh - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    const openUp = spaceBelow < 120 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(240, Math.max(120, openUp ? spaceAbove : spaceBelow));
+
+    setPos({ top: r.bottom, bottom: vh - r.top, left, width: r.width, maxHeight, openUp });
   };
 
   const toggle = () => {
@@ -114,10 +128,10 @@ export default function CustomSelect({ value, onChange, children, style, disable
       ref={dropRef}
       style={{
         position:             "fixed",
-        top:                  pos.top + 6,
+        ...(pos.openUp ? { bottom: pos.bottom + 6 } : { top: pos.top + 6 }),
         left:                 pos.left,
         minWidth:             Math.max(pos.width, 140),
-        maxHeight:            240,
+        maxHeight:            pos.maxHeight,
         overflowY:            "auto",
         background:           "rgba(7, 8, 18, 0.96)",
         backdropFilter:       "blur(40px) saturate(180%)",

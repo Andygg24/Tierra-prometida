@@ -250,7 +250,7 @@ function PersonalDemo() {
       {/* ── Modal editar empleado ── */}
       {editando && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.8)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#1a1a2e", border:"1px solid rgba(0,201,167,0.3)", borderRadius:16, padding:24, maxWidth:320, width:"100%" }}>
+          <div style={{ background:"#1a1a2e", border:"1px solid rgba(0,201,167,0.3)", borderRadius:16, padding:24, maxWidth:320, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
             <div style={{ fontSize:14, fontWeight:700, color:"#00C9A7", marginBottom:14 }}>✏️ Editar empleado</div>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <input placeholder="Nombre" value={editForm.nombre||""} onChange={e=>setEditForm(f=>({...f,nombre:e.target.value}))} style={inp} />
@@ -278,7 +278,7 @@ function PersonalDemo() {
         const emp = empleados.find(e=>e.num===contratoEmp);
         return (
           <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.82)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-            <div style={{ background:"#1a1a2e", border:"1px solid rgba(249,168,38,0.35)", borderRadius:16, padding:24, maxWidth:340, width:"100%" }}>
+            <div style={{ background:"#1a1a2e", border:"1px solid rgba(249,168,38,0.35)", borderRadius:16, padding:24, maxWidth:340, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
               <div style={{ fontSize:14, fontWeight:700, color:"#F9A826", marginBottom:3 }}>📄 Contrato</div>
               <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginBottom:14 }}>{emp?.nombre}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -317,7 +317,7 @@ function PersonalDemo() {
         const emp = empleados.find(e=>e.num===editSeg);
         return (
           <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.82)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-            <div style={{ background:"#1a1a2e", border:"1px solid rgba(255,107,107,0.35)", borderRadius:16, padding:24, maxWidth:340, width:"100%" }}>
+            <div style={{ background:"#1a1a2e", border:"1px solid rgba(255,107,107,0.35)", borderRadius:16, padding:24, maxWidth:340, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
               <div style={{ fontSize:14, fontWeight:700, color:"#FF6B6B", marginBottom:3 }}>🏥 Seguridad Social</div>
               <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginBottom:14 }}>{emp?.nombre}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -426,7 +426,7 @@ function PersonalDemo() {
           )}
           <div style={{ display:"flex", gap:6, marginBottom:8 }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nombre o cédula..." style={{...inp,flex:1}} />
-            <CustomSelect value={filterDoc} onChange={e=>setFilterDoc(e.target.value)} style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit" }}>
+            <CustomSelect value={filterDoc} onChange={e=>setFilterDoc(e.target.value)} style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit", width:130, flexShrink:0 }}>
               {docTypes.map(d=><option key={d} value={d} style={{background:"#1a1a2e"}}>{d}</option>)}
             </CustomSelect>
           </div>
@@ -1154,7 +1154,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
       {/* ═══ TAB 0: LIQUIDADOR ═══ */}
       {tabNom === 0 && (
         <div>
-          <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6,marginBottom:10}}>
             <div style={{flex:2}}>
               <div style={lbl}>Empleado</div>
               <CustomSelect value={selEmp} onChange={e=>{setSelEmp(e.target.value);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");setSelectedConts([]);const em=empleados.find(x=>x.num===e.target.value);if(em){readAusencias(em.nombre,periodo).then(setDiasAus);}}} style={inp}>
@@ -2035,7 +2035,7 @@ function InventarioDemo() {
       {/* Modal edición */}
       {editando && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#1a1a2e", border:"1px solid rgba(132,94,247,0.4)", borderRadius:16, padding:22, maxWidth:340, width:"100%" }}>
+          <div style={{ background:"#1a1a2e", border:"1px solid rgba(132,94,247,0.4)", borderRadius:16, padding:22, maxWidth:340, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#845EF7", marginBottom:14 }}>✏️ Editar producto</div>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <input value={editForm.nombre||""} onChange={e=>setEditForm(f=>({...f,nombre:e.target.value}))} placeholder="Nombre" style={{...inp,width:"100%"}} />
@@ -2075,7 +2075,7 @@ function InventarioDemo() {
       {/* Modal movimiento */}
       {movModal && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#1a1a2e", border:`1px solid ${movModal.tipo==="entrada"?"rgba(0,201,167,0.4)":"rgba(255,107,107,0.4)"}`, borderRadius:16, padding:22, maxWidth:300, width:"100%" }}>
+          <div style={{ background:"#1a1a2e", border:`1px solid ${movModal.tipo==="entrada"?"rgba(0,201,167,0.4)":"rgba(255,107,107,0.4)"}`, borderRadius:16, padding:22, maxWidth:300, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
             <div style={{ fontSize:13, fontWeight:700, color:movModal.tipo==="entrada"?"#00C9A7":"#FF6B6B", marginBottom:6 }}>
               {movModal.tipo==="entrada"?"📥 Registrar Entrada":"📤 Registrar Salida"}
             </div>
@@ -2945,7 +2945,7 @@ ${seccionObs}
           <CustomSelect
             value={meta.turno || "Día"}
             onChange={e => setMetaField("turno", e.target.value)}
-            style={{...inp, minWidth:85}}>
+            style={{...inp, width:100, flexShrink:0}}>
             {["Día","Noche","Ambos"].map(t => <option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
           </CustomSelect>
         </div>
@@ -3358,8 +3358,8 @@ function ContenedoresDemo() {
               </div>
             ))}
           </div>
-          <div style={{display:"flex",gap:6,marginBottom:10}}>
-            <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar contenedor..." style={{...inp,flex:1,width:"auto"}} />
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar contenedor..." style={{...inp,flex:1,width:"auto",minWidth:140}} />
             <input type="month" value={filtroMes} onChange={e=>setFiltroMes(e.target.value)} style={{...inp,flex:1,minWidth:0}} />
             <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setForm(formDef);}}
               style={{background:"rgba(99,102,241,0.2)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"#6366F1",cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
@@ -4096,6 +4096,8 @@ function ContenedoresDemo() {
                   </div>
 
                   {/* Cabecera tabla */}
+                  <div style={{overflowX:mob?"auto":"visible"}}>
+                  <div style={{minWidth:mob?400:"auto"}}>
                   <div style={{display:"grid",gridTemplateColumns:"1.8fr 54px 72px 84px 72px",gap:4,marginBottom:4,padding:"0 4px"}}>
                     {["Insumo","Stock","Cantidad","$/Unidad","Subtotal"].map((h,i)=>(
                       <div key={i} style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</div>
@@ -4132,6 +4134,8 @@ function ContenedoresDemo() {
                       </div>
                     );
                   })}
+                  </div>
+                  </div>
 
                   {/* Otros costos */}
                   <div style={{borderTop:"1px solid rgba(255,255,255,0.09)",marginTop:8,paddingTop:10}}>
@@ -4142,6 +4146,8 @@ function ContenedoresDemo() {
                         + Agregar concepto
                       </button>
                     </div>
+                    <div style={{overflowX:mob?"auto":"visible"}}>
+                    <div style={{minWidth:mob?400:"auto"}}>
                     <div style={{display:"grid",gridTemplateColumns:"1.8fr 72px 84px 72px 22px",gap:4,marginBottom:4,padding:"0 2px"}}>
                       {["Concepto","Cantidad","$/Unidad","Subtotal",""].map((h,i)=>(
                         <div key={i} style={{fontSize:9,color:"rgba(255,255,255,0.38)",textTransform:"uppercase",letterSpacing:0.5}}>{h}</div>
@@ -4170,6 +4176,8 @@ function ContenedoresDemo() {
                         </div>
                       );
                     })}
+                    </div>
+                    </div>
                     {totalExtrasCC>0 && (
                       <div style={{display:"flex",justifyContent:"flex-end",fontSize:10,color:"rgba(255,255,255,0.42)",marginTop:4}}>
                         Subtotal otros costos: <span style={{color:"#F9A826",fontWeight:700,marginLeft:6}}>{fmtCOP(totalExtrasCC)}</span>
@@ -5330,6 +5338,7 @@ ${calibreSection}
 
 // ─── MÓDULO DOCUMENTOS DE EXPORTACIÓN ────────────────────────
 function DocumentosDemo() {
+  const mob = useM();
   const hoy = new Date();
   const p2  = (n) => String(n).padStart(2,"0");
   const hoyStr  = `${hoy.getFullYear()}-${p2(hoy.getMonth()+1)}-${p2(hoy.getDate())}`;
@@ -5434,7 +5443,7 @@ function DocumentosDemo() {
           )}
         </div>
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr",gap:8}}>
           <div>
             {lbl("N° Factura (auto)")}
             <input type="number" value={facturaNum} onChange={e=>setFacturaNum(parseInt(e.target.value)||693)} style={{...inp,color:"#38bdf8",fontWeight:700}} />
@@ -6495,7 +6504,7 @@ function PedidosDemo() {
       {/* Detalle modal */}
       {detalle && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#1a1a2e", border:"1px solid rgba(14,165,233,0.35)", borderRadius:16, padding:22, maxWidth:360, width:"100%" }}>
+          <div style={{ background:"#1a1a2e", border:"1px solid rgba(14,165,233,0.35)", borderRadius:16, padding:22, maxWidth:360, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#0EA5E9", marginBottom:14 }}>📋 Pedido #{detalle.id}</div>
             {[["Cliente",detalle.cliente],["Producto",detalle.producto],["Cantidad",`${Number(detalle.cantidadKg).toLocaleString("es-CO")} kg`],["Precio",`$${detalle.precioUSD} USD/kg`],["Total USD",`$${(detalle.cantidadKg*detalle.precioUSD).toLocaleString("en-US",{maximumFractionDigits:0})}`],["Fecha",detalle.fecha],["Contenedor",detalle.contenedor||"Sin asignar"],["Notas",detalle.notas||"—"]].map(([l,v])=>(
               <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
@@ -7042,6 +7051,7 @@ function ConfiguracionDemo() {
 }
 
 function ConfigForm({ config, guardar }) {
+  const mob = useM();
   const [tabIdx,     setTabIdx]     = useState(0);
   const [toast,      setToast]      = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
@@ -7611,7 +7621,7 @@ function ConfigForm({ config, guardar }) {
 
           <div style={secS}>
             <div style={secH}>🧾 Datos para Facturación Electrónica</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14 }}>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr", gap:14 }}>
               <div>
                 <label style={lS}>Ciudad de Expedición</label>
                 <input style={iS()} value={fiscal.ciudadExpedicion} onChange={e=>setFiscal(p=>({...p,ciudadExpedicion:e.target.value}))} placeholder="Ej: Bucaramanga" />
@@ -8050,7 +8060,7 @@ export default function App() {
             -webkit-backdrop-filter: blur(12px);
             position: sticky; top: 0; z-index: 200;
           }
-          .tp-header-sub { display: none; }
+          .tp-header-sub { display: none !important; }
           .tp-header-title { font-size: 15px !important; }
 
           /* Nav de módulos — scroll horizontal */
@@ -8105,14 +8115,14 @@ export default function App() {
           /* Dropdown búsqueda global */
           .tp-dropdown {
             right: 0 !important;
-            width: calc(100vw - 28px) !important;
+            width: min(calc(100vw - 28px), 380px) !important;
             min-width: unset !important;
           }
 
           /* Inputs de fecha/mes en filtros */
           .tp-module-body input[type="date"],
           .tp-module-body input[type="month"] {
-            min-width: 0 !important;
+            min-width: 148px !important;
             flex: 1 !important;
           }
 
