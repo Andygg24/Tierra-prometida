@@ -7880,7 +7880,7 @@ export default function App() {
     if (demo.type === "inventario_live")  return <InventarioDemo />;
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo />;
-    if (demo.type === "recepciones_live") return <RecepcionesTab />;
+    if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
     if (demo.type === "documentos_live")  return <DocumentosDemo />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
