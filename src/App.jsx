@@ -1122,7 +1122,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
     const fname = `Colilla_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
     const _u1=URL.createObjectURL(new Blob([html],{type:"text/html"}));
     const a=document.createElement("a");a.href=_u1;a.download=fname;a.click();URL.revokeObjectURL(_u1);
-    const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase,devengado,totalDeduc,neto,ausencias:diasAus,fecha:hoyNom,tipo:"nomina"};
+    const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase,devengado,totalDeduc,neto,ausencias:diasAus,fecha:hoyNom,tipo:"nomina",html};
     agregarLiquidacion(reg);
   };
 
@@ -1410,7 +1410,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
               const fname = `Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
               const _u2=URL.createObjectURL(new Blob([html],{type:"text/html"}));
               const a=document.createElement("a");a.href=_u2;a.download=fname;a.click();URL.revokeObjectURL(_u2);
-              const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase:0,devengado:totalCont,totalDeduc:0,neto:totalCont,ausencias:0,fecha:hoyNom,tipo:"contenedor",contenedores:cantEfectiva,metodoPago};
+              const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase:0,devengado:totalCont,totalDeduc:0,neto:totalCont,ausencias:0,fecha:hoyNom,tipo:"contenedor",contenedores:cantEfectiva,metodoPago,html};
               agregarLiquidacion(reg);
             };
             return (
@@ -1676,7 +1676,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                     {l.ausencias>0&&<div style={{fontSize:9,color:"#FF6B6B"}}>{l.ausencias} día(s) ausente</div>}
                   </div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,marginBottom:8}}>
                   {[["Devengado",fmtCOP(l.devengado),"#F9A826"],["Deducciones",`-${fmtCOP(l.totalDeduc)}`,"#FF6B6B"],["Neto",fmtCOP(l.neto),"#00C9A7"]].map(([k,v,c])=>(
                     <div key={k} style={{background:"rgba(255,255,255,0.05)",borderRadius:6,padding:"4px 8px",textAlign:"center"}}>
                       <div style={{fontSize:9,color:"rgba(255,255,255,0.38)"}}>{k}</div>
@@ -1684,6 +1684,16 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                     </div>
                   ))}
                 </div>
+                {l.html ? (
+                  <button onClick={()=>verPrevia(l.html,`${l.tipo==="contenedor"?"Comprobante":"Colilla"}_${l.nombre.replace(/ /g,"_")}_${l.periodo}.html`)}
+                    style={{width:"100%",background:"rgba(0,201,167,0.1)",border:"1px solid rgba(0,201,167,0.3)",borderRadius:7,padding:"6px",fontSize:11,fontWeight:700,color:"#00C9A7",cursor:"pointer"}}>
+                    📄 Descargar {l.tipo==="contenedor"?"comprobante":"colilla"}
+                  </button>
+                ) : (
+                  <div style={{width:"100%",textAlign:"center",fontSize:9,color:"rgba(255,255,255,0.28)",padding:"4px 0"}}>
+                    Generado antes de esta función — no se guardó el documento
+                  </div>
+                )}
               </div>
             ));
           })()}

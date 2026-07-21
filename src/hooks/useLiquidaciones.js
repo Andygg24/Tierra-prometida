@@ -16,6 +16,7 @@ const rowToLiq = (r) => ({
   tipo:        r.tipo        || "nomina",
   contenedores: r.contenedores ? Number(r.contenedores) : undefined,
   metodoPago:   r.metodo_pago || undefined,
+  html:         r.html || "",
 });
 
 export function useLiquidaciones() {
@@ -84,6 +85,7 @@ export function useLiquidaciones() {
       tipo:         reg.tipo,
       contenedores: reg.contenedores ?? null,
       metodo_pago:  reg.metodoPago  ?? null,
+      html:         reg.html        ?? null,
     });
     return !error;
   }, []);
