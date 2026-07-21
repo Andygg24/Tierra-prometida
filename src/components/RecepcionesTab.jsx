@@ -195,10 +195,6 @@ export default function RecepcionesTab({ mob }) {
     borderRadius:8, padding: isLandscape ? "7px 10px" : (m ? "10px 11px" : "7px 10px"), color:"white",
     fontSize: m ? 16 : 12, fontFamily:"inherit", width:"100%", minWidth:0,
     boxSizing:"border-box", minHeight: isLandscape ? 36 : (m ? 44 : 32),
-    // Safari/iOS ignora width/border/background propios en input[type=date|time]
-    // salvo que se resetee su apariencia nativa; sin esto el control nativo se
-    // dibuja a su tamaño propio y las celdas vecinas se ven "pegadas".
-    WebkitAppearance: "none", appearance: "none",
   };
   const lbl = {
     fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.45)",

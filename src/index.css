@@ -35,12 +35,19 @@ input, textarea, select, button {
   font-family: inherit;
 }
 
+/* Safari/iOS ignora width, border, background y border-radius propios en
+   estos tipos y dibuja su propio control nativo — al ponerlos en grids/flex
+   angostos (formularios en horizontal) esto hace que campos vecinos se vean
+   fusionados sin separación visible. Resetear la apariencia nativa fuerza a
+   que respeten el box model definido por la app. */
 input[type="date"],
 input[type="month"],
 input[type="time"] {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 input:focus, textarea:focus, select:focus {
