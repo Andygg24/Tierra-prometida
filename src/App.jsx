@@ -7092,6 +7092,7 @@ function ConfigForm({ config, guardar }) {
     puertos:       ["Miami, FL", "Port Everglades, FL"],
     puertosOrigen: [],
     transportadoras: [],
+    consignees:  [],
     brokers:     [],
     kgPorCaja:   10,
     precioUSDkg: 0.45,
@@ -7414,6 +7415,27 @@ function ConfigForm({ config, guardar }) {
               </div>
             ))}
             <button onClick={()=>setExpData(p=>({...p,transportadoras:[...(p.transportadoras||[]),""]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar transportadora</button>
+          </div>
+
+          {/* Consignees (Logística) */}
+          <div style={secS}>
+            <div style={secH}>📦 Consignees Predefinidos</div>
+            {(expData.consignees||[]).map((c, ci) => (
+              <div key={c.id} style={{ marginBottom:12 }}>
+                <div style={{ display:"grid", gridTemplateColumns: mob?"1fr":"1fr auto", gap:10, marginBottom:6 }}>
+                  <div>
+                    <label style={lS}>Nombre corto (para el selector)</label>
+                    <input style={iS()} value={c.nombre} onChange={e=>setExpData(p=>({...p,consignees:p.consignees.map((x,xi)=>xi===ci?{...x,nombre:e.target.value}:x)}))} placeholder="Ej: HAR Products Inc (Puerto Rico)" />
+                  </div>
+                  <div style={{ display:"flex", alignItems:"flex-end" }}>
+                    <button onClick={()=>setConfirmDel({action:()=>setExpData(p=>({...p,consignees:p.consignees.filter((_,xi)=>xi!==ci)}))})} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B35", borderRadius:7, padding:"9px 14px", color:"#FF6B6B", cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>✕ Eliminar</button>
+                  </div>
+                </div>
+                <label style={lS}>Datos completos (nombre, tax ID, dirección, contacto)</label>
+                <textarea style={{ ...iS(), minHeight:80, resize:"vertical", fontFamily:"inherit" }} value={c.texto} onChange={e=>setExpData(p=>({...p,consignees:p.consignees.map((x,xi)=>xi===ci?{...x,texto:e.target.value}:x)}))} placeholder="Nombre&#10;Tax ID&#10;Dirección&#10;Teléfono / email" />
+              </div>
+            ))}
+            <button onClick={()=>setExpData(p=>({...p,consignees:[...(p.consignees||[]),{id:Date.now(),nombre:"",texto:""}]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar consignee</button>
           </div>
 
           {/* Brokers */}
@@ -7859,6 +7881,21 @@ export default function App() {
 
   const { config: cfgApp, loading: cfgLoading } = useConfiguracion();
   const apariencia = cfgApp.cfg_apariencia || {};
+
+  // La sesión guarda un snapshot de permisos al hacer login — si un admin
+  // cambia permisos en Configuración mientras el usuario ya está logueado,
+  // sin esto tendría que cerrar sesión y volver a entrar para que aplique.
+  useEffect(() => {
+    if (!usuario) return;
+    const lista = cfgApp.cfg_usuarios?.length ? cfgApp.cfg_usuarios : USUARIOS;
+    const actualizado = lista.find(u => u.cedula === usuario.cedula);
+    if (!actualizado) return;
+    if (JSON.stringify(actualizado.permisos || []) !== JSON.stringify(usuario.permisos || [])) {
+      const nuevo = { ...usuario, permisos: actualizado.permisos };
+      setUsuario(nuevo);
+      try { localStorage.setItem("tp_session", JSON.stringify(nuevo)); } catch {}
+    }
+  }, [cfgApp.cfg_usuarios]);
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [isSmall,  setIsSmall]  = useState(() => window.innerWidth < 480);

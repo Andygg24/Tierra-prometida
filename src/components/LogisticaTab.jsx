@@ -3,7 +3,7 @@ import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { useConfiguracion } from "../hooks/useConfiguracion.js";
 import {
-  useLogistica, calcularHitos, calcularAlertasLogistica, diasLibresRestantes, buscarNaviera,
+  useLogistica, calcularHitos, calcularAlertasLogistica, diasLibresRestantes, buscarNaviera, diferenciaDias,
 } from "../hooks/useLogistica.js";
 
 const ESTADOS_BOOKING       = ["Pendiente", "Confirmado", "Cancelado", "Roll Over", "Finalizado"];
@@ -17,6 +17,40 @@ const COLOR_ESTADO_BOOKING = {
 const COLOR_ESTADO_CONTENEDOR = {
   "Vacío": "rgba(255,255,255,0.5)", Cargado: "#00C9A7", "En tránsito": "#0EA5E9", Puerto: "#F9A826", Embarcado: "#845EF7",
 };
+
+// Paleta categórica validada (orden fijo — dataviz skill, pasos "dark" contra
+// superficie oscura). No reordenar: el orden es lo que garantiza que colores
+// adyacentes se distingan también para daltonismo.
+const PALETA_CATEGORICA = ["#3987e5", "#008300", "#d55181", "#c98500", "#199e70", "#d95926", "#9085e9", "#e66767"];
+
+const ALERTA_TIPO_META = {
+  si_cutoff:          { label: "SI Cut Off",           color: "#F9A826" },
+  cy_cutoff:           { label: "CY Cut Off",           color: "#F9A826" },
+  documentacion:       { label: "Documentación",        color: "#F9A826" },
+  roll_over:           { label: "Roll Over",             color: "#845EF7" },
+  sin_ingreso_puerto:  { label: "Sin ingreso a puerto",  color: "#FF6B6B" },
+  eta_cambio:          { label: "Cambio de ETA",         color: "#0EA5E9" },
+  dias_libres:         { label: "Días libres",           color: "#FF6B6B" },
+};
+
+function BarraLista({ items }) {
+  const max = Math.max(1, ...items.map(it => it.value));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {items.map((it, i) => (
+        <div key={i}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+            <span style={{ color: "rgba(255,255,255,0.75)" }}>{it.label}</span>
+            <span style={{ color: it.color, fontWeight: 700 }}>{it.value}</span>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 4, height: 8, overflow: "hidden" }}>
+            <div style={{ width: `${(it.value / max) * 100}%`, height: "100%", background: it.color, borderRadius: 4, transition: "width 0.3s" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const btnSecundario = {
   background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8,
@@ -44,6 +78,7 @@ function bookingVacio() {
   return {
     numeroBooking: "", numeroContenedor: "", estado: "Pendiente",
     puertoOrigen: "", puertoDestino: "", naviera: "",
+    consignee: "", numeroCajas: "",
     siCutoffFecha: "", siCutoffHora: "", cyCutoffFecha: "", cyCutoffHora: "",
     documentosCompletos: false, etaActual: "",
     estadoContenedor: "Vacío", fechaIngresoPuerto: "", fechaAsignacion: "",
@@ -100,14 +135,70 @@ export default function LogisticaTab({ mob }) {
   const puertosCfg        = config.cfg_exportacion?.puertos        || [];
   const puertosOrigenCfg  = config.cfg_exportacion?.puertosOrigen  || [];
   const transportadorasCfg = config.cfg_exportacion?.transportadoras || [];
+  const consigneesCfg      = config.cfg_exportacion?.consignees      || [];
 
   const [tabLog, setTabLog] = useState(0);
-  const TAB_LOG = ["📋 Booking", "🚢 Contenedores", "🚛 Transporte", "⚓ Op. Portuaria", "🕒 Seguimiento", "🔔 Alertas"];
+  const TAB_LOG = ["📋 Booking", "🚢 Contenedores", "🚛 Transporte", "⚓ Op. Portuaria", "🕒 Seguimiento", "🔔 Alertas", "📊 Estadísticas"];
 
   const alertas = useMemo(
     () => calcularAlertasLogistica(log.bookings, log.transporte, navierasCfg),
     [log.bookings, log.transporte, navierasCfg]
   );
+
+  const estadisticas = useMemo(() => {
+    const bookings = log.bookings;
+
+    const porEstado = ESTADOS_BOOKING.map(e => ({
+      label: e, value: bookings.filter(b => b.estado === e).length, color: COLOR_ESTADO_BOOKING[e],
+    }));
+
+    const porEstadoContenedor = ESTADOS_CONTENEDOR.map(e => ({
+      label: e, value: bookings.filter(b => b.numeroContenedor && b.estadoContenedor === e).length, color: COLOR_ESTADO_CONTENEDOR[e],
+    }));
+
+    // Color por naviera asignado en orden alfabético estable (identidad fija),
+    // luego se ordena por cantidad solo para la presentación.
+    const navierasCount = {};
+    bookings.forEach(b => { if (b.naviera) navierasCount[b.naviera] = (navierasCount[b.naviera] || 0) + 1; });
+    const porNaviera = Object.keys(navierasCount).sort()
+      .map((n, i) => ({ label: n, value: navierasCount[n], color: PALETA_CATEGORICA[i % PALETA_CATEGORICA.length] }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+
+    const porResultadoInspeccion = RESULTADOS_INSPECCION.map(r => ({
+      label: r, value: log.inspecciones.filter(i => i.resultado === r).length,
+      color: r === "Libre" ? "#00C9A7" : r === "Física" ? "#FF6B6B" : "#F9A826",
+    }));
+
+    const alertasPorTipo = {};
+    alertas.forEach(a => { alertasPorTipo[a.tipo] = (alertasPorTipo[a.tipo] || 0) + 1; });
+    const porAlerta = Object.entries(alertasPorTipo)
+      .map(([tipo, value]) => ({ label: ALERTA_TIPO_META[tipo]?.label || tipo, value, color: ALERTA_TIPO_META[tipo]?.color || "rgba(255,255,255,0.4)" }))
+      .sort((a, b) => b.value - a.value);
+
+    const tiemposPuerto = bookings
+      .filter(b => b.fechaIngresoPuerto && b.fechaZarpe)
+      .map(b => diferenciaDias(b.fechaIngresoPuerto, b.fechaZarpe))
+      .filter(d => d != null && d >= 0);
+    const promedioDiasPuerto = tiemposPuerto.length
+      ? Math.round((tiemposPuerto.reduce((a, b) => a + b, 0) / tiemposPuerto.length) * 10) / 10
+      : null;
+
+    const pctDocsCompletos = bookings.length
+      ? Math.round(100 * bookings.filter(b => b.documentosCompletos).length / bookings.length)
+      : 0;
+
+    // Tendencia: operaciones creadas por mes, últimos 6 meses
+    const hoy = new Date();
+    const porMes = Array.from({ length: 6 }, (_, idx) => {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - (5 - idx), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
+      return { key, label, value: bookings.filter(b => (b.createdAt || "").slice(0, 7) === key).length };
+    });
+
+    return { porEstado, porEstadoContenedor, porNaviera, porResultadoInspeccion, porAlerta, promedioDiasPuerto, pctDocsCompletos, porMes };
+  }, [log.bookings, log.inspecciones, alertas]);
 
   // ── Estilos (mismo patrón que RecepcionesTab) ──
   const inp = {
@@ -298,6 +389,22 @@ export default function LogisticaTab({ mob }) {
                   Documentos completos
                 </div>
               </div>
+              <div style={campoBox}><div style={lbl}>Número de cajas</div><input type="number" style={inp} value={form.numeroCajas} onChange={e => setCampo("numeroCajas", e.target.value)} placeholder="0" /></div>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Consignee</div>
+            <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 2fr", gap: 10, marginBottom: 14 }}>
+              <div style={campoBox}>
+                <div style={lbl}>Predefinido</div>
+                <CustomSelect value="" onChange={e => { const c = consigneesCfg.find(x => String(x.id) === String(e.target.value)); if (c) setCampo("consignee", c.texto); }} style={inp}>
+                  <option value="">Seleccionar y llenar abajo...</option>
+                  {consigneesCfg.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </CustomSelect>
+              </div>
+              <div style={campoBox}>
+                <div style={lbl}>Datos completos</div>
+                <textarea style={{ ...inp, minHeight: isLandscape ? 60 : (m ? 90 : 72), resize: "vertical", fontFamily: "inherit" }} value={form.consignee} onChange={e => setCampo("consignee", e.target.value)} placeholder="Nombre, Tax ID, dirección, teléfono..." />
+              </div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Cut Offs</div>
@@ -366,7 +473,7 @@ export default function LogisticaTab({ mob }) {
                   <thead>
                     <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
                       <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>Estado</th>
-                      <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Destino</th><th style={{ padding: "6px" }}>ETA</th><th style={{ padding: "6px" }}></th>
+                      <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Destino</th><th style={{ padding: "6px" }}>Cajas</th><th style={{ padding: "6px" }}>ETA</th><th style={{ padding: "6px" }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -379,6 +486,7 @@ export default function LogisticaTab({ mob }) {
                         </td>
                         <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
                         <td style={{ padding: "6px" }}>{b.puertoDestino || "—"}</td>
+                        <td style={{ padding: "6px" }}>{b.numeroCajas || "—"}</td>
                         <td style={{ padding: "6px" }}>{b.etaActual || "—"}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
                           <button onClick={() => editarBooking(b)} style={btnTablaEditar}>Editar</button>
@@ -681,6 +789,76 @@ export default function LogisticaTab({ mob }) {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ TAB 6 — ESTADÍSTICAS ═══ */}
+      {tabLog === 6 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+            {[
+              { l: "Operaciones totales",    v: log.bookings.length, c: "#F97316", i: "📋" },
+              { l: "Prom. días en puerto",   v: estadisticas.promedioDiasPuerto != null ? `${estadisticas.promedioDiasPuerto}d` : "—", c: "#0EA5E9", i: "⏱️" },
+              { l: "Documentos completos",   v: `${estadisticas.pctDocsCompletos}%`, c: "#00C9A7", i: "📄" },
+              { l: "Alertas activas",        v: alertas.length, c: alertas.length ? "#FF6B6B" : "#845EF7", i: "🔔" },
+            ].map((s, i) => (
+              <div key={i} style={{ ...cardS, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 20 }}>{s.i}</div>
+                <div>
+                  <div style={{ fontSize: m ? 18 : 20, fontWeight: 800, color: s.c }}>{s.v}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>{s.l}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap: 16 }}>
+            <div style={cardS}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📋 Bookings por estado</div>
+              <BarraLista items={estadisticas.porEstado} />
+            </div>
+            <div style={cardS}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🚢 Contenedores por estado</div>
+              <BarraLista items={estadisticas.porEstadoContenedor} />
+            </div>
+            <div style={cardS}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>⚓ Operaciones por naviera</div>
+              {estadisticas.porNaviera.length === 0
+                ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin datos todavía.</div>
+                : <BarraLista items={estadisticas.porNaviera} />}
+            </div>
+            <div style={cardS}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔍 Inspecciones por resultado</div>
+              {log.inspecciones.length === 0
+                ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin inspecciones registradas.</div>
+                : <BarraLista items={estadisticas.porResultadoInspeccion} />}
+            </div>
+          </div>
+
+          <div style={cardS}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📈 Operaciones creadas por mes</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
+              {estadisticas.porMes.map((mes, i) => {
+                const max = Math.max(1, ...estadisticas.porMes.map(x => x.value));
+                const barH = mes.value ? Math.max(6, (mes.value / max) * 90) : 2;
+                const esActual = i === estadisticas.porMes.length - 1;
+                return (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 6, height: "100%" }}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", minHeight: 14 }}>{mes.value || ""}</div>
+                    <div style={{ width: "60%", height: barH, background: esActual ? "#F97316" : "rgba(249,115,22,0.35)", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>{mes.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {estadisticas.porAlerta.length > 0 && (
+            <div style={cardS}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔔 Alertas activas por tipo</div>
+              <BarraLista items={estadisticas.porAlerta} />
             </div>
           )}
         </div>

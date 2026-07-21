@@ -11,6 +11,8 @@ const rowToBooking = (r) => ({
   puertoOrigen:          r.puerto_origen           || "",
   puertoDestino:         r.puerto_destino          || "",
   naviera:               r.naviera                 || "",
+  consignee:             r.consignee               || "",
+  numeroCajas:           r.numero_cajas != null ? r.numero_cajas : "",
   siCutoffFecha:         r.si_cutoff_fecha         || "",
   siCutoffHora:          r.si_cutoff_hora          || "",
   cyCutoffFecha:         r.cy_cutoff_fecha         || "",
@@ -29,6 +31,7 @@ const rowToBooking = (r) => ({
   fechaLlegadaDestino:   r.fecha_llegada_destino   || "",
   fechaEntregaFinal:     r.fecha_entrega_final     || "",
   obs:                   r.obs                     || "",
+  createdAt:             r.created_at              || "",
 });
 
 const rowToTransporte = (r) => ({
@@ -133,6 +136,8 @@ export function useLogistica() {
       puerto_origen:           form.puertoOrigen             || null,
       puerto_destino:          form.puertoDestino            || null,
       naviera:                 form.naviera                  || null,
+      consignee:               form.consignee                || null,
+      numero_cajas:            form.numeroCajas !== "" && form.numeroCajas != null ? Number(form.numeroCajas) : null,
       si_cutoff_fecha:         form.siCutoffFecha            || null,
       si_cutoff_hora:          form.siCutoffHora             || null,
       cy_cutoff_fecha:         form.cyCutoffFecha            || null,
@@ -364,6 +369,13 @@ export function diasEntre(fechaISO, ahora = new Date()) {
   const desde = new Date(fechaISO + "T00:00:00");
   const hoy   = new Date(ahora.toISOString().split("T")[0] + "T00:00:00");
   return Math.round((hoy - desde) / 86400000);
+}
+
+export function diferenciaDias(fechaDesdeISO, fechaHastaISO) {
+  if (!fechaDesdeISO || !fechaHastaISO) return null;
+  const desde = new Date(fechaDesdeISO + "T00:00:00");
+  const hasta = new Date(fechaHastaISO + "T00:00:00");
+  return Math.round((hasta - desde) / 86400000);
 }
 
 export function buscarNaviera(navierasCfg, nombre) {
