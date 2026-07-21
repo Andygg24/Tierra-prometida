@@ -9,7 +9,9 @@ import { usePedidos } from "./hooks/usePedidos.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
+import LogisticaTab from "./components/LogisticaTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
+import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
 import CustomSelect from "./components/CustomSelect.jsx";
 import LimonLoader from "./components/LimonLoader.jsx";
 
@@ -7086,8 +7088,10 @@ function ConfigForm({ config, guardar }) {
 
   const [expData, setExpData] = useState(() => load("cfg_exportacion", {
     clientes:    [{ id:1, nombre:"Princess Kingdom Corp", ciudad:"Miami", pais:"USA", email:"", tel:"+17867102522" }],
-    navieras:    [{ id:1, nombre:"MSC", codigo:"MSC", contacto:"" }],
-    puertos:     ["Miami, FL", "Port Everglades, FL"],
+    navieras:    [{ id:1, nombre:"MSC", codigo:"MSC", contacto:"", diasLibres:null, diasLibresDesde:"" }],
+    puertos:       ["Miami, FL", "Port Everglades, FL"],
+    puertosOrigen: [],
+    transportadoras: [],
     brokers:     [],
     kgPorCaja:   10,
     precioUSDkg: 0.45,
@@ -7126,7 +7130,7 @@ function ConfigForm({ config, guardar }) {
   const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
-  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepciones","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Configuración"];
+  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepciones","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Logística","Configuración"];
   const TABS = [
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
@@ -7349,19 +7353,31 @@ function ConfigForm({ config, guardar }) {
           <div style={secS}>
             <div style={secH}>⚓ Navieras Frecuentes</div>
             {expData.navieras.map((n, ni) => (
-              <div key={n.id} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap:10, marginBottom:10 }}>
+              <div key={n.id} style={{ display:"grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 0.7fr 1.1fr auto", gap:10, marginBottom:10 }}>
                 {[["nombre","Naviera"],["codigo","Código SCAC"],["contacto","Contacto"]].map(([f,l]) => (
                   <div key={f}>
                     <label style={lS}>{l}</label>
                     <input style={iS()} value={n[f]||""} onChange={e=>setExpData(p=>({...p,navieras:p.navieras.map((x,xi)=>xi===ni?{...x,[f]:e.target.value}:x)}))} placeholder={l} />
                   </div>
                 ))}
+                <div>
+                  <label style={lS}>Días libres</label>
+                  <input type="number" style={iS()} value={n.diasLibres ?? ""} onChange={e=>{const v=e.target.value; setExpData(p=>({...p,navieras:p.navieras.map((x,xi)=>xi===ni?{...x,diasLibres:v===""?null:Number(v)}:x)}));}} placeholder="Ej: 10" />
+                </div>
+                <div>
+                  <label style={lS}>Días libres desde</label>
+                  <CustomSelect value={n.diasLibresDesde || ""} onChange={e=>setExpData(p=>({...p,navieras:p.navieras.map((x,xi)=>xi===ni?{...x,diasLibresDesde:e.target.value}:x)}))} style={iS()}>
+                    <option value="">No aplica</option>
+                    <option value="ingreso_puerto">Ingreso a puerto</option>
+                    <option value="asignacion">Asignación</option>
+                  </CustomSelect>
+                </div>
                 <div style={{ display:"flex", alignItems:"flex-end" }}>
                   <button onClick={()=>setConfirmDel({action:()=>setExpData(p=>({...p,navieras:p.navieras.filter((_,xi)=>xi!==ni)}))})} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B35", borderRadius:7, padding:"9px 11px", color:"#FF6B6B", cursor:"pointer", fontFamily:"inherit" }}>✕</button>
                 </div>
               </div>
             ))}
-            <button onClick={()=>setExpData(p=>({...p,navieras:[...p.navieras,{id:Date.now(),nombre:"",codigo:"",contacto:""}]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar naviera</button>
+            <button onClick={()=>setExpData(p=>({...p,navieras:[...p.navieras,{id:Date.now(),nombre:"",codigo:"",contacto:"",diasLibres:null,diasLibresDesde:""}]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar naviera</button>
           </div>
 
           {/* Puertos */}
@@ -7374,6 +7390,30 @@ function ConfigForm({ config, guardar }) {
               </div>
             ))}
             <button onClick={()=>setExpData(p=>({...p,puertos:[...p.puertos,""]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar puerto</button>
+          </div>
+
+          {/* Puertos de origen (Logística) */}
+          <div style={secS}>
+            <div style={secH}>⛴️ Puertos de Origen (Colombia)</div>
+            {(expData.puertosOrigen||[]).map((p, pi) => (
+              <div key={pi} style={{ display:"flex", gap:8, marginBottom:8 }}>
+                <input style={iS({ flex:1 })} value={p} onChange={e=>setExpData(prev=>({...prev,puertosOrigen:prev.puertosOrigen.map((x,xi)=>xi===pi?e.target.value:x)}))} placeholder="Ej: Sociedad Portuaria Regional de Cartagena (SPRC)" />
+                <button onClick={()=>setExpData(prev=>({...prev,puertosOrigen:prev.puertosOrigen.filter((_,xi)=>xi!==pi)}))} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B35", borderRadius:7, padding:"9px 11px", color:"#FF6B6B", cursor:"pointer", flexShrink:0, fontFamily:"inherit" }}>✕</button>
+              </div>
+            ))}
+            <button onClick={()=>setExpData(p=>({...p,puertosOrigen:[...(p.puertosOrigen||[]),""]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar puerto de origen</button>
+          </div>
+
+          {/* Transportadoras (Logística) */}
+          <div style={secS}>
+            <div style={secH}>🚛 Transportadoras</div>
+            {(expData.transportadoras||[]).map((t, ti) => (
+              <div key={ti} style={{ display:"flex", gap:8, marginBottom:8 }}>
+                <input style={iS({ flex:1 })} value={t} onChange={e=>setExpData(prev=>({...prev,transportadoras:prev.transportadoras.map((x,xi)=>xi===ti?e.target.value:x)}))} placeholder="Ej: Copetran" />
+                <button onClick={()=>setExpData(prev=>({...prev,transportadoras:prev.transportadoras.filter((_,xi)=>xi!==ti)}))} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B35", borderRadius:7, padding:"9px 11px", color:"#FF6B6B", cursor:"pointer", flexShrink:0, fontFamily:"inherit" }}>✕</button>
+              </div>
+            ))}
+            <button onClick={()=>setExpData(p=>({...p,transportadoras:[...(p.transportadoras||[]),""]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar transportadora</button>
           </div>
 
           {/* Brokers */}
@@ -7671,6 +7711,7 @@ const MODULES = [
   { id:"asistencia",    icon:"📅", title:"Asistencia",    color:"#4ECDC4", demo:{ type:"asistencia_live" },   capabilities:["Registro diario de asistencia","✅ Presente · ❌ Ausente · ⏰ Tardanza","📋 Licencias y permisos · 🎉 Festivos","Marcar todos en un click","Filtro por nombre y área","Informe mensual descargable"] },
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princess Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"pedidos",       icon:"📋", title:"Pedidos",       color:"#0284c7", demo:{ type:"pedidos_live" },       capabilities:["Pipeline visual de estados","CRM clientes y contactos","Gestión completa de pedidos","Valor total en USD","Contenedor por pedido","Registro histórico exportable"] },
+  { id:"logistica",     icon:"🚛", title:"Logística",     color:"#F97316", demo:{ type:"logistica_live" },     capabilities:["Gestión de bookings","Estado de contenedores por naviera","Transporte terrestre","Novedades e inspecciones portuarias","Línea de tiempo de 12 hitos","Alertas de días libres y cutoffs"] },
   { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Seguridad y backup"] },
 ];
 
@@ -7814,6 +7855,7 @@ export default function App() {
   const [showSearch,   setShowSearch]   = useState(false);
   const [searchQ,      setSearchQ]      = useState("");
   const { items: invApp } = useInventario();
+  const logisticaApp = useLogistica();
 
   const { config: cfgApp, loading: cfgLoading } = useConfiguracion();
   const apariencia = cfgApp.cfg_apariencia || {};
@@ -7881,6 +7923,7 @@ export default function App() {
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo />;
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
+    if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} />;
     if (demo.type === "documentos_live")  return <DocumentosDemo />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
@@ -8199,6 +8242,8 @@ export default function App() {
         });
         const hoy = new Date();
         if (hoy.getDay() === 5) notifs.push({ tipo:"nomina", icon:"💰", color:"#00C9A7", titulo:"Hoy es viernes — ¿generaste la nómina?", detalle:"Recuerda liquidar la quincena si aplica" });
+        const alertasLog = calcularAlertasLogistica(logisticaApp.bookings, logisticaApp.transporte, cfgApp.cfg_exportacion?.navieras || []);
+        alertasLog.forEach(a => notifs.push({ tipo:"logistica", icon:a.icon, color:a.color, titulo:a.titulo, detalle:a.detalle }));
         notifs.push({ tipo:"info", icon:"🍋", color:"#845EF7", titulo:`${EMPLEADOS_DB.length} empleados en sistema`, detalle:`${EMPLEADOS_DB.filter(e=>e.area!=="Owner / Propietario").length} operativos activos` });
         const nNotif = notifs.length;
 

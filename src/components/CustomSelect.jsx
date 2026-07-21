@@ -83,10 +83,14 @@ export default function CustomSelect({ value, onChange, children, style, disable
     return () => document.removeEventListener("keydown", h);
   }, [open]);
 
-  // Close on any scroll (dropdown is fixed → se desconecta del trigger al scrollear)
+  // Close on scroll fuera del propio dropdown (que es fixed → se desconecta del
+  // trigger al scrollear la página). Scrollear la lista de opciones NO debe cerrarlo.
   useEffect(() => {
     if (!open) return;
-    const h = () => setOpen(false);
+    const h = (e) => {
+      if (dropRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
     window.addEventListener("scroll", h, true);
     return () => window.removeEventListener("scroll", h, true);
   }, [open]);
