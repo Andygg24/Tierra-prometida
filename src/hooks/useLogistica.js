@@ -65,11 +65,22 @@ const rowToInspeccion = (r) => ({
   observaciones: r.observaciones || "",
 });
 
+const rowToContrato = (r) => ({
+  id:             r.id,
+  naviera:        r.naviera         || "",
+  numeroContrato: r.numero_contrato || "",
+  fechaInicio:    r.fecha_inicio    || "",
+  fechaFin:       r.fecha_fin       || "",
+  destinos:       Array.isArray(r.destinos) ? r.destinos : [],
+  obs:            r.obs             || "",
+});
+
 export function useLogistica() {
   const [bookings,     setBookings]     = useState([]);
   const [transporte,   setTransporte]   = useState([]);
   const [novedades,    setNovedades]    = useState([]);
   const [inspecciones, setInspecciones] = useState([]);
+  const [contratos,    setContratos]    = useState([]);
   const [loading,      setLoading]      = useState(true);
 
   // ── Carga inicial ────────────────────────────────────────────
@@ -81,21 +92,25 @@ export function useLogistica() {
         { data: trs,   error: e2 },
         { data: novs,  error: e3 },
         { data: insps, error: e4 },
+        { data: cons,  error: e5 },
       ] = await Promise.all([
         supabase.from("logistica_bookings").select("*").order("created_at", { ascending: false }),
         supabase.from("logistica_transporte").select("*").order("created_at", { ascending: false }),
         supabase.from("logistica_novedades").select("*").order("fecha", { ascending: false }),
         supabase.from("logistica_inspecciones").select("*").order("fecha", { ascending: false }),
+        supabase.from("logistica_contratos").select("*").order("fecha_fin", { ascending: true }),
       ]);
       if (cancelled) return;
       if (!e1) setBookings((bks || []).map(rowToBooking));
       if (!e2) setTransporte((trs || []).map(rowToTransporte));
       if (!e3) setNovedades((novs || []).map(rowToNovedad));
       if (!e4) setInspecciones((insps || []).map(rowToInspeccion));
+      if (!e5) setContratos((cons || []).map(rowToContrato));
       if (e1) console.error("[logistica_bookings]", e1.message);
       if (e2) console.error("[logistica_transporte]", e2.message);
       if (e3) console.error("[logistica_novedades]", e3.message);
       if (e4) console.error("[logistica_inspecciones]", e4.message);
+      if (e5) console.error("[logistica_contratos]", e5.message);
       setLoading(false);
     }
     fetchAll();
@@ -104,8 +119,8 @@ export function useLogistica() {
 
   // ── Suscripciones en tiempo real ────────────────────────────
   useEffect(() => {
-    const refetch = (table, setter, mapper, orderCol) => () => {
-      supabase.from(table).select("*").order(orderCol, { ascending: false })
+    const refetch = (table, setter, mapper, orderCol, ascending = false) => () => {
+      supabase.from(table).select("*").order(orderCol, { ascending })
         .then(({ data }) => data && setter(data.map(mapper)));
     };
 
@@ -118,6 +133,8 @@ export function useLogistica() {
           refetch("logistica_novedades", setNovedades, rowToNovedad, "fecha"))
       .on("postgres_changes", { event: "*", schema: "public", table: "logistica_inspecciones" },
           refetch("logistica_inspecciones", setInspecciones, rowToInspeccion, "fecha"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "logistica_contratos" },
+          refetch("logistica_contratos", setContratos, rowToContrato, "fecha_fin", true))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -322,12 +339,50 @@ export function useLogistica() {
     return !error;
   }, [inspecciones]);
 
+  // ── CONTRATOS CON NAVIERAS ────────────────────────────────────
+
+  const guardarContrato = useCallback(async (form, id = null) => {
+    const row = {
+      naviera:         form.naviera         || "",
+      numero_contrato: form.numeroContrato  || null,
+      fecha_inicio:    form.fechaInicio     || null,
+      fecha_fin:       form.fechaFin        || null,
+      destinos:        form.destinos        || [],
+      obs:             form.obs             || null,
+      updated_at:      new Date().toISOString(),
+    };
+    if (id) {
+      setContratos(prev => prev.map(c => c.id === id ? rowToContrato({ ...row, id }) : c));
+      const { error } = await supabase.from("logistica_contratos").update(row).eq("id", id);
+      if (error) {
+        supabase.from("logistica_contratos").select("*").order("fecha_fin", { ascending: true })
+          .then(({ data }) => data && setContratos(data.map(rowToContrato)));
+      }
+      return !error;
+    } else {
+      row.id = Date.now();
+      setContratos(prev => [rowToContrato(row), ...prev]);
+      const { error } = await supabase.from("logistica_contratos").insert(row);
+      if (error) setContratos(prev => prev.filter(c => c.id !== row.id));
+      return !error;
+    }
+  }, []);
+
+  const eliminarContrato = useCallback(async (id) => {
+    const removed = contratos.find(c => c.id === id);
+    setContratos(prev => prev.filter(c => c.id !== id));
+    const { error } = await supabase.from("logistica_contratos").delete().eq("id", id);
+    if (error && removed) setContratos(prev => [removed, ...prev]);
+    return !error;
+  }, [contratos]);
+
   return {
-    bookings, transporte, novedades, inspecciones, loading,
+    bookings, transporte, novedades, inspecciones, contratos, loading,
     guardarBooking, eliminarBooking, marcarEtaVista,
     guardarTransporte, eliminarTransporte,
     guardarNovedad, eliminarNovedad,
     guardarInspeccion, eliminarInspeccion,
+    guardarContrato, eliminarContrato,
   };
 }
 
@@ -396,7 +451,7 @@ export function diasLibresRestantes(booking, navierasCfg) {
 
 const ID_OPERACION = (b) => b.numeroBooking || b.numeroContenedor || `#${b.id}`;
 
-export function calcularAlertasLogistica(bookings = [], transporte = [], navierasCfg = []) {
+export function calcularAlertasLogistica(bookings = [], transporte = [], navierasCfg = [], contratos = []) {
   const alertas = [];
   const ahora = new Date();
 
@@ -482,6 +537,20 @@ export function calcularAlertasLogistica(bookings = [], transporte = [], naviera
           });
         }
       }
+    }
+  });
+
+  const hoyStr = ahora.toISOString().split("T")[0];
+  contratos.forEach(c => {
+    if (!c.fechaFin) return;
+    const restantes = diferenciaDias(hoyStr, c.fechaFin);
+    if (restantes <= 30) {
+      alertas.push({
+        tipo: "contrato_vencimiento", icon: "📄", color: restantes < 0 ? "#FF6B6B" : "#F9A826",
+        titulo: restantes < 0 ? "Contrato vencido" : "Contrato por vencer",
+        detalle: `${c.naviera}${c.numeroContrato ? ` — contrato ${c.numeroContrato}` : ""} — ${restantes < 0 ? `vencido hace ${Math.abs(restantes)} día(s)` : `vence en ${restantes} día(s) (${c.fechaFin})`}`,
+        contratoId: c.id,
+      });
     }
   });
 

@@ -8279,7 +8279,7 @@ export default function App() {
         });
         const hoy = new Date();
         if (hoy.getDay() === 5) notifs.push({ tipo:"nomina", icon:"💰", color:"#00C9A7", titulo:"Hoy es viernes — ¿generaste la nómina?", detalle:"Recuerda liquidar la quincena si aplica" });
-        const alertasLog = calcularAlertasLogistica(logisticaApp.bookings, logisticaApp.transporte, cfgApp.cfg_exportacion?.navieras || []);
+        const alertasLog = calcularAlertasLogistica(logisticaApp.bookings, logisticaApp.transporte, cfgApp.cfg_exportacion?.navieras || [], logisticaApp.contratos);
         alertasLog.forEach(a => notifs.push({ tipo:"logistica", icon:a.icon, color:a.color, titulo:a.titulo, detalle:a.detalle }));
         notifs.push({ tipo:"info", icon:"🍋", color:"#845EF7", titulo:`${EMPLEADOS_DB.length} empleados en sistema`, detalle:`${EMPLEADOS_DB.filter(e=>e.area!=="Owner / Propietario").length} operativos activos` });
         const nNotif = notifs.length;

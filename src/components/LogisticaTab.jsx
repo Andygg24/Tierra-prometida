@@ -31,6 +31,7 @@ const ALERTA_TIPO_META = {
   sin_ingreso_puerto:  { label: "Sin ingreso a puerto",  color: "#FF6B6B" },
   eta_cambio:          { label: "Cambio de ETA",         color: "#0EA5E9" },
   dias_libres:         { label: "Días libres",           color: "#FF6B6B" },
+  contrato_vencimiento: { label: "Contrato",             color: "#F9A826" },
 };
 
 function BarraLista({ items }) {
@@ -99,6 +100,9 @@ function novedadVacia() {
 function inspeccionVacia() {
   return { bookingId: "", fecha: hoyISO(), entidad: "PONAL", resultado: "Física", observaciones: "" };
 }
+function contratoVacio() {
+  return { naviera: "", numeroContrato: "", fechaInicio: "", fechaFin: "", destinosTexto: "", obs: "" };
+}
 
 function labelBooking(b) {
   if (!b) return "—";
@@ -138,11 +142,11 @@ export default function LogisticaTab({ mob }) {
   const consigneesCfg      = config.cfg_exportacion?.consignees      || [];
 
   const [tabLog, setTabLog] = useState(0);
-  const TAB_LOG = ["📋 Booking", "🚢 Contenedores", "🚛 Transporte", "⚓ Op. Portuaria", "🕒 Seguimiento", "🔔 Alertas", "📊 Estadísticas"];
+  const TAB_LOG = ["📋 Operaciones", "🔔 Alertas", "📊 Estadísticas", "📄 Contratos"];
 
   const alertas = useMemo(
-    () => calcularAlertasLogistica(log.bookings, log.transporte, navierasCfg),
-    [log.bookings, log.transporte, navierasCfg]
+    () => calcularAlertasLogistica(log.bookings, log.transporte, navierasCfg, log.contratos),
+    [log.bookings, log.transporte, navierasCfg, log.contratos]
   );
 
   const estadisticas = useMemo(() => {
@@ -218,33 +222,49 @@ export default function LogisticaTab({ mob }) {
   const campoBox = { minWidth: 0 };
   const camposCols = isLandscape ? "repeat(4, minmax(132px, 1fr))" : (m ? "1fr 1fr" : "repeat(4,1fr)");
 
-  // ══════════════ BOOKING + CONTENEDORES (misma tabla, dos vistas) ══════════════
+  // ══════════════ OPERACIONES (Booking + Contenedores + Transporte + Portuaria + Seguimiento, todo por operación) ══════════════
   const [form, setForm]           = useState(bookingVacio);
   const [editId, setEditId]       = useState(null);
+  const [operacionSel, setOperacionSel] = useState(null); // null = lista | "new" | id de un booking existente
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [busqueda, setBusqueda]   = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
-  const cancelarEdicion = () => { setForm(bookingVacio()); setEditId(null); };
 
-  const editarBooking = (b) => {
+  const nuevaOperacion = () => {
+    setForm(bookingVacio());
+    setEditId(null);
+    setOperacionSel("new");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const abrirOperacion = (b) => {
     setForm({ ...bookingVacio(), ...b });
     setEditId(b.id);
-    setTabLog(0);
+    setOperacionSel(b.id);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const volverALista = () => {
+    setForm(bookingVacio());
+    setEditId(null);
+    setOperacionSel(null);
   };
 
   const guardar = async () => {
     if (!form.numeroBooking && !form.numeroContenedor) return;
     setGuardando(true);
+    const eraNueva = !editId;
     const ok = await log.guardarBooking(form, editId);
     setGuardando(false);
     if (ok) {
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2000);
-      cancelarEdicion();
+      // Si era una operación nueva volvemos a la lista; si era una edición nos
+      // quedamos en el detalle para seguir agregando transporte/novedades.
+      if (eraNueva) volverALista();
     }
   };
 
@@ -261,48 +281,70 @@ export default function LogisticaTab({ mob }) {
     });
   }, [log.bookings, busqueda, filtroEstado]);
 
-  const contenedoresActivos = useMemo(
-    () => log.bookings.filter(b => b.numeroContenedor && b.estado !== "Finalizado" && b.estado !== "Cancelado"),
-    [log.bookings]
-  );
-
-  // ══════════════ TRANSPORTE ══════════════
+  // ══════════════ TRANSPORTE (scoped a la operación abierta) ══════════════
   const [transForm, setTransForm]   = useState(transporteVacio);
   const [transEditId, setTransEditId] = useState(null);
   const setCampoTrans = (campo, valor) => setTransForm(f => ({ ...f, [campo]: valor }));
   const cancelarTrans = () => { setTransForm(transporteVacio()); setTransEditId(null); };
   const editarTransporte = (t) => { setTransForm({ ...transporteVacio(), ...t }); setTransEditId(t.id); };
   const guardarTrans = async () => {
-    if (!transForm.bookingId) return;
-    const ok = await log.guardarTransporte(transForm, transEditId);
+    if (!editId) return;
+    const ok = await log.guardarTransporte({ ...transForm, bookingId: editId }, transEditId);
     if (ok) cancelarTrans();
   };
+  const transporteDeOperacion = useMemo(
+    () => log.transporte.filter(t => t.bookingId === editId),
+    [log.transporte, editId]
+  );
 
-  // ══════════════ OPERACIÓN PORTUARIA ══════════════
+  // ══════════════ OPERACIÓN PORTUARIA (scoped a la operación abierta) ══════════════
   const [novForm, setNovForm]   = useState(novedadVacia);
   const [novEditId, setNovEditId] = useState(null);
   const cancelarNov = () => { setNovForm(novedadVacia()); setNovEditId(null); };
   const editarNovedad = (n) => { setNovForm({ ...novedadVacia(), ...n }); setNovEditId(n.id); };
   const guardarNov = async () => {
-    if (!novForm.bookingId || !novForm.descripcion) return;
-    const ok = await log.guardarNovedad(novForm, novEditId);
+    if (!editId || !novForm.descripcion) return;
+    const ok = await log.guardarNovedad({ ...novForm, bookingId: editId }, novEditId);
     if (ok) cancelarNov();
   };
+  const novedadesDeOperacion = useMemo(
+    () => log.novedades.filter(n => n.bookingId === editId),
+    [log.novedades, editId]
+  );
 
   const [inspForm, setInspForm]   = useState(inspeccionVacia);
   const [inspEditId, setInspEditId] = useState(null);
   const cancelarInsp = () => { setInspForm(inspeccionVacia()); setInspEditId(null); };
   const editarInspeccion = (i) => { setInspForm({ ...inspeccionVacia(), ...i }); setInspEditId(i.id); };
   const guardarInsp = async () => {
-    if (!inspForm.bookingId) return;
-    const ok = await log.guardarInspeccion(inspForm, inspEditId);
+    if (!editId) return;
+    const ok = await log.guardarInspeccion({ ...inspForm, bookingId: editId }, inspEditId);
     if (ok) cancelarInsp();
   };
+  const inspeccionesDeOperacion = useMemo(
+    () => log.inspecciones.filter(i => i.bookingId === editId),
+    [log.inspecciones, editId]
+  );
 
-  // ══════════════ SEGUIMIENTO ══════════════
-  const [seguimientoAbierto, setSeguimientoAbierto] = useState(null);
+  // ══════════════ CONTRATOS CON NAVIERAS ══════════════
+  const [contratoForm, setContratoForm] = useState(contratoVacio);
+  const [contratoEditId, setContratoEditId] = useState(null);
+  const cancelarContrato = () => { setContratoForm(contratoVacio()); setContratoEditId(null); };
+  const editarContrato = (c) => {
+    setContratoForm({ ...contratoVacio(), ...c, destinosTexto: (c.destinos || []).join("\n") });
+    setContratoEditId(c.id);
+  };
+  const guardarContrato = async () => {
+    if (!contratoForm.naviera || !contratoForm.fechaFin) return;
+    const destinos = contratoForm.destinosTexto.split(/[\n,]/).map(d => d.trim()).filter(Boolean);
+    const ok = await log.guardarContrato({ ...contratoForm, destinos }, contratoEditId);
+    if (ok) cancelarContrato();
+  };
 
   if (log.loading) return <LimonLoader texto="Cargando logística" />;
+
+  const bookingActual = editId ? log.bookings.find(b => b.id === editId) : null;
+  const hitosActual = bookingActual ? calcularHitos(bookingActual, log.transporte) : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -341,434 +383,366 @@ export default function LogisticaTab({ mob }) {
         ))}
       </div>
 
-      {/* ═══ TAB 0 — BOOKING ═══ */}
+      {/* ═══ TAB 0 — OPERACIONES ═══ */}
       {tabLog === 0 && (
         <>
-          <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>
-              {editId ? "✏️ Editar booking" : "📋 Nuevo booking"}
-            </div>
-
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Datos del booking</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
-              <div style={campoBox}><div style={lbl}>Número booking</div><input style={inp} value={form.numeroBooking} onChange={e => setCampo("numeroBooking", e.target.value)} placeholder="Ej: BK-00123" /></div>
-              <div style={campoBox}><div style={lbl}>Número contenedor</div><input style={inp} value={form.numeroContenedor} onChange={e => setCampo("numeroContenedor", e.target.value.toUpperCase())} placeholder="MSKU1234567" /></div>
-              <div style={campoBox}><div style={lbl}>Estado</div>
-                <CustomSelect value={form.estado} onChange={e => setCampo("estado", e.target.value)} style={inp}>
+          {operacionSel === null ? (
+            /* ── Lista maestra ── */
+            <div style={cardS}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>📋 Operaciones</div>
+                <button onClick={nuevaOperacion} style={btnPrimario(false, false)}>➕ Nueva operación</button>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+                <CustomSelect value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ ...inp, width: m ? "100%" : 180 }}>
+                  <option value="">Todos los estados</option>
                   {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}
                 </CustomSelect>
               </div>
-              <div style={campoBox}><div style={lbl}>Naviera</div>
-                <CustomSelect value={form.naviera} onChange={e => setCampo("naviera", e.target.value)} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {navierasCfg.map(n => <option key={n.id} value={n.nombre}>{n.nombre}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Puerto de origen</div>
-                <CustomSelect value={form.puertoOrigen} onChange={e => setCampo("puertoOrigen", e.target.value)} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {puertosOrigenCfg.map((p, i) => <option key={i} value={p}>{p}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Puerto de destino</div>
-                <CustomSelect value={form.puertoDestino} onChange={e => setCampo("puertoDestino", e.target.value)} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {puertosCfg.map((p, i) => <option key={i} value={p}>{p}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}>
-                <div style={lbl}>ETA</div>
-                <input type="date" style={inp} value={form.etaActual} onChange={e => setCampo("etaActual", e.target.value)} />
-                {form.etaAnterior && form.etaAnterior !== form.etaActual && (
-                  <div style={{ fontSize: 9, color: "#0EA5E9", marginTop: 3 }}>Antes: {form.etaAnterior}</div>
-                )}
-              </div>
-              <div style={campoBox}>
-                <div style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, marginTop: m ? 10 : 6 }}>
-                  <input type="checkbox" checked={form.documentosCompletos} onChange={e => setCampo("documentosCompletos", e.target.checked)} style={{ width: 16, height: 16 }} />
-                  Documentos completos
-                </div>
-              </div>
-              <div style={campoBox}><div style={lbl}>Número de cajas</div><input type="number" style={inp} value={form.numeroCajas} onChange={e => setCampo("numeroCajas", e.target.value)} placeholder="0" /></div>
-            </div>
-
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Consignee</div>
-            <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 2fr", gap: 10, marginBottom: 14 }}>
-              <div style={campoBox}>
-                <div style={lbl}>Predefinido</div>
-                <CustomSelect value="" onChange={e => { const c = consigneesCfg.find(x => String(x.id) === String(e.target.value)); if (c) setCampo("consignee", c.texto); }} style={inp}>
-                  <option value="">Seleccionar y llenar abajo...</option>
-                  {consigneesCfg.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}>
-                <div style={lbl}>Datos completos</div>
-                <textarea style={{ ...inp, minHeight: isLandscape ? 60 : (m ? 90 : 72), resize: "vertical", fontFamily: "inherit" }} value={form.consignee} onChange={e => setCampo("consignee", e.target.value)} placeholder="Nombre, Tax ID, dirección, teléfono..." />
-              </div>
-            </div>
-
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Cut Offs</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
-              <div style={campoBox}><div style={lbl}>SI Cut Off — fecha</div><input type="date" style={inp} value={form.siCutoffFecha} onChange={e => setCampo("siCutoffFecha", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>SI Cut Off — hora</div><input type="time" style={inp} value={form.siCutoffHora} onChange={e => setCampo("siCutoffHora", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>CY Cut Off — fecha</div><input type="date" style={inp} value={form.cyCutoffFecha} onChange={e => setCampo("cyCutoffFecha", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>CY Cut Off — hora</div><input type="time" style={inp} value={form.cyCutoffHora} onChange={e => setCampo("cyCutoffHora", e.target.value)} /></div>
-            </div>
-
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Gestión de contenedores</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
-              <div style={campoBox}><div style={lbl}>Estado del contenedor</div>
-                <CustomSelect value={form.estadoContenedor} onChange={e => setCampo("estadoContenedor", e.target.value)} style={inp}>
-                  {ESTADOS_CONTENEDOR.map(x => <option key={x} value={x}>{x}</option>)}
-                </CustomSelect>
-              </div>
-              {campoDiasLibres === "ingreso_puerto" && (
-                <div style={campoBox}><div style={lbl}>Fecha de ingreso al puerto</div><input type="date" style={inp} value={form.fechaIngresoPuerto} onChange={e => setCampo("fechaIngresoPuerto", e.target.value)} /></div>
-              )}
-              {campoDiasLibres === "asignacion" && (
-                <div style={campoBox}><div style={lbl}>Fecha de asignación</div><input type="date" style={inp} value={form.fechaAsignacion} onChange={e => setCampo("fechaAsignacion", e.target.value)} /></div>
-              )}
-              {!campoDiasLibres && form.naviera && (
-                <div style={campoBox}><div style={lbl}>Días libres</div><div style={{ ...inp, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.4)" }}>No configurado para {form.naviera}</div></div>
-              )}
-            </div>
-
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Línea de tiempo (hitos manuales)</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
-              <div style={campoBox}><div style={lbl}>Orden recibida</div><input type="date" style={inp} value={form.fechaOrdenRecibida} onChange={e => setCampo("fechaOrdenRecibida", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Producción</div><input type="date" style={inp} value={form.fechaProduccion} onChange={e => setCampo("fechaProduccion", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Packing terminado</div><input type="date" style={inp} value={form.fechaPackingTerminado} onChange={e => setCampo("fechaPackingTerminado", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Zarpe</div><input type="date" style={inp} value={form.fechaZarpe} onChange={e => setCampo("fechaZarpe", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Llegó a destino</div><input type="date" style={inp} value={form.fechaLlegadaDestino} onChange={e => setCampo("fechaLlegadaDestino", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Entrega final</div><input type="date" style={inp} value={form.fechaEntregaFinal} onChange={e => setCampo("fechaEntregaFinal", e.target.value)} /></div>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <div style={lbl}>Observaciones</div>
-              <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={form.obs} onChange={e => setCampo("obs", e.target.value)} placeholder="Notas sobre esta operación..." />
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-              {editId && <button onClick={cancelarEdicion} style={btnSecundario}>Cancelar</button>}
-              <button onClick={guardar} disabled={guardando} style={btnPrimario(guardadoOk, guardando)}>
-                {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : editId ? "Guardar cambios" : "Guardar booking"}
-              </button>
-            </div>
-          </div>
-
-          <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📋 Bookings registrados</div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-              <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera..." style={{ ...inp, flex: 1, minWidth: 160 }} />
-              <CustomSelect value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ ...inp, width: m ? "100%" : 180 }}>
-                <option value="">Todos los estados</option>
-                {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}
-              </CustomSelect>
-            </div>
-            {bookingsFiltrados.length === 0 ? (
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin bookings registrados todavía.</div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                      <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>Estado</th>
-                      <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Destino</th><th style={{ padding: "6px" }}>Cajas</th><th style={{ padding: "6px" }}>ETA</th><th style={{ padding: "6px" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bookingsFiltrados.map(b => (
-                      <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                        <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>
-                        <td style={{ padding: "6px" }}>{b.numeroContenedor || "—"}</td>
-                        <td style={{ padding: "6px" }}>
-                          <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${COLOR_ESTADO_BOOKING[b.estado]}22`, color: COLOR_ESTADO_BOOKING[b.estado] }}>{b.estado}</span>
-                        </td>
-                        <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
-                        <td style={{ padding: "6px" }}>{b.puertoDestino || "—"}</td>
-                        <td style={{ padding: "6px" }}>{b.numeroCajas || "—"}</td>
-                        <td style={{ padding: "6px" }}>{b.etaActual || "—"}</td>
-                        <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
-                          <button onClick={() => editarBooking(b)} style={btnTablaEditar}>Editar</button>
-                          <button onClick={() => log.eliminarBooking(b.id)} style={btnTablaEliminar}>Eliminar</button>
-                        </td>
+              {bookingsFiltrados.length === 0 ? (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin operaciones registradas todavía.</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                        <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>Estado</th>
+                        <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Estado contenedor</th>
+                        <th style={{ padding: "6px" }}>Días libres</th><th style={{ padding: "6px" }}>Hitos</th><th style={{ padding: "6px" }}></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ═══ TAB 1 — CONTENEDORES ═══ */}
-      {tabLog === 1 && (
-        <div style={cardS}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 4 }}>🚢 Estado de contenedores</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>Solo operaciones activas (no Finalizado/Cancelado) con número de contenedor asignado.</div>
-          {contenedoresActivos.length === 0 ? (
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin contenedores activos.</div>
+                    </thead>
+                    <tbody>
+                      {bookingsFiltrados.map(b => {
+                        const restantes = diasLibresRestantes(b, navierasCfg);
+                        const completados = calcularHitos(b, log.transporte).filter(h => h.completado).length;
+                        return (
+                          <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirOperacion(b)}>
+                            <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>
+                            <td style={{ padding: "6px" }}>{b.numeroContenedor || "—"}</td>
+                            <td style={{ padding: "6px" }}>
+                              <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${COLOR_ESTADO_BOOKING[b.estado]}22`, color: COLOR_ESTADO_BOOKING[b.estado] }}>{b.estado}</span>
+                            </td>
+                            <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
+                            <td style={{ padding: "6px" }}>
+                              {b.numeroContenedor
+                                ? <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.08)", color: COLOR_ESTADO_CONTENEDOR[b.estadoContenedor] }}>{b.estadoContenedor}</span>
+                                : "—"}
+                            </td>
+                            <td style={{ padding: "6px" }}>
+                              {restantes == null ? "—" : (
+                                <span style={{ fontWeight: 700, color: restantes < 0 ? "#FF6B6B" : restantes <= 3 ? "#F9A826" : "#00C9A7" }}>
+                                  {restantes < 0 ? `Vencido (${Math.abs(restantes)}d)` : `${restantes}d`}
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: "6px" }}>
+                              <span style={{ fontWeight: 700, color: completados === 12 ? "#00C9A7" : "rgba(255,255,255,0.6)" }}>{completados}/12</span>
+                            </td>
+                            <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => log.eliminarBooking(b.id)} style={btnTablaEliminar}>Eliminar</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                    <th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Estado</th>
-                    <th style={{ padding: "6px" }}>Fecha relevante</th><th style={{ padding: "6px" }}>Días libres</th><th style={{ padding: "6px" }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contenedoresActivos.map(b => {
-                    const naviera = buscarNaviera(navierasCfg, b.naviera);
-                    const campo = naviera?.diasLibresDesde;
-                    const fechaRelevante = campo === "ingreso_puerto" ? b.fechaIngresoPuerto : campo === "asignacion" ? b.fechaAsignacion : "";
-                    const restantes = diasLibresRestantes(b, navierasCfg);
-                    return (
-                      <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                        <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroContenedor}</td>
-                        <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
-                        <td style={{ padding: "6px" }}>
-                          <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.08)", color: COLOR_ESTADO_CONTENEDOR[b.estadoContenedor] }}>{b.estadoContenedor}</span>
-                        </td>
-                        <td style={{ padding: "6px" }}>
-                          {fechaRelevante || "—"}
-                          {campo && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{campo === "ingreso_puerto" ? "ingreso a puerto" : "asignación"}</div>}
-                        </td>
-                        <td style={{ padding: "6px" }}>
-                          {restantes == null ? "—" : (
-                            <span style={{ fontWeight: 700, color: restantes < 0 ? "#FF6B6B" : restantes <= 3 ? "#F9A826" : "#00C9A7" }}>
-                              {restantes < 0 ? `Vencido (${Math.abs(restantes)}d)` : `${restantes}d`}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "6px" }}><button onClick={() => editarBooking(b)} style={btnTablaEditar}>Editar</button></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ TAB 2 — TRANSPORTE ═══ */}
-      {tabLog === 2 && (
-        <>
-          <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>{transEditId ? "✏️ Editar transporte" : "🚛 Nuevo registro de transporte"}</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
-              <div style={campoBox}><div style={lbl}>Booking / Contenedor</div>
-                <CustomSelect value={transForm.bookingId} onChange={e => setCampoTrans("bookingId", e.target.value)} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {log.bookings.map(b => <option key={b.id} value={b.id}>{labelBooking(b)}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Placa</div><input style={inp} value={transForm.placa} onChange={e => setCampoTrans("placa", e.target.value.toUpperCase())} placeholder="ABC123" /></div>
-              <div style={campoBox}><div style={lbl}>Conductor</div><input style={inp} value={transForm.conductor} onChange={e => setCampoTrans("conductor", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Transportadora</div>
-                <CustomSelect value={transForm.transportadora} onChange={e => setCampoTrans("transportadora", e.target.value)} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {transportadorasCfg.map((t, i) => <option key={i} value={t}>{t}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Trailer</div><input style={inp} value={transForm.trailer} onChange={e => setCampoTrans("trailer", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Fecha de cargue</div><input type="date" style={inp} value={transForm.fechaCargue} onChange={e => setCampoTrans("fechaCargue", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Fecha de descargue</div><input type="date" style={inp} value={transForm.fechaDescargue} onChange={e => setCampoTrans("fechaDescargue", e.target.value)} /></div>
-              <div style={campoBox}><div style={lbl}>Costo adicional</div><input type="number" style={inp} value={transForm.costoAdicional} onChange={e => setCampoTrans("costoAdicional", e.target.value)} placeholder="0" /></div>
-              <div style={campoBox}>
-                <div style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, marginTop: m ? 10 : 6 }}>
-                  <input type="checkbox" checked={transForm.standBy} onChange={e => setCampoTrans("standBy", e.target.checked)} style={{ width: 16, height: 16 }} /> Generó Stand By
+            /* ── Detalle de la operación ── */
+            <>
+              <div style={cardS}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>
+                    {editId ? `✏️ ${labelBooking(form)}` : "📋 Nueva operación"}
+                  </div>
+                  <button onClick={volverALista} style={btnSecundario}>← Volver a la lista</button>
                 </div>
-              </div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={lbl}>Comentarios</div>
-              <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={transForm.comentarios} onChange={e => setCampoTrans("comentarios", e.target.value)} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-              {transEditId && <button onClick={cancelarTrans} style={btnSecundario}>Cancelar</button>}
-              <button onClick={guardarTrans} style={btnPrimario(false, false)}>{transEditId ? "Guardar cambios" : "Guardar registro"}</button>
-            </div>
-          </div>
 
-          <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📋 Registros de transporte</div>
-            {log.transporte.length === 0 ? (
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin registros todavía.</div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                      <th style={{ padding: "6px" }}>Operación</th><th style={{ padding: "6px" }}>Placa</th><th style={{ padding: "6px" }}>Conductor</th>
-                      <th style={{ padding: "6px" }}>Cargue</th><th style={{ padding: "6px" }}>Descargue</th><th style={{ padding: "6px" }}>Stand By</th><th style={{ padding: "6px" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {log.transporte.map(t => (
-                      <tr key={t.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                        <td style={{ padding: "6px", color: "white" }}>{labelBooking(log.bookings.find(b => b.id === t.bookingId))}</td>
-                        <td style={{ padding: "6px" }}>{t.placa || "—"}</td>
-                        <td style={{ padding: "6px" }}>{t.conductor || "—"}</td>
-                        <td style={{ padding: "6px" }}>{t.fechaCargue || "—"}</td>
-                        <td style={{ padding: "6px" }}>{t.fechaDescargue || "—"}</td>
-                        <td style={{ padding: "6px" }}>{t.standBy ? "Sí" : "No"}</td>
-                        <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
-                          <button onClick={() => editarTransporte(t)} style={btnTablaEditar}>Editar</button>
-                          <button onClick={() => log.eliminarTransporte(t.id)} style={btnTablaEliminar}>Eliminar</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ═══ TAB 3 — OPERACIÓN PORTUARIA ═══ */}
-      {tabLog === 3 && (
-        <>
-          <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>⚓ Novedades</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
-              <div style={campoBox}><div style={lbl}>Booking / Contenedor</div>
-                <CustomSelect value={novForm.bookingId} onChange={e => setNovForm(f => ({ ...f, bookingId: e.target.value }))} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {log.bookings.map(b => <option key={b.id} value={b.id}>{labelBooking(b)}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Fecha</div><input type="date" style={inp} value={novForm.fecha} onChange={e => setNovForm(f => ({ ...f, fecha: e.target.value }))} /></div>
-              <div style={campoBox}><div style={lbl}>Responsable</div><input style={inp} value={novForm.responsable} onChange={e => setNovForm(f => ({ ...f, responsable: e.target.value }))} /></div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={lbl}>Descripción de la novedad</div>
-              <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={novForm.descripcion} onChange={e => setNovForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="¿Qué ocurrió?" />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              {novEditId && <button onClick={cancelarNov} style={btnSecundario}>Cancelar</button>}
-              <button onClick={guardarNov} style={btnPrimario(false, false)}>{novEditId ? "Guardar cambios" : "Registrar novedad"}</button>
-            </div>
-            {log.novedades.length > 0 && (
-              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                {log.novedades.map(n => (
-                  <div key={n.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 10, display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{n.fecha} — {labelBooking(log.bookings.find(b => b.id === n.bookingId))}{n.responsable ? ` — ${n.responsable}` : ""}</div>
-                      <div style={{ fontSize: 12, color: "white", marginTop: 2 }}>{n.descripcion}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => editarNovedad(n)} style={btnTablaEditar}>Editar</button>
-                      <button onClick={() => log.eliminarNovedad(n.id)} style={btnTablaEliminar}>✕</button>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Datos del booking</div>
+                <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+                  <div style={campoBox}><div style={lbl}>Número booking</div><input style={inp} value={form.numeroBooking} onChange={e => setCampo("numeroBooking", e.target.value)} placeholder="Ej: BK-00123" /></div>
+                  <div style={campoBox}><div style={lbl}>Número contenedor</div><input style={inp} value={form.numeroContenedor} onChange={e => setCampo("numeroContenedor", e.target.value.toUpperCase())} placeholder="MSKU1234567" /></div>
+                  <div style={campoBox}><div style={lbl}>Estado</div>
+                    <CustomSelect value={form.estado} onChange={e => setCampo("estado", e.target.value)} style={inp}>
+                      {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}
+                    </CustomSelect>
+                  </div>
+                  <div style={campoBox}><div style={lbl}>Naviera</div>
+                    <CustomSelect value={form.naviera} onChange={e => setCampo("naviera", e.target.value)} style={inp}>
+                      <option value="">Seleccionar...</option>
+                      {navierasCfg.map(n => <option key={n.id} value={n.nombre}>{n.nombre}</option>)}
+                    </CustomSelect>
+                  </div>
+                  <div style={campoBox}><div style={lbl}>Puerto de origen</div>
+                    <CustomSelect value={form.puertoOrigen} onChange={e => setCampo("puertoOrigen", e.target.value)} style={inp}>
+                      <option value="">Seleccionar...</option>
+                      {puertosOrigenCfg.map((p, i) => <option key={i} value={p}>{p}</option>)}
+                    </CustomSelect>
+                  </div>
+                  <div style={campoBox}><div style={lbl}>Puerto de destino</div>
+                    <CustomSelect value={form.puertoDestino} onChange={e => setCampo("puertoDestino", e.target.value)} style={inp}>
+                      <option value="">Seleccionar...</option>
+                      {puertosCfg.map((p, i) => <option key={i} value={p}>{p}</option>)}
+                    </CustomSelect>
+                  </div>
+                  <div style={campoBox}>
+                    <div style={lbl}>ETA</div>
+                    <input type="date" style={inp} value={form.etaActual} onChange={e => setCampo("etaActual", e.target.value)} />
+                    {form.etaAnterior && form.etaAnterior !== form.etaActual && (
+                      <div style={{ fontSize: 9, color: "#0EA5E9", marginTop: 3 }}>Antes: {form.etaAnterior}</div>
+                    )}
+                  </div>
+                  <div style={campoBox}>
+                    <div style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, marginTop: m ? 10 : 6 }}>
+                      <input type="checkbox" checked={form.documentosCompletos} onChange={e => setCampo("documentosCompletos", e.target.checked)} style={{ width: 16, height: 16 }} />
+                      Documentos completos
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div style={campoBox}><div style={lbl}>Número de cajas</div><input type="number" style={inp} value={form.numeroCajas} onChange={e => setCampo("numeroCajas", e.target.value)} placeholder="0" /></div>
+                </div>
 
-          <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔍 Inspecciones (PONAL / DIAN / ICA)</div>
-            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
-              <div style={campoBox}><div style={lbl}>Booking / Contenedor</div>
-                <CustomSelect value={inspForm.bookingId} onChange={e => setInspForm(f => ({ ...f, bookingId: e.target.value }))} style={inp}>
-                  <option value="">Seleccionar...</option>
-                  {log.bookings.map(b => <option key={b.id} value={b.id}>{labelBooking(b)}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Fecha</div><input type="date" style={inp} value={inspForm.fecha} onChange={e => setInspForm(f => ({ ...f, fecha: e.target.value }))} /></div>
-              <div style={campoBox}><div style={lbl}>Entidad</div>
-                <CustomSelect value={inspForm.entidad} onChange={e => setInspForm(f => ({ ...f, entidad: e.target.value }))} style={inp}>
-                  {ENTIDADES_INSPECCION.map(x => <option key={x} value={x}>{x}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={campoBox}><div style={lbl}>Resultado</div>
-                <CustomSelect value={inspForm.resultado} onChange={e => setInspForm(f => ({ ...f, resultado: e.target.value }))} style={inp}>
-                  {RESULTADOS_INSPECCION.map(x => <option key={x} value={x}>{x}</option>)}
-                </CustomSelect>
-              </div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={lbl}>Observaciones</div>
-              <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={inspForm.observaciones} onChange={e => setInspForm(f => ({ ...f, observaciones: e.target.value }))} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              {inspEditId && <button onClick={cancelarInsp} style={btnSecundario}>Cancelar</button>}
-              <button onClick={guardarInsp} style={btnPrimario(false, false)}>{inspEditId ? "Guardar cambios" : "Registrar inspección"}</button>
-            </div>
-            {log.inspecciones.length > 0 && (
-              <div style={{ overflowX: "auto", marginTop: 14 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                      <th style={{ padding: "6px" }}>Operación</th><th style={{ padding: "6px" }}>Fecha</th><th style={{ padding: "6px" }}>Entidad</th><th style={{ padding: "6px" }}>Resultado</th><th style={{ padding: "6px" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {log.inspecciones.map(i => (
-                      <tr key={i.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                        <td style={{ padding: "6px", color: "white" }}>{labelBooking(log.bookings.find(b => b.id === i.bookingId))}</td>
-                        <td style={{ padding: "6px" }}>{i.fecha}</td>
-                        <td style={{ padding: "6px" }}>{i.entidad}</td>
-                        <td style={{ padding: "6px" }}>
-                          <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: i.resultado === "Libre" ? "rgba(0,201,167,0.15)" : "rgba(249,168,38,0.15)", color: i.resultado === "Libre" ? "#00C9A7" : "#F9A826" }}>{i.resultado}</span>
-                        </td>
-                        <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
-                          <button onClick={() => editarInspeccion(i)} style={btnTablaEditar}>Editar</button>
-                          <button onClick={() => log.eliminarInspeccion(i.id)} style={btnTablaEliminar}>✕</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ═══ TAB 4 — SEGUIMIENTO ═══ */}
-      {tabLog === 4 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {log.bookings.length === 0 ? (
-            <div style={cardS}><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin operaciones registradas.</div></div>
-          ) : log.bookings.map(b => {
-            const hitos = calcularHitos(b, log.transporte);
-            const completados = hitos.filter(h => h.completado).length;
-            const abierto = seguimientoAbierto === b.id;
-            return (
-              <div key={b.id} style={cardS}>
-                <div onClick={() => setSeguimientoAbierto(abierto ? null : b.id)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>{labelBooking(b)}</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{b.naviera || "Sin naviera"} · {b.estado}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Consignee</div>
+                <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 2fr", gap: 10, marginBottom: 14 }}>
+                  <div style={campoBox}>
+                    <div style={lbl}>Predefinido</div>
+                    <CustomSelect value="" onChange={e => { const c = consigneesCfg.find(x => String(x.id) === String(e.target.value)); if (c) setCampo("consignee", c.texto); }} style={inp}>
+                      <option value="">Seleccionar y llenar abajo...</option>
+                      {consigneesCfg.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </CustomSelect>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: completados === 12 ? "#00C9A7" : "#F9A826" }}>{completados}/12</span>
-                    <span style={{ color: "rgba(255,255,255,0.4)" }}>{abierto ? "▲" : "▼"}</span>
+                  <div style={campoBox}>
+                    <div style={lbl}>Datos completos</div>
+                    <textarea style={{ ...inp, minHeight: isLandscape ? 60 : (m ? 90 : 72), resize: "vertical", fontFamily: "inherit" }} value={form.consignee} onChange={e => setCampo("consignee", e.target.value)} placeholder="Nombre, Tax ID, dirección, teléfono..." />
                   </div>
                 </div>
-                {abierto && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)", display: "grid", gridTemplateColumns: camposCols, gap: 10 }}>
-                    {hitos.map((h, i) => (
-                      <div key={i} style={{ ...campoBox, background: h.completado ? "rgba(0,201,167,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${h.completado ? "rgba(0,201,167,0.25)" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: 10 }}>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 3 }}>{i + 1}. {h.label}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: h.completado ? "#00C9A7" : "rgba(255,255,255,0.35)" }}>{h.fecha || "Pendiente"}</div>
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Cut Offs</div>
+                <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+                  <div style={campoBox}><div style={lbl}>SI Cut Off — fecha</div><input type="date" style={inp} value={form.siCutoffFecha} onChange={e => setCampo("siCutoffFecha", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>SI Cut Off — hora</div><input type="time" style={inp} value={form.siCutoffHora} onChange={e => setCampo("siCutoffHora", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>CY Cut Off — fecha</div><input type="date" style={inp} value={form.cyCutoffFecha} onChange={e => setCampo("cyCutoffFecha", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>CY Cut Off — hora</div><input type="time" style={inp} value={form.cyCutoffHora} onChange={e => setCampo("cyCutoffHora", e.target.value)} /></div>
+                </div>
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Gestión de contenedores</div>
+                <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+                  <div style={campoBox}><div style={lbl}>Estado del contenedor</div>
+                    <CustomSelect value={form.estadoContenedor} onChange={e => setCampo("estadoContenedor", e.target.value)} style={inp}>
+                      {ESTADOS_CONTENEDOR.map(x => <option key={x} value={x}>{x}</option>)}
+                    </CustomSelect>
+                  </div>
+                  {campoDiasLibres === "ingreso_puerto" && (
+                    <div style={campoBox}><div style={lbl}>Fecha de ingreso al puerto</div><input type="date" style={inp} value={form.fechaIngresoPuerto} onChange={e => setCampo("fechaIngresoPuerto", e.target.value)} /></div>
+                  )}
+                  {campoDiasLibres === "asignacion" && (
+                    <div style={campoBox}><div style={lbl}>Fecha de asignación</div><input type="date" style={inp} value={form.fechaAsignacion} onChange={e => setCampo("fechaAsignacion", e.target.value)} /></div>
+                  )}
+                  {!campoDiasLibres && form.naviera && (
+                    <div style={campoBox}><div style={lbl}>Días libres</div><div style={{ ...inp, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.4)" }}>No configurado para {form.naviera}</div></div>
+                  )}
+                </div>
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Línea de tiempo (hitos manuales)</div>
+                <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+                  <div style={campoBox}><div style={lbl}>Orden recibida</div><input type="date" style={inp} value={form.fechaOrdenRecibida} onChange={e => setCampo("fechaOrdenRecibida", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>Producción</div><input type="date" style={inp} value={form.fechaProduccion} onChange={e => setCampo("fechaProduccion", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>Packing terminado</div><input type="date" style={inp} value={form.fechaPackingTerminado} onChange={e => setCampo("fechaPackingTerminado", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>Zarpe</div><input type="date" style={inp} value={form.fechaZarpe} onChange={e => setCampo("fechaZarpe", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>Llegó a destino</div><input type="date" style={inp} value={form.fechaLlegadaDestino} onChange={e => setCampo("fechaLlegadaDestino", e.target.value)} /></div>
+                  <div style={campoBox}><div style={lbl}>Entrega final</div><input type="date" style={inp} value={form.fechaEntregaFinal} onChange={e => setCampo("fechaEntregaFinal", e.target.value)} /></div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={lbl}>Observaciones</div>
+                  <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={form.obs} onChange={e => setCampo("obs", e.target.value)} placeholder="Notas sobre esta operación..." />
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  <button onClick={guardar} disabled={guardando} style={btnPrimario(guardadoOk, guardando)}>
+                    {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : editId ? "Guardar cambios" : "Guardar booking"}
+                  </button>
+                </div>
+              </div>
+
+              {!editId ? (
+                <div style={{ ...cardS, textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+                  Guarda el booking primero para poder agregar transporte, novedades, inspecciones y ver la línea de tiempo.
+                </div>
+              ) : (
+                <>
+                  {/* Seguimiento (resumen de hitos de esta operación) */}
+                  <div style={cardS}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🕒 Seguimiento</div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: hitosActual.filter(h => h.completado).length === 12 ? "#00C9A7" : "#F9A826" }}>
+                        {hitosActual.filter(h => h.completado).length}/12
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10 }}>
+                      {hitosActual.map((h, i) => (
+                        <div key={i} style={{ ...campoBox, background: h.completado ? "rgba(0,201,167,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${h.completado ? "rgba(0,201,167,0.25)" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: 10 }}>
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 3 }}>{i + 1}. {h.label}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: h.completado ? "#00C9A7" : "rgba(255,255,255,0.35)" }}>{h.fecha || "Pendiente"}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Transporte terrestre */}
+                  <div style={cardS}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>{transEditId ? "✏️ Editar transporte" : "🚛 Nuevo registro de transporte"}</div>
+                    <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
+                      <div style={campoBox}><div style={lbl}>Placa</div><input style={inp} value={transForm.placa} onChange={e => setCampoTrans("placa", e.target.value.toUpperCase())} placeholder="ABC123" /></div>
+                      <div style={campoBox}><div style={lbl}>Conductor</div><input style={inp} value={transForm.conductor} onChange={e => setCampoTrans("conductor", e.target.value)} /></div>
+                      <div style={campoBox}><div style={lbl}>Transportadora</div>
+                        <CustomSelect value={transForm.transportadora} onChange={e => setCampoTrans("transportadora", e.target.value)} style={inp}>
+                          <option value="">Seleccionar...</option>
+                          {transportadorasCfg.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                        </CustomSelect>
                       </div>
-                    ))}
+                      <div style={campoBox}><div style={lbl}>Trailer</div><input style={inp} value={transForm.trailer} onChange={e => setCampoTrans("trailer", e.target.value)} /></div>
+                      <div style={campoBox}><div style={lbl}>Fecha de cargue</div><input type="date" style={inp} value={transForm.fechaCargue} onChange={e => setCampoTrans("fechaCargue", e.target.value)} /></div>
+                      <div style={campoBox}><div style={lbl}>Fecha de descargue</div><input type="date" style={inp} value={transForm.fechaDescargue} onChange={e => setCampoTrans("fechaDescargue", e.target.value)} /></div>
+                      <div style={campoBox}><div style={lbl}>Costo adicional</div><input type="number" style={inp} value={transForm.costoAdicional} onChange={e => setCampoTrans("costoAdicional", e.target.value)} placeholder="0" /></div>
+                      <div style={campoBox}>
+                        <div style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, marginTop: m ? 10 : 6 }}>
+                          <input type="checkbox" checked={transForm.standBy} onChange={e => setCampoTrans("standBy", e.target.checked)} style={{ width: 16, height: 16 }} /> Generó Stand By
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={lbl}>Comentarios</div>
+                      <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={transForm.comentarios} onChange={e => setCampoTrans("comentarios", e.target.value)} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      {transEditId && <button onClick={cancelarTrans} style={btnSecundario}>Cancelar</button>}
+                      <button onClick={guardarTrans} style={btnPrimario(false, false)}>{transEditId ? "Guardar cambios" : "Guardar registro"}</button>
+                    </div>
+                    {transporteDeOperacion.length > 0 && (
+                      <div style={{ overflowX: "auto", marginTop: 14 }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                              <th style={{ padding: "6px" }}>Placa</th><th style={{ padding: "6px" }}>Conductor</th>
+                              <th style={{ padding: "6px" }}>Cargue</th><th style={{ padding: "6px" }}>Descargue</th><th style={{ padding: "6px" }}>Stand By</th><th style={{ padding: "6px" }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {transporteDeOperacion.map(t => (
+                              <tr key={t.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                                <td style={{ padding: "6px" }}>{t.placa || "—"}</td>
+                                <td style={{ padding: "6px" }}>{t.conductor || "—"}</td>
+                                <td style={{ padding: "6px" }}>{t.fechaCargue || "—"}</td>
+                                <td style={{ padding: "6px" }}>{t.fechaDescargue || "—"}</td>
+                                <td style={{ padding: "6px" }}>{t.standBy ? "Sí" : "No"}</td>
+                                <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
+                                  <button onClick={() => editarTransporte(t)} style={btnTablaEditar}>Editar</button>
+                                  <button onClick={() => log.eliminarTransporte(t.id)} style={btnTablaEliminar}>Eliminar</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+
+                  {/* Operación Portuaria: Novedades */}
+                  <div style={cardS}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>⚓ Novedades</div>
+                    <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
+                      <div style={campoBox}><div style={lbl}>Fecha</div><input type="date" style={inp} value={novForm.fecha} onChange={e => setNovForm(f => ({ ...f, fecha: e.target.value }))} /></div>
+                      <div style={campoBox}><div style={lbl}>Responsable</div><input style={inp} value={novForm.responsable} onChange={e => setNovForm(f => ({ ...f, responsable: e.target.value }))} /></div>
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={lbl}>Descripción de la novedad</div>
+                      <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={novForm.descripcion} onChange={e => setNovForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="¿Qué ocurrió?" />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      {novEditId && <button onClick={cancelarNov} style={btnSecundario}>Cancelar</button>}
+                      <button onClick={guardarNov} style={btnPrimario(false, false)}>{novEditId ? "Guardar cambios" : "Registrar novedad"}</button>
+                    </div>
+                    {novedadesDeOperacion.length > 0 && (
+                      <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                        {novedadesDeOperacion.map(n => (
+                          <div key={n.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 10, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{n.fecha}{n.responsable ? ` — ${n.responsable}` : ""}</div>
+                              <div style={{ fontSize: 12, color: "white", marginTop: 2 }}>{n.descripcion}</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => editarNovedad(n)} style={btnTablaEditar}>Editar</button>
+                              <button onClick={() => log.eliminarNovedad(n.id)} style={btnTablaEliminar}>✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Operación Portuaria: Inspecciones */}
+                  <div style={cardS}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔍 Inspecciones (PONAL / DIAN / ICA)</div>
+                    <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
+                      <div style={campoBox}><div style={lbl}>Fecha</div><input type="date" style={inp} value={inspForm.fecha} onChange={e => setInspForm(f => ({ ...f, fecha: e.target.value }))} /></div>
+                      <div style={campoBox}><div style={lbl}>Entidad</div>
+                        <CustomSelect value={inspForm.entidad} onChange={e => setInspForm(f => ({ ...f, entidad: e.target.value }))} style={inp}>
+                          {ENTIDADES_INSPECCION.map(x => <option key={x} value={x}>{x}</option>)}
+                        </CustomSelect>
+                      </div>
+                      <div style={campoBox}><div style={lbl}>Resultado</div>
+                        <CustomSelect value={inspForm.resultado} onChange={e => setInspForm(f => ({ ...f, resultado: e.target.value }))} style={inp}>
+                          {RESULTADOS_INSPECCION.map(x => <option key={x} value={x}>{x}</option>)}
+                        </CustomSelect>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={lbl}>Observaciones</div>
+                      <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={inspForm.observaciones} onChange={e => setInspForm(f => ({ ...f, observaciones: e.target.value }))} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      {inspEditId && <button onClick={cancelarInsp} style={btnSecundario}>Cancelar</button>}
+                      <button onClick={guardarInsp} style={btnPrimario(false, false)}>{inspEditId ? "Guardar cambios" : "Registrar inspección"}</button>
+                    </div>
+                    {inspeccionesDeOperacion.length > 0 && (
+                      <div style={{ overflowX: "auto", marginTop: 14 }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                              <th style={{ padding: "6px" }}>Fecha</th><th style={{ padding: "6px" }}>Entidad</th><th style={{ padding: "6px" }}>Resultado</th><th style={{ padding: "6px" }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {inspeccionesDeOperacion.map(i => (
+                              <tr key={i.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                                <td style={{ padding: "6px" }}>{i.fecha}</td>
+                                <td style={{ padding: "6px" }}>{i.entidad}</td>
+                                <td style={{ padding: "6px" }}>
+                                  <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: i.resultado === "Libre" ? "rgba(0,201,167,0.15)" : "rgba(249,168,38,0.15)", color: i.resultado === "Libre" ? "#00C9A7" : "#F9A826" }}>{i.resultado}</span>
+                                </td>
+                                <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
+                                  <button onClick={() => editarInspeccion(i)} style={btnTablaEditar}>Editar</button>
+                                  <button onClick={() => log.eliminarInspeccion(i.id)} style={btnTablaEliminar}>✕</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </>
       )}
 
-      {/* ═══ TAB 5 — ALERTAS ═══ */}
-      {tabLog === 5 && (
+      {/* ═══ TAB 1 — ALERTAS ═══ */}
+      {tabLog === 1 && (
         <div style={cardS}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔔 Alertas activas</div>
           {alertas.length === 0 ? (
@@ -794,8 +768,8 @@ export default function LogisticaTab({ mob }) {
         </div>
       )}
 
-      {/* ═══ TAB 6 — ESTADÍSTICAS ═══ */}
-      {tabLog === 6 && (
+      {/* ═══ TAB 2 — ESTADÍSTICAS ═══ */}
+      {tabLog === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
             {[
@@ -862,6 +836,75 @@ export default function LogisticaTab({ mob }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* ═══ TAB 3 — CONTRATOS CON NAVIERAS ═══ */}
+      {tabLog === 3 && (
+        <>
+          <div style={cardS}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>
+              {contratoEditId ? "✏️ Editar contrato" : "📄 Nuevo contrato"}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 12 }}>
+              <div style={campoBox}><div style={lbl}>Naviera</div>
+                <CustomSelect value={contratoForm.naviera} onChange={e => setContratoForm(f => ({ ...f, naviera: e.target.value }))} style={inp}>
+                  <option value="">Seleccionar...</option>
+                  {navierasCfg.map(n => <option key={n.id} value={n.nombre}>{n.nombre}</option>)}
+                </CustomSelect>
+              </div>
+              <div style={campoBox}><div style={lbl}>Número de contrato</div><input style={inp} value={contratoForm.numeroContrato} onChange={e => setContratoForm(f => ({ ...f, numeroContrato: e.target.value }))} placeholder="Ej: 10132273_2" /></div>
+              <div style={campoBox}><div style={lbl}>Fecha de inicio</div><input type="date" style={inp} value={contratoForm.fechaInicio} onChange={e => setContratoForm(f => ({ ...f, fechaInicio: e.target.value }))} /></div>
+              <div style={campoBox}><div style={lbl}>Fecha de finalización</div><input type="date" style={inp} value={contratoForm.fechaFin} onChange={e => setContratoForm(f => ({ ...f, fechaFin: e.target.value }))} /></div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={lbl}>Destinos contratados (uno por línea)</div>
+              <textarea style={{ ...inp, minHeight: isLandscape ? 60 : (m ? 90 : 72), resize: "vertical", fontFamily: "inherit" }} value={contratoForm.destinosTexto} onChange={e => setContratoForm(f => ({ ...f, destinosTexto: e.target.value }))} placeholder={"Miami Fl\nSan Juan, PR\nPhiladelphia"} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={lbl}>Observaciones</div>
+              <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={contratoForm.obs} onChange={e => setContratoForm(f => ({ ...f, obs: e.target.value }))} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              {contratoEditId && <button onClick={cancelarContrato} style={btnSecundario}>Cancelar</button>}
+              <button onClick={guardarContrato} style={btnPrimario(false, false)}>{contratoEditId ? "Guardar cambios" : "Guardar contrato"}</button>
+            </div>
+          </div>
+
+          <div style={cardS}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📋 Contratos registrados</div>
+            {log.contratos.length === 0 ? (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin contratos registrados todavía.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {log.contratos.map(c => {
+                  const restantes = c.fechaFin ? diferenciaDias(new Date().toISOString().split("T")[0], c.fechaFin) : null;
+                  return (
+                    <div key={c.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>{c.naviera}{c.numeroContrato ? ` — ${c.numeroContrato}` : ""}</div>
+                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{c.fechaInicio || "—"} → {c.fechaFin || "—"}</div>
+                          {c.destinos.length > 0 && (
+                            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>Destinos: {c.destinos.join(", ")}</div>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          {restantes != null && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: restantes < 0 ? "#FF6B6B" : restantes <= 30 ? "#F9A826" : "#00C9A7" }}>
+                              {restantes < 0 ? `Vencido (${Math.abs(restantes)}d)` : `${restantes}d restantes`}
+                            </span>
+                          )}
+                          <button onClick={() => editarContrato(c)} style={btnTablaEditar}>Editar</button>
+                          <button onClick={() => log.eliminarContrato(c.id)} style={btnTablaEliminar}>Eliminar</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
