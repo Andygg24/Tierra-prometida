@@ -162,10 +162,22 @@ export default function RecepcionesTab({ mob }) {
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
+  const [isLandscape, setIsLandscape] = useState(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-height: 500px) and (orientation: landscape)").matches
+  );
   useEffect(() => {
-    const h = () => setIsMobLocal(window.innerWidth < 680);
+    const mq = window.matchMedia("(max-height: 500px) and (orientation: landscape)");
+    const h = () => {
+      setIsMobLocal(window.innerWidth < 680);
+      setIsLandscape(mq.matches);
+    };
     window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
+    mq.addEventListener ? mq.addEventListener("change", h) : mq.addListener(h);
+    return () => {
+      window.removeEventListener("resize", h);
+      mq.removeEventListener ? mq.removeEventListener("change", h) : mq.removeListener(h);
+    };
   }, []);
   const m = mob || isMobLocal;
 
@@ -180,9 +192,9 @@ export default function RecepcionesTab({ mob }) {
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
     background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
-    borderRadius:8, padding: m ? "10px 11px" : "7px 10px", color:"white",
+    borderRadius:8, padding: isLandscape ? "7px 10px" : (m ? "10px 11px" : "7px 10px"), color:"white",
     fontSize: m ? 16 : 12, fontFamily:"inherit", width:"100%",
-    boxSizing:"border-box", minHeight: m ? 44 : 32,
+    boxSizing:"border-box", minHeight: isLandscape ? 36 : (m ? 44 : 32),
   };
   const lbl = {
     fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.45)",
@@ -190,8 +202,11 @@ export default function RecepcionesTab({ mob }) {
   };
   const cardS = {
     background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
-    borderRadius:10, padding: m ? 14 : 16,
+    borderRadius:10, padding: isLandscape ? 10 : (m ? 14 : 16),
   };
+  // En landscape mobile hay mucho ancho pero poca altura: usar grid de 4
+  // columnas (igual que desktop) en vez del de 2 columnas de portrait.
+  const camposCols = isLandscape ? "repeat(4,1fr)" : (m ? "1fr 1fr" : "repeat(4,1fr)");
 
   const totalNeto = useMemo(
     () => form.estibas.reduce((acc, e) => acc + pesoNetoEstiba(e), 0),
@@ -295,7 +310,7 @@ export default function RecepcionesTab({ mob }) {
           {editId ? "✏️ Editar recepción" : "🍋 Nueva recepción"}
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:10, marginBottom:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns: camposCols, gap:10, marginBottom:12 }}>
           <div>
             <div style={lbl}>Remisión #</div>
             <input style={inp} value={form.remision} onChange={e=>setCampo("remision", e.target.value)} placeholder="Ej: 00123" />
@@ -347,7 +362,7 @@ export default function RecepcionesTab({ mob }) {
         <div style={{ marginBottom:12 }}>
           <div style={lbl}>Observaciones</div>
           <textarea
-            style={{ ...inp, minHeight: m ? 70 : 56, resize:"vertical", fontFamily:"inherit" }}
+            style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize:"vertical", fontFamily:"inherit" }}
             value={form.observaciones}
             onChange={e=>setCampo("observaciones", e.target.value)}
             placeholder="Notas adicionales sobre la recepción..."
