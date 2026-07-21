@@ -43,8 +43,8 @@ function formVacio() {
   const hoy = new Date().toISOString().split("T")[0];
   return {
     remision: "", fecha: hoy, tipo: "entrada",
-    placa: "", conductor: "", proveedor: "", supervisor: "",
-    horaInicio: "", horaFin: "",
+    placa: "", conductor: "", cedulaConductor: "", origen: "", proveedor: "", supervisor: "",
+    horaInicio: "", horaFin: "", observaciones: "",
     estibas: [nuevaEstiba(1)],
   };
 }
@@ -110,6 +110,8 @@ function generarInformeHTML(r) {
   <div class="campo"><div class="l">Fecha</div><div class="v">${fmtFecha}</div></div>
   <div class="campo"><div class="l">Placa</div><div class="v">${esc(r.placa) || "—"}</div></div>
   <div class="campo"><div class="l">Conductor</div><div class="v">${esc(r.conductor) || "—"}</div></div>
+  <div class="campo"><div class="l">Cédula conductor</div><div class="v">${esc(r.cedulaConductor) || "—"}</div></div>
+  <div class="campo"><div class="l">Origen</div><div class="v">${esc(r.origen) || "—"}</div></div>
   <div class="campo"><div class="l">Proveedor</div><div class="v">${esc(r.proveedor) || "—"}</div></div>
   <div class="campo"><div class="l">Supervisor</div><div class="v">${esc(r.supervisor) || "—"}</div></div>
   <div class="campo"><div class="l">Hora inicio</div><div class="v">${esc(r.horaInicio) || "—"}</div></div>
@@ -141,6 +143,11 @@ function generarInformeHTML(r) {
     <div class="v">${num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})} kg</div>
   </div>
 </div>
+
+${r.observaciones ? `
+<div class="sec">Observaciones</div>
+<div class="campo" style="background:#f5f5f5">${esc(r.observaciones).replace(/\n/g,"<br>")}</div>
+` : ""}
 
 <div class="footer">
   Generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}
@@ -216,8 +223,9 @@ export default function RecepcionesTab({ mob }) {
   const editarRecepcion = (r) => {
     setForm({
       remision: r.remision, fecha: r.fecha, tipo: r.tipo,
-      placa: r.placa, conductor: r.conductor, proveedor: r.proveedor, supervisor: r.supervisor,
-      horaInicio: r.horaInicio, horaFin: r.horaFin,
+      placa: r.placa, conductor: r.conductor, cedulaConductor: r.cedulaConductor || "", origen: r.origen || "",
+      proveedor: r.proveedor, supervisor: r.supervisor,
+      horaInicio: r.horaInicio, horaFin: r.horaFin, observaciones: r.observaciones || "",
       estibas: r.estibas.length ? r.estibas : [nuevaEstiba(1)],
     });
     setEditId(r.id);
@@ -311,6 +319,14 @@ export default function RecepcionesTab({ mob }) {
             <input style={inp} value={form.conductor} onChange={e=>setCampo("conductor", e.target.value)} placeholder="Nombre del conductor" />
           </div>
           <div>
+            <div style={lbl}>Cédula conductor</div>
+            <input style={inp} value={form.cedulaConductor} onChange={e=>setCampo("cedulaConductor", e.target.value)} placeholder="N° de cédula" />
+          </div>
+          <div>
+            <div style={lbl}>Origen</div>
+            <input style={inp} value={form.origen} onChange={e=>setCampo("origen", e.target.value)} placeholder="Lugar de origen" />
+          </div>
+          <div>
             <div style={lbl}>Proveedor</div>
             <input style={inp} value={form.proveedor} onChange={e=>setCampo("proveedor", e.target.value)} placeholder="Predio / proveedor" />
           </div>
@@ -326,6 +342,16 @@ export default function RecepcionesTab({ mob }) {
             <div style={lbl}>Hora fin</div>
             <input type="time" style={inp} value={form.horaFin} onChange={e=>setCampo("horaFin", e.target.value)} />
           </div>
+        </div>
+
+        <div style={{ marginBottom:12 }}>
+          <div style={lbl}>Observaciones</div>
+          <textarea
+            style={{ ...inp, minHeight: m ? 70 : 56, resize:"vertical", fontFamily:"inherit" }}
+            value={form.observaciones}
+            onChange={e=>setCampo("observaciones", e.target.value)}
+            placeholder="Notas adicionales sobre la recepción..."
+          />
         </div>
 
         {/* ── Estibas ── */}
