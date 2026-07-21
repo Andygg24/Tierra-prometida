@@ -1409,14 +1409,18 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${new Date().toLocaleDateString("es-CO")}<br/>Documento informativo — No válido como soporte contable.</div>
 </div></body></html>`;
             };
-            const generarComprobante = () => {
+            const guardarPagoContenedor = (descargar) => {
               const html = buildHtmlComprobante();
-              const fname = `Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
-              const _u2=URL.createObjectURL(new Blob([html],{type:"text/html"}));
-              const a=document.createElement("a");a.href=_u2;a.download=fname;a.click();URL.revokeObjectURL(_u2);
+              if (descargar) {
+                const fname = `Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
+                const _u2=URL.createObjectURL(new Blob([html],{type:"text/html"}));
+                const a=document.createElement("a");a.href=_u2;a.download=fname;a.click();URL.revokeObjectURL(_u2);
+              }
               const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase:0,devengado:totalCont,totalDeduc:0,neto:totalCont,ausencias:0,fecha:hoyNom,tipo:"contenedor",contenedores:cantEfectiva,metodoPago,html};
               agregarLiquidacion(reg);
             };
+            const guardarPago = () => guardarPagoContenedor(false);
+            const generarComprobante = () => guardarPagoContenedor(true);
             return (
               <div>
                 <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.11)",borderRadius:12,padding:12,marginBottom:10}}>
@@ -1507,21 +1511,27 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                   </div>
                 </div>
 
-                <div style={{display:"flex",gap:8}}>
+                <div style={{display:"flex",gap:8,flexWrap:mob?"wrap":"nowrap"}}>
                   <button onClick={()=>{
                     if(cantEfectiva===0){alert(hayConts?"Selecciona al menos un contenedor":"Ingresa al menos 1 contenedor");return;}
                     verPrevia(buildHtmlComprobante(),`Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`);
-                  }} style={{background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"11px 14px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
+                  }} style={{flex:mob?"1 1 auto":"0 0 auto",background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"11px 14px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
                     👁 Vista Previa
                   </button>
                   <button onClick={()=>{
                     if(cantEfectiva===0){alert(hayConts?"Selecciona al menos un contenedor":"Ingresa al menos 1 contenedor");return;}
+                    pedir(`¿Guardar el pago de ${empSel.nombre} sin descargar el comprobante ahora?\n${cantEfectiva} contenedor${cantEfectiva!==1?"es":""} · ${fmtCOP(totalCont)} · ${metodoPago}\nPodrás descargarlo después desde Historial.`,guardarPago);
+                  }} style={{flex:mob?"1 1 auto":"0 0 auto",background:"rgba(0,201,167,0.12)",border:"1px solid rgba(0,201,167,0.35)",borderRadius:10,padding:"11px 14px",fontSize:13,color:"#00C9A7",cursor:"pointer",fontWeight:700}}>
+                    💾 Guardar Pago
+                  </button>
+                  <button onClick={()=>{
+                    if(cantEfectiva===0){alert(hayConts?"Selecciona al menos un contenedor":"Ingresa al menos 1 contenedor");return;}
                     pedir(`¿Generar comprobante de ${empSel.nombre}?\n${cantEfectiva} contenedor${cantEfectiva!==1?"es":""} · ${fmtCOP(totalCont)} · ${metodoPago}`,generarComprobante);
-                  }} style={{flex:1,background:"linear-gradient(135deg,#6d28d9,#845EF7)",border:"none",borderRadius:10,padding:"11px",fontSize:13,color:"white",cursor:"pointer",fontWeight:700}}>
+                  }} style={{flex:mob?"1 1 100%":1,background:"linear-gradient(135deg,#6d28d9,#845EF7)",border:"none",borderRadius:10,padding:"11px",fontSize:13,color:"white",cursor:"pointer",fontWeight:700}}>
                     📄 Generar Comprobante
                   </button>
                   <button onClick={()=>{setSelectedConts([]);setNumConts(1);setValorCont(VALOR_CONTENEDOR);setMetodoPago("Nequi");}}
-                    style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"11px 14px",fontSize:12,color:"rgba(255,255,255,0.48)",cursor:"pointer"}}>
+                    style={{flex:"0 0 auto",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"11px 14px",fontSize:12,color:"rgba(255,255,255,0.48)",cursor:"pointer"}}>
                     🔄
                   </button>
                 </div>
