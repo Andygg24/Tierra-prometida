@@ -3805,6 +3805,9 @@ function ContenedoresDemo() {
               </div>
             ) : (
               <div>
+                <button onClick={()=>setSelContTraz(null)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"rgba(255,255,255,0.6)",cursor:"pointer",marginBottom:10}}>
+                  ← Volver
+                </button>
                 <div style={{background:"rgba(99,102,241,0.07)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
                     <span style={{fontSize:15,fontWeight:800,color:"white"}}>🚢 {contSel.numContenedor}</span>
@@ -4079,6 +4082,9 @@ function ContenedoresDemo() {
 
             {selCont && (
               <div>
+                <button onClick={()=>{setSelContCC(null);setEditingRecId(null);setPlantillaActiva(null);setFormCC({});setFormExtras([]);}} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:8,padding:"6px 12px",fontSize:11,color:"rgba(255,255,255,0.6)",cursor:"pointer",marginBottom:10}}>
+                  ← Volver
+                </button>
                 {/* Header total */}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:10}}>
                   <div>
@@ -5016,6 +5022,9 @@ ${calibreSection}
 
             {contSelRend && (
               <div>
+                <button onClick={() => setSelContRend(null)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "6px 12px", fontSize: 11, color: "rgba(255,255,255,0.6)", cursor: "pointer", marginBottom: 10 }}>
+                  ← Volver
+                </button>
                 {/* Header contenedor */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
                   <div>
