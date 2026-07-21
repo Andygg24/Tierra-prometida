@@ -193,7 +193,7 @@ export default function RecepcionesTab({ mob }) {
   const inp = {
     background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
     borderRadius:8, padding: isLandscape ? "7px 10px" : (m ? "10px 11px" : "7px 10px"), color:"white",
-    fontSize: m ? 16 : 12, fontFamily:"inherit", width:"100%",
+    fontSize: m ? 16 : 12, fontFamily:"inherit", width:"100%", minWidth:0,
     boxSizing:"border-box", minHeight: isLandscape ? 36 : (m ? 44 : 32),
   };
   const lbl = {
@@ -204,9 +204,18 @@ export default function RecepcionesTab({ mob }) {
     background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
     borderRadius:10, padding: isLandscape ? 10 : (m ? 14 : 16),
   };
+  // minWidth:0 en los items del grid: por defecto un <input>/<select> le da a su
+  // celda un tamaño mínimo automático basado en su ancho intrínseco, que en
+  // landscape (4 columnas angostas) hace que las celdas se desborden y los
+  // bordes de los campos se superpongan.
+  const campoBox = { minWidth: 0 };
   // En landscape mobile hay mucho ancho pero poca altura: usar grid de 4
   // columnas (igual que desktop) en vez del de 2 columnas de portrait.
-  const camposCols = isLandscape ? "repeat(4,1fr)" : (m ? "1fr 1fr" : "repeat(4,1fr)");
+  // minmax(132px,1fr) evita que input[type=time] se achique más de lo que
+  // Safari/iOS necesita para su control nativo (hora + AM/PM); por debajo de
+  // ese piso Safari no lo encoge y termina dibujándolo fuera de su celda,
+  // "pegando" visualmente los dos campos de hora.
+  const camposCols = isLandscape ? "repeat(4, minmax(132px, 1fr))" : (m ? "1fr 1fr" : "repeat(4,1fr)");
 
   const totalNeto = useMemo(
     () => form.estibas.reduce((acc, e) => acc + pesoNetoEstiba(e), 0),
@@ -311,49 +320,49 @@ export default function RecepcionesTab({ mob }) {
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns: camposCols, gap:10, marginBottom:12 }}>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Remisión #</div>
             <input style={inp} value={form.remision} onChange={e=>setCampo("remision", e.target.value)} placeholder="Ej: 00123" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Fecha</div>
             <input type="date" style={inp} value={form.fecha} onChange={e=>setCampo("fecha", e.target.value)} />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Tipo</div>
             <CustomSelect value={form.tipo} onChange={e=>setCampo("tipo", e.target.value)} style={inp}>
               {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </CustomSelect>
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Placa</div>
             <input style={inp} value={form.placa} onChange={e=>setCampo("placa", e.target.value.toUpperCase())} placeholder="ABC123" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Conductor</div>
             <input style={inp} value={form.conductor} onChange={e=>setCampo("conductor", e.target.value)} placeholder="Nombre del conductor" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Cédula conductor</div>
             <input style={inp} value={form.cedulaConductor} onChange={e=>setCampo("cedulaConductor", e.target.value)} placeholder="N° de cédula" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Origen</div>
             <input style={inp} value={form.origen} onChange={e=>setCampo("origen", e.target.value)} placeholder="Lugar de origen" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Proveedor</div>
             <input style={inp} value={form.proveedor} onChange={e=>setCampo("proveedor", e.target.value)} placeholder="Predio / proveedor" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Supervisor</div>
             <input style={inp} value={form.supervisor} onChange={e=>setCampo("supervisor", e.target.value)} placeholder="Quién recibió / despachó" />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Hora inicio</div>
             <input type="time" style={inp} value={form.horaInicio} onChange={e=>setCampo("horaInicio", e.target.value)} />
           </div>
-          <div>
+          <div style={campoBox}>
             <div style={lbl}>Hora fin</div>
             <input type="time" style={inp} value={form.horaFin} onChange={e=>setCampo("horaFin", e.target.value)} />
           </div>

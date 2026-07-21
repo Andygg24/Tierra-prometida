@@ -36,7 +36,8 @@ input, textarea, select, button {
 }
 
 input[type="date"],
-input[type="month"] {
+input[type="month"],
+input[type="time"] {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
