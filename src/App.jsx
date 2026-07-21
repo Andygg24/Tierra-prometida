@@ -3967,6 +3967,133 @@ function ContenedoresDemo() {
 
 
 
+        const generarInformeCC = (cont, recsForCont, modo = "descargar") => {
+          const fechaHoy  = new Date().toLocaleDateString("es-CO");
+          const fechaFile = new Date().toISOString().split("T")[0];
+          const cop  = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
+          const totalHist = recsForCont.reduce((s,r)=>s+r.total,0);
+
+          // Consolidar por insumo
+          const consolidado = {};
+          recsForCont.forEach(rec => {
+            rec.items.forEach(it => {
+              if (!consolidado[it.id]) consolidado[it.id] = { nombre:it.nombre, unidad:it.unidad, cant:0, costoUnit:it.costoUnit, subtotal:0 };
+              consolidado[it.id].cant     += it.cant;
+              consolidado[it.id].subtotal += it.cant * it.costoUnit;
+              consolidado[it.id].costoUnit = it.costoUnit;
+            });
+          });
+          const filas     = Object.values(consolidado).sort((a,b)=>b.subtotal-a.subtotal);
+
+          // Consolidar extras
+          const extrasConsolidado = {};
+          recsForCont.forEach(rec => {
+            (rec.extras||[]).forEach(ex => {
+              if (!extrasConsolidado[ex.nombre]) extrasConsolidado[ex.nombre] = { nombre:ex.nombre, unidad:ex.unidad, cant:0, costoUnit:ex.costoUnit, subtotal:0 };
+              extrasConsolidado[ex.nombre].cant     += ex.cant;
+              extrasConsolidado[ex.nombre].subtotal += ex.cant * ex.costoUnit;
+            });
+          });
+          const extrasFilas = Object.values(extrasConsolidado).sort((a,b)=>b.subtotal-a.subtotal);
+
+          const cajas     = parseInt(cont.cajasSalida)||0;
+          const costoCaja = cajas>0 ? totalHist/cajas : 0;
+
+          const barHtml = (pct) => `<div style="background:#e0e7ff;border-radius:3px;height:8px;width:100%;min-width:60px"><div style="background:#6366F1;border-radius:3px;height:8px;width:${Math.min(pct,100)}%"></div></div>`;
+
+          const filaInsumo = (f) => {
+            const pct = totalHist>0?((f.subtotal/totalHist)*100).toFixed(1):0;
+            return `<tr>
+              <td><b>${f.nombre}</b></td>
+              <td style="text-align:right">${f.cant}</td>
+              <td>${f.unidad}</td>
+              <td style="text-align:right">$${f.costoUnit.toLocaleString("es-CO")}</td>
+              <td style="text-align:right"><b>$${Math.round(f.subtotal).toLocaleString("es-CO")}</b></td>
+              <td style="text-align:right;color:#6366F1;font-weight:700">${pct}%</td>
+              <td style="min-width:80px">${barHtml(pct)}</td>
+            </tr>`;
+          };
+
+          const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Centro de Costos · ${cont.numContenedor}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1050px;margin:0 auto;font-size:12px}
+  h1{color:#6366F1;margin-bottom:2px;font-size:22px}
+  h2{color:#6366F1;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #6366F130;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+  .meta{font-size:11px;color:#888;margin-bottom:6px}
+  .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f7f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:18px}
+  .info-item .lbl{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px}
+  .info-item .val{font-size:12px;font-weight:700;color:#222;margin-top:2px}
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .card{background:#f7f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:12px 16px;min-width:130px;text-align:center}
+  .card-val{font-size:20px;font-weight:800;color:#6366F1;line-height:1}
+  .card-lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+  .card.amber .card-val{color:#d97706} .card.green .card-val{color:#16a34a} .card.red .card-val{color:#dc2626}
+  table{width:100%;border-collapse:collapse;margin-bottom:6px}
+  th{background:#6366F1;color:white;padding:8px 10px;text-align:left;font-size:11px}
+  td{padding:7px 10px;border-bottom:1px solid #eef0ff;vertical-align:middle}
+  tr:nth-child(even) td{background:#fafbff}
+  tr:hover td{background:#eff0ff}
+  .tot-row td{background:#eff0ff!important;font-weight:700;border-top:2px solid #6366F140;font-size:13px}
+  .ref-bar{background:#e0fdf4;border:1px solid #a7f3d0;border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px}
+  .footer{text-align:center;color:#bbb;margin-top:28px;font-size:10px;border-top:1px solid #eee;padding-top:14px}
+  @media print{.footer{position:fixed;bottom:0}}
+</style></head><body>
+
+<h1>🚢 Centro de Costos — ${cont.numContenedor}</h1>
+<div class="meta">Informe generado: ${fechaHoy}</div>
+
+<div class="info-grid">
+  <div class="info-item"><div class="lbl">Estado</div><div class="val">${cont.estado||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Tipo de caja</div><div class="val">${cont.producto||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Cajas de salida</div><div class="val">${cont.cajasSalida||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Proveedor limón</div><div class="val">${parseProveedores(cont.proveedor).join(", ")||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Naviera</div><div class="val">${cont.naviera||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Destino</div><div class="val">${cont.destino||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Booking</div><div class="val">${cont.booking||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Supervisores</div><div class="val">${cont.operadores||"—"}</div></div>
+  <div class="info-item"><div class="lbl">Transporte · Placa</div><div class="val">${[cont.transporte,cont.placa,cont.trailer].filter(Boolean).join(" · ")||"—"}</div></div>
+  ${cont.obs?`<div class="info-item" style="grid-column:1/-1"><div class="lbl">Observaciones</div><div class="val">${cont.obs}</div></div>`:""}
+</div>
+
+<div class="cards">
+  <div class="card"><div class="card-val">${filas.length}</div><div class="card-lbl">Insumos usados</div></div>
+  <div class="card"><div class="card-val">${recsForCont.length}</div><div class="card-lbl">Registros</div></div>
+  <div class="card amber"><div class="card-val">${cop(totalHist)}</div><div class="card-lbl">Costo total</div></div>
+  ${cajas>0?`<div class="card green"><div class="card-val">${cop(costoCaja)}</div><div class="card-lbl">Costo / caja</div></div>`:""}
+</div>
+
+<h2>📦 Insumos consolidados — ${filas.length} ítems</h2>
+<table><thead><tr><th>Insumo</th><th style="text-align:right">Cantidad</th><th>Unidad</th><th style="text-align:right">Costo / u</th><th style="text-align:right">Subtotal</th><th style="text-align:right">% del total</th><th>Participación</th></tr></thead>
+<tbody>
+${filas.map(filaInsumo).join("")}
+<tr class="tot-row"><td colspan="4">SUBTOTAL INSUMOS</td><td style="text-align:right;color:#6366F1">${cop(filas.reduce((s,f)=>s+f.subtotal,0))}</td><td colspan="2"></td></tr>
+</tbody></table>
+
+${extrasFilas.length>0?`
+<h2>💼 Otros costos (MO, varios, etc.)</h2>
+<table><thead><tr><th>Concepto</th><th style="text-align:right">Cantidad</th><th>Unidad</th><th style="text-align:right">Costo / u</th><th style="text-align:right">Subtotal</th><th style="text-align:right">% del total</th><th>Participación</th></tr></thead>
+<tbody>
+${extrasFilas.map(ex=>{
+  const pct = totalHist>0?((ex.subtotal/totalHist)*100).toFixed(1):0;
+  return `<tr><td><b>${ex.nombre}</b></td><td style="text-align:right">${ex.cant}</td><td>${ex.unidad}</td><td style="text-align:right">$${ex.costoUnit.toLocaleString("es-CO")}</td><td style="text-align:right"><b>$${Math.round(ex.subtotal).toLocaleString("es-CO")}</b></td><td style="text-align:right;color:#6366F1;font-weight:700">${pct}%</td><td style="min-width:80px">${barHtml(pct)}</td></tr>`;
+}).join("")}
+<tr class="tot-row"><td colspan="4">SUBTOTAL OTROS COSTOS</td><td style="text-align:right;color:#d97706">$${Math.round(extrasFilas.reduce((s,e)=>s+e.subtotal,0)).toLocaleString("es-CO")}</td><td colspan="2"></td></tr>
+</tbody></table>`:""}
+
+<div style="background:#f0f0ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+  <span style="font-size:14px;font-weight:700;color:#4338ca">TOTAL GENERAL CONTENEDOR</span>
+  <span style="font-size:20px;font-weight:800;color:#4338ca">$${Math.round(totalHist).toLocaleString("es-CO")}</span>
+</div>
+
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
+</body></html>`;
+          const _u5      = URL.createObjectURL(new Blob([html],{type:"text/html"}));
+          const filename = `CentroCostos_${cont.numContenedor}_${fechaFile}.html`;
+          if (modo === "previsualizar") { setPreviewRend({ url:_u5, filename }); return; }
+          const a=document.createElement("a");a.href=_u5;a.download=filename;a.click();URL.revokeObjectURL(_u5);
+        };
+
         // Contenedores que ya tienen registros CC
         const contsConCC = procesos.filter(p => contInsumos.some(r => r.contId === p.id));
 
@@ -4049,15 +4176,23 @@ function ContenedoresDemo() {
                                 </div>
                               </div>
                             ))}
-                            <button onClick={() => {
-                              setSelContCC(p.id);
-                              setEditingRecId(null);
-                              setPlantillaActiva(null);
-                              setFormCC(initForm());
-                              setFormExtras(initExtras());
-                            }} style={{background:"rgba(99,102,241,0.1)",border:"1px dashed rgba(99,102,241,0.3)",borderRadius:8,padding:"7px",fontSize:10,color:"rgba(165,180,252,0.7)",cursor:"pointer",fontFamily:"inherit"}}>
-                              ➕ Agregar nuevo registro a este contenedor
-                            </button>
+                            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                              <button onClick={() => generarInformeCC(p, recs, "previsualizar")} style={{flex:1,minWidth:90,background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:8,padding:"8px",fontSize:10,color:"#a5b4fc",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>
+                                👁 Vista previa
+                              </button>
+                              <button onClick={() => generarInformeCC(p, recs)} style={{flex:1,background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:8,padding:"8px",fontSize:10,color:"white",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>
+                                📄 Informe
+                              </button>
+                              <button onClick={() => {
+                                setSelContCC(p.id);
+                                setEditingRecId(null);
+                                setPlantillaActiva(null);
+                                setFormCC(initForm());
+                                setFormExtras(initExtras());
+                              }} style={{flex:2,background:"rgba(99,102,241,0.1)",border:"1px dashed rgba(99,102,241,0.3)",borderRadius:8,padding:"7px",fontSize:10,color:"rgba(165,180,252,0.7)",cursor:"pointer",fontFamily:"inherit"}}>
+                                ➕ Agregar nuevo registro
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -4320,136 +4455,16 @@ function ContenedoresDemo() {
                 )}
 
                 {/* Informe individual */}
-                {recsCont.length > 0 && (() => {
-                  const descargarIndividual = () => {
-                    const fechaHoy  = new Date().toLocaleDateString("es-CO");
-                    const fechaFile = new Date().toISOString().split("T")[0];
-                    const cont = selCont;
-                    const cop  = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
-
-                    // Consolidar por insumo
-                    const consolidado = {};
-                    recsCont.forEach(rec => {
-                      rec.items.forEach(it => {
-                        if (!consolidado[it.id]) consolidado[it.id] = { nombre:it.nombre, unidad:it.unidad, cant:0, costoUnit:it.costoUnit, subtotal:0 };
-                        consolidado[it.id].cant     += it.cant;
-                        consolidado[it.id].subtotal += it.cant * it.costoUnit;
-                        consolidado[it.id].costoUnit = it.costoUnit;
-                      });
-                    });
-                    const filas     = Object.values(consolidado).sort((a,b)=>b.subtotal-a.subtotal);
-
-                    // Consolidar extras
-                    const extrasConsolidado = {};
-                    recsCont.forEach(rec => {
-                      (rec.extras||[]).forEach(ex => {
-                        if (!extrasConsolidado[ex.nombre]) extrasConsolidado[ex.nombre] = { nombre:ex.nombre, unidad:ex.unidad, cant:0, costoUnit:ex.costoUnit, subtotal:0 };
-                        extrasConsolidado[ex.nombre].cant     += ex.cant;
-                        extrasConsolidado[ex.nombre].subtotal += ex.cant * ex.costoUnit;
-                      });
-                    });
-                    const extrasFilas = Object.values(extrasConsolidado).sort((a,b)=>b.subtotal-a.subtotal);
-
-                    const cajas     = parseInt(cont.cajasSalida)||0;
-                    const costoCaja = cajas>0 ? totalHist/cajas : 0;
-
-                    const barHtml = (pct) => `<div style="background:#e0e7ff;border-radius:3px;height:8px;width:100%;min-width:60px"><div style="background:#6366F1;border-radius:3px;height:8px;width:${Math.min(pct,100)}%"></div></div>`;
-
-                    const filaInsumo = (f) => {
-                      const pct = totalHist>0?((f.subtotal/totalHist)*100).toFixed(1):0;
-                      return `<tr>
-                        <td><b>${f.nombre}</b></td>
-                        <td style="text-align:right">${f.cant}</td>
-                        <td>${f.unidad}</td>
-                        <td style="text-align:right">$${f.costoUnit.toLocaleString("es-CO")}</td>
-                        <td style="text-align:right"><b>$${Math.round(f.subtotal).toLocaleString("es-CO")}</b></td>
-                        <td style="text-align:right;color:#6366F1;font-weight:700">${pct}%</td>
-                        <td style="min-width:80px">${barHtml(pct)}</td>
-                      </tr>`;
-                    };
-
-                    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Centro de Costos · ${cont.numContenedor}</title>
-<style>
-  *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1050px;margin:0 auto;font-size:12px}
-  h1{color:#6366F1;margin-bottom:2px;font-size:22px}
-  h2{color:#6366F1;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #6366F130;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
-  .meta{font-size:11px;color:#888;margin-bottom:6px}
-  .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f7f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:18px}
-  .info-item .lbl{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px}
-  .info-item .val{font-size:12px;font-weight:700;color:#222;margin-top:2px}
-  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
-  .card{background:#f7f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:12px 16px;min-width:130px;text-align:center}
-  .card-val{font-size:20px;font-weight:800;color:#6366F1;line-height:1}
-  .card-lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
-  .card.amber .card-val{color:#d97706} .card.green .card-val{color:#16a34a} .card.red .card-val{color:#dc2626}
-  table{width:100%;border-collapse:collapse;margin-bottom:6px}
-  th{background:#6366F1;color:white;padding:8px 10px;text-align:left;font-size:11px}
-  td{padding:7px 10px;border-bottom:1px solid #eef0ff;vertical-align:middle}
-  tr:nth-child(even) td{background:#fafbff}
-  tr:hover td{background:#eff0ff}
-  .tot-row td{background:#eff0ff!important;font-weight:700;border-top:2px solid #6366F140;font-size:13px}
-  .ref-bar{background:#e0fdf4;border:1px solid #a7f3d0;border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px}
-  .footer{text-align:center;color:#bbb;margin-top:28px;font-size:10px;border-top:1px solid #eee;padding-top:14px}
-  @media print{.footer{position:fixed;bottom:0}}
-</style></head><body>
-
-<h1>🚢 Centro de Costos — ${cont.numContenedor}</h1>
-<div class="meta">Informe generado: ${fechaHoy}</div>
-
-<div class="info-grid">
-  <div class="info-item"><div class="lbl">Estado</div><div class="val">${cont.estado||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Tipo de caja</div><div class="val">${cont.producto||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Cajas de salida</div><div class="val">${cont.cajasSalida||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Proveedor limón</div><div class="val">${parseProveedores(cont.proveedor).join(", ")||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Naviera</div><div class="val">${cont.naviera||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Destino</div><div class="val">${cont.destino||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Booking</div><div class="val">${cont.booking||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Supervisores</div><div class="val">${cont.operadores||"—"}</div></div>
-  <div class="info-item"><div class="lbl">Transporte · Placa</div><div class="val">${[cont.transporte,cont.placa,cont.trailer].filter(Boolean).join(" · ")||"—"}</div></div>
-  ${cont.obs?`<div class="info-item" style="grid-column:1/-1"><div class="lbl">Observaciones</div><div class="val">${cont.obs}</div></div>`:""}
-</div>
-
-<div class="cards">
-  <div class="card"><div class="card-val">${filas.length}</div><div class="card-lbl">Insumos usados</div></div>
-  <div class="card"><div class="card-val">${recsCont.length}</div><div class="card-lbl">Registros</div></div>
-  <div class="card amber"><div class="card-val">${cop(totalHist)}</div><div class="card-lbl">Costo total</div></div>
-  ${cajas>0?`<div class="card green"><div class="card-val">${cop(costoCaja)}</div><div class="card-lbl">Costo / caja</div></div>`:""}
-</div>
-
-<h2>📦 Insumos consolidados — ${filas.length} ítems</h2>
-<table><thead><tr><th>Insumo</th><th style="text-align:right">Cantidad</th><th>Unidad</th><th style="text-align:right">Costo / u</th><th style="text-align:right">Subtotal</th><th style="text-align:right">% del total</th><th>Participación</th></tr></thead>
-<tbody>
-${filas.map(filaInsumo).join("")}
-<tr class="tot-row"><td colspan="4">SUBTOTAL INSUMOS</td><td style="text-align:right;color:#6366F1">${cop(filas.reduce((s,f)=>s+f.subtotal,0))}</td><td colspan="2"></td></tr>
-</tbody></table>
-
-${extrasFilas.length>0?`
-<h2>💼 Otros costos (MO, varios, etc.)</h2>
-<table><thead><tr><th>Concepto</th><th style="text-align:right">Cantidad</th><th>Unidad</th><th style="text-align:right">Costo / u</th><th style="text-align:right">Subtotal</th><th style="text-align:right">% del total</th><th>Participación</th></tr></thead>
-<tbody>
-${extrasFilas.map(ex=>{
-  const pct = totalHist>0?((ex.subtotal/totalHist)*100).toFixed(1):0;
-  return `<tr><td><b>${ex.nombre}</b></td><td style="text-align:right">${ex.cant}</td><td>${ex.unidad}</td><td style="text-align:right">$${ex.costoUnit.toLocaleString("es-CO")}</td><td style="text-align:right"><b>$${Math.round(ex.subtotal).toLocaleString("es-CO")}</b></td><td style="text-align:right;color:#6366F1;font-weight:700">${pct}%</td><td style="min-width:80px">${barHtml(pct)}</td></tr>`;
-}).join("")}
-<tr class="tot-row"><td colspan="4">SUBTOTAL OTROS COSTOS</td><td style="text-align:right;color:#d97706">$${Math.round(extrasFilas.reduce((s,e)=>s+e.subtotal,0)).toLocaleString("es-CO")}</td><td colspan="2"></td></tr>
-</tbody></table>`:""}
-
-<div style="background:#f0f0ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
-  <span style="font-size:14px;font-weight:700;color:#4338ca">TOTAL GENERAL CONTENEDOR</span>
-  <span style="font-size:20px;font-weight:800;color:#4338ca">$${Math.round(totalHist).toLocaleString("es-CO")}</span>
-</div>
-
-<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
-</body></html>`;
-                    const _u5=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u5;a.download=`CentroCostos_${cont.numContenedor}_${fechaFile}.html`;a.click();URL.revokeObjectURL(_u5);
-                  };
-                  return (
-                    <button onClick={descargarIndividual} style={{width:"100%",background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:10,padding:"10px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700,marginTop:8}}>
-                      📥 Descargar informe individual — {selCont.numContenedor}
+                {recsCont.length > 0 && (
+                  <div style={{display:"flex",gap:8,marginTop:8}}>
+                    <button onClick={() => generarInformeCC(selCont, recsCont, "previsualizar")} style={{flex:1,background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"10px",fontSize:12,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
+                      👁 Vista previa
                     </button>
-                  );
-                })()}
+                    <button onClick={() => generarInformeCC(selCont, recsCont)} style={{flex:1,background:"linear-gradient(135deg,#6366F1,#845EF7)",border:"none",borderRadius:10,padding:"10px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>
+                      📥 Descargar informe
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
