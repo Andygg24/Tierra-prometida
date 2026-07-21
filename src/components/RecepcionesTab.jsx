@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
+import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
 
 const TIPOS = [
@@ -488,7 +489,7 @@ export default function RecepcionesTab({ mob }) {
               <div key={idx} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:"#845EF7" }}>Estiba #{e.numero}</div>
-                  <button onClick={()=>quitarEstiba(idx)} style={{ background:"rgba(255,107,107,0.12)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:6, color:"#FF6B6B", padding:"4px 8px", fontSize:11, cursor:"pointer" }}>Quitar</button>
+                  <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <div><div style={lbl}>Peso bruto</div><input type="number" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></div>
@@ -549,7 +550,7 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
                     <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
                     <td style={{ padding:"6px" }}>
-                      <button onClick={()=>quitarEstiba(idx)} style={{ background:"rgba(255,107,107,0.12)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:6, color:"#FF6B6B", padding:"4px 8px", fontSize:11, cursor:"pointer" }}>✕</button>
+                      <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>✕</button>
                     </td>
                   </tr>
                 ))}
@@ -569,14 +570,14 @@ export default function RecepcionesTab({ mob }) {
           </div>
           <div style={{ display:"flex", gap:8 }}>
             {editId && (
-              <button onClick={cancelarEdicion} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"rgba(255,255,255,0.7)", padding:"9px 16px", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              <button onClick={cancelarEdicion} style={btnSecundario}>
                 Cancelar
               </button>
             )}
             <button onClick={()=>verInforme({ ...form, id: editId || "preview", total: totalNeto })} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color:"#00C9A7", padding:"9px 16px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
               📄 Vista previa
             </button>
-            <button onClick={guardar} disabled={guardando} style={{ background: guardadoOk ? "#00C9A7" : "linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, color:"white", padding:"9px 18px", fontSize:12, fontWeight:700, cursor: guardando ? "wait" : "pointer", opacity: guardando ? 0.7 : 1 }}>
+            <button onClick={guardar} disabled={guardando} style={btnPrimario(guardadoOk, guardando)}>
               {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : editId ? "Guardar cambios" : "Guardar recepción"}
             </button>
           </div>
@@ -599,11 +600,11 @@ export default function RecepcionesTab({ mob }) {
             <input type="date" style={inp} value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} />
           </div>
           {(filtroDesde || filtroHasta) && (
-            <button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"rgba(255,255,255,0.7)", padding:"9px 14px", fontSize:12, fontWeight:600, cursor:"pointer", height: isLandscape?36:(m?44:32) }}>
+            <button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{ ...btnSecundario, padding:"0 14px", height: isLandscape?36:(m?44:32), display:"flex", alignItems:"center", justifyContent:"center" }}>
               ✕ Limpiar
             </button>
           )}
-          <button onClick={verInformeGeneral} disabled={recepcionesFiltradas.length===0} style={{ marginLeft: m ? 0 : "auto", background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color: recepcionesFiltradas.length===0 ? "rgba(0,201,167,0.4)" : "#00C9A7", padding:"9px 16px", fontSize:12, fontWeight:700, cursor: recepcionesFiltradas.length===0 ? "default" : "pointer", height: isLandscape?36:(m?44:32) }}>
+          <button onClick={verInformeGeneral} disabled={recepcionesFiltradas.length===0} style={{ marginLeft: m ? 0 : "auto", background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color: recepcionesFiltradas.length===0 ? "rgba(0,201,167,0.4)" : "#00C9A7", padding:"0 16px", fontSize:12, fontWeight:700, cursor: recepcionesFiltradas.length===0 ? "default" : "pointer", height: isLandscape?36:(m?44:32), display:"flex", alignItems:"center", justifyContent:"center" }}>
             📄 Informe general ({recepcionesFiltradas.length})
           </button>
         </div>
@@ -645,8 +646,8 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})} kg</td>
                     <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
                       <button onClick={()=>verInforme(r)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, color:"#00C9A7", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>📄 Informe</button>
-                      <button onClick={()=>editarRecepcion(r)} style={{ background:"rgba(132,94,247,0.12)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, color:"#a78bfa", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>Editar</button>
-                      <button onClick={()=>eliminarRecepcion(r.id)} style={{ background:"rgba(255,107,107,0.12)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:6, color:"#FF6B6B", padding:"4px 8px", fontSize:11, cursor:"pointer" }}>Eliminar</button>
+                      <button onClick={()=>editarRecepcion(r)} style={btnTablaEditar}>Editar</button>
+                      <button onClick={()=>eliminarRecepcion(r.id)} style={btnTablaEliminar}>Eliminar</button>
                     </td>
                   </tr>
                 ))}

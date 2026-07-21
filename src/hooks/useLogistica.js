@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase.js";
+import { fechaLocalISO, diferenciaDiasLocal } from "../utils/dates.js";
 
 const rowToBooking = (r) => ({
   id:                    r.id,
@@ -176,8 +177,9 @@ export function useLogistica() {
       updated_at:              new Date().toISOString(),
     };
 
-    // Booking pasa a Confirmado por primera vez → registrar cuándo
-    if (previo && previo.estado !== "Confirmado" && form.estado === "Confirmado") {
+    // Booking pasa a Confirmado por primera vez (incluye el caso de crearlo
+    // ya directamente en Confirmado, sin pasar antes por Pendiente) → registrar cuándo
+    if (previo?.estado !== "Confirmado" && form.estado === "Confirmado") {
       row.fecha_confirmado = new Date().toISOString();
     }
 
@@ -213,15 +215,23 @@ export function useLogistica() {
   }, [bookings]);
 
   const eliminarBooking = useCallback(async (id) => {
-    const removed = bookings.find(b => b.id === id);
+    const removed           = bookings.find(b => b.id === id);
+    const removedTransporte = transporte.filter(t => t.bookingId === id);
+    const removedNovedades  = novedades.filter(n => n.bookingId === id);
+    const removedInspecciones = inspecciones.filter(i => i.bookingId === id);
     setBookings(prev => prev.filter(b => b.id !== id));
     setTransporte(prev => prev.filter(t => t.bookingId !== id));
     setNovedades(prev => prev.filter(n => n.bookingId !== id));
     setInspecciones(prev => prev.filter(i => i.bookingId !== id));
     const { error } = await supabase.from("logistica_bookings").delete().eq("id", id);
-    if (error && removed) setBookings(prev => [removed, ...prev]);
+    if (error) {
+      if (removed) setBookings(prev => [removed, ...prev]);
+      if (removedTransporte.length) setTransporte(prev => [...removedTransporte, ...prev]);
+      if (removedNovedades.length) setNovedades(prev => [...removedNovedades, ...prev]);
+      if (removedInspecciones.length) setInspecciones(prev => [...removedInspecciones, ...prev]);
+    }
     return !error;
-  }, [bookings]);
+  }, [bookings, transporte, novedades, inspecciones]);
 
   const marcarEtaVista = useCallback(async (id) => {
     setBookings(prev => prev.map(b => b.id === id ? { ...b, etaCambioVisto: true } : b));
@@ -275,7 +285,7 @@ export function useLogistica() {
   const guardarNovedad = useCallback(async (form, id = null) => {
     const row = {
       booking_id:  form.bookingId,
-      fecha:       form.fecha || new Date().toISOString().split("T")[0],
+      fecha:       form.fecha || fechaLocalISO(),
       descripcion: form.descripcion || "",
       responsable: form.responsable || null,
     };
@@ -309,7 +319,7 @@ export function useLogistica() {
   const guardarInspeccion = useCallback(async (form, id = null) => {
     const row = {
       booking_id:     form.bookingId,
-      fecha:          form.fecha || new Date().toISOString().split("T")[0],
+      fecha:          form.fecha || fechaLocalISO(),
       entidad:        form.entidad || "",
       resultado:      form.resultado || "",
       observaciones:  form.observaciones || null,
@@ -421,16 +431,11 @@ export function calcularHitos(booking, transporteRows = []) {
 
 export function diasEntre(fechaISO, ahora = new Date()) {
   if (!fechaISO) return null;
-  const desde = new Date(fechaISO + "T00:00:00");
-  const hoy   = new Date(ahora.toISOString().split("T")[0] + "T00:00:00");
-  return Math.round((hoy - desde) / 86400000);
+  return diferenciaDiasLocal(fechaISO, fechaLocalISO(ahora));
 }
 
 export function diferenciaDias(fechaDesdeISO, fechaHastaISO) {
-  if (!fechaDesdeISO || !fechaHastaISO) return null;
-  const desde = new Date(fechaDesdeISO + "T00:00:00");
-  const hasta = new Date(fechaHastaISO + "T00:00:00");
-  return Math.round((hasta - desde) / 86400000);
+  return diferenciaDiasLocal(fechaDesdeISO, fechaHastaISO);
 }
 
 export function buscarNaviera(navierasCfg, nombre) {
@@ -540,7 +545,7 @@ export function calcularAlertasLogistica(bookings = [], transporte = [], naviera
     }
   });
 
-  const hoyStr = ahora.toISOString().split("T")[0];
+  const hoyStr = fechaLocalISO(ahora);
   contratos.forEach(c => {
     if (!c.fechaFin) return;
     const restantes = diferenciaDias(hoyStr, c.fechaFin);

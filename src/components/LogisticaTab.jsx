@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
+import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useConfiguracion } from "../hooks/useConfiguracion.js";
+import { fechaLocalISO } from "../utils/dates.js";
 import {
-  useLogistica, calcularHitos, calcularAlertasLogistica, diasLibresRestantes, buscarNaviera, diferenciaDias,
+  calcularHitos, calcularAlertasLogistica, diasLibresRestantes, buscarNaviera, diferenciaDias,
 } from "../hooks/useLogistica.js";
 
 const ESTADOS_BOOKING       = ["Pendiente", "Confirmado", "Cancelado", "Roll Over", "Finalizado"];
@@ -53,27 +55,7 @@ function BarraLista({ items }) {
   );
 }
 
-const btnSecundario = {
-  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8,
-  color: "rgba(255,255,255,0.7)", padding: "9px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer",
-};
-function btnPrimario(ok, loading) {
-  return {
-    background: ok ? "#00C9A7" : "linear-gradient(135deg,#845EF7,#6366F1)", border: "none", borderRadius: 8,
-    color: "white", padding: "9px 18px", fontSize: 12, fontWeight: 700,
-    cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1,
-  };
-}
-const btnTablaEditar = {
-  background: "rgba(132,94,247,0.12)", border: "1px solid rgba(132,94,247,0.3)", borderRadius: 6,
-  color: "#a78bfa", padding: "4px 8px", fontSize: 11, cursor: "pointer", marginRight: 6,
-};
-const btnTablaEliminar = {
-  background: "rgba(255,107,107,0.12)", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 6,
-  color: "#FF6B6B", padding: "4px 8px", fontSize: 11, cursor: "pointer",
-};
-
-function hoyISO() { return new Date().toISOString().split("T")[0]; }
+function hoyISO() { return fechaLocalISO(); }
 
 function bookingVacio() {
   return {
@@ -110,7 +92,7 @@ function labelBooking(b) {
   return partes.length ? partes.join(" / ") : `#${b.id}`;
 }
 
-export default function LogisticaTab({ mob }) {
+export default function LogisticaTab({ mob, logistica }) {
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
@@ -133,7 +115,7 @@ export default function LogisticaTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const log = useLogistica();
+  const log = logistica;
   const { config } = useConfiguracion();
   const navierasCfg       = config.cfg_exportacion?.navieras       || [];
   const puertosCfg        = config.cfg_exportacion?.puertos        || [];
@@ -233,7 +215,17 @@ export default function LogisticaTab({ mob }) {
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
 
+  // Al cambiar de operación hay que soltar cualquier edición de transporte/
+  // novedad/inspección en curso — si no, un "Guardar" posterior reasignaría
+  // ese registro a la operación recién abierta en vez de crear uno nuevo.
+  const soltarEdicionesHijas = () => {
+    cancelarTrans();
+    cancelarNov();
+    cancelarInsp();
+  };
+
   const nuevaOperacion = () => {
+    soltarEdicionesHijas();
     setForm(bookingVacio());
     setEditId(null);
     setOperacionSel("new");
@@ -241,6 +233,7 @@ export default function LogisticaTab({ mob }) {
   };
 
   const abrirOperacion = (b) => {
+    soltarEdicionesHijas();
     setForm({ ...bookingVacio(), ...b });
     setEditId(b.id);
     setOperacionSel(b.id);
@@ -248,6 +241,7 @@ export default function LogisticaTab({ mob }) {
   };
 
   const volverALista = () => {
+    soltarEdicionesHijas();
     setForm(bookingVacio());
     setEditId(null);
     setOperacionSel(null);
@@ -270,6 +264,14 @@ export default function LogisticaTab({ mob }) {
 
   const navieraSel = buscarNaviera(navierasCfg, form.naviera);
   const campoDiasLibres = navieraSel?.diasLibresDesde;
+
+  // Agrupado una sola vez: calcularHitos(booking, transporteDeEseBooking) evita
+  // que cada fila de la lista re-escanee TODO el transporte de la empresa.
+  const transportePorBooking = useMemo(() => {
+    const mapa = {};
+    log.transporte.forEach(t => { (mapa[t.bookingId] ||= []).push(t); });
+    return mapa;
+  }, [log.transporte]);
 
   const bookingsFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -341,10 +343,18 @@ export default function LogisticaTab({ mob }) {
     if (ok) cancelarContrato();
   };
 
+  // Si la operación abierta desaparece de log.bookings (se eliminó desde otra
+  // pestaña/usuario, o localmente) hay que salir del detalle — si no, "Guardar"
+  // quedaría como un UPDATE silencioso sobre 0 filas que igual muestra "✓ Guardado".
+  useEffect(() => {
+    if (!editId) return;
+    if (!log.bookings.some(b => b.id === editId)) volverALista();
+  }, [log.bookings, editId]);
+
   if (log.loading) return <LimonLoader texto="Cargando logística" />;
 
   const bookingActual = editId ? log.bookings.find(b => b.id === editId) : null;
-  const hitosActual = bookingActual ? calcularHitos(bookingActual, log.transporte) : [];
+  const hitosActual = bookingActual ? calcularHitos(bookingActual, transportePorBooking[bookingActual.id] || []) : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -415,7 +425,7 @@ export default function LogisticaTab({ mob }) {
                     <tbody>
                       {bookingsFiltrados.map(b => {
                         const restantes = diasLibresRestantes(b, navierasCfg);
-                        const completados = calcularHitos(b, log.transporte).filter(h => h.completado).length;
+                        const completados = calcularHitos(b, transportePorBooking[b.id] || []).filter(h => h.completado).length;
                         return (
                           <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirOperacion(b)}>
                             <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { useState, useRef, useEffect, useMemo, createContext, useContext } from "react";
 import { supabase } from "./supabase.js";
 import { usePersonal } from "./hooks/usePersonal.js";
 import { useAsistencia } from "./hooks/useAsistencia.js";
@@ -12,6 +12,7 @@ import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
+import { fechaLocalISO, diferenciaDiasLocal } from "./utils/dates.js";
 import CustomSelect from "./components/CustomSelect.jsx";
 import LimonLoader from "./components/LimonLoader.jsx";
 
@@ -175,7 +176,7 @@ function PersonalDemo() {
   const [contratoForm, setContratoForm] = useState({ tipo:"OPS", fechaInicio:"", fechaFin:"", notas:"" });
 
   const saveContrato = () => { upsertContrato(contratoEmp, contratoForm); setContratoEmp(null); };
-  const diasRestantes = (f) => { if(!f) return null; const d=new Date(f); d.setHours(0,0,0,0); const h=new Date(); h.setHours(0,0,0,0); return Math.ceil((d-h)/86400000); };
+  const diasRestantes = (f) => diferenciaDiasLocal(fechaLocalISO(), f);
   const contColor = (d) => d===null?"rgba(255,255,255,0.2)":d<0?"#FF6B6B":d<30?"#FF6B6B":d<90?"#F9A826":"#00C9A7";
 
   // ── Tab 2: Pagos ──
@@ -7882,6 +7883,24 @@ export default function App() {
   const { config: cfgApp, loading: cfgLoading } = useConfiguracion();
   const apariencia = cfgApp.cfg_apariencia || {};
 
+  // Memoizado: sin esto, el escaneo de stock bajo + alertas de logística se
+  // recalculaba en CADA render de App (incluida cada tecla del buscador global).
+  const notifs = useMemo(() => {
+    const lista = [];
+    const invNotif = invApp.length > 0 ? invApp : INVENTARIO_BASE;
+    invNotif.forEach(item => {
+      const esHerramienta = item.categoria === "Herramientas";
+      const bajo = esHerramienta ? item.cant === 0 : item.cant <= item.minimo;
+      if (bajo) lista.push({ tipo:"stock", icon:"📦", color:"#F9A826", titulo:`Stock bajo: ${item.nombre}`, detalle: esHerramienta ? "Sin unidades disponibles" : `${item.cant} ${item.unidad} (mín: ${item.minimo})` });
+    });
+    const hoy = new Date();
+    if (hoy.getDay() === 5) lista.push({ tipo:"nomina", icon:"💰", color:"#00C9A7", titulo:"Hoy es viernes — ¿generaste la nómina?", detalle:"Recuerda liquidar la quincena si aplica" });
+    const alertasLog = calcularAlertasLogistica(logisticaApp.bookings, logisticaApp.transporte, cfgApp.cfg_exportacion?.navieras || [], logisticaApp.contratos);
+    alertasLog.forEach(a => lista.push({ tipo:"logistica", icon:a.icon, color:a.color, titulo:a.titulo, detalle:a.detalle }));
+    lista.push({ tipo:"info", icon:"🍋", color:"#845EF7", titulo:`${EMPLEADOS_DB.length} empleados en sistema`, detalle:`${EMPLEADOS_DB.filter(e=>e.area!=="Owner / Propietario").length} operativos activos` });
+    return lista;
+  }, [invApp, logisticaApp.bookings, logisticaApp.transporte, logisticaApp.contratos, cfgApp.cfg_exportacion]);
+
   // La sesión guarda un snapshot de permisos al hacer login — si un admin
   // cambia permisos en Configuración mientras el usuario ya está logueado,
   // sin esto tendría que cerrar sesión y volver a entrar para que aplique.
@@ -7960,7 +7979,7 @@ export default function App() {
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo />;
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
-    if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} />;
+    if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
     if (demo.type === "documentos_live")  return <DocumentosDemo />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
@@ -8269,19 +8288,6 @@ export default function App() {
 
       {/* ── HEADER ── */}
       {(() => {
-        // Notificaciones automáticas
-        const notifs = [];
-        const invNotif = invApp.length > 0 ? invApp : INVENTARIO_BASE;
-        invNotif.forEach(item => {
-          const esHerramienta = item.categoria === "Herramientas";
-          const bajo = esHerramienta ? item.cant === 0 : item.cant <= item.minimo;
-          if (bajo) notifs.push({ tipo:"stock", icon:"📦", color:"#F9A826", titulo:`Stock bajo: ${item.nombre}`, detalle: esHerramienta ? "Sin unidades disponibles" : `${item.cant} ${item.unidad} (mín: ${item.minimo})` });
-        });
-        const hoy = new Date();
-        if (hoy.getDay() === 5) notifs.push({ tipo:"nomina", icon:"💰", color:"#00C9A7", titulo:"Hoy es viernes — ¿generaste la nómina?", detalle:"Recuerda liquidar la quincena si aplica" });
-        const alertasLog = calcularAlertasLogistica(logisticaApp.bookings, logisticaApp.transporte, cfgApp.cfg_exportacion?.navieras || [], logisticaApp.contratos);
-        alertasLog.forEach(a => notifs.push({ tipo:"logistica", icon:a.icon, color:a.color, titulo:a.titulo, detalle:a.detalle }));
-        notifs.push({ tipo:"info", icon:"🍋", color:"#845EF7", titulo:`${EMPLEADOS_DB.length} empleados en sistema`, detalle:`${EMPLEADOS_DB.filter(e=>e.area!=="Owner / Propietario").length} operativos activos` });
         const nNotif = notifs.length;
 
         // Búsqueda global — resultados
