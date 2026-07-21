@@ -164,7 +164,12 @@ for pid, cell_ref in PALLET_CELLS.items():
         continue
     con_cajas = [c for c in p.get("calibres", []) if int(c.get("cajas", 0) or 0) > 0]
     if len(con_cajas) == 1:
-        changes[cell_ref] = ("num", int(con_cajas[0].get("size", 0) or 0))
+        unico = con_cajas[0]
+        size  = int(unico.get("size", 0) or 0)
+        if unico.get("plu"):
+            changes[cell_ref] = ("str", f"{size}PLU")
+        else:
+            changes[cell_ref] = ("num", size)
     elif len(con_cajas) > 1:
         changes[cell_ref] = ("str", "Mixto")
     # sin calibres con cajas → se deja el valor del molde tal cual

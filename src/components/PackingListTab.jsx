@@ -34,7 +34,7 @@ function initPallets(total) {
   const cpp = Math.floor(total / 20);
   return Array.from({ length: 20 }, (_, i) => ({
     id: i + 1,
-    calibres: [{ size: 200, cajas: cpp, predio: "", ica: "" }],
+    calibres: [{ size: 200, cajas: cpp, predio: "", ica: "", plu: false }],
   }));
 }
 function initLayout() {
@@ -205,9 +205,19 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     setPallets(prev => prev.map((p, i) => i !== pi ? p : {
       ...p, calibres: p.calibres.map((c, j) => j !== ci ? c : { ...c, [field]: val }),
     }));
+  // El selector de Calibre/Size incluye "230PLU" como opción aparte de "230" —
+  // internamente sigue siendo size:230, solo cambia la bandera plu, para que
+  // toda la lógica que hace Number(size) en otros lugares no se rompa.
+  const setCalOpcion = (pi, ci, opcion) => {
+    const plu  = opcion === "230PLU";
+    const size = plu ? 230 : Number(opcion);
+    setPallets(prev => prev.map((p, i) => i !== pi ? p : {
+      ...p, calibres: p.calibres.map((c, j) => j !== ci ? c : { ...c, size, plu }),
+    }));
+  };
   const addCal = (pi) =>
     setPallets(prev => prev.map((p, i) => i !== pi ? p : {
-      ...p, calibres: [...p.calibres, { size:200, cajas:0, predio:"", ica:"" }],
+      ...p, calibres: [...p.calibres, { size:200, cajas:0, predio:"", ica:"", plu:false }],
     }));
   const removeCal = (pi, ci) =>
     setPallets(prev => prev.map((p, i) => (i !== pi || p.calibres.length <= 1) ? p : {
@@ -340,7 +350,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
           {p.calibres.map((c, ci) => (
             <div key={ci} style={{ display:"flex", alignItems:"center", gap:3 }}>
-              <span style={{ fontSize: m ? 11 : 8, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.size}</span>
+              <span style={{ fontSize: m ? 11 : 8, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.plu ? `${c.size}PLU` : c.size}</span>
               <span style={{ fontSize: m ? 9 : 8, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
             </div>
           ))}
@@ -699,7 +709,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         puertoManual: admin.puertoManual || "",
         pallets: pallets.map(p => ({
           id:       p.id,
-          calibres: p.calibres.map(c => ({ size: c.size ? Number(c.size) : "", cajas: Number(c.cajas || 0) })),
+          calibres: p.calibres.map(c => ({ size: c.size ? Number(c.size) : "", cajas: Number(c.cajas || 0), plu: !!c.plu })),
         })),
       };
 
@@ -1153,7 +1163,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
                       <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                         {p.calibres.map((c, ci) => (
                           <div key={ci} style={{ display:"flex", alignItems:"center", gap:3 }}>
-                            <span style={{ fontSize: m ? 12 : 9, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.size}</span>
+                            <span style={{ fontSize: m ? 12 : 9, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.plu ? `${c.size}PLU` : c.size}</span>
                             <span style={{ fontSize: m ? 10 : 8, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
                           </div>
                         ))}
@@ -1182,8 +1192,10 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
                       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                           <div><div style={lbl}>Calibre / Size</div>
-                            <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
-                              {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
+                            <CustomSelect value={c.plu ? "230PLU" : c.size} onChange={e => setCalOpcion(selPalletIdx, ci, e.target.value)} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
+                              {CALIBRES.flatMap(cal => cal === 230
+                                ? [<option key={cal} value={cal}>{cal}</option>, <option key="230PLU" value="230PLU">230PLU</option>]
+                                : [<option key={cal} value={cal}>{cal}</option>])}
                             </CustomSelect>
                           </div>
                           <div><div style={lbl}>N° Cajas</div><input type="number" inputMode="numeric" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} /></div>
@@ -1200,8 +1212,10 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
                     ) : (
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 1fr 1fr auto", gap:8, alignItems:"end" }}>
                         <div><div style={lbl}>Calibre / Size</div>
-                          <CustomSelect value={c.size} onChange={e => setPF(selPalletIdx, ci, "size", Number(e.target.value))} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
-                            {CALIBRES.map(cal => <option key={cal} value={cal}>{cal}</option>)}
+                          <CustomSelect value={c.plu ? "230PLU" : c.size} onChange={e => setCalOpcion(selPalletIdx, ci, e.target.value)} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
+                            {CALIBRES.flatMap(cal => cal === 230
+                              ? [<option key={cal} value={cal}>{cal}</option>, <option key="230PLU" value="230PLU">230PLU</option>]
+                              : [<option key={cal} value={cal}>{cal}</option>])}
                           </CustomSelect>
                         </div>
                         <div><div style={lbl}>N° Cajas</div><input type="number" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} /></div>
