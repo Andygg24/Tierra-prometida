@@ -3249,6 +3249,10 @@ function ContenedoresDemo() {
   const [toast, setToast]               = useState(null);
   const pedir = (msg, fn) => setConfirm({ msg, fn });
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
+
+  // Vista previa de informes (Rendimientos, etc.)
+  const [previewRend, setPreviewRend] = useState(null); // { url, filename }
+  useEffect(() => () => { if (previewRend?.url) URL.revokeObjectURL(previewRend.url); }, [previewRend]);
   const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
   const lbl = { fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 };
 
@@ -3369,6 +3373,19 @@ function ContenedoresDemo() {
       {toast && (
         <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background: toast.ok ? "#064e3b" : "#450a0a", border:`1px solid ${toast.ok ? "#059669" : "#dc2626"}`, color: toast.ok ? "#6ee7b7" : "#fca5a5", borderRadius:10, padding:"10px 20px", fontSize:12, fontWeight:600, zIndex:9999, pointerEvents:"none", whiteSpace:"nowrap" }}>
           {toast.ok ? "✅" : "❌"} {toast.msg}
+        </div>
+      )}
+
+      {previewRend && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:9998,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",background:"#12121f",borderBottom:"1px solid rgba(255,255,255,0.13)",flexShrink:0}}>
+            <span style={{color:"white",fontWeight:700,fontSize:13}}>👁 Vista Previa — {previewRend.filename}</span>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{const a=document.createElement("a");a.href=previewRend.url;a.download=previewRend.filename;a.click();}} style={{background:"linear-gradient(135deg,#845EF7,#6366F1)",border:"none",borderRadius:8,padding:"7px 16px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>📥 Descargar</button>
+              <button onClick={()=>setPreviewRend(null)} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.20)",borderRadius:8,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.78)",cursor:"pointer"}}>✕ Cerrar</button>
+            </div>
+          </div>
+          <iframe src={previewRend.url} style={{flex:1,border:"none",background:"white"}} title="Vista previa del informe de rendimiento" />
         </div>
       )}
 
@@ -4636,7 +4653,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, cajDM, cajPri };
         });
 
-        const generarInforme = () => {
+        const generarInforme = (modo = "descargar") => {
           const cont = contSelRend;
           const pvsTexto = proveedoresCont.join(", ") || "—";
           const fechaHoy = new Date().toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
@@ -4914,11 +4931,18 @@ ${calibreSection}
 
 </body></html>`;
 
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const url  = URL.createObjectURL(blob);
+          const blob     = new Blob([html], { type: "text/html;charset=utf-8" });
+          const url      = URL.createObjectURL(blob);
+          const filename = `Informe_Rendimiento_${cont.numContenedor}_${new Date().toISOString().split("T")[0]}.html`;
+
+          if (modo === "previsualizar") {
+            setPreviewRend({ url, filename });
+            return;
+          }
+
           const a    = document.createElement("a");
           a.href     = url;
-          a.download = `Informe_Rendimiento_${cont.numContenedor}_${new Date().toISOString().split("T")[0]}.html`;
+          a.download = filename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -5000,11 +5024,16 @@ ${calibreSection}
                       {proveedoresCont.length > 0 ? proveedoresCont.join(" · ") : contSelRend.proveedor} · {contSelRend.producto}
                     </span>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {rendsDelCont.length > 0 && (
-                      <button onClick={generarInforme} style={{ background: "rgba(132,94,247,0.15)", border: "1px solid rgba(132,94,247,0.35)", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "#845EF7", cursor: "pointer", fontWeight: 700 }}>
-                        📄 Informe
-                      </button>
+                      <>
+                        <button onClick={() => generarInforme("previsualizar")} style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "#a5b4fc", cursor: "pointer", fontWeight: 700 }}>
+                          👁 Vista previa
+                        </button>
+                        <button onClick={() => generarInforme("descargar")} style={{ background: "rgba(132,94,247,0.15)", border: "1px solid rgba(132,94,247,0.35)", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "#845EF7", cursor: "pointer", fontWeight: 700 }}>
+                          📄 Informe
+                        </button>
+                      </>
                     )}
                     <button onClick={() => abrirFormRend()} style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
                       + Registrar camión
