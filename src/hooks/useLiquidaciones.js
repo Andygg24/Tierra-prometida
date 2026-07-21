@@ -70,7 +70,7 @@ export function useLiquidaciones() {
   // ── Mutaciones ───────────────────────────────────────────────
 
   const agregarLiquidacion = useCallback(async (reg) => {
-    const { error } = await supabase.from("liquidaciones").insert({
+    const row = {
       id:           reg.id,
       emp_num:      reg.empNum,
       nombre:       reg.nombre,
@@ -86,7 +86,11 @@ export function useLiquidaciones() {
       contenedores: reg.contenedores ?? null,
       metodo_pago:  reg.metodoPago  ?? null,
       html:         reg.html        ?? null,
-    });
+    };
+    // Optimistic insert — no depender solo del roundtrip de tiempo real
+    setLiquidaciones(prev => [rowToLiq(row), ...prev.slice(0, 199)]);
+    const { error } = await supabase.from("liquidaciones").insert(row);
+    if (error) setLiquidaciones(prev => prev.filter(l => l.id !== row.id));
     return !error;
   }, []);
 

@@ -948,6 +948,8 @@ function NominaDemo() {
   const [tabNom, setTabNom]     = useState(0);
   const [confirm, setConfirm]   = useState(null);
   const pedir = (msg,fn) => setConfirm({msg,fn});
+  const [toastNom, setToastNom] = useState(null);
+  const showToastNom = (msg, ok = true) => { setToastNom({ msg, ok }); setTimeout(() => setToastNom(null), 3500); };
 
   // Tab 0 — Liquidador
   const [selEmp,      setSelEmp]      = useState("");
@@ -1134,6 +1136,12 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
   return (
     <div>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={()=>{confirm.fn();setConfirm(null);}} onCancel={()=>setConfirm(null)} />}
+
+      {toastNom && (
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background: toastNom.ok ? "#064e3b" : "#450a0a", border:`1px solid ${toastNom.ok ? "#059669" : "#dc2626"}`, color: toastNom.ok ? "#6ee7b7" : "#fca5a5", borderRadius:10, padding:"10px 20px", fontSize:12, fontWeight:600, zIndex:9999, pointerEvents:"none", whiteSpace:"nowrap" }}>
+          {toastNom.ok ? "✅" : "❌"} {toastNom.msg}
+        </div>
+      )}
 
       {previewData && (
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:9998,display:"flex",flexDirection:"column"}}>
@@ -1409,7 +1417,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${new Date().toLocaleDateString("es-CO")}<br/>Documento informativo — No válido como soporte contable.</div>
 </div></body></html>`;
             };
-            const guardarPagoContenedor = (descargar) => {
+            const guardarPagoContenedor = async (descargar) => {
               const html = buildHtmlComprobante();
               if (descargar) {
                 const fname = `Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
@@ -1417,7 +1425,8 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 const a=document.createElement("a");a.href=_u2;a.download=fname;a.click();URL.revokeObjectURL(_u2);
               }
               const reg={id:Date.now(),empNum:empSel.num,nombre:empSel.nombre,area:empSel.area,periodo,salBase:0,devengado:totalCont,totalDeduc:0,neto:totalCont,ausencias:0,fecha:hoyNom,tipo:"contenedor",contenedores:cantEfectiva,metodoPago,html};
-              agregarLiquidacion(reg);
+              const ok = await agregarLiquidacion(reg);
+              showToastNom(ok ? "Pago guardado en el historial ✓" : "Error al guardar — verifica la conexión", ok);
             };
             const guardarPago = () => guardarPagoContenedor(false);
             const generarComprobante = () => guardarPagoContenedor(true);
