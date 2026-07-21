@@ -966,6 +966,10 @@ function NominaDemo() {
   const [metodoPago,    setMetodoPago]    = useState("Nequi");
   const [selectedConts, setSelectedConts] = useState([]);
 
+  // Tab 2 — Contenedores (mostrar/ocultar personal por contenedor)
+  const [personalVisible, setPersonalVisible] = useState({});
+  const togglePersonal = (id) => setPersonalVisible(prev => ({ ...prev, [id]: !prev[id] }));
+
   // Tab 2 — Historial
   const [histFiltEmp,   setHistFiltEmp]   = useState("");
   const [histFiltDesde, setHistFiltDesde] = useState("");
@@ -1618,14 +1622,22 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                   {miembros.length===0?(
                     <div style={{padding:"10px 14px",fontSize:11,color:"rgba(255,255,255,0.33)"}}>Sin grupo asignado</div>
                   ):(
-                    <div style={{padding:"8px 14px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-                      {miembros.map(e=>(
-                        <div key={e.num} style={{background:"rgba(255,255,255,0.05)",borderRadius:7,padding:"5px 9px",display:"flex",justifyContent:"space-between"}}>
-                          <span style={{fontSize:11,color:"white"}}>{e.nombre}</span>
-                          <span style={{fontSize:11,color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)}</span>
+                    <>
+                      <button onClick={()=>togglePersonal(p.id)}
+                        style={{width:"100%",background:"transparent",border:"none",borderTop:personalVisible[p.id]?`1px solid ${col}15`:"none",padding:"7px 14px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.55)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                        👤 {personalVisible[p.id]?"Ocultar":"Mostrar"} personal ({miembros.length}) {personalVisible[p.id]?"▲":"▼"}
+                      </button>
+                      {personalVisible[p.id] && (
+                        <div style={{padding:"0 14px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                          {miembros.map(e=>(
+                            <div key={e.num} style={{background:"rgba(255,255,255,0.05)",borderRadius:7,padding:"5px 9px",display:"flex",justifyContent:"space-between"}}>
+                              <span style={{fontSize:11,color:"white"}}>{e.nombre}</span>
+                              <span style={{fontSize:11,color:"#00C9A7",fontWeight:700}}>{fmtCOP(VALOR)}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
