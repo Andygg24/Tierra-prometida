@@ -158,6 +158,90 @@ ${r.observaciones ? `
 </html>`;
 }
 
+function generarInformeGeneralHTML(recs, desde, hasta) {
+  const fmt = (f) => f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "";
+  const totalNeto = recs.reduce((a, r) => a + num(r.total), 0);
+  const entradas  = recs.filter(r => r.tipo === "entrada").length;
+  const salidas   = recs.filter(r => r.tipo === "salida").length;
+
+  const filas = recs.map(r => `
+    <tr>
+      <td>${esc(r.remision) || "—"}</td>
+      <td>${esc(r.fecha) || "—"}</td>
+      <td style="text-align:center"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:9px;font-weight:700;background:${r.tipo==="entrada"?"#ede9fe":"#fef3c7"};color:${r.tipo==="entrada"?"#6d28d9":"#b45309"}">${r.tipo === "entrada" ? "ENTRADA" : "SALIDA"}</span></td>
+      <td>${esc(r.placa) || "—"}</td>
+      <td>${esc(r.proveedor) || "—"}</td>
+      <td>${esc(r.supervisor) || "—"}</td>
+      <td style="text-align:center">${r.estibas?.length || 0}</td>
+      <td style="text-align:right;font-weight:700;color:#1D6F42">${num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Informe General de Recepciones - Tierra Prometida</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;padding:24px;font-size:12px}
+  .header{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:14px;margin-bottom:18px}
+  .logo{font-size:36px;margin-bottom:4px}
+  .htitle{color:#1D6F42;font-size:21px;font-weight:800;letter-spacing:-0.5px}
+  .sub{color:#666;font-size:12px;margin-top:3px}
+  .rango{display:inline-block;background:#1D6F42;color:#fff;padding:4px 18px;border-radius:20px;font-size:10px;margin-top:8px;letter-spacing:0.5px;font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
+  .campo{background:#f5f5f5;border-radius:8px;padding:10px 12px;text-align:center}
+  .campo .l{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px}
+  .campo .v{font-size:20px;font-weight:800;color:#1D6F42}
+  .sec{font-size:13px;font-weight:800;color:#1D6F42;background:#e8f5e9;border-left:4px solid #1D6F42;padding:7px 12px;margin:20px 0 10px;border-radius:0 6px 6px 0}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{background:#1D6F42;color:#fff;padding:7px 8px;text-align:left;border:1px solid #145a32}
+  td{padding:6px 8px;border:1px solid #e0e0e0}
+  tr:nth-child(even) td{background:#fafafa}
+  tfoot td{background:#e8f5e9;font-weight:800;border-top:2px solid #1D6F42}
+  .footer{text-align:center;font-size:9px;color:#bbb;margin-top:24px;border-top:1px solid #f0f0f0;padding-top:10px}
+  @media print{body{padding:10px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🍋</div>
+  <div class="htitle">TIERRA PROMETIDA TRADING</div>
+  <div class="sub">Informe General de Recepciones</div>
+  <div class="rango">${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : "Todas las fechas"}</div>
+</div>
+
+<div class="grid">
+  <div class="campo"><div class="l">Recepciones</div><div class="v">${recs.length}</div></div>
+  <div class="campo"><div class="l">Entradas</div><div class="v">${entradas}</div></div>
+  <div class="campo"><div class="l">Salidas</div><div class="v">${salidas}</div></div>
+  <div class="campo"><div class="l">Kg netos totales</div><div class="v">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:1})}</div></div>
+</div>
+
+<div class="sec">Detalle de recepciones</div>
+<table>
+  <thead>
+    <tr>
+      <th>Remisión</th><th>Fecha</th><th style="text-align:center">Tipo</th><th>Placa</th><th>Proveedor</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${filas || `<tr><td colspan="8" style="text-align:center;color:#999;padding:16px">Sin recepciones en el rango seleccionado</td></tr>`}
+  </tbody>
+  ${recs.length ? `<tfoot><tr><td colspan="7" style="text-align:right">TOTAL</td><td style="text-align:right;color:#1D6F42">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:2})} kg</td></tr></tfoot>` : ""}
+</table>
+
+<div class="footer">
+  Generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}
+  &bull; JARVIS &bull; Tierra Prometida Trading
+</div>
+
+</body>
+</html>`;
+}
+
 export default function RecepcionesTab({ mob }) {
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
@@ -188,6 +272,8 @@ export default function RecepcionesTab({ mob }) {
   const [guardando,  setGuardando]  = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [preview,    setPreview]    = useState(null); // { url, filename }
+  const [filtroDesde, setFiltroDesde] = useState("");
+  const [filtroHasta, setFiltroHasta] = useState("");
 
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
@@ -260,6 +346,21 @@ export default function RecepcionesTab({ mob }) {
     const html = generarInformeHTML(r);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     setPreview({ url, filename: `Recepcion_${r.remision || r.id}.html` });
+  };
+
+  const recepcionesFiltradas = useMemo(() => {
+    return recepciones.filter(r => {
+      if (filtroDesde && r.fecha < filtroDesde) return false;
+      if (filtroHasta && r.fecha > filtroHasta) return false;
+      return true;
+    });
+  }, [recepciones, filtroDesde, filtroHasta]);
+
+  const verInformeGeneral = () => {
+    const html = generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta);
+    const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : "todas";
+    setPreview({ url, filename: `Informe_General_Recepciones_${sufijo}.html` });
   };
 
   const descargarInforme = () => {
@@ -484,9 +585,33 @@ export default function RecepcionesTab({ mob }) {
 
       {/* ── Historial ── */}
       <div style={cardS}>
-        <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:12 }}>📋 Recepciones registradas</div>
-        {recepciones.length === 0 ? (
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>Sin recepciones registradas todavía.</div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"white" }}>📋 Recepciones registradas</div>
+        </div>
+
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, alignItems:"flex-end", marginBottom:14 }}>
+          <div style={{ flex: m ? "1 1 100%" : "0 1 160px" }}>
+            <div style={lbl}>Desde</div>
+            <input type="date" style={inp} value={filtroDesde} onChange={e=>setFiltroDesde(e.target.value)} />
+          </div>
+          <div style={{ flex: m ? "1 1 100%" : "0 1 160px" }}>
+            <div style={lbl}>Hasta</div>
+            <input type="date" style={inp} value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} />
+          </div>
+          {(filtroDesde || filtroHasta) && (
+            <button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"rgba(255,255,255,0.7)", padding:"9px 14px", fontSize:12, fontWeight:600, cursor:"pointer", height: isLandscape?36:(m?44:32) }}>
+              ✕ Limpiar
+            </button>
+          )}
+          <button onClick={verInformeGeneral} disabled={recepcionesFiltradas.length===0} style={{ marginLeft: m ? 0 : "auto", background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color: recepcionesFiltradas.length===0 ? "rgba(0,201,167,0.4)" : "#00C9A7", padding:"9px 16px", fontSize:12, fontWeight:700, cursor: recepcionesFiltradas.length===0 ? "default" : "pointer", height: isLandscape?36:(m?44:32) }}>
+            📄 Informe general ({recepcionesFiltradas.length})
+          </button>
+        </div>
+
+        {recepcionesFiltradas.length === 0 ? (
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>
+            {recepciones.length === 0 ? "Sin recepciones registradas todavía." : "Ninguna recepción cae en el rango de fechas seleccionado."}
+          </div>
         ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
@@ -504,7 +629,7 @@ export default function RecepcionesTab({ mob }) {
                 </tr>
               </thead>
               <tbody>
-                {recepciones.map(r => (
+                {recepcionesFiltradas.map(r => (
                   <tr key={r.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                     <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{r.remision || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.fecha}</td>
