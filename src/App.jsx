@@ -6678,7 +6678,7 @@ function PedidosDemo() {
 }
 
 // ─── MÓDULO INICIO — DASHBOARD EJECUTIVO ─────────────────────
-function InicioDemo({ onNavigate }) {
+function InicioDemo({ onNavigate, puedeAcceder }) {
   const mob   = useM();
   const small = useS();
   const [hora,  setHora]  = useState(new Date());
@@ -7003,12 +7003,15 @@ function InicioDemo({ onNavigate }) {
       <div style={{ marginBottom:14 }}>
         <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>⚡ Acceso rápido</div>
         <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)", gap:6 }}>
-          {quickMods.map((m,i)=>(
-            <button key={i} onClick={()=>onNavigate(m.id)} style={{ background:`${m.color}0e`, border:`1px solid ${m.color}30`, borderRadius:10, padding:"10px 6px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
-              <div style={{ fontSize:20 }}>{m.icon}</div>
-              <div style={{ fontSize:9, color:m.color, fontWeight:700, marginTop:4, lineHeight:1.2 }}>{m.label}</div>
-            </button>
-          ))}
+          {quickMods.map((m,i)=>{
+            const acceso = !puedeAcceder || puedeAcceder(m.id);
+            return (
+              <button key={i} onClick={()=>{ if (acceso) onNavigate(m.id); }} style={{ background: acceso ? `${m.color}0e` : "rgba(255,255,255,0.02)", border:`1px solid ${acceso ? m.color+"30" : "rgba(255,255,255,0.08)"}`, borderRadius:10, padding:"10px 6px", cursor: acceso ? "pointer" : "not-allowed", textAlign:"center", transition:"all 0.15s", opacity: acceso ? 1 : 0.45 }}>
+                <div style={{ fontSize:20 }}>{acceso ? m.icon : "🔒"}</div>
+                <div style={{ fontSize:9, color: acceso ? m.color : "rgba(255,255,255,0.35)", fontWeight:700, marginTop:4, lineHeight:1.2 }}>{m.label}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -7963,12 +7966,6 @@ export default function App() {
   const usuariosLogin = cfgApp.cfg_usuarios?.length ? cfgApp.cfg_usuarios : USUARIOS;
   if (!usuario) return <LoginScreen onLogin={login} usuarios={usuariosLogin} />;
 
-  // Navegar a módulo por id (usado desde InicioDemo)
-  const navigateToModule = (moduleId) => {
-    const idx = MODULES.findIndex(m => m.id === moduleId);
-    if (idx >= 0) setActiveModule(idx);
-  };
-
   // Verificar si el usuario tiene acceso a un módulo ([] = acceso total)
   const tieneAcceso = (m) => {
     if (!usuario.permisos?.length) return true;
@@ -7977,11 +7974,18 @@ export default function App() {
   };
   const modulosVisibles = MODULES;
 
+  // Navegar a módulo por id (usado desde InicioDemo, búsqueda global, etc.)
+  // Respeta los mismos permisos que el sidebar — evita saltarse módulos bloqueados.
+  const navigateToModule = (moduleId) => {
+    const idx = MODULES.findIndex(m => m.id === moduleId);
+    if (idx >= 0 && tieneAcceso(MODULES[idx])) setActiveModule(idx);
+  };
+
   const mod = MODULES[activeModule];
 
   const renderDemo = (demo) => {
     if (demo.type === "configuracion_live") return <ConfiguracionDemo />;
-    if (demo.type === "inicio_live")      return <InicioDemo onNavigate={navigateToModule} />;
+    if (demo.type === "inicio_live")      return <InicioDemo onNavigate={navigateToModule} puedeAcceder={(id) => { const m = MODULES.find(x=>x.id===id); return m ? tieneAcceso(m) : true; }} />;
     if (demo.type === "pedidos_live")     return <PedidosDemo />;
     if (demo.type === "personal_live")    return <PersonalDemo />;
     if (demo.type === "nomina_live")      return <NominaDemo />;
