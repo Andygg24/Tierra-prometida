@@ -10,6 +10,7 @@ import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
+import CanastillasTab from "./components/CanastillasTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
 import { fechaLocalISO, diferenciaDiasLocal } from "./utils/dates.js";
@@ -1937,6 +1938,10 @@ const PLANTILLAS_CC = [
 function InventarioDemo() {
   const { items, historial, loading: loadingInv, actualizarItem, registrarMovimiento, agregarItem, eliminarItem } = useInventario(INVENTARIO_BASE);
 
+  const mob = useM();
+  const [tabInv, setTabInv] = useState(0);
+  const TAB_INV = ["📦 Inventario General", "🔖 Canastillas"];
+
   const [filtro, setFiltro] = useState("Todos");
   const [busqueda, setBusqueda] = useState("");
   const [editando, setEditando] = useState(null);
@@ -1991,6 +1996,18 @@ function InventarioDemo() {
 
   return (
     <div>
+      <div style={{ display:"flex", gap:4, marginBottom:14, flexWrap:"wrap" }}>
+        {TAB_INV.map((t, i) => (
+          <button key={i} onClick={() => setTabInv(i)}
+            style={{ background: tabInv===i ? "rgba(132,94,247,0.2)" : "rgba(255,255,255,0.04)", border:`1px solid ${tabInv===i ? "rgba(132,94,247,0.5)" : "rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:11, color: tabInv===i ? "#a78bfa" : "rgba(255,255,255,0.4)", fontWeight: tabInv===i ? 700 : 400 }}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tabInv === 1 && <CanastillasTab mob={mob} />}
+
+      {tabInv === 0 && <>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null); }} onCancel={() => setConfirm(null)} />}
 
       {/* Modal edición */}
@@ -2345,6 +2362,7 @@ ${historial.length>0?`
       }} style={{width:"100%",background:"linear-gradient(135deg,#845EF7,#6366F1)",border:"none",borderRadius:10,padding:"10px",fontSize:13,color:"white",cursor:"pointer",fontWeight:700,marginTop:14}}>
         📥 Descargar informe de inventario
       </button>
+      </>}
     </div>
   );
 }
