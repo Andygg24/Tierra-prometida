@@ -17,6 +17,27 @@ const lbl = { fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 };
 
 const hoyISO = () => new Date().toISOString().split("T")[0];
 
+// ── Beep corto de confirmación al aceptar un escaneo ────────────────────────
+function playBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+    osc.onended = () => ctx.close();
+  } catch {}
+}
+
 // ── Hoja de etiquetas imprimible (HTML autocontenido) ──────────────────────
 function buildHojaEtiquetas(pares) {
   const unaEtiqueta = ({ codigo, dataUrl }) => `
@@ -477,10 +498,17 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
   const html5QrRef = useRef(null);
   const READER_ID  = "qr-reader-canastillas";
 
+  // Igual que en Ronda de conteo: la cámara mantiene fija esta función desde
+  // que arranca, así que el chequeo de duplicados no puede depender del
+  // state — se usa un ref, siempre al día.
+  const escaneadosRef = useRef(new Set());
+
   const agregarCodigo = (codigoRaw) => {
     const codigo = (codigoRaw || "").trim().toUpperCase();
-    if (!codigo) return;
-    setEscaneados(prev => prev.some(e => e.codigo === codigo) ? prev : [...prev, { codigo, existe: !!buscarPorCodigo(codigo) }]);
+    if (!codigo || escaneadosRef.current.has(codigo)) return;
+    escaneadosRef.current.add(codigo);
+    playBeep();
+    setEscaneados(prev => [...prev, { codigo, existe: !!buscarPorCodigo(codigo) }]);
   };
 
   const iniciarCamara = async () => {
@@ -509,7 +537,10 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
 
   useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => {}); }, []);
 
-  const quitarCodigo = (codigo) => setEscaneados(prev => prev.filter(e => e.codigo !== codigo));
+  const quitarCodigo = (codigo) => {
+    escaneadosRef.current.delete(codigo);
+    setEscaneados(prev => prev.filter(e => e.codigo !== codigo));
+  };
 
   const guardarLote = () => {
     if (escaneados.length === 0) return;
@@ -520,6 +551,7 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
         codigos: escaneados.map(e => e.codigo), tipo: accion, proveedor: proveedor.trim() || null, fecha, obs,
       });
       showToast(`Lote guardado — ${actualizados} actualizadas, ${creados} nuevas registradas ✓`);
+      escaneadosRef.current.clear();
       setEscaneados([]);
       setGuardando(false);
     });
@@ -635,6 +667,7 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     const codigo = (codigoRaw || "").trim().toUpperCase();
     if (!codigo || escaneadosRef.current.has(codigo)) return;
     escaneadosRef.current.add(codigo);
+    playBeep();
     const res = await registrarConteo(codigo, rondaActiva.id);
     if (res.ok) {
       setContadas(prev => [{ codigo, nueva: res.nueva }, ...prev]);
