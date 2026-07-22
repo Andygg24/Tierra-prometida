@@ -110,6 +110,7 @@ export default function CanastillasTab({ mob }) {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
     iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda,
+    eliminarCanastilla, eliminarTodasCanastillas,
   } = useCanastillas();
 
   const [vista, setVista] = useState("dashboard"); // dashboard | generar | escanear | ronda
@@ -179,11 +180,12 @@ export default function CanastillasTab({ mob }) {
       {vista === "dashboard" && (
         <DashboardView mob={mob} canastillas={canastillas} obtenerHistorial={obtenerHistorial} buscarPorCodigo={buscarPorCodigo}
           pedir={pedir} showToast={showToast} reportarEstado={reportarEstado} registrarConteo={registrarConteo}
-          rondaActiva={rondaActiva} verPrevia={verPrevia} />
+          rondaActiva={rondaActiva} verPrevia={verPrevia} eliminarCanastilla={eliminarCanastilla} />
       )}
 
       {vista === "generar" && (
-        <GenerarView mob={mob} crearLote={crearLote} pedir={pedir} showToast={showToast} verPrevia={verPrevia} />
+        <GenerarView mob={mob} crearLote={crearLote} pedir={pedir} showToast={showToast} verPrevia={verPrevia}
+          totalCanastillas={canastillas.length} eliminarTodasCanastillas={eliminarTodasCanastillas} />
       )}
 
       {vista === "escanear" && (
@@ -200,7 +202,7 @@ export default function CanastillasTab({ mob }) {
 }
 
 // ── Vista: Resumen ──────────────────────────────────────────────────────────
-function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva, verPrevia }) {
+function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva, verPrevia, eliminarCanastilla }) {
   const [busqueda, setBusqueda]   = useState("");
   const [encontrada, setEncontrada] = useState(null); // canastilla o "not_found"
   const [historial, setHistorial] = useState([]);
@@ -255,6 +257,15 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
         setEncontrada(prev => ({ ...prev, estado: "disponible", proveedorActual: null }));
         setHistorial(await obtenerHistorial(codigo));
       }
+    });
+  };
+
+  const eliminar = () => {
+    const codigo = encontrada.codigo;
+    pedir(`¿Eliminar por completo la canastilla ${codigo}? Esto borra el registro y todo su historial — no se puede deshacer (distinto de "dar de baja", que sí conserva el historial).`, async () => {
+      const ok = await eliminarCanastilla(codigo);
+      showToast(ok ? "Canastilla eliminada ✓" : "Error al eliminar", ok);
+      if (ok) { setEncontrada(null); setBusqueda(""); setHistorial([]); }
     });
   };
 
@@ -315,6 +326,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
               )}
               <button onClick={() => reportar("perdida")} style={btnTablaEliminar}>Reportar pérdida</button>
               <button onClick={() => reportar("baja")} style={btnTablaEliminar}>🔧 Marcar dañada</button>
+              <button onClick={eliminar} style={{ background:"rgba(255,80,80,0.15)", border:"1px solid rgba(255,80,80,0.4)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#ff6b6b", cursor:"pointer", fontWeight:700 }}>🗑 Eliminar serial</button>
             </div>
           </div>
         )}
@@ -373,11 +385,12 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
 }
 
 // ── Vista: Generar QR ────────────────────────────────────────────────────────
-function GenerarView({ mob, crearLote, pedir, showToast, verPrevia }) {
+function GenerarView({ mob, crearLote, pedir, showToast, verPrevia, totalCanastillas, eliminarTodasCanastillas }) {
   const [prefijo, setPrefijo]   = useState("TP-");
   const [cantidad, setCantidad] = useState(50);
   const [obs, setObs]           = useState("");
   const [generando, setGenerando] = useState(false);
+  const [reseteando, setReseteando] = useState(false);
 
   const generar = () => {
     const n = parseInt(cantidad, 10);
@@ -396,6 +409,16 @@ function GenerarView({ mob, crearLote, pedir, showToast, verPrevia }) {
       verPrevia(html, `Etiquetas_Canastillas_${prefijo.trim()}_${n}.html`);
       showToast(`${n} canastilla${n!==1?"s":""} generada${n!==1?"s":""} ✓`);
       setGenerando(false);
+    });
+  };
+
+  const resetear = () => {
+    if (totalCanastillas === 0) return;
+    pedir(`¿Eliminar TODAS las canastillas registradas (${totalCanastillas})? Esto borra para siempre todos los seriales y su historial completo — no se puede deshacer.`, async () => {
+      setReseteando(true);
+      const ok = await eliminarTodasCanastillas();
+      showToast(ok ? "Todas las canastillas fueron eliminadas ✓" : "Error al eliminar", ok);
+      setReseteando(false);
     });
   };
 
@@ -423,6 +446,17 @@ function GenerarView({ mob, crearLote, pedir, showToast, verPrevia }) {
       </div>
       <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:10, lineHeight:1.5 }}>
         Cada canastilla queda registrada como "disponible" y se genera una hoja lista para imprimir y pegar en cada una.
+      </div>
+
+      <div style={{ background:"rgba(255,80,80,0.06)", border:"1px solid rgba(255,80,80,0.25)", borderRadius:12, padding:14, marginTop:20 }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"#ff6b6b", marginBottom:6 }}>⚠️ Zona de peligro</div>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", marginBottom:10, lineHeight:1.5 }}>
+          Elimina todos los seriales de canastillas creados hasta ahora ({totalCanastillas}), junto con todo su historial. Úsalo solo para reiniciar de cero, por ejemplo tras hacer pruebas.
+        </div>
+        <button onClick={resetear} disabled={reseteando || totalCanastillas === 0}
+          style={{ width:"100%", background:"rgba(255,80,80,0.15)", border:"1px solid rgba(255,80,80,0.4)", borderRadius:8, padding:"9px", fontSize:12, color:"#ff6b6b", cursor: totalCanastillas === 0 ? "not-allowed" : "pointer", fontWeight:700, opacity: totalCanastillas === 0 ? 0.5 : 1 }}>
+          {reseteando ? "Eliminando…" : `🗑 Eliminar TODAS las canastillas (${totalCanastillas})`}
+        </button>
       </div>
     </div>
   );
@@ -577,7 +611,16 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
   const html5QrRef = useRef(null);
   const READER_ID  = "qr-reader-ronda";
 
-  useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => {}); }, []);
+  // La cámara mantiene fija la función de escaneo desde que arranca (no se
+  // "refresca" con cada render), así que el chequeo de duplicados NO puede
+  // depender del state `contadas` — quedaría viendo siempre la lista vieja
+  // y dejaría pasar el mismo código varias veces si la cámara lo detecta
+  // varias veces seguidas (p.ej. al quedarse quieta 1 seg sobre el mismo QR).
+  // Por eso se usa un ref: se actualiza al instante, antes de cualquier
+  // espera de red, y lo ven todas las llamadas sin importar de qué render
+  // vinieron.
+  const escaneadosRef = useRef(new Set());
+  useEffect(() => { escaneadosRef.current = new Set(); setContadas([]); }, [rondaActiva?.id]);
 
   const empezar = () => {
     pedir("¿Iniciar una nueva ronda de conteo? Se tomará una foto de cuántas canastillas deberían estar disponibles ahora mismo.", async () => {
@@ -590,9 +633,14 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
 
   const escanear = async (codigoRaw) => {
     const codigo = (codigoRaw || "").trim().toUpperCase();
-    if (!codigo || contadas.some(c => c.codigo === codigo)) return;
+    if (!codigo || escaneadosRef.current.has(codigo)) return;
+    escaneadosRef.current.add(codigo);
     const res = await registrarConteo(codigo, rondaActiva.id);
-    if (res.ok) setContadas(prev => [{ codigo, nueva: res.nueva }, ...prev]);
+    if (res.ok) {
+      setContadas(prev => [{ codigo, nueva: res.nueva }, ...prev]);
+    } else {
+      escaneadosRef.current.delete(codigo); // falló — permitir reintentar
+    }
   };
 
   const iniciarCamara = async () => {

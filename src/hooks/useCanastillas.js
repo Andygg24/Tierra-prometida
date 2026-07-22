@@ -253,6 +253,24 @@ export function useCanastillas() {
     return canastillas.find(x => x.codigo.toUpperCase() === c) || null;
   }, [canastillas]);
 
+  // Elimina una sola canastilla (borrado real, no "baja" — también borra su historial por cascada).
+  const eliminarCanastilla = useCallback(async (codigo) => {
+    const actual = buscarPorCodigo(codigo);
+    if (!actual) return false;
+    const { error } = await supabase.from("canastillas").delete().eq("id", actual.id);
+    if (error) return false;
+    setCanastillas(prev => prev.filter(c => c.id !== actual.id));
+    return true;
+  }, [buscarPorCodigo]);
+
+  // Reinicia por completo el registro de canastillas — borra TODOS los seriales creados.
+  const eliminarTodasCanastillas = useCallback(async () => {
+    const { error } = await supabase.from("canastillas").delete().gt("id", 0);
+    if (error) return false;
+    setCanastillas([]);
+    return true;
+  }, []);
+
   // ── Mutaciones — rondas de conteo ────────────────────────────
 
   const iniciarRonda = useCallback(async ({ fecha, obs }) => {
@@ -351,5 +369,6 @@ export function useCanastillas() {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
     iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda,
+    eliminarCanastilla, eliminarTodasCanastillas,
   };
 }
