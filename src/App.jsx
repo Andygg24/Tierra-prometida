@@ -2367,6 +2367,7 @@ function AsistenciaDemo() {
     setEmpField: setEmpFieldSB, toggleEstado: toggleEstadoSB,
     setMetaField: setMetaFieldSB, marcarTodos: marcarTodosSB, limpiarDia,
   } = useAsistencia();
+  const { empleados, loading: loadingPersonal } = usePersonal();
 
   const [fecha,       setFecha]       = useState(fechaHoy);
   const [search,      setSearch]       = useState("");
@@ -2385,7 +2386,7 @@ function AsistenciaDemo() {
     { key:"LP", label:"Lic/Perm",  color:"#4ECDC4", icon:"📋" },
   ];
 
-  const empleadosActivos = EMPLEADOS_DB.filter(e =>
+  const empleadosActivos = empleados.filter(e =>
     !["Descargador","Owner / Propietario"].includes(e.area)
   );
 
@@ -2428,7 +2429,6 @@ function AsistenciaDemo() {
   const generarReporteData = () => {
     const dias = getDiasMes(mesReporte);
     return empleadosActivos.map(emp => {
-      const dbEmp = EMPLEADOS_DB.find(e => e.nombre === emp.nombre);
       let presente=0, ausente=0, tardanza=0, festivo=0, licencia=0;
       const detalleDias = {};
       dias.forEach(d => {
@@ -2449,8 +2449,8 @@ function AsistenciaDemo() {
       return {
         nombre:   emp.nombre,
         area:     emp.area,
-        docTipo:  dbEmp?.doc || "—",
-        docNum:   dbEmp?.num || "—",
+        docTipo:  emp.doc || "—",
+        docNum:   emp.num || "—",
         presente, ausente, tardanza, festivo, licencia,
         detalleDias,
         tieneRegistro,
@@ -2738,7 +2738,7 @@ ${seccionObs}
   // ─────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────
-  if (loadingAsis) return <LimonLoader texto="Cargando asistencia" />;
+  if (loadingAsis || loadingPersonal) return <LimonLoader texto="Cargando asistencia" />;
   return (
     <div>
       {/* Confirmación */}
