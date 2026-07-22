@@ -365,10 +365,19 @@ export function useCanastillas() {
     return { ronda, encontradas, faltantes };
   }, []);
 
+  // Elimina una ronda cerrada del historial (el historial de cada canastilla
+  // individual no se pierde — sus movimientos solo quedan sin ronda asociada).
+  const eliminarRonda = useCallback(async (rondaId) => {
+    const { error } = await supabase.from("canastilla_rondas").delete().eq("id", rondaId);
+    if (error) return false;
+    setRondas(prev => prev.filter(r => r.id !== rondaId));
+    return true;
+  }, []);
+
   return {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
-    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda,
+    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda,
     eliminarCanastilla, eliminarTodasCanastillas,
   };
 }

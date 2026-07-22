@@ -130,7 +130,7 @@ export default function CanastillasTab({ mob }) {
   const {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
-    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda,
+    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda,
     eliminarCanastilla, eliminarTodasCanastillas,
   } = useCanastillas();
 
@@ -216,7 +216,8 @@ export default function CanastillasTab({ mob }) {
 
       {vista === "ronda" && (
         <RondaView mob={mob} rondaActiva={rondaActiva} rondas={rondas} iniciarRonda={iniciarRonda} registrarConteo={registrarConteo}
-          cerrarRonda={cerrarRonda} obtenerInformeRonda={obtenerInformeRonda} pedir={pedir} showToast={showToast} verPrevia={verPrevia} />
+          cerrarRonda={cerrarRonda} obtenerInformeRonda={obtenerInformeRonda} eliminarRonda={eliminarRonda}
+          pedir={pedir} showToast={showToast} verPrevia={verPrevia} />
       )}
     </div>
   );
@@ -660,7 +661,7 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
 }
 
 // ── Vista: Ronda de conteo ───────────────────────────────────────────────────
-function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, pedir, showToast, verPrevia }) {
+function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda, pedir, showToast, verPrevia }) {
   const [obsInicio, setObsInicio] = useState("");
   const [iniciando, setIniciando] = useState(false);
   const [cerrando, setCerrando]   = useState(false);
@@ -745,6 +746,13 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     verPrevia(buildInformeRonda(detalle), `Informe_Ronda_Conteo_${ronda.fecha}.html`);
   };
 
+  const eliminarDelHistorial = (ronda) => {
+    pedir(`¿Eliminar del historial la ronda del ${ronda.fecha}? Esto no cambia el estado de las canastillas ni su historial individual, solo borra el registro de esta ronda.`, async () => {
+      const ok = await eliminarRonda(ronda.id);
+      showToast(ok ? "Ronda eliminada del historial ✓" : "Error al eliminar", ok);
+    });
+  };
+
   if (!rondaActiva) {
     return (
       <div style={{ maxWidth:480 }}>
@@ -778,9 +786,14 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
                     {r.totalEsperadas - r.totalEncontradas > 0 && <span style={{ color:"#F9A826" }}> · {r.totalEsperadas - r.totalEncontradas} faltantes</span>}
                   </div>
                 </div>
-                <button onClick={() => verInforme(r)} style={{ background:"rgba(132,94,247,0.12)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"#a78bfa", cursor:"pointer" }}>
-                  📄 Ver informe
-                </button>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button onClick={() => verInforme(r)} style={{ background:"rgba(132,94,247,0.12)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"#a78bfa", cursor:"pointer" }}>
+                    📄 Ver informe
+                  </button>
+                  <button onClick={() => eliminarDelHistorial(r)} style={{ background:"rgba(255,80,80,0.12)", border:"1px solid rgba(255,80,80,0.3)", borderRadius:6, padding:"5px 8px", fontSize:10, color:"#ff6b6b", cursor:"pointer" }}>
+                    🗑
+                  </button>
+                </div>
               </div>
             ))}
           </div>
