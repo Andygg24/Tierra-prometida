@@ -152,9 +152,6 @@ function PersonalDemo() {
   // ── Filtros por tab ──
   const [busqContrato,      setBusqContrato]      = useState("");
   const [filtroContrato,    setFiltroContrato]    = useState("Todos");
-  const [filtroTipoPago,    setFiltroTipoPago]    = useState("Todos");
-  const [filtroPagoDesde,   setFiltroPagoDesde]   = useState("");
-  const [filtroPagoHasta,   setFiltroPagoHasta]   = useState("");
   const [busqDoc,           setBusqDoc]           = useState("");
   const [filtroDocEstado,   setFiltroDocEstado]   = useState("Todos");
   const [filtroMesDesemp,   setFiltroMesDesemp]   = useState("");
@@ -164,10 +161,10 @@ function PersonalDemo() {
   // ── Supabase: Personal ──
   const {
     empleados,
-    contratos,  pagosHist,   docs,     desempeno, seguridad,
+    contratos,  docs,     desempeno, seguridad,
     loading:    loadingPersonal,
     agregarEmpleado, editarEmpleado, eliminarEmpleado,
-    upsertContrato,  agregarPago:    agregarPagoSB, eliminarPago: eliminarPagoSB,
+    upsertContrato,
     toggleDoc:  toggleDocSB, agregarEval: agregarEvalSB, eliminarEval: eliminarEvalSB, upsertSeguridad,
   } = usePersonal();
 
@@ -179,22 +176,10 @@ function PersonalDemo() {
   const diasRestantes = (f) => diferenciaDiasLocal(fechaLocalISO(), f);
   const contColor = (d) => d===null?"rgba(255,255,255,0.2)":d<0?"#FF6B6B":d<30?"#FF6B6B":d<90?"#F9A826":"#00C9A7";
 
-  // ── Tab 2: Pagos ──
-  const [selEmpPago, setSelEmpPago]     = useState(null);
-  const [formPago, setFormPago]         = useState({ fecha:"", monto:"", tipo:"Nómina", ref:"" });
-  const [showFormPago, setShowFormPago] = useState(false);
-
-  const agregarPago = () => {
-    if(!formPago.monto||!formPago.fecha) return;
-    agregarPagoSB(selEmpPago || empleados[0]?.num, formPago);
-    setFormPago({ fecha:"", monto:"", tipo:"Nómina", ref:"" }); setShowFormPago(false);
-  };
-  const eliminarPago = (empNum, id) => eliminarPagoSB(id);
-
-  // ── Tab 3: Documentos ──
+  // ── Tab 2: Documentos ──
   const toggleDoc = (num, key) => toggleDocSB(num, key);
 
-  // ── Tab 4: Desempeño ──
+  // ── Tab 3: Desempeño ──
   const [selEmpDesemp, setSelEmpDesemp]   = useState(null);
   const [showFormDesemp, setShowFormDesemp] = useState(false);
   const [formDesemp, setFormDesemp]       = useState({ fecha:"", puntualidad:4, calidad:4, actitud:4, productividad:4, nota:"" });
@@ -205,7 +190,7 @@ function PersonalDemo() {
     setFormDesemp({ fecha:"", puntualidad:4, calidad:4, actitud:4, productividad:4, nota:"" }); setShowFormDesemp(false);
   };
 
-  // ── Tab 5: Seguridad Social ──
+  // ── Tab 4: Seguridad Social ──
   const [editSeg, setEditSeg]   = useState(null);
   const [formSeg, setFormSeg]   = useState({ eps:"", fechaEPS:"", arl:"", fechaARL:"", estado:"Activo" });
 
@@ -235,13 +220,11 @@ function PersonalDemo() {
   const TABS_PERS = [
     { icon:"👥", label:"Directorio"    },
     { icon:"📄", label:"Contratos"     },
-    { icon:"💰", label:"Pagos"         },
     { icon:"📁", label:"Documentos"    },
     { icon:"⭐", label:"Desempeño"     },
     { icon:"🏥", label:"Seg. Social"   },
   ];
 
-  const empPagoActual  = selEmpPago  || empleados[0]?.num || "";
   const empDesempActual= selEmpDesemp|| empleados[0]?.num || "";
 
   if (loadingPersonal) return <LimonLoader texto="Cargando equipo" />;
@@ -569,112 +552,8 @@ function PersonalDemo() {
         );
       })()}
 
-      {/* ══ TAB 2: HISTORIAL DE PAGOS ══ */}
+      {/* ══ TAB 2: DOCUMENTOS ══ */}
       {tabPers===2 && (() => {
-        const histEmpRaw = pagosHist[empPagoActual] || [];
-        const histEmp    = histEmpRaw.filter(p=>{
-          if (filtroTipoPago!=="Todos" && p.tipo!==filtroTipoPago) return false;
-          if (filtroPagoDesde && p.fecha < filtroPagoDesde) return false;
-          if (filtroPagoHasta && p.fecha > filtroPagoHasta) return false;
-          return true;
-        });
-        const totalPag   = histEmp.reduce((s,p)=>s+Number(p.monto||0),0);
-        const empSelObj  = empleados.find(e=>e.num===empPagoActual);
-        return (
-          <div>
-            <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:4 }}>Empleado</div>
-              <CustomSelect value={empPagoActual} onChange={e=>setSelEmpPago(e.target.value)}
-                style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
-                {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
-              </CustomSelect>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:10 }}>
-              {[
-                { icon:"💰", l:"Total pagado",   v:fmtCOP(totalPag), c:"#00C9A7" },
-                { icon:"🧾", l:"Pagos registr.", v:histEmp.length,                         c:"#845EF7" },
-                { icon:"📅", l:"Último pago",    v:histEmp[0]?.fecha||"—",                c:"#F9A826" },
-              ].map((k,i)=>(
-                <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
-                  <div style={{ fontSize:15 }}>{k.icon}</div>
-                  <div style={{ fontSize:12, fontWeight:800, color:k.c, marginTop:1 }}>{k.v}</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:1, lineHeight:1.3 }}>{k.l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
-              <CustomSelect value={filtroTipoPago} onChange={e=>setFiltroTipoPago(e.target.value)} style={{...inp, flex:1, minWidth:100}}>
-                {["Todos","Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-              </CustomSelect>
-              <input type="date" value={filtroPagoDesde} onChange={e=>setFiltroPagoDesde(e.target.value)} title="Desde" style={{...inp, flex:1, minWidth:0}} />
-              <input type="date" value={filtroPagoHasta} onChange={e=>setFiltroPagoHasta(e.target.value)} title="Hasta" style={{...inp, flex:1, minWidth:0}} />
-              {(filtroTipoPago!=="Todos"||filtroPagoDesde||filtroPagoHasta) && <button onClick={()=>{setFiltroTipoPago("Todos");setFiltroPagoDesde("");setFiltroPagoHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
-            </div>
-            <button onClick={()=>setShowFormPago(!showFormPago)}
-              style={{ marginBottom:10, background:showFormPago?"rgba(132,94,247,0.2)":"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:8, padding:"6px 14px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>
-              ➕ Registrar pago
-            </button>
-            {showFormPago && (
-              <div style={{ background:"rgba(132,94,247,0.06)", border:"1px solid rgba(132,94,247,0.2)", borderRadius:12, padding:14, marginBottom:12 }}>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Fecha *</div>
-                      <input type="date" value={formPago.fecha} onChange={e=>setFormPago(f=>({...f,fecha:e.target.value}))} style={inp} />
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Monto COP *</div>
-                      <input type="number" placeholder="180000" value={formPago.monto} onChange={e=>setFormPago(f=>({...f,monto:e.target.value}))} style={inp} />
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Tipo</div>
-                      <CustomSelect value={formPago.tipo} onChange={e=>setFormPago(f=>({...f,tipo:e.target.value}))} style={inp}>
-                        {["Nómina","Quincena descargue","Bono","Anticipo","Liquidación","Otro"].map(t=><option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-                      </CustomSelect>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Referencia</div>
-                      <input placeholder="CONT-2026-044" value={formPago.ref} onChange={e=>setFormPago(f=>({...f,ref:e.target.value}))} style={inp} />
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={agregarPago} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar pago</button>
-                    <button onClick={()=>setShowFormPago(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.58)", cursor:"pointer" }}>Cancelar</button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {histEmp.length===0 ? (
-              <div style={{ textAlign:"center", padding:"30px", color:"rgba(255,255,255,0.38)", fontSize:12 }}>Sin pagos registrados para {empSelObj?.nombre?.split(" ")[0]}</div>
-            ) : (
-              <div>
-                {histEmp.map((p,i)=>(
-                  <div key={p.id||i} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(132,94,247,0.18)", borderRadius:10, padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                    <div>
-                      <div style={{ fontSize:11, color:"white", fontWeight:700 }}>{p.tipo}</div>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginTop:1 }}>{p.fecha}{p.ref?` · ${p.ref}`:""}</div>
-                    </div>
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <div style={{ fontSize:14, fontWeight:800, color:"#845EF7" }}>{fmtCOP(p.monto)}</div>
-                      <button onClick={()=>pedir("¿Eliminar este pago?",()=>eliminarPago(selEmpPago,p.id))}
-                        style={{ background:"rgba(255,80,80,0.08)", border:"none", borderRadius:5, padding:"4px 7px", fontSize:11, color:"rgba(255,80,80,0.6)", cursor:"pointer" }}>🗑</button>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 14px", borderTop:"1px solid rgba(255,255,255,0.10)", marginTop:4 }}>
-                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>Total pagado</span>
-                  <span style={{ fontSize:15, fontWeight:800, color:"#00C9A7" }}>{fmtCOP(totalPag)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* ══ TAB 3: DOCUMENTOS ══ */}
-      {tabPers===3 && (() => {
         const getN = emp => DOC_TIPOS_PERS.filter(t=>docs[emp.num]?.[t.key]).length;
         return (
           <div>
@@ -737,8 +616,8 @@ function PersonalDemo() {
         );
       })()}
 
-      {/* ══ TAB 4: DESEMPEÑO ══ */}
-      {tabPers===4 && (() => {
+      {/* ══ TAB 3: DESEMPEÑO ══ */}
+      {tabPers===3 && (() => {
         const histDesempRaw = desempeno[empDesempActual] || [];
         const histDesemp    = filtroMesDesemp ? histDesempRaw.filter(ev=>ev.fecha?.startsWith(filtroMesDesemp)) : histDesempRaw;
         const empSelObj  = empleados.find(e=>e.num===empDesempActual);
@@ -858,8 +737,8 @@ function PersonalDemo() {
         );
       })()}
 
-      {/* ══ TAB 5: SEGURIDAD SOCIAL ══ */}
-      {tabPers===5 && (() => {
+      {/* ══ TAB 4: SEGURIDAD SOCIAL ══ */}
+      {tabPers===4 && (() => {
         const sinEPS = empleados.filter(e=>!seguridad[e.num]?.eps);
         const sinARL = empleados.filter(e=>!seguridad[e.num]?.arl);
         const ambos  = empleados.filter(e=>seguridad[e.num]?.eps&&seguridad[e.num]?.arl);
@@ -984,6 +863,9 @@ function NominaDemo() {
 
   // Tab 3 — Contador
   const [periodoCtad, setPeriodoCtad] = useState(mesHoy);
+
+  // Tab 5 — Pagos por trabajador (estadísticas derivadas de liquidaciones)
+  const [selEmpPago, setSelEmpPago] = useState(null);
 
   // Tab 1 — Empleados / Tipos de pago
   const [tabEmpBusq, setTabEmpBusq] = useState("");
@@ -1132,7 +1014,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
     agregarLiquidacion(reg);
   };
 
-  const TABS_NOM = ["💰 Liquidador","👤 Empleados","🚢 Contenedores","📜 Historial","📋 Contador"];
+  const TABS_NOM = ["💰 Liquidador","👤 Empleados","🚢 Contenedores","📜 Historial","📋 Contador","📊 Pagos"];
   return (
     <div>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={()=>{confirm.fn();setConfirm(null);}} onCancel={()=>setConfirm(null)} />}
@@ -1832,6 +1714,41 @@ ${tabNomina}${tabCont}
                 📊 Descargar Reporte para Contador
               </button>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ TAB 5: PAGOS POR TRABAJADOR ═══ */}
+      {tabNom === 5 && (() => {
+        const empPagoActual = selEmpPago || empleados[0]?.num || "";
+        const empSelObj  = empleados.find(e=>e.num===empPagoActual);
+        const histEmp    = liquidaciones.filter(l=>l.empNum===empPagoActual);
+        const totalPag   = histEmp.reduce((s,l)=>s+Number(l.neto||0),0);
+        return (
+          <div>
+            <div style={{ marginBottom:10 }}>
+              <div style={lbl}>Empleado</div>
+              <CustomSelect value={empPagoActual} onChange={e=>setSelEmpPago(e.target.value)}
+                style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:8, padding:"8px 10px", color:"white", fontSize:11, fontFamily:"inherit" }}>
+                {empleados.map(e=><option key={e.num} value={e.num} style={{background:"#1a1a2e"}}>{e.nombre}</option>)}
+              </CustomSelect>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:10 }}>
+              {[
+                { icon:"💰", l:"Total pagado",   v:fmtCOP(totalPag), c:"#00C9A7" },
+                { icon:"🧾", l:"Pagos registr.", v:histEmp.length,   c:"#845EF7" },
+                { icon:"📅", l:"Último pago",    v:histEmp[0]?.fecha||"—", c:"#F9A826" },
+              ].map((k,i)=>(
+                <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
+                  <div style={{ fontSize:15 }}>{k.icon}</div>
+                  <div style={{ fontSize:12, fontWeight:800, color:k.c, marginTop:1 }}>{k.v}</div>
+                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:1, lineHeight:1.3 }}>{k.l}</div>
+                </div>
+              ))}
+            </div>
+            {histEmp.length===0 && (
+              <div style={{ textAlign:"center", padding:"30px", color:"rgba(255,255,255,0.38)", fontSize:12 }}>Sin pagos registrados para {empSelObj?.nombre?.split(" ")[0]} — genera colillas en el Liquidador</div>
+            )}
           </div>
         );
       })()}
