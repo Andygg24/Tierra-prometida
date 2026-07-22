@@ -206,7 +206,7 @@ export default function CanastillasTab({ mob }) {
 
       {vista === "generar" && (
         <GenerarView mob={mob} crearLote={crearLote} pedir={pedir} showToast={showToast} verPrevia={verPrevia}
-          totalCanastillas={canastillas.length} eliminarTodasCanastillas={eliminarTodasCanastillas} />
+          totalCanastillas={canastillas.length} eliminarTodasCanastillas={eliminarTodasCanastillas} canastillas={canastillas} />
       )}
 
       {vista === "escanear" && (
@@ -229,6 +229,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
   const [historial, setHistorial] = useState([]);
 
   const [expandidoProv, setExpandidoProv] = useState(null);
+  const [mostrarFaltantes, setMostrarFaltantes] = useState(false);
 
   const stats = useMemo(() => ({
     total:      canastillas.length,
@@ -385,33 +386,56 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
         </div>
       )}
 
-      <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:6, fontWeight:700 }}>
-        ❓ Faltantes desde la última ronda ({faltantes.length})
-      </div>
-      {faltantes.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas faltantes por revisar.</div>
-      ) : (
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-          {faltantes.map(c => (
-            <button key={c.id} onClick={() => marcarEncontrada(c.codigo)}
-              title="Marcar como encontrada"
-              style={{ fontSize:10, background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 8px", color:"#F9A826", cursor:"pointer" }}>
-              {c.codigo}
-            </button>
-          ))}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, fontWeight:700 }}>
+          ❓ Faltantes desde la última ronda ({faltantes.length})
         </div>
+        <button onClick={() => setMostrarFaltantes(v => !v)}
+          style={{ background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"#F9A826", cursor:"pointer" }}>
+          {mostrarFaltantes ? "Ocultar" : "Mostrar canastillas faltantes"}
+        </button>
+      </div>
+      {mostrarFaltantes && (
+        faltantes.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas faltantes por revisar.</div>
+        ) : (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {faltantes.map(c => (
+              <button key={c.id} onClick={() => marcarEncontrada(c.codigo)}
+                title="Marcar como encontrada"
+                style={{ fontSize:10, background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 8px", color:"#F9A826", cursor:"pointer" }}>
+                {c.codigo}
+              </button>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
 }
 
 // ── Vista: Generar QR ────────────────────────────────────────────────────────
-function GenerarView({ mob, crearLote, pedir, showToast, verPrevia, totalCanastillas, eliminarTodasCanastillas }) {
+function GenerarView({ mob, crearLote, pedir, showToast, verPrevia, totalCanastillas, eliminarTodasCanastillas, canastillas }) {
   const [prefijo, setPrefijo]   = useState("TP-");
   const [cantidad, setCantidad] = useState(50);
   const [obs, setObs]           = useState("");
   const [generando, setGenerando] = useState(false);
   const [reseteando, setReseteando] = useState(false);
+
+  // Mismo criterio que crearLote (orden de texto descendente de los códigos
+  // con ese prefijo) para que el número mostrado coincida con el que
+  // realmente se va a usar al generar.
+  const siguienteConsecutivo = useMemo(() => {
+    const pref = prefijo.trim();
+    if (!pref) return null;
+    const conPrefijo = canastillas
+      .map(c => c.codigo)
+      .filter(codigo => codigo.toUpperCase().startsWith(pref.toUpperCase()))
+      .sort((a, b) => b.localeCompare(a));
+    if (!conPrefijo.length) return 1;
+    const m = conPrefijo[0].slice(pref.length).match(/\d+/);
+    return m ? parseInt(m[0], 10) + 1 : 1;
+  }, [prefijo, canastillas]);
 
   const generar = () => {
     const n = parseInt(cantidad, 10);
@@ -451,6 +475,11 @@ function GenerarView({ mob, crearLote, pedir, showToast, verPrevia, totalCanasti
           <div>
             <div style={lbl}>Prefijo del código</div>
             <input value={prefijo} onChange={e => setPrefijo(e.target.value)} placeholder="TP-" style={inp} />
+            {siguienteConsecutivo !== null && (
+              <div style={{ fontSize:10, color:"#a78bfa", marginTop:4 }}>
+                Vas por el consecutivo <b>{prefijo.trim()}{String(siguienteConsecutivo).padStart(6, "0")}</b> — el próximo lote empezará ahí.
+              </div>
+            )}
           </div>
           <div>
             <div style={lbl}>Cantidad a generar</div>
