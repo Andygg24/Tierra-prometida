@@ -861,7 +861,7 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
   };
 
   const eliminarDelHistorial = (ronda) => {
-    pedir(`¿Eliminar del historial la ronda del ${ronda.fecha}? Las canastillas que quedaron "faltante" por esta ronda vuelven a "disponible" (así puedes iniciar un conteo nuevo sin arrastrar faltantes viejos) — el historial individual de cada canastilla no se pierde.`, async () => {
+    pedir(`¿Eliminar del historial la ronda del ${ronda.fecha}? Las canastillas que quedaron "faltante" por esta ronda vuelven a "disponible", y también se borran los movimientos que generó esta ronda (así no quedan sueltos en la actividad reciente) — el resto del historial de cada canastilla no se toca.`, async () => {
       const ok = await eliminarRonda(ronda.id);
       showToast(ok ? "Ronda eliminada del historial ✓" : "Error al eliminar", ok);
     });

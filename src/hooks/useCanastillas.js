@@ -375,12 +375,13 @@ export function useCanastillas() {
     return { ronda, encontradas, faltantes };
   }, []);
 
-  // Elimina una ronda cerrada del historial y deshace su efecto: las
-  // canastillas que quedaron "faltante" por esta ronda (y que nadie marcó
-  // manualmente como perdida/baja después) vuelven a "disponible" — la idea
-  // de borrar una ronda es poder arrancar un conteo nuevo sin arrastrar
-  // faltantes viejos. El historial de movimientos de cada canastilla no se
-  // pierde, solo queda sin ronda asociada.
+  // Elimina una ronda cerrada del historial y deshace su efecto por completo:
+  // las canastillas que quedaron "faltante" por esta ronda (y que nadie marcó
+  // manualmente como perdida/baja después) vuelven a "disponible", y se
+  // borran también los movimientos "conteo"/"faltante" que generó esta ronda
+  // — si solo se desvincularan (ronda_id a null) quedarían sueltos en el
+  // historial de cada canastilla y en "Actividad reciente", mostrando cosas
+  // como "faltante" para una canastilla que ya volvió a estar disponible.
   const eliminarRonda = useCallback(async (rondaId) => {
     const { data: faltanteRows } = await supabase.from("canastilla_movimientos")
       .select("canastilla_id").eq("ronda_id", rondaId).eq("tipo", "faltante");
@@ -394,6 +395,8 @@ export function useCanastillas() {
           .eq("estado", "faltante");
       }
     }
+
+    await supabase.from("canastilla_movimientos").delete().eq("ronda_id", rondaId);
 
     const { error } = await supabase.from("canastilla_rondas").delete().eq("id", rondaId);
     if (error) return false;
