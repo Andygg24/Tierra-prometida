@@ -29,8 +29,8 @@ function buildHojaEtiquetas(pares) {
   *{box-sizing:border-box}
   body{font-family:Arial,sans-serif;padding:16px;background:white}
   .grid{display:flex;flex-direction:column;align-items:center;gap:10px}
-  .etq{border:1px dashed #999;border-radius:6px;padding:8px;text-align:center;page-break-inside:avoid;width:154px}
-  .etq img{width:100%;max-width:126px;height:auto}
+  .etq{border:1px dashed #999;border-radius:6px;padding:8px;text-align:center;page-break-inside:avoid;width:131px}
+  .etq img{width:100%;max-width:107px;height:auto}
   .cod{font-size:11px;font-weight:700;margin-top:4px;color:#222;letter-spacing:0.5px}
   @media print{
     body{padding:0}
