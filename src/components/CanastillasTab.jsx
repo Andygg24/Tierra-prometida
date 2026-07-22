@@ -40,11 +40,75 @@ function buildHojaEtiquetas(pares) {
 <body><div class="grid">${celdas}</div></body></html>`;
 }
 
+const estiloInforme = `
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:900px;margin:0 auto;font-size:12px}
+  h1{color:#845EF7;margin-bottom:2px;font-size:20px}
+  .meta{font-size:11px;color:#888;margin-bottom:18px}
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .card{background:#f5f3ff;border:1px solid #e5deff;border-radius:10px;padding:12px 16px;min-width:110px;text-align:center}
+  .card-val{font-size:20px;font-weight:800;color:#845EF7;line-height:1}
+  .card-lbl{font-size:9px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+  h2{color:#845EF7;font-size:13px;font-weight:800;margin:20px 0 8px;border-bottom:2px solid #845EF730;padding-bottom:5px;text-transform:uppercase}
+  table{width:100%;border-collapse:collapse;margin-bottom:6px}
+  th{background:#845EF7;color:white;padding:7px 10px;text-align:left;font-size:11px}
+  td{padding:6px 10px;border-bottom:1px solid #eee}
+  tr:nth-child(even) td{background:#faf9ff}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{background:#f5f3ff;border:1px solid #e5deff;border-radius:6px;padding:3px 8px;font-size:10px;color:#4c2f9e}
+  .chip.warn{background:#fff7ed;border-color:#fed7aa;color:#c2410c}
+  .footer{text-align:center;color:#bbb;margin-top:26px;font-size:10px;border-top:1px solid #eee;padding-top:12px}
+`;
+
+// ── Informe: préstamos vigentes por proveedor ───────────────────────────────
+function buildInformePrestamo(porProveedor, totalPrestadas) {
+  const fechaHoy = new Date().toLocaleDateString("es-CO");
+  const filas = porProveedor.map(([proveedor, codigos]) => `
+    <tr>
+      <td><b>${proveedor}</b></td>
+      <td style="text-align:right">${codigos.length}</td>
+      <td><div class="chips">${codigos.map(c => `<span class="chip">${c}</span>`).join("")}</div></td>
+    </tr>`).join("");
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe de Préstamos — Canastillas</title>
+<style>${estiloInforme}</style></head><body>
+<h1>🤝 Informe de Préstamos — Canastillas</h1>
+<div class="meta">Generado: ${fechaHoy}</div>
+<div class="cards">
+  <div class="card"><div class="card-val">${totalPrestadas}</div><div class="card-lbl">Canastillas prestadas</div></div>
+  <div class="card"><div class="card-val">${porProveedor.length}</div><div class="card-lbl">Proveedores</div></div>
+</div>
+<h2>Detalle por proveedor</h2>
+<table><thead><tr><th>Proveedor</th><th style="text-align:right">Cantidad</th><th>Códigos</th></tr></thead>
+<tbody>${filas || `<tr><td colspan="3">No hay canastillas prestadas actualmente.</td></tr>`}</tbody></table>
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy}</div>
+</body></html>`;
+}
+
+// ── Informe: ronda de conteo ─────────────────────────────────────────────────
+function buildInformeRonda({ ronda, encontradas, faltantes }) {
+  const fechaHoy = new Date().toLocaleDateString("es-CO");
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Ronda de Conteo ${ronda.fecha}</title>
+<style>${estiloInforme}</style></head><body>
+<h1>🔄 Informe — Ronda de Conteo</h1>
+<div class="meta">Ronda del ${ronda.fecha} · Generado: ${fechaHoy}${ronda.obs ? ` · ${ronda.obs}` : ""}</div>
+<div class="cards">
+  <div class="card"><div class="card-val">${ronda.totalEsperadas}</div><div class="card-lbl">Esperadas</div></div>
+  <div class="card"><div class="card-val">${encontradas.length}</div><div class="card-lbl">Encontradas</div></div>
+  <div class="card"><div class="card-val">${faltantes.length}</div><div class="card-lbl">Faltantes</div></div>
+</div>
+<h2>✅ Encontradas (${encontradas.length})</h2>
+<div class="chips">${encontradas.length ? encontradas.map(c => `<span class="chip">${c}</span>`).join("") : "<span>Ninguna.</span>"}</div>
+<h2>❓ Faltantes (${faltantes.length})</h2>
+<div class="chips">${faltantes.length ? faltantes.map(c => `<span class="chip warn">${c}</span>`).join("") : "<span>Ninguna — conteo completo.</span>"}</div>
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy}</div>
+</body></html>`;
+}
+
 export default function CanastillasTab({ mob }) {
   const {
-    canastillas, rondaActiva, loading,
+    canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
-    iniciarRonda, registrarConteo, cerrarRonda,
+    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda,
   } = useCanastillas();
 
   const [vista, setVista] = useState("dashboard"); // dashboard | generar | escanear | ronda
@@ -113,7 +177,8 @@ export default function CanastillasTab({ mob }) {
 
       {vista === "dashboard" && (
         <DashboardView mob={mob} canastillas={canastillas} obtenerHistorial={obtenerHistorial} buscarPorCodigo={buscarPorCodigo}
-          pedir={pedir} showToast={showToast} reportarEstado={reportarEstado} registrarConteo={registrarConteo} rondaActiva={rondaActiva} />
+          pedir={pedir} showToast={showToast} reportarEstado={reportarEstado} registrarConteo={registrarConteo}
+          rondaActiva={rondaActiva} verPrevia={verPrevia} />
       )}
 
       {vista === "generar" && (
@@ -126,15 +191,15 @@ export default function CanastillasTab({ mob }) {
       )}
 
       {vista === "ronda" && (
-        <RondaView mob={mob} rondaActiva={rondaActiva} iniciarRonda={iniciarRonda} registrarConteo={registrarConteo}
-          cerrarRonda={cerrarRonda} pedir={pedir} showToast={showToast} />
+        <RondaView mob={mob} rondaActiva={rondaActiva} rondas={rondas} iniciarRonda={iniciarRonda} registrarConteo={registrarConteo}
+          cerrarRonda={cerrarRonda} obtenerInformeRonda={obtenerInformeRonda} pedir={pedir} showToast={showToast} verPrevia={verPrevia} />
       )}
     </div>
   );
 }
 
 // ── Vista: Resumen ──────────────────────────────────────────────────────────
-function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva }) {
+function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva, verPrevia }) {
   const [busqueda, setBusqueda]   = useState("");
   const [encontrada, setEncontrada] = useState(null); // canastilla o "not_found"
   const [historial, setHistorial] = useState([]);
@@ -169,11 +234,15 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
   };
 
   const reportar = (tipo) => {
-    const label = tipo === "perdida" ? "reportar como perdida" : "dar de baja";
-    pedir(`¿Confirmas ${label} la canastilla ${encontrada.codigo}?`, async () => {
-      const ok = await reportarEstado(encontrada.codigo, { tipo, fecha: hoyISO() });
+    const codigo = encontrada.codigo;
+    const label = tipo === "perdida" ? "reportar como perdida" : "marcar como dañada (dar de baja)";
+    pedir(`¿Confirmas ${label} la canastilla ${codigo}?`, async () => {
+      const ok = await reportarEstado(codigo, { tipo, fecha: hoyISO() });
       showToast(ok ? "Actualizado ✓" : "Error al actualizar", ok);
-      if (ok) buscar();
+      if (ok) {
+        setEncontrada(prev => (prev && prev !== "not_found" ? { ...prev, estado: tipo, proveedorActual: null } : prev));
+        setHistorial(await obtenerHistorial(codigo));
+      }
     });
   };
 
@@ -181,6 +250,10 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
     pedir(`¿Marcar ${codigo} como encontrada (vuelve a "disponible")?`, async () => {
       const res = await registrarConteo(codigo, rondaActiva?.id || null);
       showToast(res.ok ? "Marcada como disponible ✓" : "Error", res.ok);
+      if (res.ok && encontrada && encontrada !== "not_found" && encontrada.codigo === codigo) {
+        setEncontrada(prev => ({ ...prev, estado: "disponible", proveedorActual: null }));
+        setHistorial(await obtenerHistorial(codigo));
+      }
     });
   };
 
@@ -203,10 +276,13 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
       </div>
 
       <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:12, marginBottom:14 }}>
-        <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", fontWeight:700, marginBottom:8 }}>🔍 Buscar canastilla por código</div>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", fontWeight:700, marginBottom:8 }}>🔍 Elegir / buscar canastilla</div>
         <div style={{ display:"flex", gap:6 }}>
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)} onKeyDown={e => e.key === "Enter" && buscar()}
-            placeholder="TP-000123" style={{ ...inp, flex:1 }} />
+            placeholder="Escribe o elige un código…" list="lista-codigos-canastillas" style={{ ...inp, flex:1 }} />
+          <datalist id="lista-codigos-canastillas">
+            {canastillas.map(c => <option key={c.id} value={c.codigo} />)}
+          </datalist>
           <button onClick={buscar} style={btnPrimario(false, false)}>Buscar</button>
         </div>
         {encontrada === "not_found" && (
@@ -237,14 +313,20 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
                 <button onClick={() => marcarEncontrada(encontrada.codigo)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#00C9A7", cursor:"pointer" }}>Marcar encontrada</button>
               )}
               <button onClick={() => reportar("perdida")} style={btnTablaEliminar}>Reportar pérdida</button>
-              <button onClick={() => reportar("baja")} style={btnTablaEliminar}>Dar de baja</button>
+              <button onClick={() => reportar("baja")} style={btnTablaEliminar}>🔧 Marcar dañada</button>
             </div>
           </div>
         )}
       </div>
 
-      <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:6, fontWeight:700 }}>
-        🤝 Prestadas por proveedor ({porProveedor.length})
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, fontWeight:700 }}>
+          🤝 Prestadas por proveedor ({porProveedor.length})
+        </div>
+        <button onClick={() => verPrevia(buildInformePrestamo(porProveedor, stats.prestada), `Informe_Prestamos_Canastillas_${hoyISO()}.html`)}
+          style={{ background:"rgba(14,165,233,0.12)", border:"1px solid rgba(14,165,233,0.3)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"#38bdf8", cursor:"pointer" }}>
+          📄 Informe
+        </button>
       </div>
       {porProveedor.length === 0 ? (
         <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas prestadas actualmente.</div>
@@ -482,7 +564,7 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
 }
 
 // ── Vista: Ronda de conteo ───────────────────────────────────────────────────
-function RondaView({ mob, rondaActiva, iniciarRonda, registrarConteo, cerrarRonda, pedir, showToast }) {
+function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, pedir, showToast, verPrevia }) {
   const [obsInicio, setObsInicio] = useState("");
   const [iniciando, setIniciando] = useState(false);
   const [cerrando, setCerrando]   = useState(false);
@@ -547,10 +629,15 @@ function RondaView({ mob, rondaActiva, iniciarRonda, registrarConteo, cerrarRond
     });
   };
 
+  const verInforme = async (ronda) => {
+    const detalle = await obtenerInformeRonda(ronda);
+    verPrevia(buildInformeRonda(detalle), `Informe_Ronda_Conteo_${ronda.fecha}.html`);
+  };
+
   if (!rondaActiva) {
     return (
-      <div style={{ maxWidth:420 }}>
-        <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:14 }}>
+      <div style={{ maxWidth:480 }}>
+        <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:14, marginBottom:16 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", marginBottom:10 }}>🔄 Nueva ronda de conteo</div>
           <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:10, lineHeight:1.5 }}>
             Recorre la bodega y escanea todas las canastillas que encuentres. Al cerrar la ronda, las que no aparecieron quedan marcadas como "faltante" para que las revises.
@@ -563,6 +650,30 @@ function RondaView({ mob, rondaActiva, iniciarRonda, registrarConteo, cerrarRond
             {iniciando ? "Iniciando…" : "▶️ Iniciar ronda de conteo"}
           </button>
         </div>
+
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:6, fontWeight:700 }}>
+          📜 Historial de rondas ({rondas.length})
+        </div>
+        {rondas.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Aún no se ha cerrado ninguna ronda.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {rondas.map(r => (
+              <div key={r.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:10, padding:"8px 12px" }}>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"white" }}>{r.fecha}</div>
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:1 }}>
+                    {r.totalEncontradas} de {r.totalEsperadas} encontradas
+                    {r.totalEsperadas - r.totalEncontradas > 0 && <span style={{ color:"#F9A826" }}> · {r.totalEsperadas - r.totalEncontradas} faltantes</span>}
+                  </div>
+                </div>
+                <button onClick={() => verInforme(r)} style={{ background:"rgba(132,94,247,0.12)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"#a78bfa", cursor:"pointer" }}>
+                  📄 Ver informe
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

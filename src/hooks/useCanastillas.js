@@ -39,6 +39,7 @@ const chunk = (arr, size) => {
 export function useCanastillas() {
   const [canastillas, setCanastillas] = useState([]);
   const [rondaActiva, setRondaActiva] = useState(null);
+  const [rondas, setRondas] = useState([]); // rondas cerradas, más reciente primero
   const [loading, setLoading] = useState(true);
 
   const pendingRef    = useRef([]);
@@ -49,11 +50,14 @@ export function useCanastillas() {
     let cancelled = false;
     Promise.all([
       supabase.from("canastillas").select("*").order("codigo"),
-      supabase.from("canastilla_rondas").select("*").eq("cerrada", false).order("created_at", { ascending: false }).limit(1),
-    ]).then(([{ data: cs }, { data: rondas }]) => {
+      supabase.from("canastilla_rondas").select("*").order("created_at", { ascending: false }),
+    ]).then(([{ data: cs }, { data: rondasData }]) => {
       if (cancelled) return;
       setCanastillas((cs || []).map(rowToCanastilla));
-      setRondaActiva(rondas?.[0] ? rowToRonda(rondas[0]) : null);
+      const activa  = (rondasData || []).find(r => !r.cerrada);
+      const cerradas = (rondasData || []).filter(r => r.cerrada);
+      setRondaActiva(activa ? rowToRonda(activa) : null);
+      setRondas(cerradas.map(rowToRonda));
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -89,10 +93,12 @@ export function useCanastillas() {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "canastilla_rondas" }, ({ new: row, eventType }) => {
         if (eventType !== "DELETE" && row) {
-          setRondaActiva(prev => {
-            if (row.cerrada) return prev?.id === row.id ? null : prev;
-            return rowToRonda(row);
-          });
+          if (row.cerrada) {
+            setRondaActiva(prev => (prev?.id === row.id ? null : prev));
+            setRondas(prev => prev.some(r => r.id === row.id) ? prev : [rowToRonda(row), ...prev]);
+          } else {
+            setRondaActiva(rowToRonda(row));
+          }
         }
       })
       .subscribe();
@@ -299,13 +305,23 @@ export function useCanastillas() {
     const encontradasIds = new Set((encontradasRows || []).map(r => r.canastilla_id));
 
     const esperadas = canastillas.filter(c => c.estado === "disponible" || c.estado === "faltante");
-    const faltantesIds = esperadas.filter(c => !encontradasIds.has(c.id)).map(c => c.id);
+    const faltantes = esperadas.filter(c => !encontradasIds.has(c.id));
+    const faltantesIds = faltantes.map(c => c.id);
+    const fechaHoy = new Date().toISOString().split("T")[0];
 
     for (const parte of chunk(faltantesIds, CHUNK)) {
       if (!parte.length) continue;
       await supabase.from("canastillas")
-        .update({ estado: "faltante", fecha_ultimo_movimiento: new Date().toISOString().split("T")[0] })
+        .update({ estado: "faltante", fecha_ultimo_movimiento: fechaHoy })
         .in("id", parte);
+    }
+
+    const baseMov = Date.now();
+    const filasFaltante = faltantes.map((c, i) => ({
+      id: baseMov + i, canastilla_id: c.id, codigo: c.codigo, tipo: "faltante", ronda_id: rondaId, fecha: fechaHoy,
+    }));
+    for (const parte of chunk(filasFaltante, CHUNK)) {
+      await supabase.from("canastilla_movimientos").insert(parte);
     }
 
     const { error } = await supabase.from("canastilla_rondas").update({
@@ -314,13 +330,26 @@ export function useCanastillas() {
     if (error) return { ok: false };
 
     setCanastillas(prev => prev.map(c => faltantesIds.includes(c.id) ? { ...c, estado: "faltante" } : c));
+    const rondaCerrada = rondaActiva?.id === rondaId
+      ? { ...rondaActiva, cerrada: true, totalEncontradas: encontradasIds.size }
+      : null;
     setRondaActiva(null);
+    if (rondaCerrada) setRondas(rs => [rondaCerrada, ...rs]);
     return { ok: true, encontradas: encontradasIds.size, faltantes: faltantesIds.length };
-  }, [canastillas]);
+  }, [canastillas, rondaActiva]);
+
+  // Reconstruye el detalle de una ronda (encontradas / faltantes) para el informe.
+  const obtenerInformeRonda = useCallback(async (ronda) => {
+    const { data } = await supabase.from("canastilla_movimientos")
+      .select("codigo, tipo, fecha").eq("ronda_id", ronda.id).in("tipo", ["conteo", "faltante"]);
+    const encontradas = (data || []).filter(m => m.tipo === "conteo").map(m => m.codigo).sort();
+    const faltantes   = (data || []).filter(m => m.tipo === "faltante").map(m => m.codigo).sort();
+    return { ronda, encontradas, faltantes };
+  }, []);
 
   return {
-    canastillas, rondaActiva, loading,
+    canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
-    iniciarRonda, registrarConteo, cerrarRonda,
+    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda,
   };
 }
