@@ -19,11 +19,13 @@ const hoyISO = () => new Date().toISOString().split("T")[0];
 
 // ── Hoja de etiquetas imprimible (HTML autocontenido) ──────────────────────
 function buildHojaEtiquetas(pares) {
-  const celdas = pares.map(({ codigo, dataUrl }) => `
+  const unaEtiqueta = ({ codigo, dataUrl }) => `
     <div class="etq">
       <img src="${dataUrl}" alt="${codigo}" />
       <div class="cod">${codigo}</div>
-    </div>`).join("");
+    </div>`;
+  // Cada canastilla se imprime dos veces seguidas (misma, repetida) antes de pasar a la siguiente.
+  const celdas = pares.flatMap(p => [unaEtiqueta(p), unaEtiqueta(p)]).join("");
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Etiquetas Canastillas</title>
 <style>
   *{box-sizing:border-box}
