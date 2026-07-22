@@ -41,9 +41,13 @@ function buildHojaEtiquetas(pares) {
 }
 
 export default function CanastillasTab({ mob }) {
-  const { canastillas, loading, crearLote, confirmarLoteEscaneo, reportarEstado, obtenerHistorial, buscarPorCodigo } = useCanastillas();
+  const {
+    canastillas, rondaActiva, loading,
+    crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
+    iniciarRonda, registrarConteo, cerrarRonda,
+  } = useCanastillas();
 
-  const [vista, setVista] = useState("dashboard"); // dashboard | generar | escanear
+  const [vista, setVista] = useState("dashboard"); // dashboard | generar | escanear | ronda
   const [confirm, setConfirm] = useState(null);
   const pedir = (msg, fn) => setConfirm({ msg, fn });
   const [toast, setToast] = useState(null);
@@ -59,7 +63,8 @@ export default function CanastillasTab({ mob }) {
   const VISTAS = [
     { id: "dashboard", icon: "📋", label: "Resumen" },
     { id: "generar",   icon: "🏷️", label: "Generar QR" },
-    { id: "escanear",  icon: "📷", label: "Escanear" },
+    { id: "escanear",  icon: "🤝", label: "Préstamo / Devolución" },
+    { id: "ronda",     icon: "🔄", label: "Ronda de conteo" },
   ];
 
   return (
@@ -101,14 +106,14 @@ export default function CanastillasTab({ mob }) {
         {VISTAS.map(v => (
           <button key={v.id} onClick={() => setVista(v.id)}
             style={{ background: vista===v.id ? "rgba(132,94,247,0.2)" : "rgba(255,255,255,0.04)", border:`1px solid ${vista===v.id ? "rgba(132,94,247,0.5)" : "rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:11, color: vista===v.id ? "#a78bfa" : "rgba(255,255,255,0.4)", fontWeight: vista===v.id ? 700 : 400 }}>
-            {v.icon} {v.label}
+            {v.icon} {v.label}{v.id==="ronda" && rondaActiva ? " ●" : ""}
           </button>
         ))}
       </div>
 
       {vista === "dashboard" && (
         <DashboardView mob={mob} canastillas={canastillas} obtenerHistorial={obtenerHistorial} buscarPorCodigo={buscarPorCodigo}
-          pedir={pedir} showToast={showToast} reportarEstado={reportarEstado} />
+          pedir={pedir} showToast={showToast} reportarEstado={reportarEstado} registrarConteo={registrarConteo} rondaActiva={rondaActiva} />
       )}
 
       {vista === "generar" && (
@@ -116,26 +121,35 @@ export default function CanastillasTab({ mob }) {
       )}
 
       {vista === "escanear" && (
-        <EscanearView mob={mob} buscarPorCodigo={buscarPorCodigo} confirmarLoteEscaneo={confirmarLoteEscaneo}
+        <EscanearView mob={mob} buscarPorCodigo={buscarPorCodigo} confirmarLotePrestamo={confirmarLotePrestamo}
           pedir={pedir} showToast={showToast} />
+      )}
+
+      {vista === "ronda" && (
+        <RondaView mob={mob} rondaActiva={rondaActiva} iniciarRonda={iniciarRonda} registrarConteo={registrarConteo}
+          cerrarRonda={cerrarRonda} pedir={pedir} showToast={showToast} />
       )}
     </div>
   );
 }
 
 // ── Vista: Resumen ──────────────────────────────────────────────────────────
-function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado }) {
+function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva }) {
   const [busqueda, setBusqueda]   = useState("");
   const [encontrada, setEncontrada] = useState(null); // canastilla o "not_found"
   const [historial, setHistorial] = useState([]);
-  const [expandido, setExpandido] = useState(null);
+
+  const [expandidoProv, setExpandidoProv] = useState(null);
 
   const stats = useMemo(() => ({
     total:      canastillas.length,
     disponible: canastillas.filter(c => c.estado === "disponible").length,
     prestada:   canastillas.filter(c => c.estado === "prestada").length,
+    faltante:   canastillas.filter(c => c.estado === "faltante").length,
     baja:       canastillas.filter(c => c.estado === "perdida" || c.estado === "baja").length,
   }), [canastillas]);
+
+  const faltantes = useMemo(() => canastillas.filter(c => c.estado === "faltante"), [canastillas]);
 
   const porProveedor = useMemo(() => {
     const mapa = {};
@@ -163,13 +177,21 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
     });
   };
 
+  const marcarEncontrada = (codigo) => {
+    pedir(`¿Marcar ${codigo} como encontrada (vuelve a "disponible")?`, async () => {
+      const res = await registrarConteo(codigo, rondaActiva?.id || null);
+      showToast(res.ok ? "Marcada como disponible ✓" : "Error", res.ok);
+    });
+  };
+
   return (
     <div>
-      <div style={{ display:"grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(4,1fr)", gap:8, marginBottom:14 }}>
+      <div style={{ display:"grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(5,1fr)", gap:8, marginBottom:14 }}>
         {[
           { icon:"📦", l:"Total",        v:stats.total,      c:"#845EF7" },
           { icon:"✅", l:"Disponibles",  v:stats.disponible, c:"#00C9A7" },
-          { icon:"🤝", l:"Prestadas",    v:stats.prestada,   c:"#F9A826" },
+          { icon:"🤝", l:"Prestadas",    v:stats.prestada,   c:"#0EA5E9" },
+          { icon:"❓", l:"Faltantes",    v:stats.faltante,   c:"#F9A826" },
           { icon:"⚠️", l:"Perdidas/Baja",v:stats.baja,       c:"#FF6B6B" },
         ].map((s, i) => (
           <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${s.c}22`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
@@ -194,8 +216,8 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
           <div style={{ marginTop:10, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:10 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
               <span style={{ fontSize:12, fontWeight:700, color:"white" }}>{encontrada.codigo}</span>
-              <span style={{ fontSize:10, fontWeight:700, color: encontrada.estado==="disponible"?"#00C9A7":encontrada.estado==="prestada"?"#F9A826":"#FF6B6B" }}>
-                {encontrada.estado.toUpperCase()}{encontrada.proveedorActual ? ` · ${encontrada.proveedorActual}` : ""}
+              <span style={{ fontSize:10, fontWeight:700, color: encontrada.estado==="disponible"?"#00C9A7":encontrada.estado==="faltante"?"#F9A826":"#FF6B6B" }}>
+                {encontrada.estado.toUpperCase()}
               </span>
             </div>
             {historial.length === 0 ? (
@@ -204,13 +226,16 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
               <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
                 {historial.map(m => (
                   <div key={m.id} style={{ fontSize:10, color:"rgba(255,255,255,0.55)", display:"flex", justifyContent:"space-between" }}>
-                    <span>{m.fecha} · {m.tipo}{m.proveedor ? ` · ${m.proveedor}` : ""}</span>
+                    <span>{m.fecha} · {m.tipo}</span>
                     {m.obs && <span style={{ color:"rgba(255,255,255,0.35)" }}>{m.obs}</span>}
                   </div>
                 ))}
               </div>
             )}
             <div style={{ display:"flex", gap:6 }}>
+              {encontrada.estado !== "disponible" && (
+                <button onClick={() => marcarEncontrada(encontrada.codigo)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#00C9A7", cursor:"pointer" }}>Marcar encontrada</button>
+              )}
               <button onClick={() => reportar("perdida")} style={btnTablaEliminar}>Reportar pérdida</button>
               <button onClick={() => reportar("baja")} style={btnTablaEliminar}>Dar de baja</button>
             </div>
@@ -222,17 +247,17 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
         🤝 Prestadas por proveedor ({porProveedor.length})
       </div>
       {porProveedor.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas prestadas actualmente.</div>
+        <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas prestadas actualmente.</div>
       ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
           {porProveedor.map(([proveedor, codigos]) => (
             <div key={proveedor} style={{ border:"1px solid rgba(255,255,255,0.11)", borderRadius:10, overflow:"hidden" }}>
-              <button onClick={() => setExpandido(expandido === proveedor ? null : proveedor)}
-                style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background: expandido===proveedor ? "rgba(249,168,38,0.12)" : "rgba(255,255,255,0.03)", padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%", border:"none" }}>
-                <span style={{ fontSize:12, fontWeight:700, color: expandido===proveedor ? "#F9A826" : "white" }}>{proveedor}</span>
-                <span style={{ fontSize:12, fontWeight:800, color:"#F9A826" }}>{codigos.length} canastilla{codigos.length!==1?"s":""}</span>
+              <button onClick={() => setExpandidoProv(expandidoProv === proveedor ? null : proveedor)}
+                style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background: expandidoProv===proveedor ? "rgba(14,165,233,0.12)" : "rgba(255,255,255,0.03)", padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%", border:"none" }}>
+                <span style={{ fontSize:12, fontWeight:700, color: expandidoProv===proveedor ? "#38bdf8" : "white" }}>{proveedor}</span>
+                <span style={{ fontSize:12, fontWeight:800, color:"#38bdf8" }}>{codigos.length} canastilla{codigos.length!==1?"s":""}</span>
               </button>
-              {expandido === proveedor && (
+              {expandidoProv === proveedor && (
                 <div style={{ padding:"8px 14px", background:"rgba(0,0,0,0.2)", display:"flex", flexWrap:"wrap", gap:6 }}>
                   {codigos.map(c => (
                     <span key={c} style={{ fontSize:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, padding:"3px 8px", color:"rgba(255,255,255,0.7)" }}>{c}</span>
@@ -240,6 +265,23 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
                 </div>
               )}
             </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:6, fontWeight:700 }}>
+        ❓ Faltantes desde la última ronda ({faltantes.length})
+      </div>
+      {faltantes.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas faltantes por revisar.</div>
+      ) : (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+          {faltantes.map(c => (
+            <button key={c.id} onClick={() => marcarEncontrada(c.codigo)}
+              title="Marcar como encontrada"
+              style={{ fontSize:10, background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 8px", color:"#F9A826", cursor:"pointer" }}>
+              {c.codigo}
+            </button>
           ))}
         </div>
       )}
@@ -303,8 +345,8 @@ function GenerarView({ mob, crearLote, pedir, showToast, verPrevia }) {
   );
 }
 
-// ── Vista: Escanear ──────────────────────────────────────────────────────────
-function EscanearView({ mob, buscarPorCodigo, confirmarLoteEscaneo, pedir, showToast }) {
+// ── Vista: Préstamo / Devolución ──────────────────────────────────────────────
+function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, showToast }) {
   const [accion, setAccion]       = useState("prestamo");
   const [proveedor, setProveedor] = useState("");
   const [fecha, setFecha]         = useState(hoyISO());
@@ -337,7 +379,7 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLoteEscaneo, pedir, showT
         () => {}
       );
       setCamActiva(true);
-    } catch (err) {
+    } catch {
       setCamError("No se pudo acceder a la cámara. Usa el campo manual de abajo.");
     }
   };
@@ -354,10 +396,10 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLoteEscaneo, pedir, showT
 
   const guardarLote = () => {
     if (escaneados.length === 0) return;
-    if ((accion === "prestamo") && !proveedor.trim()) { showToast("Escribe el proveedor para registrar el préstamo", false); return; }
+    if (accion === "prestamo" && !proveedor.trim()) { showToast("Escribe el proveedor para registrar el préstamo", false); return; }
     pedir(`¿Guardar ${escaneados.length} canastilla${escaneados.length!==1?"s":""} como "${ACCIONES.find(a=>a.value===accion)?.label}"?`, async () => {
       setGuardando(true);
-      const { actualizados, creados } = await confirmarLoteEscaneo({
+      const { actualizados, creados } = await confirmarLotePrestamo({
         codigos: escaneados.map(e => e.codigo), tipo: accion, proveedor: proveedor.trim() || null, fecha, obs,
       });
       showToast(`Lote guardado — ${actualizados} actualizadas, ${creados} nuevas registradas ✓`);
@@ -370,7 +412,7 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLoteEscaneo, pedir, showT
     <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap:14 }}>
       <div>
         <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:14, marginBottom:12 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", marginBottom:10 }}>📷 Configurar escaneo</div>
+          <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", marginBottom:10 }}>🤝 Configurar préstamo/devolución</div>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             <div>
               <div style={lbl}>Acción</div>
@@ -434,6 +476,142 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLoteEscaneo, pedir, showT
         <button onClick={guardarLote} disabled={escaneados.length === 0 || guardando} style={{ ...btnPrimario(true, guardando), width:"100%" }}>
           {guardando ? "Guardando…" : `💾 Guardar lote (${escaneados.length})`}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Vista: Ronda de conteo ───────────────────────────────────────────────────
+function RondaView({ mob, rondaActiva, iniciarRonda, registrarConteo, cerrarRonda, pedir, showToast }) {
+  const [obsInicio, setObsInicio] = useState("");
+  const [iniciando, setIniciando] = useState(false);
+  const [cerrando, setCerrando]   = useState(false);
+
+  const [contadas, setContadas]   = useState([]); // {codigo, nueva} vistas en esta sesión de escaneo
+  const [manual, setManual]       = useState("");
+  const [camActiva, setCamActiva] = useState(false);
+  const [camError, setCamError]   = useState("");
+  const html5QrRef = useRef(null);
+  const READER_ID  = "qr-reader-ronda";
+
+  useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => {}); }, []);
+
+  const empezar = () => {
+    pedir("¿Iniciar una nueva ronda de conteo? Se tomará una foto de cuántas canastillas deberían estar disponibles ahora mismo.", async () => {
+      setIniciando(true);
+      const ronda = await iniciarRonda({ fecha: hoyISO(), obs: obsInicio });
+      showToast(ronda ? `Ronda iniciada — ${ronda.totalEsperadas} canastillas esperadas` : "Error al iniciar la ronda", !!ronda);
+      setIniciando(false);
+    });
+  };
+
+  const escanear = async (codigoRaw) => {
+    const codigo = (codigoRaw || "").trim().toUpperCase();
+    if (!codigo || contadas.some(c => c.codigo === codigo)) return;
+    const res = await registrarConteo(codigo, rondaActiva.id);
+    if (res.ok) setContadas(prev => [{ codigo, nueva: res.nueva }, ...prev]);
+  };
+
+  const iniciarCamara = async () => {
+    setCamError("");
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const inst = new Html5Qrcode(READER_ID);
+      html5QrRef.current = inst;
+      await inst.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 240 },
+        (decoded) => escanear(decoded),
+        () => {}
+      );
+      setCamActiva(true);
+    } catch {
+      setCamError("No se pudo acceder a la cámara. Usa el campo manual de abajo.");
+    }
+  };
+
+  const detenerCamara = async () => {
+    try { await html5QrRef.current?.stop(); html5QrRef.current?.clear(); } catch {}
+    html5QrRef.current = null;
+    setCamActiva(false);
+  };
+
+  const cerrar = () => {
+    pedir(`¿Cerrar la ronda? Las canastillas esperadas que no se escanearon quedarán marcadas como "faltante" para revisar.`, async () => {
+      setCerrando(true);
+      await detenerCamara();
+      const res = await cerrarRonda(rondaActiva.id);
+      showToast(res.ok ? `Ronda cerrada — ${res.encontradas} encontradas, ${res.faltantes} faltantes` : "Error al cerrar la ronda", res.ok);
+      setContadas([]);
+      setCerrando(false);
+    });
+  };
+
+  if (!rondaActiva) {
+    return (
+      <div style={{ maxWidth:420 }}>
+        <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:14 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", marginBottom:10 }}>🔄 Nueva ronda de conteo</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:10, lineHeight:1.5 }}>
+            Recorre la bodega y escanea todas las canastillas que encuentres. Al cerrar la ronda, las que no aparecieron quedan marcadas como "faltante" para que las revises.
+          </div>
+          <div>
+            <div style={lbl}>Observaciones (opcional)</div>
+            <input value={obsInicio} onChange={e => setObsInicio(e.target.value)} style={inp} />
+          </div>
+          <button onClick={empezar} disabled={iniciando} style={{ ...btnPrimario(false, iniciando), width:"100%", marginTop:10 }}>
+            {iniciando ? "Iniciando…" : "▶️ Iniciar ronda de conteo"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap:14 }}>
+      <div>
+        <div style={{ background:"rgba(132,94,247,0.08)", border:"1px solid rgba(132,94,247,0.25)", borderRadius:12, padding:12, marginBottom:12 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa" }}>Ronda del {rondaActiva.fecha}</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", marginTop:2 }}>{rondaActiva.totalEsperadas} canastillas esperadas</div>
+        </div>
+
+        {!camActiva ? (
+          <button onClick={iniciarCamara} style={{ ...btnPrimario(false, false), width:"100%" }}>▶️ Iniciar cámara</button>
+        ) : (
+          <button onClick={detenerCamara} style={{ ...btnSecundario, width:"100%" }}>⏹ Detener cámara</button>
+        )}
+        <div id={READER_ID} style={{ marginTop:10, borderRadius:10, overflow:"hidden", background: camActiva ? "black" : "transparent" }} />
+        {camError && <div style={{ fontSize:11, color:"#FF6B6B", marginTop:8 }}>{camError}</div>}
+
+        <div style={{ marginTop:12 }}>
+          <div style={lbl}>O escribe el código manualmente</div>
+          <div style={{ display:"flex", gap:6 }}>
+            <input value={manual} onChange={e => setManual(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { escanear(manual); setManual(""); } }}
+              placeholder="TP-000123" style={{ ...inp, flex:1 }} />
+            <button onClick={() => { escanear(manual); setManual(""); }} style={btnSecundario}>Agregar</button>
+          </div>
+        </div>
+
+        <button onClick={cerrar} disabled={cerrando} style={{ ...btnPrimario(true, cerrando), width:"100%", marginTop:16 }}>
+          {cerrando ? "Cerrando…" : "🏁 Cerrar ronda"}
+        </button>
+      </div>
+
+      <div>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:6, fontWeight:700 }}>
+          Contadas en esta sesión ({contadas.length})
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:5, maxHeight:400, overflowY:"auto" }}>
+          {contadas.length === 0 && (
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)", padding:"12px 0" }}>Aún no has escaneado ninguna canastilla en esta ronda.</div>
+          )}
+          {contadas.map(c => (
+            <div key={c.codigo} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:8, padding:"6px 10px" }}>
+              <span style={{ fontSize:11, color:"white" }}>{c.codigo}</span>
+              {c.nueva && <span style={{ fontSize:9, color:"#F9A826", fontWeight:700 }}>nueva — registrada</span>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -6,10 +6,28 @@ const CHUNK = 500;
 const rowToCanastilla = (r) => ({
   id:                     r.id,
   codigo:                 r.codigo,
-  estado:                 r.estado || "disponible",
+  estado:                 r.estado || "disponible", // disponible|prestada|faltante|perdida|baja
   proveedorActual:        r.proveedor_actual || null,
   fechaUltimoMovimiento:  r.fecha_ultimo_movimiento || null,
   obs:                    r.obs || "",
+});
+
+// tipo de movimiento -> nuevo estado/proveedor de la canastilla
+const efectoTipo = (tipo, proveedor) => {
+  if (tipo === "prestamo")   return { estado: "prestada", proveedor_actual: proveedor || null };
+  if (tipo === "devolucion") return { estado: "disponible", proveedor_actual: null };
+  if (tipo === "perdida")    return { estado: "perdida", proveedor_actual: null };
+  if (tipo === "baja")       return { estado: "baja", proveedor_actual: null };
+  return { estado: "disponible", proveedor_actual: null };
+};
+
+const rowToRonda = (r) => ({
+  id:                r.id,
+  fecha:             r.fecha,
+  obs:               r.obs || "",
+  totalEsperadas:    r.total_esperadas || 0,
+  totalEncontradas:  r.total_encontradas || 0,
+  cerrada:           !!r.cerrada,
 });
 
 const chunk = (arr, size) => {
@@ -18,35 +36,30 @@ const chunk = (arr, size) => {
   return out;
 };
 
-// tipo de movimiento -> nuevo estado/proveedor de la canastilla
-const efectoTipo = (tipo, proveedor) => {
-  if (tipo === "alta" || tipo === "prestamo") return { estado: "prestada", proveedor_actual: proveedor || null };
-  if (tipo === "devolucion")                 return { estado: "disponible", proveedor_actual: null };
-  if (tipo === "perdida")                    return { estado: "perdida", proveedor_actual: null };
-  if (tipo === "baja")                       return { estado: "baja", proveedor_actual: null };
-  return { estado: "disponible", proveedor_actual: null };
-};
-
 export function useCanastillas() {
   const [canastillas, setCanastillas] = useState([]);
+  const [rondaActiva, setRondaActiva] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const pendingRef   = useRef([]);
+  const pendingRef    = useRef([]);
   const flushTimerRef = useRef(null);
 
   // ── Carga inicial ────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    supabase.from("canastillas").select("*").order("codigo")
-      .then(({ data }) => {
-        if (cancelled) return;
-        setCanastillas((data || []).map(rowToCanastilla));
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from("canastillas").select("*").order("codigo"),
+      supabase.from("canastilla_rondas").select("*").eq("cerrada", false).order("created_at", { ascending: false }).limit(1),
+    ]).then(([{ data: cs }, { data: rondas }]) => {
+      if (cancelled) return;
+      setCanastillas((cs || []).map(rowToCanastilla));
+      setRondaActiva(rondas?.[0] ? rowToRonda(rondas[0]) : null);
+      setLoading(false);
+    });
     return () => { cancelled = true; };
   }, []);
 
-  // ── Realtime — merge por id + debounce (evita tormenta en cargas masivas) ──
+  // ── Realtime canastillas — merge por id + debounce (evita tormenta en cargas masivas) ──
   useEffect(() => {
     const mergeById = (prev, eventos) => {
       const mapa = new Map(prev.map(c => [c.id, c]));
@@ -74,6 +87,14 @@ export function useCanastillas() {
       .on("postgres_changes", { event: "*", schema: "public", table: "canastillas" }, ({ new: row, old, eventType }) => {
         schedule({ eventType, row, oldId: old?.id });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "canastilla_rondas" }, ({ new: row, eventType }) => {
+        if (eventType !== "DELETE" && row) {
+          setRondaActiva(prev => {
+            if (row.cerrada) return prev?.id === row.id ? null : prev;
+            return rowToRonda(row);
+          });
+        }
+      })
       .subscribe();
 
     return () => {
@@ -82,7 +103,7 @@ export function useCanastillas() {
     };
   }, []);
 
-  // ── Mutaciones ───────────────────────────────────────────────
+  // ── Mutaciones — canastillas ─────────────────────────────────
 
   const crearLote = useCallback(async ({ prefijo, cantidad, obs }) => {
     const pref = (prefijo || "TP-").trim();
@@ -107,7 +128,6 @@ export function useCanastillas() {
         id: base + i,
         codigo,
         estado: "disponible",
-        proveedor_actual: null,
         fecha_ultimo_movimiento: null,
         obs: obs || null,
       });
@@ -116,7 +136,6 @@ export function useCanastillas() {
         canastilla_id: base + i,
         codigo,
         tipo: "alta",
-        proveedor: null,
         fecha: new Date().toISOString().split("T")[0],
         obs: obs || null,
       });
@@ -139,7 +158,31 @@ export function useCanastillas() {
     return { ok: true, codigos };
   }, []);
 
-  const confirmarLoteEscaneo = useCallback(async ({ codigos, tipo, proveedor, fecha, obs }) => {
+  // Reporte puntual de un solo código (pérdida / baja / marcar disponible), fuera de una ronda.
+  const reportarEstado = useCallback(async (codigo, { tipo, obs, fecha }) => {
+    const actual = canastillas.find(c => c.codigo.toUpperCase() === codigo.toUpperCase());
+    const fechaMov = fecha || new Date().toISOString().split("T")[0];
+    if (!actual) return false;
+
+    const efecto = tipo === "perdida" || tipo === "baja" ? efectoTipo(tipo) : { estado: tipo, proveedor_actual: null };
+    const { error } = await supabase.from("canastillas")
+      .update({ ...efecto, fecha_ultimo_movimiento: fechaMov, obs: obs || null })
+      .eq("id", actual.id);
+    if (error) return false;
+
+    await supabase.from("canastilla_movimientos").insert({
+      id: Date.now(), canastilla_id: actual.id, codigo: actual.codigo,
+      tipo, fecha: fechaMov, obs: obs || null,
+    });
+
+    setCanastillas(prev => prev.map(c => c.id === actual.id
+      ? { ...c, estado: efecto.estado, proveedorActual: efecto.proveedor_actual, fechaUltimoMovimiento: fechaMov, obs: obs || c.obs }
+      : c));
+    return true;
+  }, [canastillas]);
+
+  // Préstamo / devolución en lote (con proveedor) — desde la pestaña Escanear.
+  const confirmarLotePrestamo = useCallback(async ({ codigos, tipo, proveedor, fecha, obs }) => {
     const fechaMov = fecha || new Date().toISOString().split("T")[0];
     const efecto   = efectoTipo(tipo, proveedor);
 
@@ -148,20 +191,18 @@ export function useCanastillas() {
     const nuevos      = codigos.filter(c => !existentesMap.has(c));
 
     if (existentes.length) {
-      await supabase.from("canastillas")
-        .update({ ...efecto, fecha_ultimo_movimiento: fechaMov, obs: obs || null })
-        .in("codigo", existentes);
+      for (const parte of chunk(existentes, CHUNK)) {
+        await supabase.from("canastillas")
+          .update({ ...efecto, fecha_ultimo_movimiento: fechaMov, obs: obs || null })
+          .in("codigo", parte);
+      }
     }
 
     let filasNuevas = [];
     if (nuevos.length) {
       const base = Date.now();
       filasNuevas = nuevos.map((codigo, i) => ({
-        id: base + i,
-        codigo,
-        ...efecto,
-        fecha_ultimo_movimiento: fechaMov,
-        obs: obs || null,
+        id: base + i, codigo, ...efecto, fecha_ultimo_movimiento: fechaMov, obs: obs || null,
       }));
       for (const parte of chunk(filasNuevas, CHUNK)) {
         await supabase.from("canastillas").insert(parte);
@@ -171,14 +212,8 @@ export function useCanastillas() {
     setCanastillas(prev => {
       const mapa = new Map(prev.map(c => [c.id, c]));
       existentes.forEach(codigo => {
-        const actual = existentesMap.get(codigo);
-        mapa.set(actual.id, {
-          ...actual,
-          estado: efecto.estado,
-          proveedorActual: efecto.proveedor_actual,
-          fechaUltimoMovimiento: fechaMov,
-          obs: obs || actual.obs,
-        });
+        const c = existentesMap.get(codigo);
+        mapa.set(c.id, { ...c, estado: efecto.estado, proveedorActual: efecto.proveedor_actual, fechaUltimoMovimiento: fechaMov, obs: obs || c.obs });
       });
       filasNuevas.forEach(f => mapa.set(f.id, rowToCanastilla(f)));
       return Array.from(mapa.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
@@ -190,13 +225,8 @@ export function useCanastillas() {
 
     const baseMov = Date.now() + 2_000_000;
     const filasMovimientos = codigos.map((codigo, i) => ({
-      id: baseMov + i,
-      canastilla_id: idsPorCodigo.get(codigo),
-      codigo,
-      tipo,
-      proveedor: proveedor || null,
-      fecha: fechaMov,
-      obs: obs || null,
+      id: baseMov + i, canastilla_id: idsPorCodigo.get(codigo), codigo, tipo,
+      proveedor: proveedor || null, fecha: fechaMov, obs: obs || null,
     }));
     for (const parte of chunk(filasMovimientos, CHUNK)) {
       await supabase.from("canastilla_movimientos").insert(parte);
@@ -205,18 +235,11 @@ export function useCanastillas() {
     return { actualizados: existentes.length, creados: filasNuevas.length };
   }, [canastillas]);
 
-  const reportarEstado = useCallback(async (codigo, { tipo, obs, fecha }) => {
-    const res = await confirmarLoteEscaneo({ codigos: [codigo], tipo, proveedor: null, fecha, obs });
-    return res.actualizados > 0 || res.creados > 0;
-  }, [confirmarLoteEscaneo]);
-
   const obtenerHistorial = useCallback(async (codigo) => {
     const { data } = await supabase.from("canastilla_movimientos")
       .select("*").eq("codigo", codigo)
       .order("created_at", { ascending: false });
-    return (data || []).map(m => ({
-      id: m.id, tipo: m.tipo, proveedor: m.proveedor || null, fecha: m.fecha, obs: m.obs || "",
-    }));
+    return (data || []).map(m => ({ id: m.id, tipo: m.tipo, proveedor: m.proveedor || null, fecha: m.fecha, obs: m.obs || "" }));
   }, []);
 
   const buscarPorCodigo = useCallback((codigo) => {
@@ -224,8 +247,80 @@ export function useCanastillas() {
     return canastillas.find(x => x.codigo.toUpperCase() === c) || null;
   }, [canastillas]);
 
+  // ── Mutaciones — rondas de conteo ────────────────────────────
+
+  const iniciarRonda = useCallback(async ({ fecha, obs }) => {
+    const esperadas = canastillas.filter(c => c.estado === "disponible" || c.estado === "faltante").length;
+    const row = {
+      id: Date.now(), fecha: fecha || new Date().toISOString().split("T")[0],
+      obs: obs || null, total_esperadas: esperadas, total_encontradas: 0, cerrada: false,
+    };
+    const { error } = await supabase.from("canastilla_rondas").insert(row);
+    if (error) return null;
+    const ronda = rowToRonda(row);
+    setRondaActiva(ronda);
+    return ronda;
+  }, [canastillas]);
+
+  // Registra que una canastilla fue vista físicamente en la ronda activa.
+  const registrarConteo = useCallback(async (codigo, rondaId) => {
+    const actual = buscarPorCodigo(codigo);
+    const fechaHoy = new Date().toISOString().split("T")[0];
+
+    if (!actual) {
+      // No existía — se registra como nueva y ya contada.
+      const id = Date.now();
+      const nueva = { id, codigo: codigo.trim().toUpperCase(), estado: "disponible", fecha_ultimo_movimiento: fechaHoy, obs: null };
+      const { error } = await supabase.from("canastillas").insert(nueva);
+      if (error) return { ok: false, nueva: false };
+      await supabase.from("canastilla_movimientos").insert({
+        id: id + 1, canastilla_id: id, codigo: nueva.codigo, tipo: "conteo", ronda_id: rondaId, fecha: fechaHoy,
+      });
+      setCanastillas(prev => [...prev, rowToCanastilla(nueva)].sort((a, b) => a.codigo.localeCompare(b.codigo)));
+      return { ok: true, nueva: true };
+    }
+
+    if (actual.estado !== "baja") {
+      await supabase.from("canastillas")
+        .update({ estado: "disponible", proveedor_actual: null, fecha_ultimo_movimiento: fechaHoy })
+        .eq("id", actual.id);
+      setCanastillas(prev => prev.map(c => c.id === actual.id ? { ...c, estado: "disponible", proveedorActual: null, fechaUltimoMovimiento: fechaHoy } : c));
+    }
+    await supabase.from("canastilla_movimientos").insert({
+      id: Date.now(), canastilla_id: actual.id, codigo: actual.codigo, tipo: "conteo", ronda_id: rondaId, fecha: fechaHoy,
+    });
+    return { ok: true, nueva: false };
+  }, [buscarPorCodigo]);
+
+  // Cierra la ronda: todo lo esperado que no fue escaneado pasa a "faltante".
+  const cerrarRonda = useCallback(async (rondaId) => {
+    const { data: encontradasRows } = await supabase.from("canastilla_movimientos")
+      .select("canastilla_id").eq("ronda_id", rondaId).eq("tipo", "conteo");
+    const encontradasIds = new Set((encontradasRows || []).map(r => r.canastilla_id));
+
+    const esperadas = canastillas.filter(c => c.estado === "disponible" || c.estado === "faltante");
+    const faltantesIds = esperadas.filter(c => !encontradasIds.has(c.id)).map(c => c.id);
+
+    for (const parte of chunk(faltantesIds, CHUNK)) {
+      if (!parte.length) continue;
+      await supabase.from("canastillas")
+        .update({ estado: "faltante", fecha_ultimo_movimiento: new Date().toISOString().split("T")[0] })
+        .in("id", parte);
+    }
+
+    const { error } = await supabase.from("canastilla_rondas").update({
+      cerrada: true, closed_at: new Date().toISOString(), total_encontradas: encontradasIds.size,
+    }).eq("id", rondaId);
+    if (error) return { ok: false };
+
+    setCanastillas(prev => prev.map(c => faltantesIds.includes(c.id) ? { ...c, estado: "faltante" } : c));
+    setRondaActiva(null);
+    return { ok: true, encontradas: encontradasIds.size, faltantes: faltantesIds.length };
+  }, [canastillas]);
+
   return {
-    canastillas, loading,
-    crearLote, confirmarLoteEscaneo, reportarEstado, obtenerHistorial, buscarPorCodigo,
+    canastillas, rondaActiva, loading,
+    crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
+    iniciarRonda, registrarConteo, cerrarRonda,
   };
 }
