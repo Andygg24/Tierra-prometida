@@ -253,6 +253,16 @@ export function useCanastillas() {
     return canastillas.find(x => x.codigo.toUpperCase() === c) || null;
   }, [canastillas]);
 
+  // Actividad reciente de TODAS las canastillas (no una en particular) — para
+  // un vistazo general de qué se ha estado haciendo.
+  const obtenerMovimientosRecientes = useCallback(async (limit = 60) => {
+    const { data } = await supabase.from("canastilla_movimientos")
+      .select("*").order("created_at", { ascending: false }).limit(limit);
+    return (data || []).map(m => ({
+      id: m.id, codigo: m.codigo, tipo: m.tipo, proveedor: m.proveedor || null, fecha: m.fecha, obs: m.obs || "",
+    }));
+  }, []);
+
   // Elimina una sola canastilla (borrado real, no "baja" — también borra su historial por cascada).
   const eliminarCanastilla = useCallback(async (codigo) => {
     const actual = buscarPorCodigo(codigo);
@@ -399,6 +409,6 @@ export function useCanastillas() {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
     iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda,
-    eliminarCanastilla, eliminarTodasCanastillas,
+    eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes,
   };
 }

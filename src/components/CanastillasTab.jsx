@@ -17,6 +17,18 @@ const lbl = { fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 };
 
 const hoyISO = () => new Date().toISOString().split("T")[0];
 
+// Días transcurridos desde una fecha "YYYY-MM-DD" (local, sin líos de huso horario).
+const diasDesde = (fechaISO) => {
+  if (!fechaISO) return null;
+  const [y, m, d] = fechaISO.split("-").map(Number);
+  const entonces = new Date(y, m - 1, d);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.round((hoy - entonces) / 86400000);
+};
+
+const DIAS_PRESTAMO_VENCIDO = 20; // umbral simple para marcar un préstamo como "atrasado"
+
 // ── Beep corto de confirmación al aceptar un escaneo ────────────────────────
 function playBeep() {
   try {
@@ -85,10 +97,11 @@ const estiloInforme = `
 // ── Informe: préstamos vigentes por proveedor ───────────────────────────────
 function buildInformePrestamo(porProveedor, totalPrestadas) {
   const fechaHoy = new Date().toLocaleDateString("es-CO");
-  const filas = porProveedor.map(([proveedor, codigos]) => `
+  const filas = porProveedor.map(([proveedor, { codigos, diasMax }]) => `
     <tr>
       <td><b>${proveedor}</b></td>
       <td style="text-align:right">${codigos.length}</td>
+      <td style="text-align:right${diasMax >= DIAS_PRESTAMO_VENCIDO ? ';color:#dc2626;font-weight:700' : ''}">${diasMax} días</td>
       <td><div class="chips">${codigos.map(c => `<span class="chip">${c}</span>`).join("")}</div></td>
     </tr>`).join("");
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe de Préstamos — Canastillas</title>
@@ -100,8 +113,8 @@ function buildInformePrestamo(porProveedor, totalPrestadas) {
   <div class="card"><div class="card-val">${porProveedor.length}</div><div class="card-lbl">Proveedores</div></div>
 </div>
 <h2>Detalle por proveedor</h2>
-<table><thead><tr><th>Proveedor</th><th style="text-align:right">Cantidad</th><th>Códigos</th></tr></thead>
-<tbody>${filas || `<tr><td colspan="3">No hay canastillas prestadas actualmente.</td></tr>`}</tbody></table>
+<table><thead><tr><th>Proveedor</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Más antiguo</th><th>Códigos</th></tr></thead>
+<tbody>${filas || `<tr><td colspan="4">No hay canastillas prestadas actualmente.</td></tr>`}</tbody></table>
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy}</div>
 </body></html>`;
 }
@@ -131,7 +144,7 @@ export default function CanastillasTab({ mob }) {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
     iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda,
-    eliminarCanastilla, eliminarTodasCanastillas,
+    eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes,
   } = useCanastillas();
 
   const [vista, setVista] = useState("dashboard"); // dashboard | generar | escanear | ronda
@@ -201,7 +214,8 @@ export default function CanastillasTab({ mob }) {
       {vista === "dashboard" && (
         <DashboardView mob={mob} canastillas={canastillas} obtenerHistorial={obtenerHistorial} buscarPorCodigo={buscarPorCodigo}
           pedir={pedir} showToast={showToast} reportarEstado={reportarEstado} registrarConteo={registrarConteo}
-          rondaActiva={rondaActiva} verPrevia={verPrevia} eliminarCanastilla={eliminarCanastilla} />
+          rondaActiva={rondaActiva} verPrevia={verPrevia} eliminarCanastilla={eliminarCanastilla}
+          obtenerMovimientosRecientes={obtenerMovimientosRecientes} />
       )}
 
       {vista === "generar" && (
@@ -224,13 +238,20 @@ export default function CanastillasTab({ mob }) {
 }
 
 // ── Vista: Resumen ──────────────────────────────────────────────────────────
-function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva, verPrevia, eliminarCanastilla }) {
+function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva, verPrevia, eliminarCanastilla, obtenerMovimientosRecientes }) {
   const [busqueda, setBusqueda]   = useState("");
   const [encontrada, setEncontrada] = useState(null); // canastilla o "not_found"
   const [historial, setHistorial] = useState([]);
 
   const [expandidoProv, setExpandidoProv] = useState(null);
   const [mostrarFaltantes, setMostrarFaltantes] = useState(false);
+
+  const [mostrarExplorador, setMostrarExplorador] = useState(false);
+  const [filtroExplorador, setFiltroExplorador] = useState("");
+  const [estadoExplorador, setEstadoExplorador] = useState("todos");
+
+  const [mostrarActividad, setMostrarActividad] = useState(false);
+  const [actividad, setActividad] = useState(null); // null = no cargada aún
 
   const stats = useMemo(() => ({
     total:      canastillas.length,
@@ -246,15 +267,32 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
     const mapa = {};
     canastillas.filter(c => c.estado === "prestada").forEach(c => {
       const p = c.proveedorActual || "Sin especificar";
-      if (!mapa[p]) mapa[p] = [];
-      mapa[p].push(c.codigo);
+      if (!mapa[p]) mapa[p] = { codigos: [], diasMax: 0 };
+      mapa[p].codigos.push(c.codigo);
+      const dias = diasDesde(c.fechaUltimoMovimiento) ?? 0;
+      if (dias > mapa[p].diasMax) mapa[p].diasMax = dias;
     });
-    return Object.entries(mapa).sort((a, b) => b[1].length - a[1].length);
+    return Object.entries(mapa).sort((a, b) => b[1].codigos.length - a[1].codigos.length);
   }, [canastillas]);
 
-  const buscar = async () => {
-    const c = buscarPorCodigo(busqueda);
+  const explorador = useMemo(() => {
+    const q = filtroExplorador.trim().toUpperCase();
+    return canastillas
+      .filter(c => estadoExplorador === "todos" || c.estado === estadoExplorador)
+      .filter(c => !q || c.codigo.toUpperCase().includes(q))
+      .slice(0, 150);
+  }, [canastillas, filtroExplorador, estadoExplorador]);
+
+  const cargarActividad = async () => {
+    setMostrarActividad(v => !v);
+    if (actividad === null) setActividad(await obtenerMovimientosRecientes(60));
+  };
+
+  const buscar = async (codigoOverride) => {
+    const codigo = codigoOverride ?? busqueda;
+    const c = buscarPorCodigo(codigo);
     if (!c) { setEncontrada("not_found"); setHistorial([]); return; }
+    setBusqueda(c.codigo);
     setEncontrada(c);
     setHistorial(await obtenerHistorial(c.codigo));
   };
@@ -318,7 +356,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
           <datalist id="lista-codigos-canastillas">
             {canastillas.map(c => <option key={c.id} value={c.codigo} />)}
           </datalist>
-          <button onClick={buscar} style={btnPrimario(false, false)}>Buscar</button>
+          <button onClick={() => buscar()} style={btnPrimario(false, false)}>Buscar</button>
         </div>
         {encontrada === "not_found" && (
           <div style={{ marginTop:10, fontSize:11, color:"rgba(255,255,255,0.4)" }}>No se encontró esa canastilla.</div>
@@ -368,22 +406,28 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
         <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas prestadas actualmente.</div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
-          {porProveedor.map(([proveedor, codigos]) => (
-            <div key={proveedor} style={{ border:"1px solid rgba(255,255,255,0.11)", borderRadius:10, overflow:"hidden" }}>
-              <button onClick={() => setExpandidoProv(expandidoProv === proveedor ? null : proveedor)}
-                style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background: expandidoProv===proveedor ? "rgba(14,165,233,0.12)" : "rgba(255,255,255,0.03)", padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%", border:"none" }}>
-                <span style={{ fontSize:12, fontWeight:700, color: expandidoProv===proveedor ? "#38bdf8" : "white" }}>{proveedor}</span>
-                <span style={{ fontSize:12, fontWeight:800, color:"#38bdf8" }}>{codigos.length} canastilla{codigos.length!==1?"s":""}</span>
-              </button>
-              {expandidoProv === proveedor && (
-                <div style={{ padding:"8px 14px", background:"rgba(0,0,0,0.2)", display:"flex", flexWrap:"wrap", gap:6 }}>
-                  {codigos.map(c => (
-                    <span key={c} style={{ fontSize:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, padding:"3px 8px", color:"rgba(255,255,255,0.7)" }}>{c}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          {porProveedor.map(([proveedor, { codigos, diasMax }]) => {
+            const vencido = diasMax >= DIAS_PRESTAMO_VENCIDO;
+            return (
+              <div key={proveedor} style={{ border:`1px solid ${vencido ? "rgba(255,80,80,0.35)" : "rgba(255,255,255,0.11)"}`, borderRadius:10, overflow:"hidden" }}>
+                <button onClick={() => setExpandidoProv(expandidoProv === proveedor ? null : proveedor)}
+                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background: expandidoProv===proveedor ? "rgba(14,165,233,0.12)" : "rgba(255,255,255,0.03)", padding:"10px 14px", cursor:"pointer", textAlign:"left", width:"100%", border:"none" }}>
+                  <span style={{ fontSize:12, fontWeight:700, color: expandidoProv===proveedor ? "#38bdf8" : "white" }}>
+                    {proveedor}
+                    {vencido && <span style={{ marginLeft:8, fontSize:9, background:"rgba(255,80,80,0.15)", color:"#ff6b6b", borderRadius:5, padding:"2px 6px", fontWeight:700 }}>⚠️ hace {diasMax} días</span>}
+                  </span>
+                  <span style={{ fontSize:12, fontWeight:800, color:"#38bdf8" }}>{codigos.length} canastilla{codigos.length!==1?"s":""}</span>
+                </button>
+                {expandidoProv === proveedor && (
+                  <div style={{ padding:"8px 14px", background:"rgba(0,0,0,0.2)", display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {codigos.map(c => (
+                      <span key={c} style={{ fontSize:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, padding:"3px 8px", color:"rgba(255,255,255,0.7)" }}>{c}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -407,6 +451,76 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
                 style={{ fontSize:10, background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 8px", color:"#F9A826", cursor:"pointer" }}>
                 {c.codigo}
               </button>
+            ))}
+          </div>
+        )
+      )}
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, marginTop:16 }}>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, fontWeight:700 }}>
+          🔎 Explorador de canastillas
+        </div>
+        <button onClick={() => setMostrarExplorador(v => !v)}
+          style={{ background:"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"#a78bfa", cursor:"pointer" }}>
+          {mostrarExplorador ? "Ocultar" : "Ver todas / filtrar"}
+        </button>
+      </div>
+      {mostrarExplorador && (
+        <div style={{ marginBottom:16 }}>
+          <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+            <input value={filtroExplorador} onChange={e => setFiltroExplorador(e.target.value)}
+              placeholder="Buscar por código…" style={{ ...inp, flex:1 }} />
+            <CustomSelect value={estadoExplorador} onChange={e => setEstadoExplorador(e.target.value)} style={{ ...inp, width:140 }}>
+              <option value="todos" style={{ background:"#1a1a2e" }}>Todos los estados</option>
+              <option value="disponible" style={{ background:"#1a1a2e" }}>Disponible</option>
+              <option value="prestada" style={{ background:"#1a1a2e" }}>Prestada</option>
+              <option value="faltante" style={{ background:"#1a1a2e" }}>Faltante</option>
+              <option value="perdida" style={{ background:"#1a1a2e" }}>Perdida</option>
+              <option value="baja" style={{ background:"#1a1a2e" }}>Dañada / baja</option>
+            </CustomSelect>
+          </div>
+          {explorador.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Sin resultados.</div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
+              {explorador.map(c => (
+                <button key={c.id} onClick={() => buscar(c.codigo)}
+                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"5px 10px", cursor:"pointer", textAlign:"left" }}>
+                  <span style={{ fontSize:11, color:"white" }}>{c.codigo}</span>
+                  <span style={{ fontSize:9, fontWeight:700, color: c.estado==="disponible"?"#00C9A7":c.estado==="prestada"?"#38bdf8":c.estado==="faltante"?"#F9A826":"#ff6b6b" }}>
+                    {c.estado.toUpperCase()}{c.estado==="prestada" && c.proveedorActual ? ` · ${c.proveedorActual}` : ""}
+                  </span>
+                </button>
+              ))}
+              {canastillas.length > explorador.length && explorador.length === 150 && (
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textAlign:"center", padding:"4px 0" }}>Mostrando los primeros 150 — afina la búsqueda para ver otras.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, fontWeight:700 }}>
+          🕓 Actividad reciente
+        </div>
+        <button onClick={cargarActividad}
+          style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"rgba(255,255,255,0.7)", cursor:"pointer" }}>
+          {mostrarActividad ? "Ocultar" : "Ver últimos movimientos"}
+        </button>
+      </div>
+      {mostrarActividad && (
+        actividad === null ? (
+          <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Cargando…</div>
+        ) : actividad.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Sin movimientos registrados todavía.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
+            {actividad.map(m => (
+              <div key={m.id} style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(255,255,255,0.55)", background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"5px 10px" }}>
+                <span><b style={{ color:"white" }}>{m.codigo}</b> · {m.fecha} · {m.tipo}{m.proveedor ? ` · ${m.proveedor}` : ""}</span>
+                {m.obs && <span style={{ color:"rgba(255,255,255,0.35)" }}>{m.obs}</span>}
+              </div>
             ))}
           </div>
         )
