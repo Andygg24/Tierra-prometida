@@ -97,7 +97,10 @@ export function useCanastillas() {
             setRondaActiva(prev => (prev?.id === row.id ? null : prev));
             setRondas(prev => prev.some(r => r.id === row.id) ? prev : [rowToRonda(row), ...prev]);
           } else {
+            // Ronda nueva o reabierta desde el historial — en ambos casos
+            // deja de estar en la lista de cerradas.
             setRondaActiva(rowToRonda(row));
+            setRondas(prev => prev.filter(r => r.id !== row.id));
           }
         }
       })
@@ -310,6 +313,28 @@ export function useCanastillas() {
     return ronda;
   }, [canastillas]);
 
+  // Reabre una ronda ya cerrada (del historial) para seguir contando sobre
+  // ella — p.ej. si se pasó por alto una zona de la bodega. Las canastillas
+  // que quedaron "faltante" simplemente se re-escanean con registrarConteo
+  // como cualquier otra: no hace falta tocarles el estado aquí.
+  const reabrirRonda = useCallback(async (rondaId) => {
+    const { data, error } = await supabase.from("canastilla_rondas")
+      .update({ cerrada: false, closed_at: null })
+      .eq("id", rondaId).eq("cerrada", true)
+      .select();
+    if (error) {
+      // 23505 = ya hay otra ronda activa (índice único idx_una_ronda_activa)
+      // — hay que cerrarla antes de poder reabrir esta.
+      if (error.code === "23505") return { ok: false, motivo: "hay_activa" };
+      return { ok: false, motivo: "error" };
+    }
+    if (!data || data.length === 0) return { ok: false, motivo: "no_encontrada" };
+    const ronda = rowToRonda(data[0]);
+    setRondas(prev => prev.filter(r => r.id !== rondaId));
+    setRondaActiva(ronda);
+    return { ok: true, ronda };
+  }, []);
+
   // Registra que una canastilla fue vista físicamente en la ronda activa.
   const registrarConteo = useCallback(async (codigo, rondaId) => {
     const actual   = buscarPorCodigo(codigo);
@@ -420,6 +445,12 @@ export function useCanastillas() {
         .in("id", parte);
     }
 
+    // Si esta ronda ya se había cerrado antes (se reabrió y se vuelve a
+    // cerrar), sus "faltante" de la vez anterior quedaron obsoletos — se
+    // recalculan de cero para que el informe no muestre una canastilla como
+    // encontrada y faltante a la vez, ni "faltante" repetido.
+    await supabase.from("canastilla_movimientos").delete().eq("ronda_id", rondaId).eq("tipo", "faltante");
+
     const baseMov = Date.now();
     const filasFaltante = faltantes.map((c, i) => ({
       id: baseMov + i, canastilla_id: c.id, codigo: c.codigo, tipo: "faltante", ronda_id: rondaId, fecha: fechaHoy,
@@ -482,7 +513,7 @@ export function useCanastillas() {
   return {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
-    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda,
+    iniciarRonda, registrarConteo, cerrarRonda, reabrirRonda, obtenerInformeRonda, eliminarRonda,
     eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes,
   };
 }

@@ -143,7 +143,7 @@ export default function CanastillasTab({ mob }) {
   const {
     canastillas, rondaActiva, rondas, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
-    iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda,
+    iniciarRonda, registrarConteo, cerrarRonda, reabrirRonda, obtenerInformeRonda, eliminarRonda,
     eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes,
   } = useCanastillas();
 
@@ -230,7 +230,7 @@ export default function CanastillasTab({ mob }) {
 
       {vista === "ronda" && (
         <RondaView mob={mob} rondaActiva={rondaActiva} rondas={rondas} iniciarRonda={iniciarRonda} registrarConteo={registrarConteo}
-          cerrarRonda={cerrarRonda} obtenerInformeRonda={obtenerInformeRonda} eliminarRonda={eliminarRonda}
+          cerrarRonda={cerrarRonda} reabrirRonda={reabrirRonda} obtenerInformeRonda={obtenerInformeRonda} eliminarRonda={eliminarRonda}
           pedir={pedir} showToast={showToast} verPrevia={verPrevia} />
       )}
     </div>
@@ -775,10 +775,11 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
 }
 
 // ── Vista: Ronda de conteo ───────────────────────────────────────────────────
-function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, cerrarRonda, obtenerInformeRonda, eliminarRonda, pedir, showToast, verPrevia }) {
+function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, cerrarRonda, reabrirRonda, obtenerInformeRonda, eliminarRonda, pedir, showToast, verPrevia }) {
   const [obsInicio, setObsInicio] = useState("");
   const [iniciando, setIniciando] = useState(false);
   const [cerrando, setCerrando]   = useState(false);
+  const [reabriendoId, setReabriendoId] = useState(null);
 
   const [contadas, setContadas]   = useState([]); // {codigo, nueva} vistas en esta sesión de escaneo
   const [manual, setManual]       = useState("");
@@ -881,6 +882,20 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     });
   };
 
+  const reabrir = (ronda) => {
+    pedir(`¿Reabrir la ronda del ${ronda.fecha}? Podrás seguir escaneando canastillas sobre ella — cuando la vuelvas a cerrar, el informe se recalcula con lo nuevo que hayas encontrado.`, async () => {
+      setReabriendoId(ronda.id);
+      const res = await reabrirRonda(ronda.id);
+      const msg = res.ok
+        ? "Ronda reabierta ✓ — ya puedes seguir escaneando"
+        : res.motivo === "hay_activa"
+          ? "Ya hay otra ronda activa — ciérrala antes de reabrir esta."
+          : "Error al reabrir la ronda";
+      showToast(msg, res.ok);
+      setReabriendoId(null);
+    });
+  };
+
   if (!rondaActiva) {
     return (
       <div style={{ maxWidth:480 }}>
@@ -917,6 +932,9 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
                 <div style={{ display:"flex", gap:6 }}>
                   <button onClick={() => verInforme(r)} style={{ background:"rgba(132,94,247,0.12)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"#a78bfa", cursor:"pointer" }}>
                     📄 Ver informe
+                  </button>
+                  <button onClick={() => reabrir(r)} disabled={reabriendoId === r.id} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"#00C9A7", cursor:"pointer" }}>
+                    {reabriendoId === r.id ? "…" : "🔓 Reabrir"}
                   </button>
                   <button onClick={() => eliminarDelHistorial(r)} style={{ background:"rgba(255,80,80,0.12)", border:"1px solid rgba(255,80,80,0.3)", borderRadius:6, padding:"5px 8px", fontSize:10, color:"#ff6b6b", cursor:"pointer" }}>
                     🗑
