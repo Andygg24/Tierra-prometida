@@ -26,6 +26,20 @@ const useS = () => useContext(SmallCtx);
 // ─── UTILIDADES ──────────────────────────────────────────────
 const fmtCOP = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
 
+// Logo de Tierra Prometida embebido como base64 — así los informes HTML
+// descargados muestran el logo aunque se abran después, sin servidor.
+async function cargarLogoBase64() {
+  try {
+    const res  = await fetch("/logo-tp.png");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(blob);
+    });
+  } catch { return ""; }
+}
+
 // ─── DATOS BASE ───────────────────────────────────────────────
 const VALOR_CONTENEDOR = 180000;
 const QUINCENA_DESCARGUE = 1000000;
@@ -935,13 +949,14 @@ function NominaDemo() {
   const totalProv  = cesantias+intCes+prima+vacaciones;
 
   // ── Generar colilla HTML ──
-  const buildHtmlColilla = () => {
+  const buildHtmlColilla = async () => {
     if (!empSel) return "";
+    const logoSrc = await cargarLogoBase64();
     return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Colilla ${empSel.nombre} ${periodo}</title>
 <style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:24px;background:#f0f2f5;color:#1a1a1a}
 .card{background:white;border-radius:12px;padding:24px;max-width:620px;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,0.1)}
 .hdr{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:16px;margin-bottom:20px}
-.logo{font-size:32px}.emp{font-size:18px;font-weight:800;color:#1D6F42}
+.logo{font-size:32px}.logo img{width:34px;height:34px;object-fit:contain;display:block;margin:0 auto}.emp{font-size:18px;font-weight:800;color:#1D6F42}
 .sub{font-size:12px;color:#666;margin-top:4px}
 .chip{display:inline-block;background:#1D6F42;color:white;padding:2px 12px;border-radius:20px;font-size:11px;margin-top:6px}
 .empbox{background:#f8fafb;border-radius:8px;padding:12px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px}
@@ -959,7 +974,7 @@ tr:nth-child(even) td{background:#fafafa}
 .prov{background:#f3f4f6;border-radius:8px;padding:12px;margin-top:12px;font-size:10px;color:#666;line-height:1.8}
 .footer{text-align:center;margin-top:14px;font-size:10px;color:#aaa}
 </style></head><body><div class="card">
-<div class="hdr"><div class="logo">🍋</div><div class="emp">${nombreEmpresa}</div>
+<div class="hdr"><div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "🍋"}</div><div class="emp">${nombreEmpresa}</div>
 <div class="sub">${nitEmpresa ? `NIT: ${nitEmpresa}` : ""} · Colilla de Pago · Periodo: <b>${periodo}</b></div>
 <div class="chip">Generado por JARVIS 🤖</div></div>
 <div class="empbox">
@@ -1005,9 +1020,9 @@ tr:nth-child(even) td{background:#fafafa}
 Documento informativo. Para efectos contables y legales, consulte al contador.</div>
 </div></body></html>`;
   };
-  const generarColilla = () => {
+  const generarColilla = async () => {
     if (!empSel) return;
-    const html = buildHtmlColilla();
+    const html = await buildHtmlColilla();
     const fname = `Colilla_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
     const _u1=URL.createObjectURL(new Blob([html],{type:"text/html"}));
     const a=document.createElement("a");a.href=_u1;a.download=fname;a.click();URL.revokeObjectURL(_u1);
@@ -1212,7 +1227,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
           </div>
 
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{if(!empSel){alert("Selecciona un empleado");return;}verPrevia(buildHtmlColilla(),`Colilla_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`);}}
+            <button onClick={async ()=>{if(!empSel){alert("Selecciona un empleado");return;}verPrevia(await buildHtmlColilla(),`Colilla_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`);}}
               style={{background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"11px 14px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
               👁 Vista Previa
             </button>
@@ -1255,7 +1270,8 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
             const toggleCont = (id) => setSelectedConts(prev =>
               prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]
             );
-            const buildHtmlComprobante = () => {
+            const buildHtmlComprobante = async () => {
+              const logoSrc = await cargarLogoBase64();
               const filas = hayConts && contsSel.length > 0
                 ? contsSel.map((p,i) => `<tr><td>${i+1}</td><td class="lbl"><b>${p.numContenedor}</b> · ${p.fecha}${p.producto?` · ${p.producto}`:""}</td><td style="text-align:center">${p.turno==="Día"?"☀️ Día":p.turno==="Noche"?"🌙 Noche":"☀️🌙 Ambos"}</td><td class="val">$${Math.round(valorCont).toLocaleString("es-CO")}</td></tr>`).join("")
                 : `<tr><td colspan="3" class="lbl">${numConts} contenedor${numConts!==1?"es":""} trabajado${numConts!==1?"s":""}</td><td class="val">$${Math.round(valorCont).toLocaleString("es-CO")} c/u</td></tr>`;
@@ -1263,7 +1279,7 @@ Documento informativo. Para efectos contables y legales, consulte al contador.</
 <style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:24px;background:#f0f2f5;color:#1a1a1a}
 .card{background:white;border-radius:12px;padding:24px;max-width:620px;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,.1)}
 .hdr{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:16px;margin-bottom:20px}
-.logo{font-size:32px}.emp{font-size:18px;font-weight:800;color:#1D6F42}.sub{font-size:12px;color:#666;margin-top:4px}
+.logo{font-size:32px}.logo img{width:34px;height:34px;object-fit:contain;display:block;margin:0 auto}.emp{font-size:18px;font-weight:800;color:#1D6F42}.sub{font-size:12px;color:#666;margin-top:4px}
 .chip{display:inline-block;background:#1D6F42;color:white;padding:2px 12px;border-radius:20px;font-size:11px;margin-top:6px}
 .empbox{background:#f8fafb;border-radius:8px;padding:12px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px}
 .empbox span{color:#888}.empbox b{display:block;color:#1a1a1a;margin-top:2px;font-size:12px}
@@ -1276,7 +1292,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
 .metodo{font-size:11px;opacity:.8;margin-top:4px}
 .footer{text-align:center;margin-top:14px;font-size:10px;color:#aaa}</style></head>
 <body><div class="card">
-<div class="hdr"><div class="logo">🍋</div><div class="emp">${nombreEmpresa}</div>
+<div class="hdr"><div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "🍋"}</div><div class="emp">${nombreEmpresa}</div>
 <div class="sub">${nitEmpresa ? `NIT: ${nitEmpresa} · ` : ""}Comprobante de Pago por Contenedor · Periodo: <b>${periodo}</b></div>
 <div class="chip">Generado por JARVIS 🤖</div></div>
 <div class="empbox">
@@ -1301,7 +1317,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
 </div></body></html>`;
             };
             const guardarPagoContenedor = async (descargar) => {
-              const html = buildHtmlComprobante();
+              const html = await buildHtmlComprobante();
               if (descargar) {
                 const fname = `Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`;
                 const _u2=URL.createObjectURL(new Blob([html],{type:"text/html"}));
@@ -1404,9 +1420,9 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
                 </div>
 
                 <div style={{display:"flex",gap:8,flexWrap:mob?"wrap":"nowrap"}}>
-                  <button onClick={()=>{
+                  <button onClick={async ()=>{
                     if(cantEfectiva===0){alert(hayConts?"Selecciona al menos un contenedor":"Ingresa al menos 1 contenedor");return;}
-                    verPrevia(buildHtmlComprobante(),`Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`);
+                    verPrevia(await buildHtmlComprobante(),`Comprobante_${empSel.nombre.replace(/ /g,"_")}_${periodo}.html`);
                   }} style={{flex:mob?"1 1 auto":"0 0 auto",background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"11px 14px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
                     👁 Vista Previa
                   </button>
@@ -1624,7 +1640,8 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:8px 10px;bor
       {tabNom === 4 && (() => {
         const histMes = liquidaciones.filter(l=>l.periodo===periodoCtad);
         const totales = histMes.reduce((a,l)=>({dev:a.dev+l.devengado,ded:a.ded+l.totalDeduc,net:a.net+l.neto}),{dev:0,ded:0,net:0});
-        const buildHtmlReporte = () => {
+        const buildHtmlReporte = async () => {
+          const logoSrc = await cargarLogoBase64();
           const nominaRows = histMes.filter(l=>l.tipo!=="contenedor");
           const contRows   = histMes.filter(l=>l.tipo==="contenedor");
           const tabNomina  = nominaRows.length>0?`
@@ -1640,19 +1657,20 @@ ${contRows.map(l=>`<tr><td><b>${l.nombre}</b></td><td>${l.empNum}</td><td>${l.ar
 <tr class="tot"><td colspan="5">SUBTOTAL CONTENEDOR</td><td>$${Math.round(contRows.reduce((s,l)=>s+l.neto,0)).toLocaleString("es-CO")}</td></tr>
 </tbody></table>`:"";
           const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Contador ${periodoCtad}</title>
-<style>body{font-family:Arial,sans-serif;padding:24px;color:#1a1a1a}h1{color:#1D6F42;font-size:18px}.sub{color:#666;font-size:12px;margin-bottom:16px}
+<style>body{font-family:Arial,sans-serif;padding:24px;color:#1a1a1a}h1{color:#1D6F42;font-size:18px;margin:0}.sub{color:#666;font-size:12px;margin-bottom:16px}
+.hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:4px}.hdr-row img{width:40px;height:40px;object-fit:contain}
 table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th{background:#1D6F42;color:white;padding:8px 10px;text-align:left}
 td{padding:7px 10px;border:1px solid #e0e0e0}tr:nth-child(even) td{background:#f9f9f9}
 .tot td{background:#e8f5e9;font-weight:700;color:#1D6F42}.footer{text-align:center;color:#aaa;margin-top:16px;font-size:10px}</style></head>
-<body><h1>🍋 Tierra Prometida Trading — Reporte Nómina Contador</h1>
+<body><div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>🍋 Tierra Prometida Trading — Reporte Nómina Contador</h1></div>
 <div class="sub">Periodo: ${periodoCtad} · Generado: ${new Date().toLocaleDateString("es-CO")} por JARVIS</div>
 ${tabNomina}${tabCont}
 <p style="font-weight:700;color:#1D6F42;margin-top:16px">TOTAL GENERAL NETO: $${Math.round(totales.net).toLocaleString("es-CO")}</p>
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · Documento informativo. Consulte al contador para efectos legales.</div></body></html>`;
           return html;
         };
-        const descargarReporte = () => {
-          const html = buildHtmlReporte();
+        const descargarReporte = async () => {
+          const html = await buildHtmlReporte();
           const _u3=URL.createObjectURL(new Blob([html],{type:"text/html"}));const a=document.createElement("a");a.href=_u3;a.download=`ReporteContador_${periodoCtad}.html`;a.click();URL.revokeObjectURL(_u3);
         };
         return (
@@ -1706,7 +1724,7 @@ ${tabNomina}${tabCont}
               </div>
             )}
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>{if(histMes.length===0){alert("Sin colillas para este periodo");return;}verPrevia(buildHtmlReporte(),`ReporteContador_${periodoCtad}.html`);}}
+              <button onClick={async ()=>{if(histMes.length===0){alert("Sin colillas para este periodo");return;}verPrevia(await buildHtmlReporte(),`ReporteContador_${periodoCtad}.html`);}}
                 style={{background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.4)",borderRadius:10,padding:"11px 14px",fontSize:13,color:"#a5b4fc",cursor:"pointer",fontWeight:700}}>
                 👁 Vista Previa
               </button>
@@ -2233,7 +2251,8 @@ function InventarioDemo() {
       )}
 
       {/* Botón informe inventario */}
-      <button onClick={()=>{
+      <button onClick={async ()=>{
+        const logoSrc   = await cargarLogoBase64();
         const fechaHoy  = new Date().toLocaleDateString("es-CO");
         const fechaFile = new Date().toISOString().split("T")[0];
         const cop = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
@@ -2302,6 +2321,8 @@ function InventarioDemo() {
   body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1100px;margin:0 auto;font-size:12px}
   h1{color:#845EF7;margin-bottom:2px;font-size:22px}
   h2{color:#845EF7;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #845EF730;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .hdr-row img{width:46px;height:46px;object-fit:contain}
   .meta{font-size:11px;color:#888;margin-bottom:16px}
   .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
   .card{background:#f7f4ff;border:1px solid #d8d0ff;border-radius:10px;padding:14px 18px;min-width:130px;text-align:center}
@@ -2322,7 +2343,7 @@ function InventarioDemo() {
   @media print{body{padding:10px}.footer{position:fixed;bottom:0;width:100%}}
 </style></head><body>
 
-<h1>📦 Informe de Inventario — Tierra Prometida Trading</h1>
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>📦 Informe de Inventario — Tierra Prometida Trading</h1></div>
 <div class="meta">Generado: ${fechaHoy} &nbsp;·&nbsp; ${items.length} ítems registrados &nbsp;·&nbsp; ${historial.length} movimientos en historial</div>
 
 <div class="cards">
@@ -2484,7 +2505,8 @@ function AsistenciaDemo() {
   const inpSm = { ...inp, padding:"5px 8px", fontSize:11 };
 
   // ── GENERADOR DE INFORME HTML ──
-  const descargarInforme = () => {
+  const descargarInforme = async () => {
+    const logoSrc = await cargarLogoBase64();
     const datos = generarReporteData();
     if (datos.length === 0) {
       alert("No hay registros para el mes seleccionado.\nMarca asistencia primero y vuelve aquí.");
@@ -2630,6 +2652,7 @@ function AsistenciaDemo() {
   body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;padding:20px;font-size:11px}
   .header{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:14px;margin-bottom:18px}
   .logo{font-size:34px;margin-bottom:4px}
+  .logo img{width:38px;height:38px;object-fit:contain;display:block;margin:0 auto}
   .htitle{color:#1D6F42;font-size:20px;font-weight:800;letter-spacing:-0.5px}
   .sub{color:#666;font-size:12px;margin-top:3px}
   .badge{display:inline-block;background:#1D6F42;color:#fff;padding:3px 16px;border-radius:20px;font-size:9px;margin-top:6px;letter-spacing:0.5px}
@@ -2650,7 +2673,7 @@ function AsistenciaDemo() {
 <body>
 
 <div class="header">
-  <div class="logo">&#127819;</div>
+  <div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "&#127819;"}</div>
   <div class="htitle">TIERRA PROMETIDA TRADING</div>
   <div class="sub">Informe de Asistencia &mdash; ${nomMes} ${y}</div>
   <div class="badge">JARVIS &bull; ${new Date().toLocaleDateString("es-CO")} ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}</div>
@@ -3263,11 +3286,12 @@ function ContenedoresDemo() {
     }
   };
 
-  const descargar = () => {
+  const descargar = async () => {
     if (!filtrados.length) { alert("Sin registros para exportar."); return; }
+    const logoSrc = await cargarLogoBase64();
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Contenedores</title>
-<style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#6366F1}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#6366F1;color:white;padding:7px}td{padding:6px;border:1px solid #ddd}tr:nth-child(even)td{background:#f9f9f9}.footer{text-align:center;color:#aaa;margin-top:12px;font-size:10px}</style></head>
-<body><h1>🚢 Tierra Prometida Trading — Contenedores</h1>
+<style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#6366F1;margin:0}.hdr-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}.hdr-row img{width:36px;height:36px;object-fit:contain}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#6366F1;color:white;padding:7px}td{padding:6px;border:1px solid #ddd}tr:nth-child(even)td{background:#f9f9f9}.footer{text-align:center;color:#aaa;margin-top:12px;font-size:10px}</style></head>
+<body><div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>🚢 Tierra Prometida Trading — Contenedores</h1></div>
 <p>Total: ${stats.total} · Completados: ${stats.comp} · Cajas: ${stats.cajas.toLocaleString("es-CO")}</p>
 <table><thead><tr><th>Fecha</th><th>N° Contenedor</th><th>Prov. Limón</th><th>Tipo Caja</th><th>Cajas</th><th>Booking</th><th>Naviera</th><th>Destino</th><th>Grupo Día</th><th>Grupo Noche</th><th>Supervisores</th><th>Estado</th></tr></thead>
 <tbody>${filtrados.map(p=>`<tr><td>${p.fecha}</td><td><b>${p.numContenedor}</b></td><td>${parseProveedores(p.proveedor).join(", ")||"—"}</td><td>${p.producto||"—"}</td><td>${p.cajasSalida||0}</td><td>${p.booking||"—"}</td><td>${p.naviera||"—"}</td><td>${p.destino||"—"}</td><td>${p.grupoDia||"—"}</td><td>${p.grupoNoche||"—"}</td><td>${p.operadores||"—"}</td><td>${p.estado}</td></tr>`).join("")}
@@ -3868,7 +3892,8 @@ function ContenedoresDemo() {
 
 
 
-        const generarInformeCC = (cont, recsForCont, modo = "descargar") => {
+        const generarInformeCC = async (cont, recsForCont, modo = "descargar") => {
+          const logoSrc   = await cargarLogoBase64();
           const fechaHoy  = new Date().toLocaleDateString("es-CO");
           const fechaFile = new Date().toISOString().split("T")[0];
           const cop  = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
@@ -3921,6 +3946,8 @@ function ContenedoresDemo() {
   body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1050px;margin:0 auto;font-size:12px}
   h1{color:#6366F1;margin-bottom:2px;font-size:22px}
   h2{color:#6366F1;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #6366F130;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .hdr-row img{width:44px;height:44px;object-fit:contain}
   .meta{font-size:11px;color:#888;margin-bottom:6px}
   .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f7f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:18px}
   .info-item .lbl{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px}
@@ -3941,7 +3968,7 @@ function ContenedoresDemo() {
   @media print{.footer{position:fixed;bottom:0}}
 </style></head><body>
 
-<h1>🚢 Centro de Costos — ${cont.numContenedor}</h1>
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>🚢 Centro de Costos — ${cont.numContenedor}</h1></div>
 <div class="meta">Informe generado: ${fechaHoy}</div>
 
 <div class="info-grid">
@@ -4371,7 +4398,8 @@ ${extrasFilas.map(ex=>{
 
             {/* Informe general */}
             {contInsumos.length > 0 && (() => {
-              const descargarGeneral = () => {
+              const descargarGeneral = async () => {
+                const logoSrc  = await cargarLogoBase64();
                 const fechaHoy = new Date().toLocaleDateString("es-CO");
                 // Agrupar por contenedor
                 const porCont = {};
@@ -4386,6 +4414,8 @@ ${extrasFilas.map(ex=>{
 <style>
   body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1000px;margin:0 auto}
   h1{color:#6366F1;margin-bottom:4px}h2{color:#6366F1;font-size:14px;margin:18px 0 6px}
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .hdr-row img{width:42px;height:42px;object-fit:contain}
   .meta{font-size:12px;color:#666;margin-bottom:18px}
   table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px}
   th{background:#6366F1;color:white;padding:8px 10px;text-align:left}
@@ -4401,7 +4431,7 @@ ${extrasFilas.map(ex=>{
   .footer{text-align:center;color:#bbb;margin-top:24px;font-size:10px;border-top:1px solid #eee;padding-top:12px}
   .bar-wrap{background:#e0e0ff;border-radius:4px;height:10px;width:100%} .bar{background:#6366F1;border-radius:4px;height:10px}
 </style></head><body>
-<h1>📦 Centro de Costos General — Tierra Prometida</h1>
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>📦 Centro de Costos General — Tierra Prometida</h1></div>
 <div class="meta">Generado: ${fechaHoy} &nbsp;·&nbsp; ${conts.length} contenedor(es) con registros</div>
 <div class="resumen">
   <div class="card"><div class="card-val">${conts.length}</div><div class="card-lbl">Contenedores</div></div>
@@ -4584,7 +4614,8 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, cajDM, cajPri };
         });
 
-        const generarInforme = (modo = "descargar") => {
+        const generarInforme = async (modo = "descargar") => {
+          const logoSrc = await cargarLogoBase64();
           const cont = contSelRend;
           const pvsTexto = proveedoresCont.join(", ") || "—";
           const fechaHoy = new Date().toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
@@ -4747,6 +4778,8 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   .hdr h1 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px; }
   .hdr .sub { font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; }
   .hdr .badge { display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:3px 14px; font-size:10px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; }
+  .hdr-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .hdr-logo { width:44px; height:44px; object-fit:contain; background:#fff; border-radius:10px; padding:5px; flex-shrink:0; }
   .hdr .pv-tag { display:inline-block; background:rgba(255,255,255,0.12); border-radius:12px; padding:2px 10px; font-size:10px; margin-right:4px; }
   .infobar { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:9px 36px; font-size:11px; color:#475569; }
   .body { padding:24px 36px; }
@@ -4789,7 +4822,10 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 <body>
 
 <div class="hdr">
-  <div class="badge">🚢 INFORME DE RENDIMIENTO</div>
+  <div class="hdr-top">
+    <div class="badge">🚢 INFORME DE RENDIMIENTO</div>
+    ${logoSrc ? `<img class="hdr-logo" src="${logoSrc}"/>` : ""}
+  </div>
   <h1>${cont.numContenedor}</h1>
   <div style="margin-top:8px;">
     ${proveedoresCont.map(p => `<span class="pv-tag">${p}</span>`).join("")}

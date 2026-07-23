@@ -4,6 +4,20 @@ import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
 
+// Logo de Tierra Prometida embebido como base64 — así los informes HTML
+// descargados muestran el logo aunque se abran después, sin servidor.
+async function cargarLogoBase64() {
+  try {
+    const res  = await fetch("/logo-tp.png");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(blob);
+    });
+  } catch { return ""; }
+}
+
 const TIPOS = [
   { value: "entrada", label: "Entrada de fruta" },
   { value: "salida",  label: "Salida de fruta"  },
@@ -52,7 +66,8 @@ function formVacio() {
 
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
 
-function generarInformeHTML(r) {
+async function generarInformeHTML(r) {
+  const logoSrc  = await cargarLogoBase64();
   const fmtFecha = r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "—";
   const filasEstibas = r.estibas.map(e => `
     <tr>
@@ -77,6 +92,7 @@ function generarInformeHTML(r) {
   body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;padding:24px;font-size:12px}
   .header{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:14px;margin-bottom:18px}
   .logo{font-size:36px;margin-bottom:4px}
+  .logo img{width:40px;height:40px;object-fit:contain;display:block;margin:0 auto}
   .htitle{color:#1D6F42;font-size:21px;font-weight:800;letter-spacing:-0.5px}
   .sub{color:#666;font-size:12px;margin-top:3px}
   .badge{display:inline-block;background:${r.tipo==="entrada" ? "#1D6F42" : "#c2410c"};color:#fff;padding:4px 18px;border-radius:20px;font-size:10px;margin-top:8px;letter-spacing:0.5px;font-weight:700}
@@ -100,7 +116,7 @@ function generarInformeHTML(r) {
 <body>
 
 <div class="header">
-  <div class="logo">🍋</div>
+  <div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "🍋"}</div>
   <div class="htitle">TIERRA PROMETIDA TRADING</div>
   <div class="sub">Informe de Recepción de Fruta</div>
   <div class="badge">${r.tipo === "entrada" ? "ENTRADA DE FRUTA" : "SALIDA DE FRUTA"}</div>
@@ -159,7 +175,8 @@ ${r.observaciones ? `
 </html>`;
 }
 
-function generarInformeGeneralHTML(recs, desde, hasta) {
+async function generarInformeGeneralHTML(recs, desde, hasta) {
+  const logoSrc = await cargarLogoBase64();
   const fmt = (f) => f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "";
   const totalNeto = recs.reduce((a, r) => a + num(r.total), 0);
   const entradas  = recs.filter(r => r.tipo === "entrada").length;
@@ -188,6 +205,7 @@ function generarInformeGeneralHTML(recs, desde, hasta) {
   body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;padding:24px;font-size:12px}
   .header{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:14px;margin-bottom:18px}
   .logo{font-size:36px;margin-bottom:4px}
+  .logo img{width:40px;height:40px;object-fit:contain;display:block;margin:0 auto}
   .htitle{color:#1D6F42;font-size:21px;font-weight:800;letter-spacing:-0.5px}
   .sub{color:#666;font-size:12px;margin-top:3px}
   .rango{display:inline-block;background:#1D6F42;color:#fff;padding:4px 18px;border-radius:20px;font-size:10px;margin-top:8px;letter-spacing:0.5px;font-weight:700}
@@ -208,7 +226,7 @@ function generarInformeGeneralHTML(recs, desde, hasta) {
 <body>
 
 <div class="header">
-  <div class="logo">🍋</div>
+  <div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "🍋"}</div>
   <div class="htitle">TIERRA PROMETIDA TRADING</div>
   <div class="sub">Informe General de Recepciones</div>
   <div class="rango">${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : "Todas las fechas"}</div>
@@ -343,8 +361,8 @@ export default function RecepcionesTab({ mob }) {
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const verInforme = (r) => {
-    const html = generarInformeHTML(r);
+  const verInforme = async (r) => {
+    const html = await generarInformeHTML(r);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     setPreview({ url, filename: `Recepcion_${r.remision || r.id}.html` });
   };
@@ -357,8 +375,8 @@ export default function RecepcionesTab({ mob }) {
     });
   }, [recepciones, filtroDesde, filtroHasta]);
 
-  const verInformeGeneral = () => {
-    const html = generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta);
+  const verInformeGeneral = async () => {
+    const html = await generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : "todas";
     setPreview({ url, filename: `Informe_General_Recepciones_${sufijo}.html` });

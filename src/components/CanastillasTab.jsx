@@ -5,6 +5,20 @@ import CustomSelect from "./CustomSelect.jsx";
 import { btnSecundario, btnPrimario, btnTablaEliminar } from "./buttonStyles.js";
 import { useCanastillas } from "../hooks/useCanastillas.js";
 
+// Logo de Tierra Prometida embebido como base64 — así los informes HTML
+// descargados muestran el logo aunque se abran después, sin servidor.
+async function cargarLogoBase64() {
+  try {
+    const res  = await fetch("/logo-tp.png");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(blob);
+    });
+  } catch { return ""; }
+}
+
 const ACCIONES = [
   { value: "prestamo",   label: "Préstamo — sale a un proveedor" },
   { value: "devolucion", label: "Devolución — vuelve a bodega" },
@@ -78,6 +92,8 @@ const estiloInforme = `
   *{box-sizing:border-box}
   body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:900px;margin:0 auto;font-size:12px}
   h1{color:#845EF7;margin-bottom:2px;font-size:20px}
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .hdr-row img{width:40px;height:40px;object-fit:contain}
   .meta{font-size:11px;color:#888;margin-bottom:18px}
   .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
   .card{background:#f5f3ff;border:1px solid #e5deff;border-radius:10px;padding:12px 16px;min-width:110px;text-align:center}
@@ -95,7 +111,8 @@ const estiloInforme = `
 `;
 
 // ── Informe: préstamos vigentes por proveedor ───────────────────────────────
-function buildInformePrestamo(porProveedor, totalPrestadas) {
+async function buildInformePrestamo(porProveedor, totalPrestadas) {
+  const logoSrc  = await cargarLogoBase64();
   const fechaHoy = new Date().toLocaleDateString("es-CO");
   const filas = porProveedor.map(([proveedor, { codigos, diasMax }]) => `
     <tr>
@@ -106,7 +123,7 @@ function buildInformePrestamo(porProveedor, totalPrestadas) {
     </tr>`).join("");
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe de Préstamos — Canastillas</title>
 <style>${estiloInforme}</style></head><body>
-<h1>🤝 Informe de Préstamos — Canastillas</h1>
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>🤝 Informe de Préstamos — Canastillas</h1></div>
 <div class="meta">Generado: ${fechaHoy}</div>
 <div class="cards">
   <div class="card"><div class="card-val">${totalPrestadas}</div><div class="card-lbl">Canastillas prestadas</div></div>
@@ -120,11 +137,12 @@ function buildInformePrestamo(porProveedor, totalPrestadas) {
 }
 
 // ── Informe: ronda de conteo ─────────────────────────────────────────────────
-function buildInformeRonda({ ronda, encontradas, faltantes }) {
+async function buildInformeRonda({ ronda, encontradas, faltantes }) {
+  const logoSrc  = await cargarLogoBase64();
   const fechaHoy = new Date().toLocaleDateString("es-CO");
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Ronda de Conteo ${ronda.fecha}</title>
 <style>${estiloInforme}</style></head><body>
-<h1>🔄 Informe — Ronda de Conteo</h1>
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>🔄 Informe — Ronda de Conteo</h1></div>
 <div class="meta">Ronda del ${ronda.fecha} · Generado: ${fechaHoy}${ronda.obs ? ` · ${ronda.obs}` : ""}</div>
 <div class="cards">
   <div class="card"><div class="card-val">${ronda.totalEsperadas}</div><div class="card-lbl">Esperadas</div></div>
@@ -471,7 +489,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
         <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, fontWeight:700 }}>
           🤝 Prestadas por proveedor ({porProveedor.length})
         </div>
-        <button onClick={() => verPrevia(buildInformePrestamo(porProveedor, stats.prestada), `Informe_Prestamos_Canastillas_${hoyISO()}.html`)}
+        <button onClick={async () => verPrevia(await buildInformePrestamo(porProveedor, stats.prestada), `Informe_Prestamos_Canastillas_${hoyISO()}.html`)}
           style={{ background:"rgba(14,165,233,0.12)", border:"1px solid rgba(14,165,233,0.3)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"#38bdf8", cursor:"pointer" }}>
           📄 Informe
         </button>
@@ -981,7 +999,7 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
 
   const verInforme = async (ronda) => {
     const detalle = await obtenerInformeRonda(ronda);
-    verPrevia(buildInformeRonda(detalle), `Informe_Ronda_Conteo_${ronda.fecha}.html`);
+    verPrevia(await buildInformeRonda(detalle), `Informe_Ronda_Conteo_${ronda.fecha}.html`);
   };
 
   const eliminarDelHistorial = (ronda) => {
