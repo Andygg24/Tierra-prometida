@@ -237,6 +237,28 @@ export default function CanastillasTab({ mob }) {
   );
 }
 
+// ── Barra de acciones en lote — aparece cuando hay canastillas seleccionadas ──
+function BarraAccionesLote({ cantidad, onAccion, onLimpiar }) {
+  if (cantidad === 0) return null;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:6, background:"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:8, padding:"6px 10px", marginBottom:8 }}>
+      <span style={{ fontSize:10, color:"#a78bfa", fontWeight:700, marginRight:2 }}>{cantidad} seleccionada{cantidad !== 1 ? "s" : ""}</span>
+      <button onClick={() => onAccion("disponible")} style={{ background:"rgba(0,201,167,0.15)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#00C9A7", cursor:"pointer", fontWeight:700 }}>
+        ✅ Marcar disponible
+      </button>
+      <button onClick={() => onAccion("perdida")} style={{ background:"rgba(255,80,80,0.12)", border:"1px solid rgba(255,80,80,0.3)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#ff6b6b", cursor:"pointer", fontWeight:700 }}>
+        ⚠️ Reportar pérdida
+      </button>
+      <button onClick={() => onAccion("baja")} style={{ background:"rgba(249,168,38,0.12)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#F9A826", cursor:"pointer", fontWeight:700 }}>
+        🔧 Marcar dañada
+      </button>
+      <button onClick={onLimpiar} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"rgba(255,255,255,0.55)", cursor:"pointer" }}>
+        ✕ Cancelar
+      </button>
+    </div>
+  );
+}
+
 // ── Vista: Resumen ──────────────────────────────────────────────────────────
 function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pedir, showToast, reportarEstado, registrarConteo, rondaActiva, verPrevia, eliminarCanastilla, obtenerMovimientosRecientes }) {
   const [busqueda, setBusqueda]   = useState("");
@@ -245,10 +267,14 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
 
   const [expandidoProv, setExpandidoProv] = useState(null);
   const [mostrarFaltantes, setMostrarFaltantes] = useState(false);
+  const [selFaltantes, setSelFaltantes] = useState(new Set());
 
   const [mostrarExplorador, setMostrarExplorador] = useState(false);
   const [filtroExplorador, setFiltroExplorador] = useState("");
   const [estadoExplorador, setEstadoExplorador] = useState("todos");
+  const [selExplorador, setSelExplorador] = useState(new Set());
+
+  useEffect(() => { setSelExplorador(new Set()); }, [filtroExplorador, estadoExplorador]);
 
   const [mostrarActividad, setMostrarActividad] = useState(false);
   const [actividad, setActividad] = useState(null); // null = no cargada aún
@@ -311,13 +337,59 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
   };
 
   const marcarEncontrada = (codigo) => {
-    pedir(`¿Marcar ${codigo} como encontrada (vuelve a "disponible")?`, async () => {
-      const res = await registrarConteo(codigo, rondaActiva?.id || null);
-      showToast(res.ok ? "Marcada como disponible ✓" : "Error", res.ok);
-      if (res.ok && encontrada && encontrada !== "not_found" && encontrada.codigo === codigo) {
+    // Una canastilla "baja" (dañada) no la revive registrarConteo (es un
+    // escaneo de ronda, no una reparación administrativa) — para esa hay que
+    // usar reportarEstado directo, si no el botón "miente": dice que la
+    // marcó disponible pero por dentro no cambia nada.
+    const actual = buscarPorCodigo(codigo);
+    const esBaja = actual?.estado === "baja";
+    pedir(`¿Marcar ${codigo} como ${esBaja ? "reparada" : "encontrada"} (vuelve a "disponible")?`, async () => {
+      const ok = esBaja
+        ? await reportarEstado(codigo, { tipo: "disponible", fecha: hoyISO() })
+        : (await registrarConteo(codigo, rondaActiva?.id || null)).ok;
+      showToast(ok ? "Marcada como disponible ✓" : "Error", ok);
+      if (ok && encontrada && encontrada !== "not_found" && encontrada.codigo === codigo) {
         setEncontrada(prev => ({ ...prev, estado: "disponible", proveedorActual: null }));
         setHistorial(await obtenerHistorial(codigo));
       }
+    });
+  };
+
+  const toggleSel = (setSel, codigo) => setSel(prev => {
+    const n = new Set(prev);
+    n.has(codigo) ? n.delete(codigo) : n.add(codigo);
+    return n;
+  });
+
+  // Acciones en lote: mismas opciones que ya existían por canastilla
+  // (marcar disponible/reparada, reportar pérdida, dar de baja), aplicadas a
+  // toda la selección de un tirón en vez de una por una en la barra de
+  // búsqueda.
+  const ejecutarEnLote = (codigos, tipo, limpiarSeleccion) => {
+    const acciones = {
+      disponible: {
+        label: "marcar como disponible (encontrada / reparada)",
+        correr: async (codigo) => {
+          const c = buscarPorCodigo(codigo);
+          if (c?.estado === "baja") return await reportarEstado(codigo, { tipo: "disponible", fecha: hoyISO() });
+          const res = await registrarConteo(codigo, rondaActiva?.id || null);
+          return res.ok;
+        },
+      },
+      perdida: { label: "reportar como perdidas", correr: (codigo) => reportarEstado(codigo, { tipo: "perdida", fecha: hoyISO() }) },
+      baja:    { label: "marcar como dañadas",    correr: (codigo) => reportarEstado(codigo, { tipo: "baja", fecha: hoyISO() }) },
+    };
+    const { label, correr } = acciones[tipo];
+    pedir(`¿Vas a ${label} ${codigos.length} canastilla${codigos.length !== 1 ? "s" : ""}?`, async () => {
+      let ok = 0;
+      for (const codigo of codigos) {
+        if (await correr(codigo)) ok++;
+      }
+      showToast(
+        ok === codigos.length ? `${ok} actualizada${ok !== 1 ? "s" : ""} ✓` : `${ok}/${codigos.length} actualizadas — revisa las que fallaron`,
+        ok === codigos.length
+      );
+      limpiarSeleccion();
     });
   };
 
@@ -383,7 +455,9 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
             )}
             <div style={{ display:"flex", gap:6 }}>
               {encontrada.estado !== "disponible" && (
-                <button onClick={() => marcarEncontrada(encontrada.codigo)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#00C9A7", cursor:"pointer" }}>Marcar encontrada</button>
+                <button onClick={() => marcarEncontrada(encontrada.codigo)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#00C9A7", cursor:"pointer" }}>
+                  {encontrada.estado === "baja" ? "🔧 Marcar reparada" : "Marcar encontrada"}
+                </button>
               )}
               <button onClick={() => reportar("perdida")} style={btnTablaEliminar}>Reportar pérdida</button>
               <button onClick={() => reportar("baja")} style={btnTablaEliminar}>🔧 Marcar dañada</button>
@@ -444,15 +518,29 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
         faltantes.length === 0 ? (
           <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>No hay canastillas faltantes por revisar.</div>
         ) : (
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-            {faltantes.map(c => (
-              <button key={c.id} onClick={() => marcarEncontrada(c.codigo)}
-                title="Marcar como encontrada"
-                style={{ fontSize:10, background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 8px", color:"#F9A826", cursor:"pointer" }}>
-                {c.codigo}
+          <>
+            <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:6 }}>
+              <button onClick={() => setSelFaltantes(selFaltantes.size === faltantes.length ? new Set() : new Set(faltantes.map(c => c.codigo)))}
+                style={{ background:"transparent", border:"none", fontSize:9, color:"rgba(255,255,255,0.4)", cursor:"pointer", textDecoration:"underline" }}>
+                {selFaltantes.size === faltantes.length ? "Deseleccionar todas" : "Seleccionar todas"}
               </button>
-            ))}
-          </div>
+            </div>
+            <BarraAccionesLote cantidad={selFaltantes.size}
+              onAccion={(tipo) => ejecutarEnLote([...selFaltantes], tipo, () => setSelFaltantes(new Set()))}
+              onLimpiar={() => setSelFaltantes(new Set())} />
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {faltantes.map(c => {
+                const sel = selFaltantes.has(c.codigo);
+                return (
+                  <button key={c.id} onClick={() => toggleSel(setSelFaltantes, c.codigo)}
+                    title="Tocar para seleccionar"
+                    style={{ fontSize:10, background: sel ? "rgba(249,168,38,0.32)" : "rgba(249,168,38,0.1)", border:`1px solid ${sel ? "#F9A826" : "rgba(249,168,38,0.3)"}`, borderRadius:6, padding:"4px 8px", color:"#F9A826", cursor:"pointer", fontWeight: sel ? 700 : 400 }}>
+                    {sel ? "☑" : "☐"} {c.codigo}
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )
       )}
 
@@ -482,20 +570,41 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
           {explorador.length === 0 ? (
             <div style={{ textAlign:"center", padding:"18px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Sin resultados.</div>
           ) : (
-            <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
-              {explorador.map(c => (
-                <button key={c.id} onClick={() => buscar(c.codigo)}
-                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"5px 10px", cursor:"pointer", textAlign:"left" }}>
-                  <span style={{ fontSize:11, color:"white" }}>{c.codigo}</span>
-                  <span style={{ fontSize:9, fontWeight:700, color: c.estado==="disponible"?"#00C9A7":c.estado==="prestada"?"#38bdf8":c.estado==="faltante"?"#F9A826":"#ff6b6b" }}>
-                    {c.estado.toUpperCase()}{c.estado==="prestada" && c.proveedorActual ? ` · ${c.proveedorActual}` : ""}
-                  </span>
+            <>
+              <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:6 }}>
+                <button onClick={() => setSelExplorador(selExplorador.size === explorador.length ? new Set() : new Set(explorador.map(c => c.codigo)))}
+                  style={{ background:"transparent", border:"none", fontSize:9, color:"rgba(255,255,255,0.4)", cursor:"pointer", textDecoration:"underline" }}>
+                  {selExplorador.size === explorador.length ? "Deseleccionar todas" : "Seleccionar todas (visibles)"}
                 </button>
-              ))}
-              {canastillas.length > explorador.length && explorador.length === 150 && (
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textAlign:"center", padding:"4px 0" }}>Mostrando los primeros 150 — afina la búsqueda para ver otras.</div>
-              )}
-            </div>
+              </div>
+              <BarraAccionesLote cantidad={selExplorador.size}
+                onAccion={(tipo) => ejecutarEnLote([...selExplorador], tipo, () => setSelExplorador(new Set()))}
+                onLimpiar={() => setSelExplorador(new Set())} />
+              <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
+                {explorador.map(c => {
+                  const sel = selExplorador.has(c.codigo);
+                  return (
+                    <div key={c.id} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <button onClick={() => toggleSel(setSelExplorador, c.codigo)}
+                        title="Seleccionar"
+                        style={{ flexShrink:0, width:22, height:22, borderRadius:5, border:`1px solid ${sel ? "#a78bfa" : "rgba(255,255,255,0.2)"}`, background: sel ? "rgba(132,94,247,0.35)" : "transparent", color:"#a78bfa", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+                        {sel ? "✓" : ""}
+                      </button>
+                      <button onClick={() => buscar(c.codigo)}
+                        style={{ flex:1, display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"5px 10px", cursor:"pointer", textAlign:"left" }}>
+                        <span style={{ fontSize:11, color:"white" }}>{c.codigo}</span>
+                        <span style={{ fontSize:9, fontWeight:700, color: c.estado==="disponible"?"#00C9A7":c.estado==="prestada"?"#38bdf8":c.estado==="faltante"?"#F9A826":"#ff6b6b" }}>
+                          {c.estado.toUpperCase()}{c.estado==="prestada" && c.proveedorActual ? ` · ${c.proveedorActual}` : ""}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+                {canastillas.length > explorador.length && explorador.length === 150 && (
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textAlign:"center", padding:"4px 0" }}>Mostrando los primeros 150 — afina la búsqueda para ver otras.</div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
