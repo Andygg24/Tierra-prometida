@@ -2371,7 +2371,7 @@ ${historial.length>0?`
 // ─────────────────────────────────────────────────────────────
 // MÓDULO ASISTENCIA — TIERRA PROMETIDA TRADING
 // Datos: registros[fecha][nombre] = { estado, contenedor, obs }
-//        metaDia[fecha] = { turno, contenedorDia, rogerContenedor, obsGeneral }
+//        metaDia[fecha] = { turno, contenedorDia, obsGeneral }
 // Persistencia: localStorage
 // ─────────────────────────────────────────────────────────────
 function AsistenciaDemo() {
@@ -2509,20 +2509,18 @@ function AsistenciaDemo() {
 
     const DIAS_SEMANA = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
-    // ── Tabla 1: Datos del día (turno, contenedor, Roger, obs) ──
+    // ── Tabla 1: Datos del día (turno, contenedor, obs) ──
     const tablaMetaDias = diasConReg.map(d => {
       const dm  = metaDia[d] || {};
       const ds  = DIAS_SEMANA[new Date(d + "T12:00:00").getDay()];
       const nd  = parseInt(d.split("-")[2]);
       const turno       = dm.turno           || "—";
       const contDia     = dm.contenedorDia   || "—";
-      const contRoger   = dm.rogerContenedor || "—";
       const obsGral     = dm.obsGeneral      || "—";
       return `<tr>
         <td><strong>${ds} ${nd} ${nomMes}</strong></td>
         <td style="text-align:center">${esc(turno)}</td>
         <td style="text-align:center;color:#1D6F42;font-weight:700">${esc(contDia)}</td>
-        <td style="text-align:center;color:#e65100;font-weight:700">${esc(contRoger)}</td>
         <td style="font-style:italic;color:#444">${esc(obsGral)}</td>
       </tr>`;
     }).join("");
@@ -2549,13 +2547,10 @@ function AsistenciaDemo() {
     }).join("");
 
     const filasDetalle = datos.map(row => {
-      const isRoger = row.nombre.toLowerCase().includes("roger jose brito");
       const celdas  = diasConReg.map(d => {
         const dd  = row.detalleDias[d] || {};
         const est = dd.estado || "";
-        const contEmp   = dd.contenedor || "";
-        const contRog   = isRoger ? (metaDia[d]?.rogerContenedor || "") : "";
-        const cont      = contEmp || contRog;
+        const cont      = dd.contenedor || "";
         const obs       = dd.obs || "";
         const clsColor  = { P:"#1D6F42", A:"#e53935", T:"#e67e00", F:"#7b1fa2", LP:"#00897b" }[est] || "#ccc";
         const contHtml  = cont ? `<div style="font-size:7px;color:#666;margin-top:2px">C${esc(cont)}</div>` : "";
@@ -2679,7 +2674,6 @@ function AsistenciaDemo() {
       <th style="min-width:110px">Fecha</th>
       <th style="text-align:center;min-width:60px">Turno</th>
       <th style="text-align:center;min-width:100px">Contenedor del dia</th>
-      <th style="text-align:center;min-width:100px">Roger &mdash; Contenedor</th>
       <th>Observacion general del dia</th>
     </tr>
   </thead>
@@ -2809,7 +2803,7 @@ ${seccionObs}
               // Preview de metaDia del mes
               const diasMes  = getDiasMes(mesReporte);
               const diasConR = diasMes.filter(d => datos.some(row => row.detalleDias[d]?.estado));
-              const diasConMeta = diasConR.filter(d => metaDia[d]?.turno || metaDia[d]?.contenedorDia || metaDia[d]?.rogerContenedor || metaDia[d]?.obsGeneral);
+              const diasConMeta = diasConR.filter(d => metaDia[d]?.turno || metaDia[d]?.contenedorDia || metaDia[d]?.obsGeneral);
 
               return (
                 <>
@@ -2845,7 +2839,6 @@ ${seccionObs}
                             <span style={{fontWeight:700,minWidth:60}}>{ds} {nd}</span>
                             {dm.turno           && <span>🕐 {dm.turno}</span>}
                             {dm.contenedorDia   && <span>📦 C.{dm.contenedorDia}</span>}
-                            {dm.rogerContenedor && <span>📦 Roger: {dm.rogerContenedor}</span>}
                             {dm.obsGeneral      && <span style={{color:"#555",fontStyle:"italic"}}>📝 {dm.obsGeneral}</span>}
                           </div>
                         );
@@ -2953,18 +2946,6 @@ ${seccionObs}
             />
           </div>
         </div>
-        {/* Roger — contenedor especial */}
-        <div style={{background:"rgba(249,168,38,0.08)",border:"1px solid rgba(249,168,38,0.22)",borderRadius:8,padding:"7px 10px"}}>
-          <div style={{fontSize:9,color:"rgba(249,168,38,0.85)",marginBottom:3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>
-            📦 Roger Brito (Cajas) — Contenedor que trabajó hoy
-          </div>
-          <input
-            placeholder="Nº contenedor de Roger hoy..."
-            value={meta.rogerContenedor || ""}
-            onChange={e => setMetaField("rogerContenedor", e.target.value)}
-            style={{...inpSm, width:"100%", boxSizing:"border-box"}}
-          />
-        </div>
       </div>
 
       {/* ══════════════════════════════════════
@@ -3014,7 +2995,6 @@ ${seccionObs}
           const estadoObj = estado ? ESTADOS.find(s => s.key === estado) : null;
           const empReg    = getEmpReg(emp.nombre);
           const isExpand  = expandedEmp === emp.nombre;
-          const isRoger   = emp.nombre.toLowerCase().includes("roger jose brito");
 
           return (
             <div key={i} style={{
@@ -3034,11 +3014,6 @@ ${seccionObs}
                     <span style={{fontSize:14, color:"white", fontWeight:700, lineHeight:1.2}}>
                       {emp.nombre.split(" ").slice(0,2).join(" ")}
                     </span>
-                    {isRoger && (
-                      <span style={{fontSize:9, background:"rgba(249,168,38,0.2)", color:"#F9A826", borderRadius:5, padding:"2px 6px", fontWeight:700, flexShrink:0}}>
-                        CAJAS
-                      </span>
-                    )}
                   </div>
                   {/* Área y documento */}
                   <div style={{fontSize:11, color:"rgba(255,255,255,0.48)", lineHeight:1.4}}>
@@ -3123,23 +3098,14 @@ ${seccionObs}
                 }}>
                   <div>
                     <div style={{fontSize:10, color:"rgba(78,205,196,0.8)", marginBottom:5, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5}}>
-                      📦 Contenedor{isRoger ? " (Roger)" : ""}
+                      📦 Contenedor
                     </div>
-                    {isRoger ? (
-                      <input
-                        placeholder="Nº contenedor de Roger"
-                        value={meta.rogerContenedor || ""}
-                        onChange={e => setMetaField("rogerContenedor", e.target.value)}
-                        style={{...inpSm, width:"100%", boxSizing:"border-box"}}
-                      />
-                    ) : (
-                      <input
-                        placeholder="Número de contenedor..."
-                        value={empReg.contenedor || ""}
-                        onChange={e => setEmpField(emp.nombre, "contenedor", e.target.value)}
-                        style={{...inpSm, width:"100%", boxSizing:"border-box"}}
-                      />
-                    )}
+                    <input
+                      placeholder="Número de contenedor..."
+                      value={empReg.contenedor || ""}
+                      onChange={e => setEmpField(emp.nombre, "contenedor", e.target.value)}
+                      style={{...inpSm, width:"100%", boxSizing:"border-box"}}
+                    />
                   </div>
                   <div>
                     <div style={{fontSize:10, color:"rgba(255,255,255,0.58)", marginBottom:5, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5}}>
@@ -5815,8 +5781,6 @@ function TasaCambioWidget() {
 
 // ─── MÓDULO ESTADÍSTICAS ──────────────────────────────────────
 // ── Datos históricos para estadísticas ───────────────────────
-const TRM_USD = 4200;
-
 const GASTOS_OP_EST = [
   { cat:"Empaque (cajas/esquineras)", cop:1200000 },
   { cat:"Transporte interno",         cop:800000  },
@@ -5881,9 +5845,6 @@ function EstadisticasDemo() {
   // Parámetros configurados desde Supabase
   const nominaCfgEst = estCfg.cfg_nomina      || {};
   const expCfgEst    = estCfg.cfg_exportacion || {};
-  const trmReal      = (() => { const v = localStorage.getItem("tp_tasa_usd"); return v ? Number(v) : TRM_USD; })();
-  const kgPorCaja    = expCfgEst.kgPorCaja   ?? 10;
-  const precioUSDkg  = expCfgEst.precioUSDkg ?? 0.45;
   const valCont      = nominaCfgEst.valorContenedor ?? VALOR_CONTENEDOR;
   const salMin       = nominaCfgEst.salarioMinimo   ?? SALARIO_MINIMO;
   const valQuin      = nominaCfgEst.valorQuincena   ?? QUINCENA_DESCARGUE;
@@ -5897,11 +5858,10 @@ function EstadisticasDemo() {
       liqs.forEach(l => {
         const p = l.periodo || l.fecha?.slice(0, 7) || "";
         if (!p) return;
-        if (!porPeriodo[p]) porPeriodo[p] = { roger:0, desc:0, proc:0, total:0 };
+        if (!porPeriodo[p]) porPeriodo[p] = { nomina:0, proc:0, total:0 };
         const monto = Number(l.neto) || 0;
-        if (l.tipo === "nomina")      porPeriodo[p].roger += monto;
-        else if (l.tipo === "contenedor") porPeriodo[p].proc += monto;
-        else                          porPeriodo[p].desc  += monto;
+        if (l.tipo === "contenedor") porPeriodo[p].proc   += monto;
+        else                         porPeriodo[p].nomina += monto;
         porPeriodo[p].total += monto;
       });
       return Object.entries(porPeriodo)
@@ -5916,15 +5876,13 @@ function EstadisticasDemo() {
     } catch { return []; }
   })();
 
-  // Financiero — basado en contenedores reales + parámetros configurados
+  // Gastos — basado en contenedores reales + parámetros configurados
   const gastosFijosTotal = GASTOS_OP_EST.reduce((s,g)=>s+g.cop,0);
   const finMeses = histConFinal.map(h => {
-    const nom      = salMin + valQuin*2*3 + h.num*PROCESO_BASE.length*valCont;
-    const op       = gastosFijosTotal * h.num;
-    const gastos   = nom + op;
-    const ingUSD   = h.cajas * kgPorCaja * precioUSDkg;
-    const ingresos = ingUSD * trmReal;
-    return { ...h, gastos, ingresos, margen:ingresos-gastos };
+    const nom    = salMin + valQuin*2*3 + h.num*PROCESO_BASE.length*valCont;
+    const op     = gastosFijosTotal * h.num;
+    const gastos = nom + op;
+    return { ...h, gastos };
   });
 
   // Pedidos reales desde Supabase (via usePedidos)
@@ -5953,7 +5911,7 @@ function EstadisticasDemo() {
     { icon:"📦", label:"Producción"    },
     { icon:"💰", label:"Nómina"        },
     { icon:"📅", label:"Asistencia"    },
-    { icon:"💵", label:"Financiero"    },
+    { icon:"💸", label:"Gastos"        },
     { icon:"🚢", label:"Exportaciones" },
   ];
 
@@ -6104,7 +6062,7 @@ function EstadisticasDemo() {
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                 <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)" }}>💰 Nómina mensual — comparativo</div>
                 <div style={{ display:"flex", gap:8 }}>
-                  {[["Roger","#845EF7"],["Descargue","#F9A826"],["Proceso","#6366F1"]].map(([l,c])=>(
+                  {[["Nómina","#845EF7"],["Proceso","#6366F1"]].map(([l,c])=>(
                     <div key={l} style={{ display:"flex", alignItems:"center", gap:3, fontSize:8, color:"rgba(255,255,255,0.42)" }}>
                       <div style={{ width:7, height:7, borderRadius:1, background:c }}/>{l}
                     </div>
@@ -6114,16 +6072,14 @@ function EstadisticasDemo() {
               <div style={{ display:"flex", alignItems:"flex-end", gap:5, height:90 }}>
                 {nominaMeses.map((m,i)=>{
                   const scale = 68/maxT;
-                  const hr = (m.roger*scale).toFixed(1);
-                  const hd = (m.desc*scale).toFixed(1);
+                  const hn = (m.nomina*scale).toFixed(1);
                   const hp = (m.proc*scale).toFixed(1);
                   const esAct = i===nominaMeses.length-1;
                   return (
                     <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
                       <div style={{ display:"flex", flexDirection:"column", alignItems:"stretch", width:"80%", gap:1 }}>
                         <div style={{ height:`${hp}px`, background:"#6366F1", borderRadius:"3px 3px 0 0", opacity:esAct?1:0.45 }}/>
-                        <div style={{ height:`${hd}px`, background:"#F9A826", opacity:esAct?1:0.45 }}/>
-                        <div style={{ height:`${hr}px`, background:"#845EF7", borderRadius:0, opacity:esAct?1:0.45 }}/>
+                        <div style={{ height:`${hn}px`, background:"#845EF7", borderRadius:0, opacity:esAct?1:0.45 }}/>
                       </div>
                       <div style={{ fontSize:7, color:esAct?"#F9A826":"rgba(255,255,255,0.28)", textAlign:"center" }}>{m.mes}</div>
                     </div>
@@ -6137,13 +6093,13 @@ function EstadisticasDemo() {
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                 <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)" }}>Detalle mensual</div>
                 {btnCSV("CSV nómina", ()=>descargarCSV(
-                  ["Mes","Roger COP","Descargue COP","Proceso COP","Total COP"],
-                  nominaMeses.map(m=>[m.mes,m.roger,m.desc,m.proc,m.total]),
+                  ["Mes","Nómina COP","Proceso COP","Total COP"],
+                  nominaMeses.map(m=>[m.mes,m.nomina,m.proc,m.total]),
                   "nomina_mensual.csv"
                 ))}
               </div>
               <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.11)", paddingBottom:5, marginBottom:4 }}>
-                {["Mes","Roger","Descargue","Proceso","Total"].map((h,i)=>(
+                {["Mes","Nómina","Proceso","Total"].map((h,i)=>(
                   <div key={i} style={{ flex:i===0?2:1.4, fontSize:8, color:"rgba(255,255,255,0.38)", fontWeight:700, textAlign:i===0?"left":"right" }}>{h}</div>
                 ))}
               </div>
@@ -6152,8 +6108,7 @@ function EstadisticasDemo() {
                 return (
                   <div key={i} style={{ display:"flex", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,0.07)", background:esAct?"rgba(249,168,38,0.05)":"transparent" }}>
                     <div style={{ flex:2, fontSize:10, color:esAct?"#F9A826":"rgba(255,255,255,0.6)", fontWeight:esAct?700:400 }}>{m.mes}{esAct?" ●":""}</div>
-                    <div style={{ flex:1.4, fontSize:9, color:"#845EF7", textAlign:"right" }}>${(m.roger/1e6).toFixed(2)}M</div>
-                    <div style={{ flex:1.4, fontSize:9, color:"#F9A826", textAlign:"right" }}>${(m.desc/1e6).toFixed(2)}M</div>
+                    <div style={{ flex:1.4, fontSize:9, color:"#845EF7", textAlign:"right" }}>${(m.nomina/1e6).toFixed(2)}M</div>
                     <div style={{ flex:1.4, fontSize:9, color:"#6366F1", textAlign:"right" }}>${(m.proc/1e6).toFixed(2)}M</div>
                     <div style={{ flex:1.4, fontSize:10, color:"#00C9A7", textAlign:"right", fontWeight:700 }}>${(m.total/1e6).toFixed(2)}M</div>
                   </div>
@@ -6231,33 +6186,27 @@ function EstadisticasDemo() {
         </div>
       )}
 
-      {/* ══ TAB 3: FINANCIERO ══ */}
+      {/* ══ TAB 3: GASTOS ══ */}
       {tab===3 && (() => {
         if (finMeses.length === 0) return (
           <div style={{ textAlign:"center", padding:"50px 20px" }}>
-            <div style={{ fontSize:32, marginBottom:10 }}>📈</div>
+            <div style={{ fontSize:32, marginBottom:10 }}>💸</div>
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.58)", marginBottom:6 }}>Sin datos de contenedores aún</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)" }}>Registra contenedores en el módulo "Contenedores" para ver el análisis financiero</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)" }}>Registra contenedores en el módulo "Contenedores" para ver el análisis de gastos</div>
           </div>
         );
-        const totalIng  = finMeses.reduce((s,m)=>s+m.ingresos,0);
         const totalGas  = finMeses.reduce((s,m)=>s+m.gastos,0);
-        const margenPct = totalIng>0 ? Math.round((totalIng-totalGas)/totalIng*100) : 0;
-        const mejorMes  = finMeses.slice().sort((a,b)=>b.margen-a.margen)[0];
-        const maxFin    = Math.max(...finMeses.map(x=>x.ingresos), 1);
+        const promGas   = totalGas / finMeses.length;
+        const peorMes   = finMeses.slice().sort((a,b)=>b.gastos-a.gastos)[0];
+        const maxFin    = Math.max(...finMeses.map(x=>x.gastos), 1);
         return (
           <div>
-            <div style={{ background:"rgba(56,189,248,0.07)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:8, padding:"6px 12px", marginBottom:10, fontSize:10, color:"#38bdf8", display:"flex", gap:12 }}>
-              <span>💱 TRM: <b>${trmReal.toLocaleString("es-CO")}</b> COP/USD {trmReal===TRM_USD?"(estimada)":"(tiempo real)"}</span>
-              <span>📦 <b>{kgPorCaja} kg</b>/caja</span>
-              <span>💵 <b>${precioUSDkg}/kg</b> USD</span>
-            </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
               {[
-                { icon:"💵", l:`Ingresos est. ${finMeses.length} mes${finMeses.length!==1?"es":""}`, v:`$${(totalIng/1e6).toFixed(0)}M COP`, c:"#00C9A7" },
-                { icon:"💸", l:"Gastos nómina+operativos", v:`$${(totalGas/1e6).toFixed(0)}M COP`,   c:"#FF6B6B" },
-                { icon:"📈", l:"Margen bruto estimado",    v:`${margenPct}%`,                          c:"#F9A826" },
-                { icon:"🏆", l:"Mejor mes (margen)",       v:mejorMes?.mes || "—",                     c:"#845EF7" },
+                { icon:"💸", l:`Gastos totales ${finMeses.length} mes${finMeses.length!==1?"es":""}`, v:`$${(totalGas/1e6).toFixed(0)}M COP`, c:"#FF6B6B" },
+                { icon:"📊", l:"Gasto promedio mensual",  v:`$${(promGas/1e6).toFixed(1)}M COP`,      c:"#F9A826" },
+                { icon:"🏆", l:"Mes de mayor gasto",       v:peorMes?.mes || "—",                       c:"#845EF7" },
+                { icon:"🚢", l:"Nómina+operativos incl.",  v:"Sin materia prima",                       c:"#6366F1" },
               ].map((k,i)=>(
                 <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 12px", display:"flex", alignItems:"center", gap:10 }}>
                   <div style={{ fontSize:22 }}>{k.icon}</div>
@@ -6269,30 +6218,17 @@ function EstadisticasDemo() {
               ))}
             </div>
 
-            {/* Chart ingresos vs gastos */}
-            <div style={{ background:"rgba(0,201,167,0.04)", border:"1px solid rgba(0,201,167,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)" }}>📈 Ingresos vs Gastos por mes</div>
-                <div style={{ display:"flex", gap:8 }}>
-                  {[["Ingresos","#00C9A7"],["Gastos","#FF6B6B"]].map(([l,c])=>(
-                    <div key={l} style={{ display:"flex", alignItems:"center", gap:3, fontSize:8, color:"rgba(255,255,255,0.42)" }}>
-                      <div style={{ width:7, height:7, borderRadius:1, background:c }}/>{l}
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Chart gastos */}
+            <div style={{ background:"rgba(255,107,107,0.04)", border:"1px solid rgba(255,107,107,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.58)", marginBottom:8 }}>💸 Gastos por mes</div>
               <div style={{ display:"flex", alignItems:"flex-end", gap:5, height:90 }}>
                 {finMeses.map((m,i)=>{
-                  const hi   = ((m.ingresos/maxFin)*68).toFixed(1);
                   const hg   = ((m.gastos/maxFin)*68).toFixed(1);
                   const esAct = i===finMeses.length-1;
                   return (
                     <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
-                      <div style={{ display:"flex", gap:2, alignItems:"flex-end", height:72 }}>
-                        <div style={{ width:10, height:`${hi}px`, background:"#00C9A7", borderRadius:"2px 2px 0 0", opacity:esAct?1:0.4 }}/>
-                        <div style={{ width:10, height:`${hg}px`, background:"#FF6B6B", borderRadius:"2px 2px 0 0", opacity:esAct?1:0.4 }}/>
-                      </div>
-                      <div style={{ fontSize:7, color:esAct?"#00C9A7":"rgba(255,255,255,0.28)", textAlign:"center" }}>{m.mes}</div>
+                      <div style={{ width:"80%", height:`${hg}px`, background:"#FF6B6B", borderRadius:"3px 3px 0 0", opacity:esAct?1:0.4 }}/>
+                      <div style={{ fontSize:7, color:esAct?"#FF6B6B":"rgba(255,255,255,0.28)", textAlign:"center" }}>{m.mes}</div>
                     </div>
                   );
                 })}
@@ -6317,12 +6253,9 @@ function EstadisticasDemo() {
               <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
                 <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)", marginBottom:8 }}>📌 Supuestos del cálculo</div>
                 {[
-                  `TRM: $${trmReal.toLocaleString("es-CO")} COP/USD ${trmReal===TRM_USD?"(estimada, configura en widget)":"(tiempo real ✅)"}`,
-                  `Precio: $${precioUSDkg} USD/kg exportado`,
-                  `${kgPorCaja} kg por caja procesada`,
                   "No incluye costo de materia prima",
+                  "No incluye ingresos — la empresa aún no los maneja",
                   "Gastos operativos estimados (editable en Configuración)",
-                  "Margen bruto ≠ utilidad neta",
                 ].map((n,i)=>(
                   <div key={i} style={{ display:"flex", gap:5, alignItems:"flex-start", marginBottom:4 }}>
                     <span style={{ fontSize:9, color:"rgba(255,255,255,0.28)", flexShrink:0, marginTop:1 }}>•</span>
@@ -6330,10 +6263,10 @@ function EstadisticasDemo() {
                   </div>
                 ))}
                 <button onClick={()=>descargarCSV(
-                  ["Mes","Ingresos COP","Gastos COP","Margen COP","Margen %"],
-                  finMeses.map(m=>[m.mes,Math.round(m.ingresos),Math.round(m.gastos),Math.round(m.margen),m.ingresos>0?`${Math.round(m.margen/m.ingresos*100)}%`:"—"]),
-                  "financiero_mensual.csv"
-                )} style={{ marginTop:10, width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"5px", fontSize:9, color:"#6366F1", cursor:"pointer", fontWeight:700 }}>⬇ Exportar CSV financiero</button>
+                  ["Mes","Gastos COP"],
+                  finMeses.map(m=>[m.mes,Math.round(m.gastos)]),
+                  "gastos_mensual.csv"
+                )} style={{ marginTop:10, width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"5px", fontSize:9, color:"#6366F1", cursor:"pointer", fontWeight:700 }}>⬇ Exportar CSV gastos</button>
               </div>
             </div>
           </div>
@@ -6889,7 +6822,7 @@ function InicioDemo({ onNavigate, puedeAcceder }) {
           <div style={{ fontSize:22, fontWeight:800, color:"#F9A826", lineHeight:1, marginBottom:4 }}>${(nominaFija/1000000).toFixed(2)}M</div>
           <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:6 }}>COP · base mensual estimada</div>
           <div style={{ fontSize:9, color:"rgba(249,168,38,0.5)", lineHeight:1.7 }}>
-            Roger: ${SALARIO_MINIMO.toLocaleString("es-CO")}<br/>
+            Salario base: ${SALARIO_MINIMO.toLocaleString("es-CO")}<br/>
             Desc. ×3: ${(QUINCENA_DESCARGUE*6).toLocaleString("es-CO")}
           </div>
         </div>
@@ -7756,7 +7689,7 @@ function ConfigForm({ config, guardar }) {
 // ─── APP PRINCIPAL ────────────────────────────────────────────
 const MODULES = [
   { id:"inicio",        icon:"🏠", title:"Inicio",        color:"#845EF7", demo:{ type:"inicio_live" },        capabilities:["Dashboard ejecutivo","KPIs en tiempo real","Acceso rápido a módulos","Alertas inteligentes","Reloj en vivo","Resumen del negocio"] },
-  { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Precio del limón","Nómina base estimada","Observaciones y alertas"] },
+  { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
   { id:"personal",      icon:"👥", title:"Personal",      color:"#a78bfa", demo:{ type:"personal_live" },     capabilities:["Base de datos 50+ empleados","Búsqueda y filtros","Agregar empleados","Broadcast WhatsApp","Editar fichas","Documentos: CC, PPT, Venezuela"] },
   { id:"contenedores",  icon:"🚢", title:"Contenedores",  color:"#6366F1", demo:{ type:"contenedores_live" }, capabilities:["Registro por fecha y proceso","N° contenedor y proveedor","Tipo de caja Del Monte / Princess","Supervisores a cargo","Empresa, placa y trailer","Informe descargable"] },
   { id:"recepciones",   icon:"🍋", title:"Recepciones",   color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
