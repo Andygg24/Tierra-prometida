@@ -1059,6 +1059,142 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
     URL.revokeObjectURL(u);
   };
 
+  // ── Informe general Paso 1 — Calibres + Checklist Calidad y Cargue ──
+  const [generandoInformePlanta, setGenerandoInformePlanta] = useState(false);
+  const generarInformePlanta = async () => {
+    setGenerandoInformePlanta(true);
+    try {
+      // Resumen de cajas por calibre (mismo cálculo que el PDF de contenedor)
+      const sizeQty = Object.fromEntries(CALIBRES.map(c => [c, 0]));
+      pallets.forEach(p => p.calibres.forEach(c => {
+        const s = c.size !== "" && c.size != null ? Number(c.size) : null;
+        if (s !== null) sizeQty[s] = (sizeQty[s] || 0) + Number(c.cajas || 0);
+      }));
+      const totalCal = Object.values(sizeQty).reduce((a, b) => a + b, 0);
+      const filasCalibre = CALIBRES.slice().sort((a, b) => b - a)
+        .map(s => `<tr><td>${s}</td><td style="text-align:right">${sizeQty[s].toLocaleString("es-CO")}</td><td style="text-align:right">${totalCal ? Math.round(sizeQty[s] / totalCal * 100) : 0}%</td></tr>`)
+        .join("");
+
+      // Detalle por pallet (calibre, cajas y predio de cada uno)
+      const filasPallets = pallets.map(p => {
+        const detalle = p.calibres.map(c =>
+          `${c.plu ? `${c.size}PLU` : (c.size || "—")} · ${c.cajas || 0} cj${c.predio ? ` — ${c.predio}` : ""}`
+        ).join("<br>");
+        const sum = palletSum(p);
+        const ok  = sum === cpp;
+        return `<tr><td>P${p.id}</td><td>${detalle || "—"}</td><td style="text-align:right${ok ? "" : ";color:#c62828;font-weight:700"}">${sum}</td></tr>`;
+      }).join("");
+
+      // Checklist: cada categoría con el resultado de cada ítem
+      const chequeos  = admin.checklistCalidad || {};
+      const marcados  = Object.values(chequeos).filter(Boolean).length;
+      const conNo     = Object.values(chequeos).filter(v => v === "no").length;
+      const seccionesChequeo = CHECKLIST_CALIDAD_CARGUE.map(grupo => {
+        const filas = grupo.items.map(([key, label]) => {
+          const val   = chequeos[key];
+          const badge = val === "si" ? `<span class="ok">SÍ CUMPLE</span>`
+                      : val === "no" ? `<span class="bad">NO CUMPLE</span>`
+                      : `<span class="pend">Sin revisar</span>`;
+          return `<tr><td>${label}</td><td style="text-align:center">${badge}</td></tr>`;
+        }).join("");
+        return `<h3>${grupo.icon} ${grupo.cat}</h3><table>${filas}</table>`;
+      }).join("");
+
+      // Logo (mismo patrón que el PDF de contenedor)
+      let logoSrc = "";
+      try {
+        const res  = await fetch("/logo-tp.png");
+        const blob = await res.blob();
+        logoSrc = await new Promise(resolve => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.readAsDataURL(blob);
+        });
+      } catch { /* si falla, informe sin logo */ }
+
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Informe Planta — ${admin.container || contenedor?.numContenedor || ""}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:900px;margin:0 auto;font-size:12px}
+.hdr-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.hdr-row img{width:64px;height:64px;object-fit:contain}
+h1{color:#1f5c1f;font-size:20px}
+.meta{font-size:11px;color:#888;margin-bottom:18px}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.card{background:#f0f7f0;border:1px solid #c8e6c9;border-radius:10px;padding:12px 16px;min-width:110px;text-align:center}
+.card-val{font-size:20px;font-weight:800;color:#1f5c1f;line-height:1}
+.card-lbl{font-size:9px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+.card.warn .card-val{color:#c62828}
+h2{color:#1f5c1f;font-size:13px;font-weight:800;margin:22px 0 8px;border-bottom:2px solid #c8e6c9;padding-bottom:5px;text-transform:uppercase}
+h3{font-size:11px;font-weight:700;margin:14px 0 6px;color:#444}
+table{width:100%;border-collapse:collapse;margin-bottom:6px}
+th{background:#1f5c1f;color:white;padding:6px 10px;text-align:left;font-size:10px}
+td{padding:5px 10px;border-bottom:1px solid #eee;font-size:11px}
+tr:nth-child(even) td{background:#fafdf9}
+.ok{color:#1D6F42;font-weight:800}
+.bad{color:#c62828;font-weight:800}
+.pend{color:#999;font-style:italic}
+.obs{background:#fafdf9;border:1px solid #e0e0e0;border-radius:8px;padding:10px 14px;font-size:11px;margin-top:6px;white-space:pre-wrap}
+.firma{margin-top:22px;font-size:11px}
+.firma b{display:inline-block;min-width:100px}
+.footer{text-align:center;color:#bbb;margin-top:26px;font-size:10px;border-top:1px solid #eee;padding-top:12px}
+@media print{body{padding:12px}}
+</style></head><body>
+
+<div class="hdr-row">
+  <div>
+    <h1>📦 Informe de Planta — Calibres y Control de Calidad</h1>
+    <div class="meta">Contenedor ${admin.container || contenedor?.numContenedor || "—"} · Generado: ${new Date().toLocaleDateString("es-CO")}</div>
+  </div>
+  ${logoSrc ? `<img src="${logoSrc}" />` : ""}
+</div>
+
+<div class="cards">
+  <div class="card"><div class="card-val">${totalCajas.toLocaleString("es-CO")}</div><div class="card-lbl">Total cajas</div></div>
+  <div class="card"><div class="card-val">${admin.checklistPlanta || "—"}</div><div class="card-lbl">Planta</div></div>
+  <div class="card"><div class="card-val">${contenedor?.producto || "—"}</div><div class="card-lbl">Producto</div></div>
+  <div class="card"><div class="card-val">${marcados}/${CHEQUEO_TOTAL_ITEMS}</div><div class="card-lbl">Chequeos revisados</div></div>
+  <div class="card ${conNo > 0 ? "warn" : ""}"><div class="card-val">${conNo}</div><div class="card-lbl">Con "NO" ⚠️</div></div>
+</div>
+
+<h2>📊 Resumen de cajas por calibre</h2>
+<table>
+  <thead><tr><th>Calibre</th><th style="text-align:right">Cajas</th><th style="text-align:right">%</th></tr></thead>
+  <tbody>${filasCalibre}<tr style="font-weight:800"><td>TOTAL</td><td style="text-align:right">${totalCal.toLocaleString("es-CO")}</td><td></td></tr></tbody>
+</table>
+
+<h2>🧱 Detalle por pallet</h2>
+<table>
+  <thead><tr><th>Pallet</th><th>Calibre / Cajas / Predio</th><th style="text-align:right">Total cajas</th></tr></thead>
+  <tbody>${filasPallets}</tbody>
+</table>
+
+<h2>✅ Checklist Control de Calidad y Cargue</h2>
+${seccionesChequeo}
+
+${admin.checklistObs ? `<h2>📝 Observaciones generales</h2><div class="obs">${admin.checklistObs}</div>` : ""}
+
+<div class="firma">
+  <div><b>Responsable:</b> ${admin.checklistResponsable || "—"}</div>
+  <div><b>Cargo:</b> ${admin.checklistCargo || "—"}</div>
+</div>
+
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${new Date().toLocaleDateString("es-CO")}</div>
+</body></html>`;
+
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = u;
+      a.download = `Informe-Planta-${admin.container || contenedor?.numContenedor || "packing"}.html`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(u);
+    } finally {
+      setGenerandoInformePlanta(false);
+    }
+  };
+
   // ── Botones nav ───────────────────────────────────────────────
   const SaveIndicator = () => (
     <div style={{ display:"flex", alignItems:"center", gap:6, fontSize: m ? 12 : 10, color: guardadoOk ? "#00C9A7" : guardando ? "#F9A826" : "rgba(255,255,255,0.3)" }}>
@@ -1338,7 +1474,11 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
               );
             })()}
 
-            <div style={{ display:"flex", gap:8, paddingTop: m ? 14 : 10, alignItems:"center" }}>
+            <button onClick={generarInformePlanta} disabled={generandoInformePlanta} style={{ width:"100%", background:"linear-gradient(135deg,#1f5c1f,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoInformePlanta ? "wait" : "pointer", fontWeight:700, opacity: generandoInformePlanta ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: m ? 14 : 10 }}>
+              {generandoInformePlanta ? "⏳ Generando..." : "📄 Descargar Informe General (Calibres + Checklist)"}
+            </button>
+
+            <div style={{ display:"flex", gap:8, paddingTop: m ? 0 : 0, alignItems:"center" }}>
               <SaveIndicator />
               <div style={{ flex:1, display:"flex", gap:8 }}>
                 <NavBtn onClick={() => guardarProgreso(1)}>💾 Guardar</NavBtn>
