@@ -315,13 +315,17 @@ export function useCanastillas() {
     const actual   = buscarPorCodigo(codigo);
     const fechaHoy = new Date().toISOString().split("T")[0];
 
-    // La ronda pudo haberse cerrado justo antes de este escaneo (alguien más
-    // cerró mientras esta persona seguía escaneando) — se confirma contra el
-    // servidor para no reabrir en silencio una canastilla que el informe ya
-    // dejó como "faltante".
-    const { data: rondaRow } = await supabase.from("canastilla_rondas")
-      .select("cerrada").eq("id", rondaId).maybeSingle();
-    if (!rondaRow || rondaRow.cerrada) return { ok: false, cerrada: true };
+    // Si viene atada a una ronda, esta pudo haberse cerrado justo antes de
+    // este escaneo (alguien más cerró mientras esta persona seguía
+    // escaneando) — se confirma contra el servidor para no reabrir en
+    // silencio una canastilla que el informe ya dejó como "faltante".
+    // Cuando rondaId es null (p.ej. "Marcar encontrada" desde Buscar
+    // canastillas, fuera de cualquier ronda) no hay nada que verificar.
+    if (rondaId) {
+      const { data: rondaRow } = await supabase.from("canastilla_rondas")
+        .select("cerrada").eq("id", rondaId).maybeSingle();
+      if (!rondaRow || rondaRow.cerrada) return { ok: false, cerrada: true };
+    }
 
     if (!actual) {
       // No existía localmente — se registra como nueva y ya contada.
