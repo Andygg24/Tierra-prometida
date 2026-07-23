@@ -31,6 +31,16 @@ const lbl = { fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 };
 
 const hoyISO = () => new Date().toISOString().split("T")[0];
 
+// Nombre de quien tiene sesión iniciada (para saber quién inició cada ronda).
+const nombreUsuarioSesion = () => {
+  try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
+};
+
+// "¿Ya me uní a esta ronda en este dispositivo?" — evita mostrar la
+// pantalla de "unirse" otra vez si solo navegaste a otra pestaña y volviste.
+const yaUnidoARonda   = (id) => sessionStorage.getItem(`tp_ronda_unida_${id}`) === "1";
+const marcarUnidoARonda = (id) => { try { sessionStorage.setItem(`tp_ronda_unida_${id}`, "1"); } catch {} };
+
 // Días transcurridos desde una fecha "YYYY-MM-DD" (local, sin líos de huso horario).
 const diasDesde = (fechaISO) => {
   if (!fechaISO) return null;
@@ -926,18 +936,31 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
   const escaneadosRef = useRef(new Set());
   useEffect(() => { escaneadosRef.current = new Set(); setContadas([]); }, [rondaActiva?.id]);
 
+  // "Unirse" a una ronda ya activa es un paso aparte de simplemente
+  // iniciar cámara — así la persona que entra sabe explícitamente que
+  // alguien más ya está contando, en vez de caer directo en la pantalla
+  // de escaneo sin contexto.
+  const [unido, setUnido] = useState(() => rondaActiva ? yaUnidoARonda(rondaActiva.id) : false);
+  useEffect(() => { setUnido(rondaActiva ? yaUnidoARonda(rondaActiva.id) : false); }, [rondaActiva?.id]);
+
   const empezar = () => {
     pedir("¿Iniciar una nueva ronda de conteo? Se tomará una foto de cuántas canastillas deberían estar disponibles ahora mismo.", async () => {
       setIniciando(true);
-      const ronda = await iniciarRonda({ fecha: hoyISO(), obs: obsInicio });
+      const ronda = await iniciarRonda({ fecha: hoyISO(), obs: obsInicio, iniciadaPor: nombreUsuarioSesion() });
       const msg = !ronda
         ? "Error al iniciar la ronda"
         : ronda.yaExistia
-          ? `Ya había una ronda activa — te uniste a ella (${ronda.totalEsperadas} esperadas)`
+          ? `Ya había una ronda activa${ronda.iniciadaPor ? ` (iniciada por ${ronda.iniciadaPor})` : ""} — te uniste a ella (${ronda.totalEsperadas} esperadas)`
           : `Ronda iniciada — ${ronda.totalEsperadas} canastillas esperadas`;
       showToast(msg, !!ronda);
+      if (ronda) marcarUnidoARonda(ronda.id);
       setIniciando(false);
     });
+  };
+
+  const unirseARonda = () => {
+    marcarUnidoARonda(rondaActiva.id);
+    setUnido(true);
   };
 
   const escanear = async (codigoRaw) => {
@@ -1013,6 +1036,7 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     pedir(`¿Reabrir la ronda del ${ronda.fecha}? Podrás seguir escaneando canastillas sobre ella — cuando la vuelvas a cerrar, el informe se recalcula con lo nuevo que hayas encontrado.`, async () => {
       setReabriendoId(ronda.id);
       const res = await reabrirRonda(ronda.id);
+      if (res.ok) marcarUnidoARonda(ronda.id);
       const msg = res.ok
         ? "Ronda reabierta ✓ — ya puedes seguir escaneando"
         : res.motivo === "hay_activa"
@@ -1075,12 +1099,45 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     );
   }
 
+  // Hay una ronda activa pero todavía no confirmaste que te unes — se
+  // muestra quién la inició para que quede claro que es un conteo
+  // compartido, no uno nuevo.
+  if (!unido) {
+    return (
+      <div style={{ maxWidth:480 }}>
+        <div style={{ background:"rgba(0,201,167,0.08)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:12, padding:18, textAlign:"center" }}>
+          <div style={{ fontSize:30, marginBottom:8 }}>🔔</div>
+          <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:4 }}>
+            Ya hay una ronda de conteo en curso
+          </div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", marginBottom:14, lineHeight:1.5 }}>
+            {rondaActiva.iniciadaPor
+              ? <>Iniciada por <b style={{ color:"#00C9A7" }}>{rondaActiva.iniciadaPor}</b> el {rondaActiva.fecha}.</>
+              : <>Iniciada el {rondaActiva.fecha}.</>
+            } Únete para seguir escaneando sobre el mismo conteo — no se pierde nada de lo que ya se lleva.
+          </div>
+          <div style={{ display:"flex", justifyContent:"center", gap:16, marginBottom:16 }}>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:800, color:"#00C9A7" }}>{rondaActiva.totalEsperadas}</div>
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>esperadas</div>
+            </div>
+          </div>
+          <button onClick={unirseARonda} style={{ ...btnPrimario(false, false), width:"100%" }}>
+            🔓 Unirme a esta ronda y escanear
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap:14 }}>
       <div>
         <div style={{ background:"rgba(132,94,247,0.08)", border:"1px solid rgba(132,94,247,0.25)", borderRadius:12, padding:12, marginBottom:12 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa" }}>Ronda del {rondaActiva.fecha}</div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", marginTop:2 }}>{rondaActiva.totalEsperadas} canastillas esperadas</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", marginTop:2 }}>
+            {rondaActiva.totalEsperadas} canastillas esperadas{rondaActiva.iniciadaPor ? ` · iniciada por ${rondaActiva.iniciadaPor}` : ""}
+          </div>
         </div>
 
         {!camActiva ? (

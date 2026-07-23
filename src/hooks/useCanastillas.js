@@ -28,6 +28,7 @@ const rowToRonda = (r) => ({
   totalEsperadas:    r.total_esperadas || 0,
   totalEncontradas:  r.total_encontradas || 0,
   cerrada:           !!r.cerrada,
+  iniciadaPor:       r.iniciada_por || "",
 });
 
 const chunk = (arr, size) => {
@@ -286,11 +287,12 @@ export function useCanastillas() {
 
   // ── Mutaciones — rondas de conteo ────────────────────────────
 
-  const iniciarRonda = useCallback(async ({ fecha, obs }) => {
+  const iniciarRonda = useCallback(async ({ fecha, obs, iniciadaPor }) => {
     const esperadas = canastillas.filter(c => c.estado === "disponible" || c.estado === "faltante").length;
     const row = {
       id: Date.now(), fecha: fecha || new Date().toISOString().split("T")[0],
       obs: obs || null, total_esperadas: esperadas, total_encontradas: 0, cerrada: false,
+      iniciada_por: iniciadaPor || null,
     };
     const { error } = await supabase.from("canastilla_rondas").insert(row);
     if (error) {
