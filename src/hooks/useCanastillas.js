@@ -290,7 +290,21 @@ export function useCanastillas() {
       obs: obs || null, total_esperadas: esperadas, total_encontradas: 0, cerrada: false,
     };
     const { error } = await supabase.from("canastilla_rondas").insert(row);
-    if (error) return null;
+    if (error) {
+      // 23505 = ya existía una ronda activa (índice único idx_una_ronda_activa)
+      // creada por otra persona en el mismo instante — nos unimos a esa en vez
+      // de fallar.
+      if (error.code === "23505") {
+        const { data: activa } = await supabase.from("canastilla_rondas")
+          .select("*").eq("cerrada", false).limit(1).maybeSingle();
+        if (activa) {
+          const ronda = rowToRonda(activa);
+          setRondaActiva(ronda);
+          return { ...ronda, yaExistia: true };
+        }
+      }
+      return null;
+    }
     const ronda = rowToRonda(row);
     setRondaActiva(ronda);
     return ronda;
@@ -298,20 +312,58 @@ export function useCanastillas() {
 
   // Registra que una canastilla fue vista físicamente en la ronda activa.
   const registrarConteo = useCallback(async (codigo, rondaId) => {
-    const actual = buscarPorCodigo(codigo);
+    const actual   = buscarPorCodigo(codigo);
     const fechaHoy = new Date().toISOString().split("T")[0];
 
+    // La ronda pudo haberse cerrado justo antes de este escaneo (alguien más
+    // cerró mientras esta persona seguía escaneando) — se confirma contra el
+    // servidor para no reabrir en silencio una canastilla que el informe ya
+    // dejó como "faltante".
+    const { data: rondaRow } = await supabase.from("canastilla_rondas")
+      .select("cerrada").eq("id", rondaId).maybeSingle();
+    if (!rondaRow || rondaRow.cerrada) return { ok: false, cerrada: true };
+
     if (!actual) {
-      // No existía — se registra como nueva y ya contada.
-      const id = Date.now();
-      const nueva = { id, codigo: codigo.trim().toUpperCase(), estado: "disponible", fecha_ultimo_movimiento: fechaHoy, obs: null };
-      const { error } = await supabase.from("canastillas").insert(nueva);
-      if (error) return { ok: false, nueva: false };
+      // No existía localmente — se registra como nueva y ya contada.
+      const id          = Date.now();
+      const codigoNorm  = codigo.trim().toUpperCase();
+      const nueva       = { id, codigo: codigoNorm, estado: "disponible", fecha_ultimo_movimiento: fechaHoy, obs: null };
+      const { error: errNueva } = await supabase.from("canastillas").insert(nueva);
+
+      if (errNueva) {
+        // 23505 = otra persona escaneó el mismo código nuevo en el mismo
+        // instante y ya lo creó — la buscamos y contamos como si existiera.
+        if (errNueva.code === "23505") {
+          const { data: creada } = await supabase.from("canastillas").select("*").eq("codigo", codigoNorm).maybeSingle();
+          if (creada) {
+            setCanastillas(prev => prev.some(c => c.id === creada.id) ? prev : [...prev, rowToCanastilla(creada)].sort((a, b) => a.codigo.localeCompare(b.codigo)));
+            const { error: errConteo } = await supabase.from("canastilla_movimientos").insert({
+              id: Date.now(), canastilla_id: creada.id, codigo: creada.codigo, tipo: "conteo", ronda_id: rondaId, fecha: fechaHoy,
+            });
+            if (errConteo && errConteo.code !== "23505") return { ok: false, nueva: false };
+            return { ok: true, nueva: false, duplicada: errConteo?.code === "23505" };
+          }
+        }
+        return { ok: false, nueva: false };
+      }
+
       await supabase.from("canastilla_movimientos").insert({
         id: id + 1, canastilla_id: id, codigo: nueva.codigo, tipo: "conteo", ronda_id: rondaId, fecha: fechaHoy,
       });
       setCanastillas(prev => [...prev, rowToCanastilla(nueva)].sort((a, b) => a.codigo.localeCompare(b.codigo)));
       return { ok: true, nueva: true };
+    }
+
+    // Se inserta el movimiento de conteo ANTES de tocar el estado — si otra
+    // persona ya contó esta misma canastilla en esta ronda, el índice único
+    // idx_conteo_unico_por_ronda rechaza el duplicado (23505) y no se vuelve
+    // a escribir nada de más.
+    const { error: errConteo } = await supabase.from("canastilla_movimientos").insert({
+      id: Date.now(), canastilla_id: actual.id, codigo: actual.codigo, tipo: "conteo", ronda_id: rondaId, fecha: fechaHoy,
+    });
+    if (errConteo) {
+      if (errConteo.code === "23505") return { ok: true, nueva: false, duplicada: true };
+      return { ok: false, nueva: false };
     }
 
     if (actual.estado !== "baja") {
@@ -320,9 +372,6 @@ export function useCanastillas() {
         .eq("id", actual.id);
       setCanastillas(prev => prev.map(c => c.id === actual.id ? { ...c, estado: "disponible", proveedorActual: null, fechaUltimoMovimiento: fechaHoy } : c));
     }
-    await supabase.from("canastilla_movimientos").insert({
-      id: Date.now(), canastilla_id: actual.id, codigo: actual.codigo, tipo: "conteo", ronda_id: rondaId, fecha: fechaHoy,
-    });
     return { ok: true, nueva: false };
   }, [buscarPorCodigo]);
 
@@ -336,6 +385,29 @@ export function useCanastillas() {
     const faltantes = esperadas.filter(c => !encontradasIds.has(c.id));
     const faltantesIds = faltantes.map(c => c.id);
     const fechaHoy = new Date().toISOString().split("T")[0];
+
+    // Cierre atómico: si dos personas presionan "Cerrar ronda" casi juntas,
+    // esta actualización solo afecta filas donde cerrada aún es false — la
+    // segunda llamada no encuentra fila que actualizar, en vez de duplicar
+    // el procesamiento de faltantes.
+    const { data: cerrada, error } = await supabase.from("canastilla_rondas")
+      .update({ cerrada: true, closed_at: new Date().toISOString(), total_encontradas: encontradasIds.size })
+      .eq("id", rondaId).eq("cerrada", false)
+      .select();
+    if (error) return { ok: false };
+
+    if (!cerrada || cerrada.length === 0) {
+      // Alguien más ya la había cerrado — se devuelve el resultado que quedó,
+      // sin reprocesar faltantes ni duplicar movimientos.
+      const { data: rondaExistente } = await supabase.from("canastilla_rondas").select("*").eq("id", rondaId).maybeSingle();
+      setRondaActiva(null);
+      if (rondaExistente) {
+        const rondaCerrada = rowToRonda(rondaExistente);
+        setRondas(rs => rs.some(r => r.id === rondaId) ? rs : [rondaCerrada, ...rs]);
+        return { ok: true, encontradas: rondaCerrada.totalEncontradas, faltantes: rondaCerrada.totalEsperadas - rondaCerrada.totalEncontradas, yaEstabaCerrada: true };
+      }
+      return { ok: true, encontradas: 0, faltantes: 0, yaEstabaCerrada: true };
+    }
 
     for (const parte of chunk(faltantesIds, CHUNK)) {
       if (!parte.length) continue;
@@ -351,11 +423,6 @@ export function useCanastillas() {
     for (const parte of chunk(filasFaltante, CHUNK)) {
       await supabase.from("canastilla_movimientos").insert(parte);
     }
-
-    const { error } = await supabase.from("canastilla_rondas").update({
-      cerrada: true, closed_at: new Date().toISOString(), total_encontradas: encontradasIds.size,
-    }).eq("id", rondaId);
-    if (error) return { ok: false };
 
     setCanastillas(prev => prev.map(c => faltantesIds.includes(c.id) ? { ...c, estado: "faltante" } : c));
     const rondaCerrada = rondaActiva?.id === rondaId

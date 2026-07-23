@@ -802,7 +802,12 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     pedir("¿Iniciar una nueva ronda de conteo? Se tomará una foto de cuántas canastillas deberían estar disponibles ahora mismo.", async () => {
       setIniciando(true);
       const ronda = await iniciarRonda({ fecha: hoyISO(), obs: obsInicio });
-      showToast(ronda ? `Ronda iniciada — ${ronda.totalEsperadas} canastillas esperadas` : "Error al iniciar la ronda", !!ronda);
+      const msg = !ronda
+        ? "Error al iniciar la ronda"
+        : ronda.yaExistia
+          ? `Ya había una ronda activa — te uniste a ella (${ronda.totalEsperadas} esperadas)`
+          : `Ronda iniciada — ${ronda.totalEsperadas} canastillas esperadas`;
+      showToast(msg, !!ronda);
       setIniciando(false);
     });
   };
@@ -814,7 +819,11 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     playBeep();
     const res = await registrarConteo(codigo, rondaActiva.id);
     if (res.ok) {
-      setContadas(prev => [{ codigo, nueva: res.nueva }, ...prev]);
+      setContadas(prev => [{ codigo, nueva: res.nueva, duplicada: !!res.duplicada }, ...prev]);
+      if (res.duplicada) showToast(`${codigo} ya había sido contada por alguien más`, true);
+    } else if (res.cerrada) {
+      escaneadosRef.current.delete(codigo);
+      showToast("Esta ronda ya se cerró — este código no se contó. Inicia una ronda nueva.", false);
     } else {
       escaneadosRef.current.delete(codigo); // falló — permitir reintentar
     }
@@ -849,7 +858,12 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
       setCerrando(true);
       await detenerCamara();
       const res = await cerrarRonda(rondaActiva.id);
-      showToast(res.ok ? `Ronda cerrada — ${res.encontradas} encontradas, ${res.faltantes} faltantes` : "Error al cerrar la ronda", res.ok);
+      const msg = !res.ok
+        ? "Error al cerrar la ronda"
+        : res.yaEstabaCerrada
+          ? `Alguien más ya había cerrado esta ronda — ${res.encontradas} encontradas, ${res.faltantes} faltantes`
+          : `Ronda cerrada — ${res.encontradas} encontradas, ${res.faltantes} faltantes`;
+      showToast(msg, res.ok);
       setContadas([]);
       setCerrando(false);
     });
@@ -958,6 +972,7 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
             <div key={c.codigo} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:8, padding:"6px 10px" }}>
               <span style={{ fontSize:11, color:"white" }}>{c.codigo}</span>
               {c.nueva && <span style={{ fontSize:9, color:"#F9A826", fontWeight:700 }}>nueva — registrada</span>}
+              {c.duplicada && <span style={{ fontSize:9, color:"#4ECDC4", fontWeight:700 }}>ya contada por otra persona</span>}
             </div>
           ))}
         </div>
