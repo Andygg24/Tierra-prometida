@@ -92,8 +92,16 @@ export function useCanastillas() {
       .on("postgres_changes", { event: "*", schema: "public", table: "canastillas" }, ({ new: row, old, eventType }) => {
         schedule({ eventType, row, oldId: old?.id });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "canastilla_rondas" }, ({ new: row, eventType }) => {
-        if (eventType !== "DELETE" && row) {
+      .on("postgres_changes", { event: "*", schema: "public", table: "canastilla_rondas" }, ({ new: row, old, eventType }) => {
+        if (eventType === "DELETE") {
+          // Alguien canceló la ronda activa (o la borró del historial) desde
+          // otro dispositivo — hay que soltarla también acá, si no el resto
+          // se queda viendo una ronda "activa" que ya no existe en la base.
+          setRondaActiva(prev => (prev?.id === old?.id ? null : prev));
+          setRondas(prev => prev.filter(r => r.id !== old?.id));
+          return;
+        }
+        if (row) {
           if (row.cerrada) {
             setRondaActiva(prev => (prev?.id === row.id ? null : prev));
             setRondas(prev => prev.some(r => r.id === row.id) ? prev : [rowToRonda(row), ...prev]);
@@ -479,13 +487,17 @@ export function useCanastillas() {
     return { ronda, encontradas, faltantes };
   }, []);
 
-  // Elimina una ronda cerrada del historial y deshace su efecto por completo:
-  // las canastillas que quedaron "faltante" por esta ronda (y que nadie marcó
-  // manualmente como perdida/baja después) vuelven a "disponible", y se
-  // borran también los movimientos "conteo"/"faltante" que generó esta ronda
-  // — si solo se desvincularan (ronda_id a null) quedarían sueltos en el
-  // historial de cada canastilla y en "Actividad reciente", mostrando cosas
-  // como "faltante" para una canastilla que ya volvió a estar disponible.
+  // Elimina una ronda (activa o ya cerrada) y deshace su efecto por
+  // completo: las canastillas que quedaron "faltante" por esta ronda (y que
+  // nadie marcó manualmente como perdida/baja después) vuelven a
+  // "disponible", y se borran también los movimientos "conteo"/"faltante"
+  // que generó esta ronda — si solo se desvincularan (ronda_id a null)
+  // quedarían sueltos en el historial de cada canastilla y en "Actividad
+  // reciente", mostrando cosas como "faltante" para una canastilla que ya
+  // volvió a estar disponible. Si la ronda que se borra es la que está
+  // activa ahora mismo (p.ej. al cancelarla a medio conteo), también se
+  // suelta ese estado — si no, la pantalla se quedaría "pegada" mostrando
+  // una ronda que ya no existe.
   const eliminarRonda = useCallback(async (rondaId) => {
     const { data: faltanteRows } = await supabase.from("canastilla_movimientos")
       .select("canastilla_id").eq("ronda_id", rondaId).eq("tipo", "faltante");
@@ -506,6 +518,7 @@ export function useCanastillas() {
     if (error) return false;
 
     setRondas(prev => prev.filter(r => r.id !== rondaId));
+    setRondaActiva(prev => (prev?.id === rondaId ? null : prev));
     if (idsFaltantes.length) {
       setCanastillas(prev => prev.map(c => idsFaltantes.includes(c.id) && c.estado === "faltante" ? { ...c, estado: "disponible" } : c));
     }

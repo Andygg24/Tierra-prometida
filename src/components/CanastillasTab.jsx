@@ -1095,6 +1095,23 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
     });
   };
 
+  // Cancela la ronda activa por completo — a diferencia de "Cerrar ronda"
+  // (que la finaliza y la deja guardada en el historial, marcando lo que
+  // faltó), esto la borra como si nunca hubiera pasado: nada de lo
+  // escaneado en esta ronda queda registrado. Útil si se inició por
+  // error o ya no tiene sentido seguirla.
+  const [cancelando, setCancelando] = useState(false);
+  const cancelar = () => {
+    pedir(`¿Cancelar esta ronda de conteo? Se borra por completo — lo que ya escaneaste en esta ronda no queda registrado (las canastillas en sí no se tocan, solo el conteo). Esto no se puede deshacer.`, async () => {
+      setCancelando(true);
+      await detenerCamara();
+      const ok = await eliminarRonda(rondaActiva.id);
+      showToast(ok ? "Ronda cancelada ✓" : "Error al cancelar la ronda", ok);
+      setContadas([]);
+      setCancelando(false);
+    });
+  };
+
   const verInforme = async (ronda) => {
     const detalle = await obtenerInformeRonda(ronda);
     verPrevia(await buildInformeRonda(detalle), `Informe_Ronda_Conteo_${ronda.fecha}.html`);
@@ -1200,6 +1217,9 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
           <button onClick={unirseARonda} style={{ ...btnPrimario(false, false), width:"100%" }}>
             🔓 Unirme a esta ronda y escanear
           </button>
+          <button onClick={cancelar} disabled={cancelando} style={{ background:"transparent", border:"none", color:"rgba(255,107,107,0.7)", fontSize:10, cursor:"pointer", marginTop:10, textDecoration:"underline" }}>
+            {cancelando ? "Cancelando…" : "🚫 Cancelar esta ronda en vez de unirme"}
+          </button>
         </div>
       </div>
     );
@@ -1234,6 +1254,9 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
 
         <button onClick={cerrar} disabled={cerrando} style={{ ...btnPrimario(true, cerrando), width:"100%", marginTop:16 }}>
           {cerrando ? "Cerrando…" : "🏁 Cerrar ronda"}
+        </button>
+        <button onClick={cancelar} disabled={cancelando} style={{ width:"100%", marginTop:8, background:"rgba(255,107,107,0.08)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:8, padding:"8px", fontSize:11, color:"#ff6b6b", cursor: cancelando ? "wait" : "pointer", fontWeight:600 }}>
+          {cancelando ? "Cancelando…" : "🚫 Cancelar ronda (no guarda nada)"}
         </button>
       </div>
 
