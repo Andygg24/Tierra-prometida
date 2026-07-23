@@ -247,9 +247,16 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     if (!n || n <= 0) return;
     setTotalCajas(n);
     setCajasInput(String(n));
-    setPallets(initPallets(n));
-    setLayoutCamion(initLayout());
-    setLayout(initLayout());
+    // Solo se redistribuye parejo (20 pallets, calibre 200 por defecto) si
+    // nadie ha tocado todavía ningún pallet. En cuanto se edita un calibre,
+    // se mezcla, o se asigna predio/ICA, cambiar el total NO debe borrar
+    // ese trabajo — se deja el reparto tal cual y el indicador de cuadre
+    // ("Faltan/Sobran X cajas") guía el ajuste manual de la diferencia.
+    const sinTocar = pallets.every(p =>
+      p.calibres.length === 1 && Number(p.calibres[0].size) === 200 &&
+      !p.calibres[0].predio && !p.calibres[0].ica && !p.calibres[0].plu
+    );
+    if (sinTocar) setPallets(initPallets(n));
     setSelPid(null);
   };
 
@@ -1421,7 +1428,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
                   <span style={{ fontSize: m ? 18 : 15 }}>{todoCuadra ? "✅" : "⚠️"}</span>
                   <div>
                     <div style={{ fontSize: m ? 12 : 10, fontWeight:700, color: todoCuadra ? "#00C9A7" : "#F9A826" }}>
-                      {todoCuadra ? "Cuadra perfecto" : `Faltan ${totalCajas - totalConf} cajas`}
+                      {todoCuadra ? "Cuadra perfecto" : totalConf > totalCajas ? `Sobran ${totalConf - totalCajas} cajas` : `Faltan ${totalCajas - totalConf} cajas`}
                     </div>
                     <div style={{ fontSize: m ? 10 : 9, color:"rgba(255,255,255,0.35)" }}>{totalConf}/{totalCajas} distribuidas</div>
                   </div>
