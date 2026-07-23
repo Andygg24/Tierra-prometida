@@ -266,7 +266,7 @@ export default function CanastillasTab({ mob }) {
 }
 
 // ── Barra de acciones en lote — aparece cuando hay canastillas seleccionadas ──
-function BarraAccionesLote({ cantidad, onAccion, onLimpiar }) {
+function BarraAccionesLote({ cantidad, onAccion, onReimprimir, onLimpiar }) {
   if (cantidad === 0) return null;
   return (
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:6, background:"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:8, padding:"6px 10px", marginBottom:8 }}>
@@ -280,6 +280,11 @@ function BarraAccionesLote({ cantidad, onAccion, onLimpiar }) {
       <button onClick={() => onAccion("baja")} style={{ background:"rgba(249,168,38,0.12)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#F9A826", cursor:"pointer", fontWeight:700 }}>
         🔧 Marcar dañada
       </button>
+      {onReimprimir && (
+        <button onClick={onReimprimir} style={{ background:"rgba(132,94,247,0.18)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#a78bfa", cursor:"pointer", fontWeight:700 }}>
+          🖨 Reimprimir etiquetas
+        </button>
+      )}
       <button onClick={onLimpiar} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"rgba(255,255,255,0.55)", cursor:"pointer" }}>
         ✕ Cancelar
       </button>
@@ -430,6 +435,28 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
     });
   };
 
+  // Reimprime la hoja de etiquetas de una o varias canastillas puntuales —
+  // p.ej. cuando se daña un QR físico y hay que pegarle uno nuevo. No toca
+  // el registro de la canastilla, solo regenera el QR a partir de su código.
+  const [reimprimiendo, setReimprimiendo] = useState(false);
+  const reimprimirEtiquetas = (codigos, limpiarSeleccion) => {
+    pedir(`¿Reimprimir ${codigos.length === 1 ? "la etiqueta de" : `${codigos.length} etiquetas de`} canastilla${codigos.length !== 1 ? "s" : ""}? Se genera una hoja lista para imprimir, igual que al crearlas.`, async () => {
+      setReimprimiendo(true);
+      try {
+        const pares = [];
+        for (const codigo of codigos) {
+          const dataUrl = await QRCode.toDataURL(codigo, { errorCorrectionLevel: "M", margin: 1, width: 300 });
+          pares.push({ codigo, dataUrl });
+        }
+        const html = buildHojaEtiquetas(pares);
+        verPrevia(html, `Etiquetas_Reimpresion_${codigos.length === 1 ? codigos[0] : codigos.length}.html`);
+        if (limpiarSeleccion) limpiarSeleccion();
+      } finally {
+        setReimprimiendo(false);
+      }
+    });
+  };
+
   return (
     <div>
       <div style={{ display:"grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(5,1fr)", gap:8, marginBottom:14 }}>
@@ -489,6 +516,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
               )}
               <button onClick={() => reportar("perdida")} style={btnTablaEliminar}>Reportar pérdida</button>
               <button onClick={() => reportar("baja")} style={btnTablaEliminar}>🔧 Marcar dañada</button>
+              <button onClick={() => reimprimirEtiquetas([encontrada.codigo])} disabled={reimprimiendo} style={{ background:"rgba(132,94,247,0.15)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#a78bfa", cursor: reimprimiendo ? "wait" : "pointer", fontWeight:700, opacity: reimprimiendo ? 0.6 : 1 }}>🖨 Reimprimir etiqueta</button>
               <button onClick={eliminar} style={{ background:"rgba(255,80,80,0.15)", border:"1px solid rgba(255,80,80,0.4)", borderRadius:6, padding:"4px 8px", fontSize:11, color:"#ff6b6b", cursor:"pointer", fontWeight:700 }}>🗑 Eliminar serial</button>
             </div>
           </div>
@@ -555,6 +583,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
             </div>
             <BarraAccionesLote cantidad={selFaltantes.size}
               onAccion={(tipo) => ejecutarEnLote([...selFaltantes], tipo, () => setSelFaltantes(new Set()))}
+              onReimprimir={() => reimprimirEtiquetas([...selFaltantes], () => setSelFaltantes(new Set()))}
               onLimpiar={() => setSelFaltantes(new Set())} />
             <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
               {faltantes.map(c => {
@@ -607,6 +636,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
               </div>
               <BarraAccionesLote cantidad={selExplorador.size}
                 onAccion={(tipo) => ejecutarEnLote([...selExplorador], tipo, () => setSelExplorador(new Set()))}
+                onReimprimir={() => reimprimirEtiquetas([...selExplorador], () => setSelExplorador(new Set()))}
                 onLimpiar={() => setSelExplorador(new Set())} />
               <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
                 {explorador.map(c => {
