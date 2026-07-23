@@ -297,6 +297,16 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
   const [busqueda, setBusqueda]   = useState("");
   const [encontrada, setEncontrada] = useState(null); // canastilla o "not_found"
   const [historial, setHistorial] = useState([]);
+  const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
+
+  // Sugerencias propias (reemplaza el <datalist> nativo, que en varios
+  // navegadores se dibuja gigante y sin poder controlar su tamaño ni color).
+  // Se limita a 8 para que quepa compacto debajo del campo.
+  const sugerencias = useMemo(() => {
+    const q = busqueda.trim().toUpperCase();
+    if (!q) return [];
+    return canastillas.filter(c => c.codigo.toUpperCase().includes(q)).slice(0, 8);
+  }, [busqueda, canastillas]);
 
   const [expandidoProv, setExpandidoProv] = useState(null);
   const [mostrarFaltantes, setMostrarFaltantes] = useState(false);
@@ -477,12 +487,47 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
 
       <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:12, marginBottom:14 }}>
         <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", fontWeight:700, marginBottom:8 }}>🔍 Elegir / buscar canastilla</div>
-        <div style={{ display:"flex", gap:6 }}>
-          <input value={busqueda} onChange={e => setBusqueda(e.target.value)} onKeyDown={e => e.key === "Enter" && buscar()}
-            placeholder="Escribe o elige un código…" list="lista-codigos-canastillas" style={{ ...inp, flex:1 }} />
-          <datalist id="lista-codigos-canastillas">
-            {canastillas.map(c => <option key={c.id} value={c.codigo} />)}
-          </datalist>
+        <div style={{ display:"flex", gap:6, position:"relative" }}>
+          <div style={{ position:"relative", flex:1 }}>
+            <input
+              value={busqueda}
+              onChange={e => { setBusqueda(e.target.value); setSugerenciasAbiertas(true); }}
+              onFocus={() => setSugerenciasAbiertas(true)}
+              onBlur={() => setTimeout(() => setSugerenciasAbiertas(false), 150)}
+              onKeyDown={e => { if (e.key === "Enter") { buscar(); setSugerenciasAbiertas(false); } else if (e.key === "Escape") setSugerenciasAbiertas(false); }}
+              placeholder="Escribe un código…" style={{ ...inp, width:"100%" }} autoComplete="off"
+            />
+            {sugerenciasAbiertas && sugerencias.length > 0 && (
+              <div style={{
+                position:"absolute", top:"calc(100% + 6px)", left:0, right:0, zIndex:50,
+                maxHeight:220, overflowY:"auto",
+                background:"rgba(7,8,18,0.96)", backdropFilter:"blur(40px) saturate(180%)", WebkitBackdropFilter:"blur(40px) saturate(180%)",
+                border:"1px solid rgba(139,92,246,0.3)", borderTop:"1px solid rgba(139,92,246,0.5)",
+                borderRadius:12, padding:4,
+                boxShadow:"0 4px 12px rgba(0,0,0,0.4), 0 16px 40px rgba(0,0,0,0.6)",
+                scrollbarWidth:"thin", scrollbarColor:"rgba(139,92,246,0.3) transparent",
+              }}>
+                {sugerencias.map(c => (
+                  <div key={c.id}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => { buscar(c.codigo); setSugerenciasAbiertas(false); }}
+                    style={{
+                      display:"flex", justifyContent:"space-between", alignItems:"center", gap:8,
+                      padding:"7px 11px", fontSize:11, borderRadius:9, cursor:"pointer",
+                      color:"rgba(255,255,255,0.85)",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "rgba(139,92,246,0.14)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <span>{c.codigo}</span>
+                    <span style={{ fontSize:9, fontWeight:700, color: c.estado==="disponible"?"#00C9A7":c.estado==="prestada"?"#38bdf8":c.estado==="faltante"?"#F9A826":"#ff6b6b", flexShrink:0 }}>
+                      {c.estado.toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button onClick={() => buscar()} style={btnPrimario(false, false)}>Buscar</button>
         </div>
         {encontrada === "not_found" && (
