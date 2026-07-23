@@ -21,6 +21,51 @@ const PREDIOS = [
 ];
 const PESO_STR = "16.2 KG";
 
+// ── Checklist "Control de Calidad y Cargue" — molde agregado en Moldes/ ──
+const CHECKLIST_CALIDAD_CARGUE = [
+  { cat:"Calidad del producto", icon:"🍋", items:[
+    ["fruta_buen_estado",   "Fruta en buen estado"],
+    ["calibre_conforme",    "Calibre conforme a pedido"],
+    ["limpieza_producto",   "Limpieza del producto"],
+    ["maduracion_adecuada", "Maduración adecuada"],
+    ["sin_plagas",          "Sin plagas o cuerpos extraños"],
+  ]},
+  { cat:"Calidad de cajas", icon:"📦", items:[
+    ["cajas_limpias_secas",  "Cajas limpias y secas"],
+    ["cajas_sin_roturas",    "Cajas sin roturas"],
+    ["resistencia_adecuada", "Resistencia adecuada"],
+    ["cierre_correcto",      "Cierre correcto"],
+  ]},
+  { cat:"Etiquetas y marcación", icon:"🏷", items:[
+    ["cajas_con_etiqueta",   "Cajas con etiqueta"],
+    ["info_legible",         "Información legible"],
+    ["marcacion_cajas",      "Marcación de cajas"],
+    ["etiquetas_id_4_lados", "Etiquetas de ID en los 4 lados de la pallet"],
+    ["etiquetas_plu",        "Etiquetas PLU en el producto"],
+  ]},
+  { cat:"Pallet", icon:"🧱", items:[
+    ["estibas_buen_estado", "Estibas en buen estado"],
+    ["estibas_estables",    "Estibas estables"],
+    ["sellos_ica_visibles", "Sellos ICA visibles"],
+    ["cantidad_sellos_ica", "Cantidad correcta de sellos ICA"],
+  ]},
+  { cat:"Temperatura", icon:"🌡", items:[
+    ["temp_carga_ok",        "Temperatura de la carga (°C)"],
+    ["temp_vehiculo_ok",     "Temperatura del vehículo (°C)"],
+    ["termoregistro_activado","Termoregistro activado"],
+  ]},
+  { cat:"Condiciones del vehículo", icon:"🚛", items:[
+    ["vehiculo_limpio",       "Vehículo limpio"],
+    ["sin_olores",            "Sin olores"],
+    ["sin_humedad",           "Sin humedad"],
+    ["buen_estado_general",   "Buen estado general"],
+    ["capacidad_20_pallets",  "Capacidad para 20 pallets"],
+    ["talanqueras_adecuadas", "Talanqueras adecuadas"],
+    ["sellos_seguridad",      "Sellos de seguridad"],
+  ]},
+];
+const CHEQUEO_TOTAL_ITEMS = CHECKLIST_CALIDAD_CARGUE.reduce((s, g) => s + g.items.length, 0);
+
 const COL_CAL = {
   110: { bg:"#3B82F6", light:"rgba(59,130,246,0.18)", border:"rgba(59,130,246,0.5)" },
   150: { bg:"#22C55E", light:"rgba(34,197,94,0.18)",  border:"rgba(34,197,94,0.5)"  },
@@ -133,6 +178,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     ispm15:"CO-68-001 HT",
     // ── Formato ID Pallet — campos sin fuente en otro paso ──
     port:"", puertoManual:"", moviad:"", temperatura:"",
+    // ── Checklist Control de Calidad y Cargue (Paso 1 — Packing Planta) ──
+    checklistPlanta:"", checklistCalidad:{}, checklistResponsable:"", checklistCargo:"", checklistObs:"",
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
@@ -143,6 +190,11 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     setAdmin(a => ({ ...a, palletCerts: [...a.palletCerts, { ica:"", palletNo:"" }] }));
   const removePalletCert = (i) =>
     setAdmin(a => ({ ...a, palletCerts: a.palletCerts.filter((_, ci) => ci !== i) }));
+  // Toca de nuevo el mismo valor para desmarcar (vuelve a "sin revisar").
+  const setChequeo = (key, val) => setAdmin(a => ({
+    ...a,
+    checklistCalidad: { ...(a.checklistCalidad || {}), [key]: a.checklistCalidad?.[key] === val ? null : val },
+  }));
 
   // ── Cargar PL existente al montar ────────────────────────────
   useEffect(() => {
@@ -1232,6 +1284,59 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
                 <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.25)", marginTop:4 }}>Peso/caja: {PESO_STR} · LIMON TAHITI · Categoría 1</div>
               </div>
             )}
+
+            {/* ── CHECKLIST CONTROL DE CALIDAD Y CARGUE ─────────────── */}
+            {(() => {
+              const chequeos      = admin.checklistCalidad || {};
+              const marcados      = Object.values(chequeos).filter(Boolean).length;
+              const conNo         = Object.values(chequeos).filter(v => v === "no").length;
+              const completo      = marcados === CHEQUEO_TOTAL_ITEMS;
+              return (
+                <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 10 : 8, flexWrap:"wrap", gap:6 }}>
+                    <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>✅ CHECKLIST CONTROL DE CALIDAD Y CARGUE</div>
+                    <div style={{ fontSize: m ? 11 : 10, fontWeight:700, color: conNo > 0 ? "#EF4444" : completo ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>
+                      {marcados}/{CHEQUEO_TOTAL_ITEMS} revisados{conNo > 0 ? ` · ${conNo} con NO ⚠️` : completo ? " · Todo cumple ✓" : ""}
+                    </div>
+                  </div>
+
+                  <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 12 : 10 }}>
+                    <div><div style={lbl}>Planta</div><input value={admin.checklistPlanta} onChange={e => sa("checklistPlanta", e.target.value)} placeholder="Nombre de la planta" style={inp} /></div>
+                    <div><div style={lbl}>Producto</div><input value={contenedor?.producto || ""} disabled style={{ ...inp, opacity:0.55, cursor:"not-allowed" }} /></div>
+                    <div><div style={lbl}>Cant. cajas</div><input value={totalCajas} disabled style={{ ...inp, opacity:0.55, cursor:"not-allowed" }} /></div>
+                  </div>
+
+                  {CHECKLIST_CALIDAD_CARGUE.map(grupo => (
+                    <div key={grupo.cat} style={{ marginBottom: m ? 12 : 10 }}>
+                      <div style={{ fontSize: m ? 10 : 9, color:"rgba(255,255,255,0.45)", fontWeight:700, marginBottom:6 }}>{grupo.icon} {grupo.cat.toUpperCase()}</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                        {grupo.items.map(([key, label]) => {
+                          const val = chequeos[key] || null;
+                          return (
+                            <div key={key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding: m ? "8px 10px" : "6px 10px", gap:8 }}>
+                              <span style={{ fontSize: m ? 12 : 11, color:"rgba(255,255,255,0.8)", flex:1 }}>{label}</span>
+                              <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                                <button onClick={() => setChequeo(key, "si")} style={{ background: val==="si" ? "rgba(0,201,167,0.25)" : "rgba(255,255,255,0.05)", border:`1px solid ${val==="si" ? "#00C9A7" : "rgba(255,255,255,0.15)"}`, borderRadius:6, padding: m ? "7px 14px" : "4px 10px", color: val==="si" ? "#00C9A7" : "rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:700, minWidth: m ? 48 : 32, fontFamily:"inherit" }}>Sí</button>
+                                <button onClick={() => setChequeo(key, "no")} style={{ background: val==="no" ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.05)", border:`1px solid ${val==="no" ? "#EF4444" : "rgba(255,255,255,0.15)"}`, borderRadius:6, padding: m ? "7px 14px" : "4px 10px", color: val==="no" ? "#EF4444" : "rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:700, minWidth: m ? 48 : 32, fontFamily:"inherit" }}>No</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap: m ? 10 : 8 }}>
+                    <div><div style={lbl}>Responsable</div><input value={admin.checklistResponsable} onChange={e => sa("checklistResponsable", e.target.value)} placeholder="Nombre" style={inp} /></div>
+                    <div><div style={lbl}>Cargo</div><input value={admin.checklistCargo} onChange={e => sa("checklistCargo", e.target.value)} placeholder="Cargo" style={inp} /></div>
+                  </div>
+                  <div style={{ marginTop: m ? 10 : 8 }}>
+                    <div style={lbl}>Observaciones generales</div>
+                    <textarea value={admin.checklistObs} onChange={e => sa("checklistObs", e.target.value)} rows={2} placeholder="Novedades del chequeo..." style={{ ...inp, resize:"vertical", fontFamily:"inherit" }} />
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{ display:"flex", gap:8, paddingTop: m ? 14 : 10, alignItems:"center" }}>
               <SaveIndicator />
