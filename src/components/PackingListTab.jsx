@@ -1064,43 +1064,77 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
   const generarInformePlanta = async () => {
     setGenerandoInformePlanta(true);
     try {
-      // Resumen de cajas por calibre (mismo cálculo que el PDF de contenedor)
+      // ── Resumen de cajas por calibre — barras horizontales a color ──
       const sizeQty = Object.fromEntries(CALIBRES.map(c => [c, 0]));
       pallets.forEach(p => p.calibres.forEach(c => {
         const s = c.size !== "" && c.size != null ? Number(c.size) : null;
         if (s !== null) sizeQty[s] = (sizeQty[s] || 0) + Number(c.cajas || 0);
       }));
-      const totalCal = Object.values(sizeQty).reduce((a, b) => a + b, 0);
-      const filasCalibre = CALIBRES.slice().sort((a, b) => b - a)
-        .map(s => `<tr><td>${s}</td><td style="text-align:right">${sizeQty[s].toLocaleString("es-CO")}</td><td style="text-align:right">${totalCal ? Math.round(sizeQty[s] / totalCal * 100) : 0}%</td></tr>`)
-        .join("");
-
-      // Detalle por pallet (calibre, cajas y predio de cada uno)
-      const filasPallets = pallets.map(p => {
-        const detalle = p.calibres.map(c =>
-          `${c.plu ? `${c.size}PLU` : (c.size || "—")} · ${c.cajas || 0} cj${c.predio ? ` — ${c.predio}` : ""}`
-        ).join("<br>");
-        const sum = palletSum(p);
-        const ok  = sum === cpp;
-        return `<tr><td>P${p.id}</td><td>${detalle || "—"}</td><td style="text-align:right${ok ? "" : ";color:#c62828;font-weight:700"}">${sum}</td></tr>`;
+      const totalCal   = Object.values(sizeQty).reduce((a, b) => a + b, 0);
+      const maxCal     = Math.max(...Object.values(sizeQty), 1);
+      const calibresConCajas = CALIBRES.slice().sort((a, b) => b - a).filter(s => sizeQty[s] > 0);
+      const filasCalibre = CALIBRES.slice().sort((a, b) => b - a).map(s => {
+        const qty    = sizeQty[s];
+        const pct    = totalCal ? Math.round(qty / totalCal * 100) : 0;
+        const barPct = Math.round(qty / maxCal * 100);
+        const col    = COL_CAL[s]?.bg || "#94a3b8";
+        return `<div class="cal-row">
+          <div class="cal-tag" style="background:${col}">${s}</div>
+          <div class="cal-bar-track"><div class="cal-bar" style="width:${qty ? Math.max(barPct, 3) : 0}%;background:${col}"></div></div>
+          <div class="cal-qty">${qty.toLocaleString("es-CO")} cj</div>
+          <div class="cal-pct">${pct}%</div>
+        </div>`;
       }).join("");
+      const chipsCalibre = calibresConCajas.map(s =>
+        `<span class="cal-chip" style="background:${COL_CAL[s]?.light || "#f1f5f9"};color:${COL_CAL[s]?.bg || "#475569"};border-color:${COL_CAL[s]?.border || "#cbd5e1"}">${s}</span>`
+      ).join("");
 
-      // Checklist: cada categoría con el resultado de cada ítem
-      const chequeos  = admin.checklistCalidad || {};
-      const marcados  = Object.values(chequeos).filter(Boolean).length;
-      const conNo     = Object.values(chequeos).filter(v => v === "no").length;
+      // ── Detalle por pallet — tarjetas, no tabla plana ──
+      const pallCards = pallets.map(p => {
+        const sum   = palletSum(p);
+        const ok    = sum === cpp;
+        const chips = p.calibres.map(c => {
+          const col = COL_CAL[c.size]?.bg || "#94a3b8";
+          return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size ?? "—")} <b>${c.cajas || 0}cj</b></span>`;
+        }).join("");
+        const predio = p.calibres.find(c => c.predio)?.predio;
+        return `<div class="pallet-card ${ok ? "" : "warn"}">
+          <div class="pallet-top"><span class="pid">Pallet ${p.id}</span><span class="pflag">${ok ? "✓ cuadra" : `⚠ ${sum}/${cpp}`}</span></div>
+          <div class="pchips">${chips}</div>
+          ${predio ? `<div class="ppredio">📍 ${predio}</div>` : ""}
+        </div>`;
+      }).join("");
+      const pallOk = pallets.filter(p => palletSum(p) === cpp).length;
+
+      // ── Checklist: por categoría, con contador propio y estado por ítem ──
+      const chequeos    = admin.checklistCalidad || {};
+      const marcados    = Object.values(chequeos).filter(Boolean).length;
+      const conNo       = Object.values(chequeos).filter(v => v === "no").length;
+      const pctRevisado = CHEQUEO_TOTAL_ITEMS ? Math.round(marcados / CHEQUEO_TOTAL_ITEMS * 100) : 0;
+      const estadoGeneral = conNo > 0
+        ? { txt: `⚠️ ${conNo} punto${conNo !== 1 ? "s" : ""} sin cumplir — requiere revisión`, col: "#c62828", bg: "#fdecea" }
+        : marcados === CHEQUEO_TOTAL_ITEMS
+          ? { txt: "✅ Checklist completo — todo en orden", col: "#1D6F42", bg: "#e9f7ef" }
+          : { txt: `🕓 Checklist en curso — ${marcados}/${CHEQUEO_TOTAL_ITEMS} ítems revisados`, col: "#a06600", bg: "#fdf6e3" };
+
       const seccionesChequeo = CHECKLIST_CALIDAD_CARGUE.map(grupo => {
+        const marcadosCat = grupo.items.filter(([k]) => chequeos[k]).length;
+        const noCat       = grupo.items.filter(([k]) => chequeos[k] === "no").length;
         const filas = grupo.items.map(([key, label]) => {
           const val   = chequeos[key];
-          const badge = val === "si" ? `<span class="ok">SÍ CUMPLE</span>`
-                      : val === "no" ? `<span class="bad">NO CUMPLE</span>`
+          const icon  = val === "si" ? "✅" : val === "no" ? "❌" : "▫️";
+          const badge = val === "si" ? `<span class="ok">Sí cumple</span>`
+                      : val === "no" ? `<span class="bad">No cumple</span>`
                       : `<span class="pend">Sin revisar</span>`;
-          return `<tr><td>${label}</td><td style="text-align:center">${badge}</td></tr>`;
+          return `<div class="chk-row"><span class="chk-icon">${icon}</span><span class="chk-label">${label}</span>${badge}</div>`;
         }).join("");
-        return `<h3>${grupo.icon} ${grupo.cat}</h3><table>${filas}</table>`;
+        return `<div class="chk-cat ${noCat > 0 ? "hasbad" : ""}">
+          <div class="chk-cat-hdr"><span>${grupo.icon} ${grupo.cat}</span><span class="chk-cat-count">${marcadosCat}/${grupo.items.length}</span></div>
+          ${filas}
+        </div>`;
       }).join("");
 
-      // Logo (mismo patrón que el PDF de contenedor)
+      // ── Logo (mismo patrón que el PDF de contenedor) ──
       let logoSrc = "";
       try {
         const res  = await fetch("/logo-tp.png");
@@ -1116,71 +1150,150 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
 <title>Informe Planta — ${admin.container || contenedor?.numContenedor || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:900px;margin:0 auto;font-size:12px}
-.hdr-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
-.hdr-row img{width:64px;height:64px;object-fit:contain}
-h1{color:#1f5c1f;font-size:20px}
-.meta{font-size:11px;color:#888;margin-bottom:18px}
-.cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
-.card{background:#f0f7f0;border:1px solid #c8e6c9;border-radius:10px;padding:12px 16px;min-width:110px;text-align:center}
-.card-val{font-size:20px;font-weight:800;color:#1f5c1f;line-height:1}
-.card-lbl{font-size:9px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;font-size:12px}
+.sheet{max-width:960px;margin:0 auto;background:#fff}
+
+/* ── Banner ── */
+.banner{background:linear-gradient(120deg,#173d1a,#2d7a2d 60%,#3fa142);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
+.banner::after{content:"🍋";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
+.banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
+.banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+.banner h1{font-size:22px;font-weight:800;letter-spacing:0.2px}
+.banner .sub{font-size:11.5px;opacity:0.88;margin-top:4px}
+.banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
+.banner .chip{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:5px 12px;font-size:10.5px;font-weight:600}
+
+/* ── Estado general ── */
+.estado-bar{margin:0 34px;margin-top:-16px;position:relative;background:${estadoGeneral.bg};border:1px solid ${estadoGeneral.col}33;color:${estadoGeneral.col};border-radius:12px;padding:12px 18px;font-weight:700;font-size:12.5px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+
+.content{padding:28px 34px 8px}
+
+/* ── KPI cards ── */
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px}
+.card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center}
+.card-ic{font-size:16px;margin-bottom:2px}
+.card-val{font-size:18px;font-weight:800;color:#1f5c1f;line-height:1.15}
+.card-lbl{font-size:8.5px;color:#889;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px;color:#7c8a7c}
 .card.warn .card-val{color:#c62828}
-h2{color:#1f5c1f;font-size:13px;font-weight:800;margin:22px 0 8px;border-bottom:2px solid #c8e6c9;padding-bottom:5px;text-transform:uppercase}
-h3{font-size:11px;font-weight:700;margin:14px 0 6px;color:#444}
-table{width:100%;border-collapse:collapse;margin-bottom:6px}
-th{background:#1f5c1f;color:white;padding:6px 10px;text-align:left;font-size:10px}
-td{padding:5px 10px;border-bottom:1px solid #eee;font-size:11px}
-tr:nth-child(even) td{background:#fafdf9}
-.ok{color:#1D6F42;font-weight:800}
-.bad{color:#c62828;font-weight:800}
-.pend{color:#999;font-style:italic}
-.obs{background:#fafdf9;border:1px solid #e0e0e0;border-radius:8px;padding:10px 14px;font-size:11px;margin-top:6px;white-space:pre-wrap}
-.firma{margin-top:22px;font-size:11px}
-.firma b{display:inline-block;min-width:100px}
-.footer{text-align:center;color:#bbb;margin-top:26px;font-size:10px;border-top:1px solid #eee;padding-top:12px}
-@media print{body{padding:12px}}
+
+h2{display:flex;align-items:center;gap:8px;color:#173d1a;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
+h2::after{content:"";flex:1;height:1px;background:#dfe8df}
+
+/* ── Calibres: barras ── */
+.cal-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.cal-chip{border:1px solid;border-radius:8px;padding:3px 10px;font-size:10.5px;font-weight:800}
+.cal-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.cal-tag{width:34px;height:24px;border-radius:6px;color:#fff;font-weight:800;font-size:10.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cal-bar-track{flex:1;height:14px;background:#eef2ee;border-radius:7px;overflow:hidden}
+.cal-bar{height:100%;border-radius:7px}
+.cal-qty{width:70px;text-align:right;font-size:10.5px;font-weight:700;color:#333;flex-shrink:0}
+.cal-pct{width:36px;text-align:right;font-size:10.5px;color:#889;flex-shrink:0}
+.cal-total{margin-top:10px;padding-top:10px;border-top:1px dashed #dfe8df;display:flex;justify-content:space-between;font-weight:800;font-size:12px;color:#173d1a}
+
+/* ── Pallets: grid de tarjetas ── */
+.pallet-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pallet-card{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:9px 11px;background:#fbfdfb;break-inside:avoid}
+.pallet-card.warn{border-left-color:#e08a1e;background:#fffaf2}
+.pallet-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pid{font-weight:800;font-size:11px;color:#173d1a}
+.pflag{font-size:9px;font-weight:700;color:#2d8a2d}
+.pallet-card.warn .pflag{color:#c9720e}
+.pchips{display:flex;flex-wrap:wrap;gap:4px}
+.pchip{border:1px solid;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:600}
+.ppredio{margin-top:6px;font-size:9px;color:#889;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Checklist ── */
+.chk-cat{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 16px;margin-bottom:10px;break-inside:avoid}
+.chk-cat.hasbad{border-left-color:#c62828}
+.chk-cat-hdr{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:11.5px;color:#173d1a;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.3px}
+.chk-cat-count{background:#eef2ee;color:#5a6b5a;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700}
+.chk-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f1;font-size:11px}
+.chk-row:last-child{border-bottom:none}
+.chk-icon{font-size:11px;flex-shrink:0}
+.chk-label{flex:1;color:#333}
+.ok{color:#1D6F42;font-weight:800;font-size:10.5px}
+.bad{color:#c62828;font-weight:800;font-size:10.5px}
+.pend{color:#aaa;font-style:italic;font-size:10.5px}
+
+/* ── Observaciones + firma ── */
+.obs{background:#fbfdfb;border:1px solid #e2ede2;border-left:4px solid #3fa142;border-radius:10px;padding:12px 16px;font-size:11.5px;margin-top:4px;white-space:pre-wrap;color:#333}
+.firma-row{display:flex;gap:20px;margin-top:26px}
+.firma-box{flex:1}
+.firma-line{border-bottom:1.5px solid #b8c8b8;height:34px}
+.firma-lbl{font-size:10px;color:#889;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.firma-val{font-size:12px;color:#222;font-weight:600;margin-top:2px}
+
+/* ── Footer ── */
+.footer{background:#173d1a;color:rgba(255,255,255,0.72);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+
+@media print{
+  body{background:#fff}
+  .sheet{max-width:100%}
+  .banner::after{display:none}
+  @page{size:A4;margin:10mm}
+}
 </style></head><body>
+<div class="sheet">
 
-<div class="hdr-row">
-  <div>
-    <h1>📦 Informe de Planta — Calibres y Control de Calidad</h1>
-    <div class="meta">Contenedor ${admin.container || contenedor?.numContenedor || "—"} · Generado: ${new Date().toLocaleDateString("es-CO")}</div>
+  <div class="banner">
+    <div class="banner-row">
+      <div>
+        <h1>📦 Informe de Planta</h1>
+        <div class="sub">Calibres, distribución de pallets y Control de Calidad y Cargue</div>
+      </div>
+      ${logoSrc ? `<img src="${logoSrc}" />` : ""}
+    </div>
+    <div class="chips">
+      <span class="chip">🚢 ${admin.container || contenedor?.numContenedor || "—"}</span>
+      <span class="chip">📅 ${fmtDate(admin.packingDate) || new Date().toLocaleDateString("es-CO")}</span>
+      <span class="chip">🏭 ${admin.checklistPlanta || "Planta sin especificar"}</span>
+      <span class="chip">🍋 ${contenedor?.producto || "Producto sin especificar"}</span>
+      <span class="chip">➡️ ${admin.destino || "—"}</span>
+    </div>
   </div>
-  ${logoSrc ? `<img src="${logoSrc}" />` : ""}
+
+  <div class="estado-bar">${estadoGeneral.txt}</div>
+
+  <div class="content">
+
+    <div class="cards">
+      <div class="card"><div class="card-ic">📦</div><div class="card-val">${totalCajas.toLocaleString("es-CO")}</div><div class="card-lbl">Total cajas</div></div>
+      <div class="card"><div class="card-ic">🧱</div><div class="card-val">${pallOk}/${pallets.length}</div><div class="card-lbl">Pallets cuadrados</div></div>
+      <div class="card"><div class="card-ic">🎨</div><div class="card-val">${calibresConCajas.length}</div><div class="card-lbl">Calibres en uso</div></div>
+      <div class="card"><div class="card-ic">✅</div><div class="card-val">${pctRevisado}%</div><div class="card-lbl">Checklist revisado</div></div>
+      <div class="card ${conNo > 0 ? "warn" : ""}"><div class="card-ic">${conNo > 0 ? "⚠️" : "🎉"}</div><div class="card-val">${conNo}</div><div class="card-lbl">Puntos con "NO"</div></div>
+    </div>
+
+    <h2>📊 Resumen de cajas por calibre</h2>
+    <div class="cal-chips">${chipsCalibre}</div>
+    ${filasCalibre}
+    <div class="cal-total"><span>TOTAL</span><span>${totalCal.toLocaleString("es-CO")} cajas</span></div>
+
+    <h2>🧱 Distribución por pallet (${pallets.length})</h2>
+    <div class="pallet-grid">${pallCards}</div>
+
+    <h2>✅ Checklist Control de Calidad y Cargue</h2>
+    ${seccionesChequeo}
+
+    ${admin.checklistObs ? `<h2>📝 Observaciones generales</h2><div class="obs">${admin.checklistObs}</div>` : ""}
+
+    <div class="firma-row">
+      <div class="firma-box">
+        <div class="firma-line"></div>
+        <div class="firma-lbl">Responsable</div>
+        <div class="firma-val">${admin.checklistResponsable || "—"}</div>
+      </div>
+      <div class="firma-box">
+        <div class="firma-line"></div>
+        <div class="firma-lbl">Cargo</div>
+        <div class="firma-val">${admin.checklistCargo || "—"}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · Informe generado el ${new Date().toLocaleDateString("es-CO")}</div>
 </div>
-
-<div class="cards">
-  <div class="card"><div class="card-val">${totalCajas.toLocaleString("es-CO")}</div><div class="card-lbl">Total cajas</div></div>
-  <div class="card"><div class="card-val">${admin.checklistPlanta || "—"}</div><div class="card-lbl">Planta</div></div>
-  <div class="card"><div class="card-val">${contenedor?.producto || "—"}</div><div class="card-lbl">Producto</div></div>
-  <div class="card"><div class="card-val">${marcados}/${CHEQUEO_TOTAL_ITEMS}</div><div class="card-lbl">Chequeos revisados</div></div>
-  <div class="card ${conNo > 0 ? "warn" : ""}"><div class="card-val">${conNo}</div><div class="card-lbl">Con "NO" ⚠️</div></div>
-</div>
-
-<h2>📊 Resumen de cajas por calibre</h2>
-<table>
-  <thead><tr><th>Calibre</th><th style="text-align:right">Cajas</th><th style="text-align:right">%</th></tr></thead>
-  <tbody>${filasCalibre}<tr style="font-weight:800"><td>TOTAL</td><td style="text-align:right">${totalCal.toLocaleString("es-CO")}</td><td></td></tr></tbody>
-</table>
-
-<h2>🧱 Detalle por pallet</h2>
-<table>
-  <thead><tr><th>Pallet</th><th>Calibre / Cajas / Predio</th><th style="text-align:right">Total cajas</th></tr></thead>
-  <tbody>${filasPallets}</tbody>
-</table>
-
-<h2>✅ Checklist Control de Calidad y Cargue</h2>
-${seccionesChequeo}
-
-${admin.checklistObs ? `<h2>📝 Observaciones generales</h2><div class="obs">${admin.checklistObs}</div>` : ""}
-
-<div class="firma">
-  <div><b>Responsable:</b> ${admin.checklistResponsable || "—"}</div>
-  <div><b>Cargo:</b> ${admin.checklistCargo || "—"}</div>
-</div>
-
-<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${new Date().toLocaleDateString("es-CO")}</div>
 </body></html>`;
 
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
