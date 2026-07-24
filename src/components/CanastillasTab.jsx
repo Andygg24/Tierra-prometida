@@ -167,12 +167,49 @@ async function buildInformeRonda({ ronda, encontradas, faltantes }) {
 </body></html>`;
 }
 
+// ── Informe: entrada o salida de canastillas (un lote puntual) ───────────────
+async function buildInformeLote({ lote, codigos }) {
+  const logoSrc  = await cargarLogoBase64();
+  const fechaHoy = new Date().toLocaleDateString("es-CO");
+  const esSalida = lote.tipo === "prestamo";
+  const titulo   = esSalida ? "📤 Informe de Salida de Canastillas" : "📥 Informe de Entrada de Canastillas";
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${esSalida ? "Salida" : "Entrada"} de Canastillas ${lote.fecha}</title>
+<style>${estiloInforme}
+.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#f5f3ff;border:1px solid #e5deff;border-radius:10px;padding:14px;margin-bottom:18px}
+.info-item .l{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px}
+.info-item .v{font-size:13px;font-weight:700;color:#222;margin-top:2px}
+.firma-row{display:flex;gap:20px;margin-top:26px}
+.firma-box{flex:1}
+.firma-line{border-bottom:1.5px solid #ccc;height:34px}
+.firma-lbl{font-size:10px;color:#999;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+</style></head><body>
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>${titulo}</h1></div>
+<div class="meta">${lote.fecha} · Generado: ${fechaHoy}${lote.obs ? ` · ${lote.obs}` : ""}</div>
+<div class="cards">
+  <div class="card"><div class="card-val">${lote.cantidad}</div><div class="card-lbl">Canastillas</div></div>
+  <div class="card"><div class="card-val">${lote.proveedor || "—"}</div><div class="card-lbl">Proveedor</div></div>
+</div>
+<div class="info-grid">
+  <div class="info-item"><div class="l">Conductor</div><div class="v">${lote.conductor || "—"}</div></div>
+  <div class="info-item"><div class="l">Cédula</div><div class="v">${lote.cedulaConductor || "—"}</div></div>
+  <div class="info-item"><div class="l">Placa</div><div class="v">${lote.placa || "—"}</div></div>
+</div>
+<h2>Códigos (${codigos.length})</h2>
+<div class="chips">${codigos.length ? codigos.map(c => `<span class="chip">${c}</span>`).join("") : "<span>Sin códigos.</span>"}</div>
+<div class="firma-row">
+  <div class="firma-box"><div class="firma-line"></div><div class="firma-lbl">Conductor</div></div>
+  <div class="firma-box"><div class="firma-line"></div><div class="firma-lbl">Recibido por</div></div>
+</div>
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${lote.registradoPor ? `Registrado por ${lote.registradoPor} · ` : ""}${fechaHoy}</div>
+</body></html>`;
+}
+
 export default function CanastillasTab({ mob }) {
   const {
-    canastillas, rondaActiva, rondas, loading,
+    canastillas, rondaActiva, rondas, lotes, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
     iniciarRonda, registrarConteo, cerrarRonda, reabrirRonda, obtenerInformeRonda, eliminarRonda,
-    eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes,
+    eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes, obtenerDetalleLote,
   } = useCanastillas();
 
   const [vista, setVista] = useState("dashboard"); // dashboard | generar | escanear | ronda
@@ -192,6 +229,7 @@ export default function CanastillasTab({ mob }) {
     { id: "dashboard", icon: "📋", label: "Resumen" },
     { id: "generar",   icon: "🏷️", label: "Generar QR" },
     { id: "escanear",  icon: "🤝", label: "Préstamo / Devolución" },
+    { id: "entradas",  icon: "📦", label: "Entradas y Salidas" },
     { id: "ronda",     icon: "🔄", label: "Ronda de conteo" },
   ];
 
@@ -254,6 +292,10 @@ export default function CanastillasTab({ mob }) {
       {vista === "escanear" && (
         <EscanearView mob={mob} buscarPorCodigo={buscarPorCodigo} confirmarLotePrestamo={confirmarLotePrestamo}
           pedir={pedir} showToast={showToast} />
+      )}
+
+      {vista === "entradas" && (
+        <EntradasSalidasView mob={mob} lotes={lotes} obtenerDetalleLote={obtenerDetalleLote} verPrevia={verPrevia} />
       )}
 
       {vista === "ronda" && (
@@ -843,6 +885,9 @@ function GenerarView({ mob, crearLote, pedir, showToast, verPrevia, totalCanasti
 function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, showToast }) {
   const [accion, setAccion]       = useState("prestamo");
   const [proveedor, setProveedor] = useState("");
+  const [conductor, setConductor] = useState("");
+  const [cedulaConductor, setCedulaConductor] = useState("");
+  const [placa, setPlaca]         = useState("");
   const [fecha, setFecha]         = useState(hoyISO());
   const [obs, setObs]             = useState("");
   const [cantidadEsperada, setCantidadEsperada] = useState(""); // solo devolución — cuadre
@@ -938,11 +983,13 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
       const { actualizados, creados } = await confirmarLotePrestamo({
         codigos: escaneados.map(e => e.codigo), tipo: accion, proveedor: proveedor.trim() || null, fecha, obs,
         registradoPor: nombreUsuarioSesion(),
+        conductor: conductor.trim() || null, cedulaConductor: cedulaConductor.trim() || null, placa: placa.trim() || null,
       });
       showToast(`Lote guardado — ${actualizados} actualizadas, ${creados} nuevas registradas ✓`);
       escaneadosRef.current.clear();
       setEscaneados([]);
       setCantidadEsperada("");
+      setConductor(""); setCedulaConductor(""); setPlaca("");
       setGuardando(false);
     });
   };
@@ -963,6 +1010,25 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
               <div>
                 <div style={lbl}>Proveedor</div>
                 <input value={proveedor} onChange={e => setProveedor(e.target.value)} placeholder="Finca / proveedor" style={inp} />
+              </div>
+            )}
+            {(accion === "prestamo" || accion === "devolucion") && (
+              <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:8, display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>🚚 Transporte (opcional)</div>
+                <div>
+                  <div style={lbl}>Conductor</div>
+                  <input value={conductor} onChange={e => setConductor(e.target.value)} placeholder="Nombre del conductor" style={inp} />
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={lbl}>Cédula</div>
+                    <input value={cedulaConductor} onChange={e => setCedulaConductor(e.target.value)} placeholder="C.C." style={inp} />
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={lbl}>Placa</div>
+                    <input value={placa} onChange={e => setPlaca(e.target.value.toUpperCase())} placeholder="ABC123" style={inp} />
+                  </div>
+                </div>
               </div>
             )}
             {accion === "devolucion" && (
@@ -1040,6 +1106,110 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
           {guardando ? "Guardando…" : `💾 Guardar lote (${escaneados.length})`}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Vista: Entradas y Salidas ────────────────────────────────────────────────
+// Historial dedicado de préstamos (salidas) y devoluciones (entradas) de
+// canastillas, agrupados por lote — cada uno con sus datos de transporte y
+// un informe descargable, en vez de canastillas sueltas sin conexión entre sí.
+function EntradasSalidasView({ mob, lotes, obtenerDetalleLote, verPrevia }) {
+  const [filtro, setFiltro] = useState("todos"); // todos | prestamo | devolucion
+  const [expandido, setExpandido] = useState(null);
+  const [detalles, setDetalles] = useState({}); // loteId -> codigos[]
+  const [cargando, setCargando] = useState(null);
+  const [generandoInforme, setGenerandoInforme] = useState(null);
+
+  const filtrados = lotes.filter(l => filtro === "todos" || l.tipo === filtro);
+
+  const toggleExpandir = async (lote) => {
+    if (expandido === lote.id) { setExpandido(null); return; }
+    setExpandido(lote.id);
+    if (!detalles[lote.id]) {
+      setCargando(lote.id);
+      const codigos = await obtenerDetalleLote(lote.id);
+      setDetalles(prev => ({ ...prev, [lote.id]: codigos }));
+      setCargando(null);
+    }
+  };
+
+  const verInforme = async (lote) => {
+    setGenerandoInforme(lote.id);
+    const codigos = detalles[lote.id] || await obtenerDetalleLote(lote.id);
+    if (!detalles[lote.id]) setDetalles(prev => ({ ...prev, [lote.id]: codigos }));
+    const tipoLbl = lote.tipo === "prestamo" ? "Salida" : "Entrada";
+    verPrevia(await buildInformeLote({ lote, codigos }), `${tipoLbl}_Canastillas_${lote.fecha}_${lote.id}.html`);
+    setGenerandoInforme(null);
+  };
+
+  return (
+    <div>
+      <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+        {[["todos","Todas"],["prestamo","📤 Salidas"],["devolucion","📥 Entradas"]].map(([val,lbl]) => (
+          <button key={val} onClick={() => setFiltro(val)}
+            style={{ background: filtro===val ? "rgba(132,94,247,0.2)" : "rgba(255,255,255,0.04)", border:`1px solid ${filtro===val ? "rgba(132,94,247,0.5)" : "rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"5px 12px", cursor:"pointer", fontSize:11, color: filtro===val ? "#a78bfa" : "rgba(255,255,255,0.45)", fontWeight: filtro===val ? 700 : 400 }}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {filtrados.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"30px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>
+          {lotes.length === 0
+            ? <>Aún no hay entradas ni salidas registradas.<br/><span style={{ fontSize:10 }}>Los préstamos/devoluciones que guardes desde ahora aparecerán acá.</span></>
+            : "No hay registros con este filtro."}
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {filtrados.map(lote => {
+            const esSalida = lote.tipo === "prestamo";
+            const col = esSalida ? "#F9A826" : "#00C9A7";
+            const expandido_ = expandido === lote.id;
+            return (
+              <div key={lote.id} style={{ border:`1px solid ${col}30`, borderRadius:10, overflow:"hidden", background:`${col}08` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", flexWrap:"wrap", gap:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:10, fontWeight:800, color:col, background:`${col}18`, borderRadius:6, padding:"3px 9px" }}>
+                      {esSalida ? "📤 SALIDA" : "📥 ENTRADA"}
+                    </span>
+                    <span style={{ fontSize:12, fontWeight:700, color:"white" }}>{lote.fecha}</span>
+                    {lote.proveedor && <span style={{ fontSize:11, color:"rgba(255,255,255,0.55)" }}>{lote.proveedor}</span>}
+                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{lote.cantidad} canastilla{lote.cantidad!==1?"s":""}</span>
+                  </div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={() => toggleExpandir(lote)} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"rgba(255,255,255,0.65)", cursor:"pointer" }}>
+                      {cargando === lote.id ? "Cargando…" : expandido_ ? "▲ Ocultar códigos" : "▼ Ver códigos"}
+                    </button>
+                    <button onClick={() => verInforme(lote)} disabled={generandoInforme === lote.id} style={{ background:"rgba(132,94,247,0.15)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"#a78bfa", cursor:"pointer", fontWeight:700 }}>
+                      {generandoInforme === lote.id ? "…" : "📄 Informe"}
+                    </button>
+                  </div>
+                </div>
+
+                {(lote.conductor || lote.cedulaConductor || lote.placa) && (
+                  <div style={{ padding:"0 14px 10px", fontSize:10, color:"rgba(255,255,255,0.42)", display:"flex", gap:14, flexWrap:"wrap" }}>
+                    {lote.conductor && <span>🧑 {lote.conductor}</span>}
+                    {lote.cedulaConductor && <span>🪪 {lote.cedulaConductor}</span>}
+                    {lote.placa && <span>🚚 {lote.placa}</span>}
+                    {lote.registradoPor && <span>· registrado por {lote.registradoPor}</span>}
+                  </div>
+                )}
+
+                {expandido_ && detalles[lote.id] && (
+                  <div style={{ padding:"10px 14px", borderTop:`1px solid ${col}20`, background:"rgba(0,0,0,0.15)", display:"flex", flexWrap:"wrap", gap:5 }}>
+                    {detalles[lote.id].length === 0
+                      ? <span style={{ fontSize:10, color:"rgba(255,255,255,0.33)" }}>Sin códigos asociados.</span>
+                      : detalles[lote.id].map(c => (
+                        <span key={c} style={{ fontSize:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, padding:"3px 8px", color:"rgba(255,255,255,0.7)" }}>{c}</span>
+                      ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

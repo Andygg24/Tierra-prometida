@@ -31,6 +31,21 @@ const rowToRonda = (r) => ({
   iniciadaPor:       r.iniciada_por || "",
 });
 
+// Un "lote" = una salida (préstamo) o entrada (devolución) de canastillas
+// como un solo evento — no canastillas sueltas sin conexión entre sí.
+const rowToLote = (r) => ({
+  id:              r.id,
+  tipo:            r.tipo,
+  proveedor:       r.proveedor || "",
+  conductor:       r.conductor || "",
+  cedulaConductor: r.cedula_conductor || "",
+  placa:           r.placa || "",
+  fecha:           r.fecha,
+  obs:             r.obs || "",
+  cantidad:        r.cantidad || 0,
+  registradoPor:   r.registrado_por || "",
+});
+
 // Supabase/PostgREST solo devuelve hasta 1000 filas por consulta a menos
 // que se pida por rangos — con más de 1000 canastillas generadas, el
 // .select("*") simple se quedaba corto en silencio (mostraba 1000 aunque
@@ -60,6 +75,7 @@ export function useCanastillas() {
   const [canastillas, setCanastillas] = useState([]);
   const [rondaActiva, setRondaActiva] = useState(null);
   const [rondas, setRondas] = useState([]); // rondas cerradas, más reciente primero
+  const [lotes, setLotes]   = useState([]); // entradas/salidas, más reciente primero
   const [loading, setLoading] = useState(true);
 
   const pendingRef    = useRef([]);
@@ -71,13 +87,15 @@ export function useCanastillas() {
     Promise.all([
       fetchTodasCanastillas(),
       supabase.from("canastilla_rondas").select("*").order("created_at", { ascending: false }),
-    ]).then(([{ data: cs }, { data: rondasData }]) => {
+      supabase.from("canastilla_lotes").select("*").order("created_at", { ascending: false }),
+    ]).then(([{ data: cs }, { data: rondasData }, { data: lotesData }]) => {
       if (cancelled) return;
       setCanastillas((cs || []).map(rowToCanastilla));
       const activa  = (rondasData || []).find(r => !r.cerrada);
       const cerradas = (rondasData || []).filter(r => r.cerrada);
       setRondaActiva(activa ? rowToRonda(activa) : null);
       setRondas(cerradas.map(rowToRonda));
+      setLotes((lotesData || []).map(rowToLote));
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -130,6 +148,17 @@ export function useCanastillas() {
             setRondaActiva(rowToRonda(row));
             setRondas(prev => prev.filter(r => r.id !== row.id));
           }
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "canastilla_lotes" }, ({ new: row, old, eventType }) => {
+        if (eventType === "DELETE") {
+          setLotes(prev => prev.filter(l => l.id !== old?.id));
+          return;
+        }
+        if (row) {
+          setLotes(prev => prev.some(l => l.id === row.id)
+            ? prev.map(l => l.id === row.id ? rowToLote(row) : l)
+            : [rowToLote(row), ...prev]);
         }
       })
       .subscribe();
@@ -219,9 +248,25 @@ export function useCanastillas() {
   }, [canastillas]);
 
   // Préstamo / devolución en lote (con proveedor) — desde la pestaña Escanear.
-  const confirmarLotePrestamo = useCallback(async ({ codigos, tipo, proveedor, fecha, obs, registradoPor }) => {
+  // Cada llamada genera además un "lote" (canastilla_lotes): una salida o
+  // entrada como un solo evento con sus propios datos de transporte
+  // (conductor, cédula, placa), para el historial de Entradas y Salidas.
+  const confirmarLotePrestamo = useCallback(async ({ codigos, tipo, proveedor, fecha, obs, registradoPor, conductor, cedulaConductor, placa }) => {
     const fechaMov = fecha || new Date().toISOString().split("T")[0];
     const efecto   = efectoTipo(tipo, proveedor);
+
+    const loteId = Date.now() + 3_000_000;
+    const loteRow = {
+      id: loteId, tipo, proveedor: proveedor || null, fecha: fechaMov, obs: obs || null,
+      cantidad: codigos.length, registrado_por: registradoPor || null,
+      conductor: conductor || null, cedula_conductor: cedulaConductor || null, placa: placa || null,
+    };
+    const { error: errorLote } = await supabase.from("canastilla_lotes").insert(loteRow);
+    // Si la tabla de lotes aún no existe (migración pendiente) o falla por
+    // cualquier motivo, no se bloquea el préstamo/devolución en sí — sigue
+    // funcionando como antes, solo sin quedar agrupado en el historial nuevo.
+    const loteOk = !errorLote;
+    if (loteOk) setLotes(prev => [rowToLote(loteRow), ...prev]);
 
     const existentesMap = new Map(canastillas.map(c => [c.codigo, c]));
     const existentes = codigos.filter(c => existentesMap.has(c));
@@ -265,13 +310,22 @@ export function useCanastillas() {
       id: baseMov + i, canastilla_id: idsPorCodigo.get(codigo), codigo, tipo,
       proveedor: proveedor || null, fecha: fechaMov, obs: obs || null,
       registrado_por: registradoPor || null,
+      lote_id: loteOk ? loteId : null,
     }));
     for (const parte of chunk(filasMovimientos, CHUNK)) {
       await supabase.from("canastilla_movimientos").insert(parte);
     }
 
-    return { actualizados: existentes.length, creados: filasNuevas.length };
+    return { actualizados: existentes.length, creados: filasNuevas.length, lote: loteOk ? rowToLote(loteRow) : null };
   }, [canastillas]);
+
+  // Códigos que pertenecen a un lote (una entrada o salida puntual) — el
+  // "registro" detallado que se ve al abrir un lote en el historial.
+  const obtenerDetalleLote = useCallback(async (loteId) => {
+    const { data } = await supabase.from("canastilla_movimientos")
+      .select("codigo").eq("lote_id", loteId).order("codigo");
+    return (data || []).map(m => m.codigo);
+  }, []);
 
   const obtenerHistorial = useCallback(async (codigo) => {
     const { data } = await supabase.from("canastilla_movimientos")
@@ -547,9 +601,9 @@ export function useCanastillas() {
   }, []);
 
   return {
-    canastillas, rondaActiva, rondas, loading,
+    canastillas, rondaActiva, rondas, lotes, loading,
     crearLote, reportarEstado, obtenerHistorial, buscarPorCodigo, confirmarLotePrestamo,
     iniciarRonda, registrarConteo, cerrarRonda, reabrirRonda, obtenerInformeRonda, eliminarRonda,
-    eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes,
+    eliminarCanastilla, eliminarTodasCanastillas, obtenerMovimientosRecientes, obtenerDetalleLote,
   };
 }
