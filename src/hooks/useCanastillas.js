@@ -31,6 +31,25 @@ const rowToRonda = (r) => ({
   iniciadaPor:       r.iniciada_por || "",
 });
 
+// Supabase/PostgREST solo devuelve hasta 1000 filas por consulta a menos
+// que se pida por rangos — con más de 1000 canastillas generadas, el
+// .select("*") simple se quedaba corto en silencio (mostraba 1000 aunque
+// hubiera más). Se pagina hasta traerlas todas, sin importar cuántas haya.
+const PAGE_SIZE = 1000;
+async function fetchTodasCanastillas() {
+  let todas = [];
+  let desde = 0;
+  while (true) {
+    const { data, error } = await supabase.from("canastillas").select("*")
+      .order("codigo").range(desde, desde + PAGE_SIZE - 1);
+    if (error) return { data: null, error };
+    todas = todas.concat(data || []);
+    if (!data || data.length < PAGE_SIZE) break;
+    desde += PAGE_SIZE;
+  }
+  return { data: todas, error: null };
+}
+
 const chunk = (arr, size) => {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -50,7 +69,7 @@ export function useCanastillas() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      supabase.from("canastillas").select("*").order("codigo"),
+      fetchTodasCanastillas(),
       supabase.from("canastilla_rondas").select("*").order("created_at", { ascending: false }),
     ]).then(([{ data: cs }, { data: rondasData }]) => {
       if (cancelled) return;
