@@ -547,7 +547,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
               <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
                 {historial.map(m => (
                   <div key={m.id} style={{ fontSize:10, color:"rgba(255,255,255,0.55)", display:"flex", justifyContent:"space-between" }}>
-                    <span>{m.fecha} · {m.tipo}</span>
+                    <span>{m.fecha} · {m.tipo}{m.registradoPor ? ` · ${m.registradoPor}` : ""}</span>
                     {m.obs && <span style={{ color:"rgba(255,255,255,0.35)" }}>{m.obs}</span>}
                   </div>
                 ))}
@@ -730,7 +730,7 @@ function DashboardView({ mob, canastillas, obtenerHistorial, buscarPorCodigo, pe
           <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
             {actividad.map(m => (
               <div key={m.id} style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(255,255,255,0.55)", background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"5px 10px" }}>
-                <span><b style={{ color:"white" }}>{m.codigo}</b> · {m.fecha} · {m.tipo}{m.proveedor ? ` · ${m.proveedor}` : ""}</span>
+                <span><b style={{ color:"white" }}>{m.codigo}</b> · {m.fecha} · {m.tipo}{m.proveedor ? ` · ${m.proveedor}` : ""}{m.registradoPor ? ` · ${m.registradoPor}` : ""}</span>
                 {m.obs && <span style={{ color:"rgba(255,255,255,0.35)" }}>{m.obs}</span>}
               </div>
             ))}
@@ -845,6 +845,7 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
   const [proveedor, setProveedor] = useState("");
   const [fecha, setFecha]         = useState(hoyISO());
   const [obs, setObs]             = useState("");
+  const [cantidadEsperada, setCantidadEsperada] = useState(""); // solo devolución — cuadre
   const [escaneados, setEscaneados] = useState([]);
   const [manual, setManual]       = useState("");
   const [camActiva, setCamActiva] = useState(false);
@@ -864,7 +865,30 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
     if (!codigo || escaneadosRef.current.has(codigo)) return;
     escaneadosRef.current.add(codigo);
     playBeep();
-    setEscaneados(prev => [...prev, { codigo, existe: !!buscarPorCodigo(codigo) }]);
+    const actual = buscarPorCodigo(codigo);
+    setEscaneados(prev => [...prev, {
+      codigo, existe: !!actual,
+      estadoPrevio: actual?.estado || null,
+      proveedorPrevio: actual?.proveedorActual || null,
+    }]);
+  };
+
+  // Si escaneas para "Préstamo" algo que ya estaba prestada (a este u otro
+  // proveedor), o para "Devolución" algo que no estaba prestada, es una
+  // señal de que puede ser un error — se avisa en vez de sobrescribir en
+  // silencio. Se recalcula con la acción/proveedor actuales, no se congela
+  // en el momento del escaneo (por si cambias la acción después).
+  const conflictoDe = (item) => {
+    if (!item.existe) return null;
+    if (accion === "prestamo" && item.estadoPrevio === "prestada") {
+      return item.proveedorPrevio && item.proveedorPrevio !== proveedor.trim()
+        ? `ya prestada a ${item.proveedorPrevio}`
+        : "ya estaba prestada";
+    }
+    if (accion === "devolucion" && item.estadoPrevio && item.estadoPrevio !== "prestada") {
+      return `no estaba prestada (${item.estadoPrevio})`;
+    }
+    return null;
   };
 
   const iniciarCamara = async () => {
@@ -898,17 +922,27 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
     setEscaneados(prev => prev.filter(e => e.codigo !== codigo));
   };
 
+  const conflictos = escaneados.filter(e => conflictoDe(e));
+  const esperadas  = accion === "devolucion" ? Number(cantidadEsperada) || 0 : 0;
+  const faltanPorCuadre = esperadas > 0 && escaneados.length < esperadas ? esperadas - escaneados.length : 0;
+
   const guardarLote = () => {
     if (escaneados.length === 0) return;
     if (accion === "prestamo" && !proveedor.trim()) { showToast("Escribe el proveedor para registrar el préstamo", false); return; }
-    pedir(`¿Guardar ${escaneados.length} canastilla${escaneados.length!==1?"s":""} como "${ACCIONES.find(a=>a.value===accion)?.label}"?`, async () => {
+    const avisos = [
+      conflictos.length > 0 ? `⚠️ ${conflictos.length} tienen un aviso (revisa la lista antes de continuar).` : "",
+      faltanPorCuadre > 0 ? `⚠️ Declaraste ${esperadas} y solo llevas ${escaneados.length} escaneadas — faltarían ${faltanPorCuadre}.` : "",
+    ].filter(Boolean).join("\n");
+    pedir(`¿Guardar ${escaneados.length} canastilla${escaneados.length!==1?"s":""} como "${ACCIONES.find(a=>a.value===accion)?.label}"?${avisos ? `\n\n${avisos}` : ""}`, async () => {
       setGuardando(true);
       const { actualizados, creados } = await confirmarLotePrestamo({
         codigos: escaneados.map(e => e.codigo), tipo: accion, proveedor: proveedor.trim() || null, fecha, obs,
+        registradoPor: nombreUsuarioSesion(),
       });
       showToast(`Lote guardado — ${actualizados} actualizadas, ${creados} nuevas registradas ✓`);
       escaneadosRef.current.clear();
       setEscaneados([]);
+      setCantidadEsperada("");
       setGuardando(false);
     });
   };
@@ -929,6 +963,12 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
               <div>
                 <div style={lbl}>Proveedor</div>
                 <input value={proveedor} onChange={e => setProveedor(e.target.value)} placeholder="Finca / proveedor" style={inp} />
+              </div>
+            )}
+            {accion === "devolucion" && (
+              <div>
+                <div style={lbl}>¿Cuántas dice el proveedor que trae? (opcional)</div>
+                <input type="number" inputMode="numeric" min={0} value={cantidadEsperada} onChange={e => setCantidadEsperada(e.target.value)} placeholder="Ej: 50" style={inp} />
               </div>
             )}
             <div>
@@ -964,19 +1004,37 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
         <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:6, fontWeight:700 }}>
           Escaneadas en esta sesión ({escaneados.length})
         </div>
+
+        {esperadas > 0 && (
+          <div style={{
+            display:"flex", alignItems:"center", gap:8, marginBottom:8, padding:"7px 12px", borderRadius:8,
+            background: faltanPorCuadre > 0 ? "rgba(249,168,38,0.1)" : "rgba(0,201,167,0.1)",
+            border: `1px solid ${faltanPorCuadre > 0 ? "rgba(249,168,38,0.3)" : "rgba(0,201,167,0.3)"}`,
+          }}>
+            <span style={{ fontSize:14 }}>{faltanPorCuadre > 0 ? "⚠️" : "✅"}</span>
+            <span style={{ fontSize:11, fontWeight:700, color: faltanPorCuadre > 0 ? "#F9A826" : "#00C9A7" }}>
+              {faltanPorCuadre > 0 ? `Van ${escaneados.length} de ${esperadas} — faltan ${faltanPorCuadre}` : `Cuadra: ${escaneados.length}/${esperadas}`}
+            </span>
+          </div>
+        )}
+
         <div style={{ display:"flex", flexDirection:"column", gap:5, maxHeight:320, overflowY:"auto", marginBottom:12 }}>
           {escaneados.length === 0 && (
             <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)", padding:"12px 0" }}>Aún no has escaneado ninguna canastilla.</div>
           )}
-          {escaneados.map(e => (
-            <div key={e.codigo} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:8, padding:"6px 10px" }}>
-              <span style={{ fontSize:11, color:"white" }}>{e.codigo}</span>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                {!e.existe && <span style={{ fontSize:9, color:"#F9A826", fontWeight:700 }}>nuevo — se registrará</span>}
-                <button onClick={() => quitarCodigo(e.codigo)} style={{ background:"none", border:"none", color:"rgba(255,110,110,0.7)", cursor:"pointer", fontSize:12 }}>✕</button>
+          {escaneados.map(e => {
+            const conflicto = conflictoDe(e);
+            return (
+              <div key={e.codigo} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background: conflicto ? "rgba(255,107,107,0.08)" : "rgba(255,255,255,0.05)", border:`1px solid ${conflicto ? "rgba(255,107,107,0.3)" : "rgba(255,255,255,0.09)"}`, borderRadius:8, padding:"6px 10px" }}>
+                <span style={{ fontSize:11, color:"white" }}>{e.codigo}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  {!e.existe && <span style={{ fontSize:9, color:"#F9A826", fontWeight:700 }}>nuevo — se registrará</span>}
+                  {conflicto && <span style={{ fontSize:9, color:"#ff6b6b", fontWeight:700 }}>⚠️ {conflicto}</span>}
+                  <button onClick={() => quitarCodigo(e.codigo)} style={{ background:"none", border:"none", color:"rgba(255,110,110,0.7)", cursor:"pointer", fontSize:12 }}>✕</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <button onClick={guardarLote} disabled={escaneados.length === 0 || guardando} style={{ ...btnPrimario(true, guardando), width:"100%" }}>
           {guardando ? "Guardando…" : `💾 Guardar lote (${escaneados.length})`}

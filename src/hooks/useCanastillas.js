@@ -200,7 +200,7 @@ export function useCanastillas() {
   }, [canastillas]);
 
   // Préstamo / devolución en lote (con proveedor) — desde la pestaña Escanear.
-  const confirmarLotePrestamo = useCallback(async ({ codigos, tipo, proveedor, fecha, obs }) => {
+  const confirmarLotePrestamo = useCallback(async ({ codigos, tipo, proveedor, fecha, obs, registradoPor }) => {
     const fechaMov = fecha || new Date().toISOString().split("T")[0];
     const efecto   = efectoTipo(tipo, proveedor);
 
@@ -245,6 +245,7 @@ export function useCanastillas() {
     const filasMovimientos = codigos.map((codigo, i) => ({
       id: baseMov + i, canastilla_id: idsPorCodigo.get(codigo), codigo, tipo,
       proveedor: proveedor || null, fecha: fechaMov, obs: obs || null,
+      registrado_por: registradoPor || null,
     }));
     for (const parte of chunk(filasMovimientos, CHUNK)) {
       await supabase.from("canastilla_movimientos").insert(parte);
@@ -257,7 +258,7 @@ export function useCanastillas() {
     const { data } = await supabase.from("canastilla_movimientos")
       .select("*").eq("codigo", codigo)
       .order("created_at", { ascending: false });
-    return (data || []).map(m => ({ id: m.id, tipo: m.tipo, proveedor: m.proveedor || null, fecha: m.fecha, obs: m.obs || "" }));
+    return (data || []).map(m => ({ id: m.id, tipo: m.tipo, proveedor: m.proveedor || null, fecha: m.fecha, obs: m.obs || "", registradoPor: m.registrado_por || "" }));
   }, []);
 
   const buscarPorCodigo = useCallback((codigo) => {
@@ -272,6 +273,7 @@ export function useCanastillas() {
       .select("*").order("created_at", { ascending: false }).limit(limit);
     return (data || []).map(m => ({
       id: m.id, codigo: m.codigo, tipo: m.tipo, proveedor: m.proveedor || null, fecha: m.fecha, obs: m.obs || "",
+      registradoPor: m.registrado_por || "",
     }));
   }, []);
 
