@@ -110,10 +110,16 @@ export function useInventario(seedData = []) {
   }, []);
 
   const registrarMovimiento = useCallback(async (itemId, itemNombre, tipo, cant, obs, antes, despues) => {
+    // Optimistic update: a diferencia de actualizarItem/agregarItem/eliminarItem,
+    // esto dependía solo de la suscripción realtime para reflejar el cambio, así
+    // que si esa suscripción tarda (o no está habilitada en la tabla) la cantidad
+    // se ve desactualizada hasta refrescar la página.
+    setItems(prev => prev.map(i => i.id === itemId ? { ...i, cant: despues } : i));
     const [{ error: e1 }, { error: e2 }] = await Promise.all([
       supabase.from("inventario").update({ cant: despues, updated_at: new Date().toISOString() }).eq("id", itemId),
       supabase.from("inventario_movimientos").insert({ item_nombre: itemNombre, tipo, cant, obs: obs || null, antes, despues }),
     ]);
+    if (e1 || e2) setItems(prev => prev.map(i => i.id === itemId ? { ...i, cant: antes } : i));
     return !e1 && !e2;
   }, []);
 
