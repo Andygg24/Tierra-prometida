@@ -323,6 +323,14 @@ export default function RecepcionesTab({ mob }) {
     fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.45)",
     marginBottom:4, fontWeight:600, letterSpacing:0.3,
   };
+  // Variante compacta de `inp` para las filas de tipo/cantidad de canastilla:
+  // ahí caben varias filas cuando la estiba es mixta, así que necesitan menos
+  // alto/relleno que un campo normal del formulario.
+  const inpCan = {
+    ...inp,
+    padding: isLandscape ? "4px 7px" : (m ? "7px 9px" : "4px 7px"),
+    minHeight: isLandscape ? 28 : (m ? 34 : 26),
+  };
   const cardS = {
     background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
     borderRadius:10, padding: isLandscape ? 10 : (m ? 14 : 16),
@@ -581,30 +589,39 @@ export default function RecepcionesTab({ mob }) {
                 </div>
 
                 <div style={{ marginTop:8 }}>
-                  <div style={lbl}>Canastillas (tipo × cantidad)</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                    {canastillasDeEstiba(e).map((c, ci) => (
-                      <div key={ci} style={{ display:"grid", gridTemplateColumns: canastillasDeEstiba(e).length>1 ? "1fr 1fr auto" : "1fr 1fr", gap:6, alignItems:"center" }}>
-                        <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={inp}>
-                          {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </CustomSelect>
-                        <input type="number" style={inp} placeholder="Cantidad" value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
-                        {canastillasDeEstiba(e).length > 1 && (
-                          <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={btnTablaEliminar}>✕</button>
-                        )}
-                      </div>
-                    ))}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:5 }}>
+                    <div style={lbl}>Canastillas</div>
+                    <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.5)" }}>
+                      Total: <b style={{ color:"rgba(255,255,255,0.8)" }}>{pesoCanastillasEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})} kg</b>
+                    </div>
                   </div>
-                  <button onClick={()=>agregarTipoCanastilla(idx)} style={{ marginTop:6, background:"rgba(249,168,38,0.10)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:7, color:"#F9A826", padding:"5px 10px", fontSize:11, fontWeight:600, cursor:"pointer" }}>
-                    + Mezclar otro tipo de canastilla
+                  <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                    {canastillasDeEstiba(e).map((c, ci) => {
+                      const multi = canastillasDeEstiba(e).length > 1;
+                      const pesoLinea = num(c.cantidad) * num(c.tipo);
+                      return (
+                        <div key={ci} style={{ display:"grid", gridTemplateColumns: multi ? "84px 1fr 60px auto" : "84px 1fr 60px", gap:5, alignItems:"center" }}>
+                          <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={inpCan}>
+                            {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </CustomSelect>
+                          <input type="number" style={inpCan} placeholder="Cantidad" value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", textAlign:"right", whiteSpace:"nowrap" }}>{pesoLinea.toLocaleString("es-CO",{maximumFractionDigits:2})}</div>
+                          {multi && (
+                            <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={{ ...btnTablaEliminar, padding:"3px 7px" }}>✕</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={()=>agregarTipoCanastilla(idx)} style={{ marginTop:5, background:"rgba(249,168,38,0.10)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, color:"#F9A826", padding:"4px 9px", fontSize:10.5, fontWeight:600, cursor:"pointer" }}>
+                    + Mezclar otro tipo
                   </button>
                 </div>
 
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
-                  <div><div style={lbl}>Peso canastillas</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{pesoCanastillasEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
                   <div><div style={lbl}>Peso estiba</div><input type="number" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
                   <div><div style={lbl}>Descuento estiba</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
-                  <div><div style={lbl}>Peso neto</div><div style={{...inp, background:"rgba(0,201,167,0.1)", color:"#00C9A7", fontWeight:700, display:"flex", alignItems:"center"}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
+                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso neto</div><div style={{...inp, background:"rgba(0,201,167,0.1)", color:"#00C9A7", fontWeight:700, display:"flex", alignItems:"center"}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
                 </div>
               </div>
             ))}
@@ -617,7 +634,7 @@ export default function RecepcionesTab({ mob }) {
                   <th style={{ padding:"4px 6px" }}>#</th>
                   <th style={{ padding:"4px 6px" }}>Peso bruto</th>
                   <th style={{ padding:"4px 6px" }}>Estiba plástica</th>
-                  <th style={{ padding:"4px 6px", minWidth:190 }}>Canastillas (tipo × cant.)</th>
+                  <th style={{ padding:"4px 6px", minWidth:210 }}>Canastillas (tipo · cant. · peso)</th>
                   <th style={{ padding:"4px 6px" }}>Peso canastillas</th>
                   <th style={{ padding:"4px 6px" }}>Peso estiba</th>
                   <th style={{ padding:"4px 6px" }}>Descuento estiba</th>
@@ -635,20 +652,25 @@ export default function RecepcionesTab({ mob }) {
                         <option value="si">Sí</option><option value="no">No</option>
                       </CustomSelect>
                     </td>
-                    <td style={{ padding:"6px", minWidth:190 }}>
-                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                        {canastillasDeEstiba(e).map((c, ci) => (
-                          <div key={ci} style={{ display:"flex", gap:4, alignItems:"center" }}>
-                            <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={{ ...inp, minWidth:76 }}>
-                              {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                            </CustomSelect>
-                            <input type="number" style={{ ...inp, minWidth:60 }} placeholder="Cant." value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
-                            {canastillasDeEstiba(e).length > 1 && (
-                              <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={btnTablaEliminar}>✕</button>
-                            )}
-                          </div>
-                        ))}
-                        <button onClick={()=>agregarTipoCanastilla(idx)} style={{ background:"rgba(249,168,38,0.10)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, color:"#F9A826", padding:"3px 8px", fontSize:10.5, fontWeight:600, cursor:"pointer", alignSelf:"flex-start" }}>
+                    <td style={{ padding:"6px", minWidth:210 }}>
+                      <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                        {canastillasDeEstiba(e).map((c, ci) => {
+                          const multi = canastillasDeEstiba(e).length > 1;
+                          const pesoLinea = num(c.cantidad) * num(c.tipo);
+                          return (
+                            <div key={ci} style={{ display:"grid", gridTemplateColumns: multi ? "70px 56px 46px auto" : "70px 56px 46px", gap:3, alignItems:"center" }}>
+                              <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={inpCan}>
+                                {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                              </CustomSelect>
+                              <input type="number" style={inpCan} placeholder="Cant." value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
+                              <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.5)", textAlign:"right", whiteSpace:"nowrap" }}>{pesoLinea.toLocaleString("es-CO",{maximumFractionDigits:1})}</div>
+                              {multi && (
+                                <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={{ ...btnTablaEliminar, padding:"2px 6px" }}>✕</button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <button onClick={()=>agregarTipoCanastilla(idx)} style={{ background:"rgba(249,168,38,0.10)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, color:"#F9A826", padding:"2px 7px", fontSize:10, fontWeight:600, cursor:"pointer", alignSelf:"flex-start" }}>
                           + Mezclar tipo
                         </button>
                       </div>
