@@ -1296,6 +1296,12 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
       }).join("");
       const pallOk = pallets.filter(p => palletSum(p) === cpp).length;
 
+      // ── ICA(s) usados en todo el contenedor — para el encabezado ──
+      const icasUsados = [...new Set(
+        pallets.flatMap(p => p.calibres.map(c => c.ica || admin.icaGeneral)).filter(Boolean)
+      )];
+      const chipsIca = icasUsados.map(ica => `<span class="chip">🏷 ICA ${ica}</span>`).join("");
+
       // ── Checklist: por categoría, con contador propio y estado por ítem ──
       const chequeos    = admin.checklistCalidad || {};
       const marcados    = Object.values(chequeos).filter(Boolean).length;
@@ -1431,7 +1437,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
       <span class="chip">🏭 ${admin.checklistPlanta || "Planta sin especificar"}</span>
       <span class="chip">🍋 ${contenedor?.producto || "Producto sin especificar"}</span>
       <span class="chip">➡️ ${admin.destino || "—"}</span>
-      ${admin.icaGeneral ? `<span class="chip">🏷 ICA general ${admin.icaGeneral}</span>` : ""}
+      ${chipsIca}
     </div>
   </div>
 
