@@ -6665,7 +6665,7 @@ function PedidosDemo() {
 }
 
 // ─── MÓDULO INICIO — DASHBOARD EJECUTIVO ─────────────────────
-function InicioDemo({ onNavigate, puedeAcceder }) {
+function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const mob   = useM();
   const small = useS();
   const [hora,  setHora]  = useState(new Date());
@@ -6774,8 +6774,22 @@ function InicioDemo({ onNavigate, puedeAcceder }) {
     return <LimonLoader texto="Cargando panel" />;
   }
 
+  const primerNombre = usuario?.nombre?.split(" ")[0] || "";
+
   return (
     <div>
+      {/* ── SALUDO al usuario actual ── */}
+      {primerNombre && (
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize: mob ? 18 : 22, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"white", letterSpacing:-0.5 }}>
+            Hola, {primerNombre} 👋
+          </div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.52)", marginTop:2 }}>
+            Sistema en línea y listo para el proceso, ¡éxitos!
+          </div>
+        </div>
+      )}
+
       {/* ── HEADER: Fecha/Hora + Clima ── */}
       <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr auto", gap:10, marginBottom:14 }}>
         <div style={{ background:"linear-gradient(135deg,rgba(0,201,167,0.07),rgba(132,94,247,0.07))", border:"1px solid rgba(255,255,255,0.10)", borderRadius:14, padding: mob ? "10px 14px" : "14px 18px" }}>
@@ -8007,7 +8021,7 @@ export default function App() {
 
   const renderDemo = (demo) => {
     if (demo.type === "configuracion_live") return <ConfiguracionDemo />;
-    if (demo.type === "inicio_live")      return <InicioDemo onNavigate={navigateToModule} puedeAcceder={(id) => { const m = MODULES.find(x=>x.id===id); return m ? tieneAcceso(m) : true; }} />;
+    if (demo.type === "inicio_live")      return <InicioDemo usuario={usuario} onNavigate={navigateToModule} puedeAcceder={(id) => { const m = MODULES.find(x=>x.id===id); return m ? tieneAcceso(m) : true; }} />;
     if (demo.type === "pedidos_live")     return <PedidosDemo />;
     if (demo.type === "personal_live")    return <PersonalDemo />;
     if (demo.type === "nomina_live")      return <NominaDemo />;
