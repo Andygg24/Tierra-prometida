@@ -196,9 +196,28 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const [dragPid, setDragPid] = useState(null);
 
   // ── Touch drag ────────────────────────────────────────────────
+  // Se detecta por soporte táctil real (no por ancho de pantalla): una
+  // tablet puede ser tan ancha como una laptop y quedaba usando el drag
+  // nativo de HTML5, que no responde a gestos táctiles y por eso el
+  // arrastre "no servía" ahí.
+  const [isTouchDevice] = useState(() =>
+    typeof window !== "undefined" && (("ontouchstart" in window) || navigator.maxTouchPoints > 0)
+  );
   const tRef = useRef({ pid:null, startX:0, startY:0, dragging:false, overPid:null });
   const [touchDragPid, setTouchDragPid] = useState(null);
   const [touchOverPid, setTouchOverPid] = useState(null);
+
+  // ── Mover pallet por menú (alternativa a arrastrar) ────────────
+  const longPressRef = useRef(null);
+  const [moverMenu, setMoverMenu] = useState(null); // { pid } | null
+  const cancelLongPress = () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } };
+  const startLongPress = (pid) => {
+    cancelLongPress();
+    longPressRef.current = setTimeout(() => {
+      setMoverMenu({ pid });
+      navigator.vibrate?.([15, 30, 15]);
+    }, 550);
+  };
 
   // ── Admin ─────────────────────────────────────────────────────
   const adminInicial = {
@@ -406,6 +425,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     const dist = Math.hypot(t.clientX - r.startX, t.clientY - r.startY);
     if (!r.dragging && dist > 8) {
       r.dragging = true; setTouchDragPid(pid); navigator.vibrate?.([20]);
+      cancelLongPress();
     }
     if (r.dragging) {
       e.preventDefault();
@@ -459,13 +479,17 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     return (
       <div
         key={pid} data-pid={pid}
-        draggable={!m}
-        onDragStart={() => !m && setDragState(pid)}
+        draggable={!isTouchDevice}
+        onDragStart={() => { if (!isTouchDevice) { setDragState(pid); cancelLongPress(); } }}
         onDragOver={e => e.preventDefault()}
-        onDrop={() => !m && onDrop(col, idx)}
-        onTouchStart={m ? e => onTouchStartPallet(e, pid) : undefined}
-        onTouchMove={m  ? e => onTouchMovePallet(e, pid)  : undefined}
-        onTouchEnd={m   ? e => onTouchEndPallet(e, pid)   : undefined}
+        onDrop={() => !isTouchDevice && onDrop(col, idx)}
+        onTouchStart={isTouchDevice ? e => onTouchStartPallet(e, pid) : undefined}
+        onTouchMove={isTouchDevice  ? e => onTouchMovePallet(e, pid)  : undefined}
+        onTouchEnd={isTouchDevice   ? e => { onTouchEndPallet(e, pid); cancelLongPress(); } : undefined}
+        onPointerDown={() => startLongPress(pid)}
+        onPointerUp={cancelLongPress}
+        onPointerLeave={cancelLongPress}
+        onPointerCancel={cancelLongPress}
         style={{
           background:bg, border, borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
           cursor: touchDragPid ? (isTouchTgt ? "copy" : "grabbing") : "grab",
@@ -1929,7 +1953,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
           </div>
 
           {renderVehicleGrid(layoutCamion, dragPidCamion, setDragPidCamion, dropCamion, "🚛", "CAMIÓN",
-            m ? "Mantén presionado y arrastra para cambiar posición" : "Arrastra para cambiar posición"
+            "Arrastra, o mantén presionado un pallet para elegir su nueva posición"
           )}
 
           <button onClick={guardarYActualizarPaso2} disabled={guardando} style={{ width:"100%", background:"linear-gradient(135deg,#0EA5E9,#0284C7)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: guardando ? "wait" : "pointer", fontWeight:700, opacity: guardando ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: 4 }}>
@@ -2103,7 +2127,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
           </div>
 
           {renderVehicleGrid(layout, dragPid, setDragPid, dropContainer, "🚢", "CONT.",
-            m ? "Mantén presionado y arrastra para cambiar posición" : "Arrastra para cambiar posición"
+            "Arrastra, o mantén presionado un pallet para elegir su nueva posición"
           )}
 
           <div style={{ display:"flex", flexDirection: m ? "column" : "row", gap: m ? 10 : 8, paddingTop: m ? 14 : 12, borderTop:"1px solid rgba(255,255,255,0.06)", marginBottom: m ? 10 : 8 }}>
@@ -2130,6 +2154,51 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
           </div>
         </div>
       )}
+
+      {/* ── Mover pallet por menú — alternativa al arrastre, útil en tablet ── */}
+      {moverMenu && (() => {
+        const layoutActual = fase === 2 ? layoutCamion : layout;
+        const swapFn = fase === 2 ? swapCamion : swapContainer;
+        const posiciones = [
+          ...layoutActual.left.map((ocupante, i) => ({ etiqueta: `IZQ ${i + 1}`, ocupante })),
+          ...layoutActual.right.map((ocupante, i) => ({ etiqueta: `DER ${i + 1}`, ocupante })),
+        ];
+        return (
+          <div
+            onClick={() => setMoverMenu(null)}
+            style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ background:"#181a26", border:"1px solid rgba(99,102,241,0.35)", borderRadius:16, padding: m ? 20 : 22, maxWidth:380, width:"100%", maxHeight:"80vh", overflowY:"auto" }}>
+              <div style={{ fontSize: m ? 15 : 14, fontWeight:700, marginBottom:4, textAlign:"center" }}>↔️ Mover Pallet {moverMenu.pid}</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", textAlign:"center", marginBottom:16 }}>Toca la posición a la que quieres moverlo</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {posiciones.map(({ etiqueta, ocupante }) => {
+                  const esElMismo = ocupante === moverMenu.pid;
+                  return (
+                    <button
+                      key={etiqueta}
+                      disabled={esElMismo}
+                      onClick={() => { swapFn(moverMenu.pid, ocupante); setMoverMenu(null); }}
+                      style={{
+                        background: esElMismo ? "rgba(99,102,241,0.18)" : "rgba(255,255,255,0.05)",
+                        border: `1px solid ${esElMismo ? "#6366F1" : "rgba(255,255,255,0.12)"}`,
+                        borderRadius:8, padding: m ? "12px 8px" : "10px 8px", color: esElMismo ? "#a5b4fc" : "white",
+                        cursor: esElMismo ? "default" : "pointer", fontSize: m ? 13 : 12, fontWeight:700, fontFamily:"inherit",
+                        minHeight: m ? 44 : "auto",
+                      }}
+                    >
+                      {etiqueta} {esElMismo ? "— aquí" : `(P${ocupante})`}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={() => setMoverMenu(null)} style={{ width:"100%", marginTop:14, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:9, padding: m ? "12px" : "10px", color:"white", cursor:"pointer", fontSize:13, fontFamily:"inherit", minHeight: m ? 44 : "auto" }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
