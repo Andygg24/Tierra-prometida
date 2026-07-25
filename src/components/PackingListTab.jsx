@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { usePackingList } from "../hooks/usePackingList.js";
@@ -96,11 +96,10 @@ function initPallets(total) {
     calibres: [{ size: 200, cajas: cpp, predio: "", ica: "", plu: false }],
   }));
 }
+// El camión/contenedor arranca vacío — el operario lo va llenando
+// pallet por pallet, en vez de partir de un orden por defecto a corregir.
 function initLayout() {
-  return {
-    left:  [1, 3, 5, 7, 9, 11, 13, 15, 17, 19],
-    right: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
-  };
+  return { left: Array(10).fill(null), right: Array(10).fill(null) };
 }
 function fmtDate(d) {
   if (!d) return "";
@@ -189,35 +188,16 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 
   // ── Fase 2 ────────────────────────────────────────────────────
   const [layoutCamion,  setLayoutCamion]  = useState(initLayout);
-  const [dragPidCamion, setDragPidCamion] = useState(null);
 
   // ── Fase 3 ────────────────────────────────────────────────────
   const [layout,  setLayout]  = useState(initLayout);
-  const [dragPid, setDragPid] = useState(null);
 
-  // ── Touch drag ────────────────────────────────────────────────
-  // Se detecta por soporte táctil real (no por ancho de pantalla): una
-  // tablet puede ser tan ancha como una laptop y quedaba usando el drag
-  // nativo de HTML5, que no responde a gestos táctiles y por eso el
-  // arrastre "no servía" ahí.
-  const [isTouchDevice] = useState(() =>
-    typeof window !== "undefined" && (("ontouchstart" in window) || navigator.maxTouchPoints > 0)
-  );
-  const tRef = useRef({ pid:null, startX:0, startY:0, dragging:false, overPid:null });
-  const [touchDragPid, setTouchDragPid] = useState(null);
-  const [touchOverPid, setTouchOverPid] = useState(null);
-
-  // ── Mover pallet por menú (alternativa a arrastrar) ────────────
-  const longPressRef = useRef(null);
-  const [moverMenu, setMoverMenu] = useState(null); // { pid } | null
-  const cancelLongPress = () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } };
-  const startLongPress = (pid) => {
-    cancelLongPress();
-    longPressRef.current = setTimeout(() => {
-      setMoverMenu({ pid });
-      navigator.vibrate?.([15, 30, 15]);
-    }, 550);
-  };
+  // ── Ubicar pallets: toca uno (de la bandeja o ya puesto) para
+  // "armarlo", luego toca la casilla donde va — funciona igual con
+  // mouse o con el dedo, sin depender de arrastrar ni de mantener
+  // presionado. Se resetea al cambiar de paso.
+  const [armadoPid, setArmadoPid] = useState(null);
+  useEffect(() => { setArmadoPid(null); }, [fase]);
 
   // ── Admin ─────────────────────────────────────────────────────
   const adminInicial = {
@@ -381,73 +361,40 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const palletById = (pid) => pallets.find(p => p.id === pid);
   const selPalletIdx = selPid !== null ? pallets.findIndex(p => p.id === selPid) : -1;
 
-  const makeSwap = (setFn) => (pidA, pidB) =>
+  // Coloca/mueve un pallet a una casilla (col, idx). Si esa casilla ya
+  // tenía otro pallet, ese pallet queda desplazado — si el que se mueve
+  // venía de una posición, el desplazado toma su lugar (intercambio); si
+  // venía de la bandeja de pendientes, el desplazado vuelve a la bandeja.
+  const makeMover = (setFn) => (pid, col, idx) =>
     setFn(prev => {
       const next = { left:[...prev.left], right:[...prev.right] };
-      const find = pid => {
-        const li = next.left.indexOf(pid);  if (li >= 0) return { col:"left",  idx:li };
-        const ri = next.right.indexOf(pid); if (ri >= 0) return { col:"right", idx:ri };
-        return null;
-      };
-      const a = find(pidA), b = find(pidB);
-      if (!a || !b) return prev;
-      next[a.col][a.idx] = pidB;
-      next[b.col][b.idx] = pidA;
+      const li = next.left.indexOf(pid), ri = next.right.indexOf(pid);
+      const fromCol = li >= 0 ? "left" : (ri >= 0 ? "right" : null);
+      const fromIdx = li >= 0 ? li : ri;
+      if (fromCol === col && fromIdx === idx) return prev;
+      const desplazado = next[col][idx];
+      next[col][idx] = pid;
+      if (fromCol !== null) next[fromCol][fromIdx] = desplazado ?? null;
       return next;
     });
-  const swapCamion    = makeSwap(setLayoutCamion);
-  const swapContainer = makeSwap(setLayout);
+  const moverCamion    = makeMover(setLayoutCamion);
+  const moverContainer = makeMover(setLayout);
 
-  const makeDrop = (setFn, dragState, setDragState) => (col, idx) => {
-    if (dragState === null) return;
+  // Quita un pallet ya ubicado y lo devuelve a la bandeja de pendientes.
+  const makeQuitar = (setFn) => (pid) =>
     setFn(prev => {
       const next = { left:[...prev.left], right:[...prev.right] };
-      const li = next.left.indexOf(dragState), ri = next.right.indexOf(dragState);
-      const fc = li >= 0 ? "left" : "right", fi = li >= 0 ? li : ri;
-      if (fc === col && fi === idx) return prev;
-      const d = next[col][idx];
-      next[col][idx] = dragState; next[fc][fi] = d;
+      const li = next.left.indexOf(pid);  if (li >= 0) next.left[li]  = null;
+      const ri = next.right.indexOf(pid); if (ri >= 0) next.right[ri] = null;
       return next;
     });
-    setDragState(null);
-  };
-  const dropCamion    = makeDrop(setLayoutCamion, dragPidCamion, setDragPidCamion);
-  const dropContainer = makeDrop(setLayout, dragPid, setDragPid);
+  const quitarCamion    = makeQuitar(setLayoutCamion);
+  const quitarContainer = makeQuitar(setLayout);
 
-  const onTouchStartPallet = (e, pid) => {
-    const t = e.touches[0];
-    tRef.current = { pid, startX:t.clientX, startY:t.clientY, dragging:false, overPid:null };
-  };
-  const onTouchMovePallet = (e, pid) => {
-    const r = tRef.current;
-    if (r.pid !== pid) return;
-    const t = e.touches[0];
-    const dist = Math.hypot(t.clientX - r.startX, t.clientY - r.startY);
-    if (!r.dragging && dist > 8) {
-      r.dragging = true; setTouchDragPid(pid); navigator.vibrate?.([20]);
-      cancelLongPress();
-    }
-    if (r.dragging) {
-      e.preventDefault();
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      const pidEl = el?.closest("[data-pid]");
-      const over  = pidEl ? Number(pidEl.getAttribute("data-pid")) : null;
-      const overPid = (over && over !== pid) ? over : null;
-      if (r.overPid !== overPid) { r.overPid = overPid; setTouchOverPid(overPid); }
-    }
-  };
-  const onTouchEndPallet = (e, pid) => {
-    const r = tRef.current;
-    if (r.pid !== pid) return;
-    if (r.dragging) {
-      e.preventDefault();
-      if (r.overPid) { if (fase === 2) swapCamion(pid, r.overPid); else swapContainer(pid, r.overPid); }
-    } else {
-      if (fase === 1) setSelPid(prev => prev === pid ? null : pid);
-    }
-    tRef.current = { pid:null, startX:0, startY:0, dragging:false, overPid:null };
-    setTouchDragPid(null); setTouchOverPid(null);
-  };
+  // Quita todos los pallets ya ubicados de un solo golpe — todos vuelven a la bandeja.
+  const makeQuitarTodos = (setFn) => () => setFn({ left: Array(10).fill(null), right: Array(10).fill(null) });
+  const quitarTodosCamion    = makeQuitarTodos(setLayoutCamion);
+  const quitarTodosContainer = makeQuitarTodos(setLayout);
 
   const resumen = CALIBRES.map(size => ({
     size,
@@ -459,13 +406,35 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const todoCuadra = totalConf === totalCajas;
 
   // ── Tarjeta de pallet (layout) ───────────────────────────────
-  const renderPalletCard = (pid, idx, col, dragState, setDragState, onDrop) => {
+  // Toca un pallet (de la bandeja de pendientes o ya ubicado) para
+  // "armarlo", y luego toca la casilla destino — reemplaza al arrastre,
+  // que no era confiable en tablet.
+  const renderPalletCard = (pid, idx, col, moverFn) => {
+    if (pid === null) {
+      const puedeColocar = armadoPid !== null;
+      return (
+        <div
+          key={`${col}-${idx}-vacio`}
+          onClick={() => { if (armadoPid !== null) { moverFn(armadoPid, col, idx); setArmadoPid(null); } }}
+          style={{
+            background: puedeColocar ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.02)",
+            border: `1.5px dashed ${puedeColocar ? "#22C55E" : "rgba(255,255,255,0.15)"}`,
+            borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
+            cursor: puedeColocar ? "pointer" : "default",
+            minHeight: m ? 64 : 54, display:"flex", alignItems:"center", justifyContent:"center",
+            transition:"all 0.12s", WebkitTapHighlightColor:"transparent",
+          }}
+        >
+          <span style={{ fontSize: m ? 10 : 9, color: puedeColocar ? "#22C55E" : "rgba(255,255,255,0.25)", fontWeight:700 }}>
+            {puedeColocar ? "+ Colocar" : "Vacío"}
+          </span>
+        </div>
+      );
+    }
     const p = palletById(pid); if (!p) return null;
-    const isMixed    = p.calibres.length > 1;
-    const mainCal    = COL_CAL[p.calibres[0].size] || COL_CAL[200];
-    const isDragDsk  = dragState === pid;
-    const isTouchDrg = touchDragPid === pid;
-    const isTouchTgt = touchOverPid === pid;
+    const isMixed  = p.calibres.length > 1;
+    const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+    const isArmado = armadoPid === pid;
     const sum = palletSum(p);
     const ok  = sum === cpp;
     let bg = "rgba(255,255,255,0.05)";
@@ -474,42 +443,34 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       bg = `linear-gradient(135deg,${p.calibres.map((c, i) => `${COL_CAL[c.size]?.bg||"#888"}${i===0?"55":"33"}`).join(",")})`;
       border = "1px solid rgba(255,255,255,0.25)";
     }
-    if (isTouchDrg) border = "2px solid rgba(255,255,255,0.7)";
-    else if (isTouchTgt) { bg = "rgba(34,197,94,0.15)"; border = "2px dashed #22C55E"; }
+    if (isArmado) { bg = "rgba(99,102,241,0.2)"; border = "2px solid #6366F1"; }
     return (
       <div
-        key={pid} data-pid={pid}
-        draggable={!isTouchDevice}
-        onDragStart={() => { if (!isTouchDevice) { setDragState(pid); cancelLongPress(); } }}
-        onDragOver={e => e.preventDefault()}
-        onDrop={() => !isTouchDevice && onDrop(col, idx)}
-        onTouchStart={isTouchDevice ? e => onTouchStartPallet(e, pid) : undefined}
-        onTouchMove={isTouchDevice  ? e => onTouchMovePallet(e, pid)  : undefined}
-        onTouchEnd={isTouchDevice   ? e => { onTouchEndPallet(e, pid); cancelLongPress(); } : undefined}
-        onPointerDown={() => startLongPress(pid)}
-        onPointerUp={cancelLongPress}
-        onPointerLeave={cancelLongPress}
-        onPointerCancel={cancelLongPress}
+        key={pid}
+        onClick={() => {
+          if (armadoPid === pid) setArmadoPid(null);
+          else if (armadoPid !== null) { moverFn(armadoPid, col, idx); setArmadoPid(null); }
+          else setArmadoPid(pid);
+        }}
         style={{
           background:bg, border, borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
-          cursor: touchDragPid ? (isTouchTgt ? "copy" : "grabbing") : "grab",
-          position:"relative", opacity: isDragDsk || isTouchDrg ? 0.4 : 1,
-          transition: isTouchDrg || isTouchTgt ? "none" : "all 0.12s",
+          cursor:"pointer", position:"relative",
+          transition:"all 0.12s",
           minHeight: m ? 64 : 54, display:"flex", flexDirection:"column", justifyContent:"space-between",
-          boxShadow: isTouchTgt ? "0 0 0 3px rgba(34,197,94,0.35)" : "none",
-          transform: isTouchDrg ? "scale(0.94)" : isTouchTgt ? "scale(1.04)" : "none",
-          WebkitTapHighlightColor:"transparent", userSelect:"none", touchAction:"none",
+          transform: isArmado ? "scale(1.04)" : "none",
+          boxShadow: isArmado ? "0 0 0 3px rgba(99,102,241,0.3)" : "none",
+          WebkitTapHighlightColor:"transparent", userSelect:"none",
         }}
       >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize: m ? 10 : 9, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{pid}</span>
+          <span style={{ fontSize: m ? 12 : 11, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{pid}</span>
           {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
           {p.calibres.map((c, ci) => (
             <div key={ci} style={{ display:"flex", alignItems:"center", gap:3 }}>
-              <span style={{ fontSize: m ? 11 : 8, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.plu ? `${c.size}PLU` : c.size}</span>
-              <span style={{ fontSize: m ? 9 : 8, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
+              <span style={{ fontSize: m ? 13 : 10, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.plu ? `${c.size}PLU` : c.size}</span>
+              <span style={{ fontSize: m ? 11 : 10, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
             </div>
           ))}
         </div>
@@ -523,22 +484,106 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   };
 
   // ── Grid visual del vehículo ─────────────────────────────────
-  const renderVehicleGrid = (currentLayout, dragState, setDragState, onDrop, vehicleIcon, vehicleLabel, hint) => (
+  const renderVehicleGrid = (currentLayout, moverFn, quitarFn, quitarTodosFn, vehicleIcon, vehicleLabel, hint) => {
+    const ubicados      = [...currentLayout.left, ...currentLayout.right].filter(pid => pid !== null);
+    const pendientes    = pallets.filter(p => !ubicados.includes(p.id));
+    const armadoEnGrid  = armadoPid !== null && ubicados.includes(armadoPid);
+    const armadoEnTray  = armadoPid !== null && pendientes.some(p => p.id === armadoPid);
+    return (
     <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, padding: m ? 12 : 14, marginBottom: m ? 14 : 12 }}>
       <div style={{ display:"flex", flexWrap:"wrap", gap: m ? 8 : 6, marginBottom: m ? 12 : 10, alignItems:"center" }}>
         {resumen.filter(r => r.cajas > 0).map(r => (
-          <div key={r.size} style={{ background:COL_CAL[r.size].light, border:`1px solid ${COL_CAL[r.size].border}`, borderRadius:6, padding: m ? "5px 11px" : "3px 9px", fontSize: m ? 12 : 10, fontWeight:700, display:"flex", gap:5, alignItems:"center" }}>
+          <div key={r.size} style={{ background:COL_CAL[r.size].light, border:`1px solid ${COL_CAL[r.size].border}`, borderRadius:6, padding: m ? "5px 11px" : "3px 9px", fontSize: m ? 14 : 12, fontWeight:700, display:"flex", gap:5, alignItems:"center" }}>
             <span style={{ color:COL_CAL[r.size].bg }}>{r.size}</span>
             <span style={{ color:"rgba(255,255,255,0.6)" }}>{r.cajas.toLocaleString("es-CO")}</span>
           </div>
         ))}
-        <div style={{ marginLeft:"auto", fontSize: m ? 13 : 11, fontWeight:700, color: todoCuadra ? "#00C9A7" : "#F9A826" }}>
+        <div style={{ marginLeft:"auto", fontSize: m ? 16 : 13, fontWeight:700, color: todoCuadra ? "#00C9A7" : "#F9A826" }}>
           {todoCuadra ? `✓ ${totalCajas.toLocaleString("es-CO")}` : `⚠ ${totalConf}/${totalCajas}`}
         </div>
       </div>
-      {touchDragPid !== null && (
-        <div style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, padding:"7px 12px", marginBottom:10, fontSize:12, color:"rgba(255,255,255,0.7)", textAlign:"center" }}>
-          Arrastrando P{touchDragPid} — suelta sobre otro pallet para intercambiar
+
+      {/* ── Bandeja de pallets sin ubicar ── */}
+      <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding: m ? 10 : 8, marginBottom:10 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:8 }}>
+          <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>
+            📥 Pallets sin ubicar ({pendientes.length}/{pallets.length})
+          </div>
+          {ubicados.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm(`¿Quitar los ${ubicados.length} pallets ya ubicados y devolverlos todos a la bandeja?`)) {
+                  quitarTodosFn();
+                  setArmadoPid(null);
+                }
+              }}
+              style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:6, padding: m ? "6px 10px" : "4px 8px", color:"#fca5a5", cursor:"pointer", fontSize: m ? 11 : 10, fontWeight:700, fontFamily:"inherit", flexShrink:0 }}
+            >
+              🗑️ Quitar todos
+            </button>
+          )}
+        </div>
+        {pendientes.length === 0 ? (
+          <div style={{ fontSize: m ? 12 : 11, color:"#00C9A7", fontWeight:700 }}>✅ Todos los pallets están ubicados</div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: m ? 8 : 6 }}>
+            {pendientes.map(p => {
+              const isMixed  = p.calibres.length > 1;
+              const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+              const isArmado = armadoPid === p.id;
+              const sum = palletSum(p);
+              const ok  = sum === cpp;
+              let bg = "rgba(255,255,255,0.05)";
+              let border = `1px solid ${mainCal.border}`;
+              if (isMixed) {
+                bg = `linear-gradient(135deg,${p.calibres.map((c, i) => `${COL_CAL[c.size]?.bg||"#888"}${i===0?"55":"33"}`).join(",")})`;
+                border = "1px solid rgba(255,255,255,0.25)";
+              }
+              if (isArmado) { bg = "rgba(99,102,241,0.2)"; border = "2px solid #6366F1"; }
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setArmadoPid(prev => prev === p.id ? null : p.id)}
+                  style={{
+                    background:bg, border, borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
+                    cursor:"pointer", position:"relative", textAlign:"left", fontFamily:"inherit",
+                    transition:"all 0.12s",
+                    minHeight: m ? 64 : 54, display:"flex", flexDirection:"column", justifyContent:"space-between",
+                    transform: isArmado ? "scale(1.04)" : "none",
+                    boxShadow: isArmado ? "0 0 0 3px rgba(99,102,241,0.3)" : "none",
+                    WebkitTapHighlightColor:"transparent",
+                  }}
+                >
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontSize: m ? 12 : 11, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{p.id}</span>
+                    {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
+                    {ok  && <span style={{ fontSize: m ? 9 : 8, color:"#00C9A7" }}>✓</span>}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                    {p.calibres.map((c, ci) => (
+                      <div key={ci} style={{ display:"flex", alignItems:"center", gap:3 }}>
+                        <span style={{ fontSize: m ? 13 : 10, fontWeight:700, color:COL_CAL[c.size]?.bg||"#fff", lineHeight:1 }}>{c.plu ? `${c.size}PLU` : c.size}</span>
+                        <span style={{ fontSize: m ? 11 : 10, color:"rgba(255,255,255,0.5)", lineHeight:1 }}>{c.cajas}cj</span>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {(armadoEnGrid || armadoEnTray) && (
+        <div style={{ background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.35)", borderRadius:8, padding:"7px 12px", marginBottom:10, fontSize:12, color:"#a5b4fc", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexWrap:"wrap" }}>
+          <span>
+            👉 Pallet {armadoPid} seleccionado — toca la casilla {armadoEnGrid ? "a la que quieres moverlo" : "donde va"} (o vuelve a tocarlo para cancelar)
+          </span>
+          {armadoEnGrid && (
+            <button onClick={() => { quitarFn(armadoPid); setArmadoPid(null); }} style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:6, padding:"4px 10px", color:"#fca5a5", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"inherit" }}>
+              🗑 Quitar
+            </button>
+          )}
         </div>
       )}
       {m ? (
@@ -602,14 +647,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
-                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn))}
                     </div>
                   </div>
                   <div style={{ width:7, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
-                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn))}
                     </div>
                   </div>
                 </div>
@@ -728,14 +773,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
-                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", dragState, setDragState, onDrop))}
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn))}
                     </div>
                   </div>
                   <div style={{ width:8, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
-                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", dragState, setDragState, onDrop))}
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn))}
                     </div>
                   </div>
                 </div>
@@ -792,7 +837,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       )}
       <div style={{ fontSize: m ? 11 : 8, color:"rgba(255,255,255,0.2)", textAlign:"center", marginTop: m ? 10 : 8 }}>{hint}</div>
     </div>
-  );
+    );
+  };
 
   // ── Excel / PDF ───────────────────────────────────────────────
   const [generandoExcel, setGenerandoExcel] = useState(false);
@@ -988,7 +1034,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     // ── Distribución en contenedor (panel derecho) ─────────────────
     const pcell = (pid) => {
       const p = pallets.find(pp => pp.id === pid);
-      if (!p) return { id: pid, size: "" };
+      if (!p) return { id: pid ?? "—", size: "" };
       const sz = p.calibres.length > 1
         ? p.calibres.map(c => `${c.cajas}/${c.size ?? ""}`).join("<br>")
         : `${p.calibres[0]?.size ?? ""}`;
@@ -1773,7 +1819,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
               <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.35)", marginBottom: m ? 10 : 8, fontWeight:600 }}>
                 📦 PALLETS — toca para editar calibre y cajas
               </div>
-              <div style={{ display:"grid", gridTemplateColumns: m ? "repeat(4,1fr)" : "repeat(10,1fr)", gap: m ? 8 : 6 }}>
+              <div style={{ display:"grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: m ? 8 : 6 }}>
                 {pallets.map((p) => {
                   const isMixed = p.calibres.length > 1;
                   const mainCal = COL_CAL[p.calibres[0].size] || COL_CAL[200];
@@ -1952,8 +1998,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             🚛 Arrastra los pallets para reflejar cómo quedaron físicamente dentro del camión (fondo → puerta trasera).
           </div>
 
-          {renderVehicleGrid(layoutCamion, dragPidCamion, setDragPidCamion, dropCamion, "🚛", "CAMIÓN",
-            "Arrastra, o mantén presionado un pallet para elegir su nueva posición"
+          {renderVehicleGrid(layoutCamion, moverCamion, quitarCamion, quitarTodosCamion, "🚛", "CAMIÓN",
+            "Toca un pallet de la lista (o ya ubicado) y luego la casilla donde va"
           )}
 
           <button onClick={guardarYActualizarPaso2} disabled={guardando} style={{ width:"100%", background:"linear-gradient(135deg,#0EA5E9,#0284C7)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: guardando ? "wait" : "pointer", fontWeight:700, opacity: guardando ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: 4 }}>
@@ -2126,8 +2172,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             🚢 Ajusta el orden final de los pallets tal como quedaron cargados dentro del contenedor.
           </div>
 
-          {renderVehicleGrid(layout, dragPid, setDragPid, dropContainer, "🚢", "CONT.",
-            "Arrastra, o mantén presionado un pallet para elegir su nueva posición"
+          {renderVehicleGrid(layout, moverContainer, quitarContainer, quitarTodosContainer, "🚢", "CONT.",
+            "Toca un pallet de la lista (o ya ubicado) y luego la casilla donde va"
           )}
 
           <div style={{ display:"flex", flexDirection: m ? "column" : "row", gap: m ? 10 : 8, paddingTop: m ? 14 : 12, borderTop:"1px solid rgba(255,255,255,0.06)", marginBottom: m ? 10 : 8 }}>
@@ -2155,50 +2201,6 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
         </div>
       )}
 
-      {/* ── Mover pallet por menú — alternativa al arrastre, útil en tablet ── */}
-      {moverMenu && (() => {
-        const layoutActual = fase === 2 ? layoutCamion : layout;
-        const swapFn = fase === 2 ? swapCamion : swapContainer;
-        const posiciones = [
-          ...layoutActual.left.map((ocupante, i) => ({ etiqueta: `IZQ ${i + 1}`, ocupante })),
-          ...layoutActual.right.map((ocupante, i) => ({ etiqueta: `DER ${i + 1}`, ocupante })),
-        ];
-        return (
-          <div
-            onClick={() => setMoverMenu(null)}
-            style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
-          >
-            <div onClick={e => e.stopPropagation()} style={{ background:"#181a26", border:"1px solid rgba(99,102,241,0.35)", borderRadius:16, padding: m ? 20 : 22, maxWidth:380, width:"100%", maxHeight:"80vh", overflowY:"auto" }}>
-              <div style={{ fontSize: m ? 15 : 14, fontWeight:700, marginBottom:4, textAlign:"center" }}>↔️ Mover Pallet {moverMenu.pid}</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", textAlign:"center", marginBottom:16 }}>Toca la posición a la que quieres moverlo</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {posiciones.map(({ etiqueta, ocupante }) => {
-                  const esElMismo = ocupante === moverMenu.pid;
-                  return (
-                    <button
-                      key={etiqueta}
-                      disabled={esElMismo}
-                      onClick={() => { swapFn(moverMenu.pid, ocupante); setMoverMenu(null); }}
-                      style={{
-                        background: esElMismo ? "rgba(99,102,241,0.18)" : "rgba(255,255,255,0.05)",
-                        border: `1px solid ${esElMismo ? "#6366F1" : "rgba(255,255,255,0.12)"}`,
-                        borderRadius:8, padding: m ? "12px 8px" : "10px 8px", color: esElMismo ? "#a5b4fc" : "white",
-                        cursor: esElMismo ? "default" : "pointer", fontSize: m ? 13 : 12, fontWeight:700, fontFamily:"inherit",
-                        minHeight: m ? 44 : "auto",
-                      }}
-                    >
-                      {etiqueta} {esElMismo ? "— aquí" : `(P${ocupante})`}
-                    </button>
-                  );
-                })}
-              </div>
-              <button onClick={() => setMoverMenu(null)} style={{ width:"100%", marginTop:14, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:9, padding: m ? "12px" : "10px", color:"white", cursor:"pointer", fontSize:13, fontFamily:"inherit", minHeight: m ? 44 : "auto" }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
