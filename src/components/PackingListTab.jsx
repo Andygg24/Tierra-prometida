@@ -260,7 +260,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const guardarParcial = async ({ faseFinal, adminKeys, extra }) => {
     if (!contenedor?.id) return false;
     setGuardando(true);
-    const { data: fresh } = await cargarPorContenedor(contenedor.id);
+    const { data: fresh, error: errorFresh } = await cargarPorContenedor(contenedor.id);
+    if (errorFresh && plId) {
+      // No se pudo leer el registro más reciente antes de guardar — mejor
+      // no arriesgarse a pisar con admin_data vacío lo que otro paso ya
+      // tenga guardado. Se reintenta con el próximo guardado.
+      setGuardando(false);
+      return false;
+    }
     const row = {
       id:            plId || fresh?.id || Date.now(),
       contenedor_id: contenedor.id,
