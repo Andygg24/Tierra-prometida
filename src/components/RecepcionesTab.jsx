@@ -79,204 +79,288 @@ function formVacio() {
 
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
 
+const kg = (n) => Number(n || 0).toLocaleString("es-CO", { maximumFractionDigits: 2 });
+
 async function generarInformeHTML(r) {
   const logoSrc  = await cargarLogoBase64();
   const fmtFecha = r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "—";
-  const filasEstibas = r.estibas.map(e => {
-    const tipos = canastillasDeEstiba(e);
-    const tipoTxt = tipos.map(c => `${num(c.tipo).toLocaleString("es-CO",{maximumFractionDigits:1})} kg`).join("<br>");
-    const cantTxt = tipos.map(c => num(c.cantidad)).join("<br>");
-    return `
-    <tr>
-      <td style="text-align:center;font-weight:700">${esc(e.numero)}</td>
-      <td style="text-align:right">${num(e.pesoBruto).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-      <td style="text-align:center">${e.estibaPlastica==="si" ? "Sí" : "No"}</td>
-      <td style="text-align:center">${tipoTxt}</td>
-      <td style="text-align:center">${cantTxt}</td>
-      <td style="text-align:right">${num(e.pesoEstiba).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-      <td style="text-align:right">${descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-      <td style="text-align:right;font-weight:700;color:#1D6F42">${pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-    </tr>`;
+
+  const pesoBrutoTotal = r.estibas.reduce((s, e) => s + num(e.pesoBruto), 0);
+  const descuentoTotal = r.estibas.reduce((s, e) => s + descuentoEstiba(e), 0);
+  const canastillasTotal = r.estibas.reduce((s, e) => s + canastillasDeEstiba(e).reduce((a, c) => a + num(c.cantidad), 0), 0);
+
+  const estibaCards = r.estibas.map(e => {
+    const tipos  = canastillasDeEstiba(e);
+    const chips  = tipos.filter(c => num(c.cantidad) > 0).map(c =>
+      `<span class="echip">${num(c.tipo).toLocaleString("es-CO",{maximumFractionDigits:1})} kg × ${num(c.cantidad)}</span>`
+    ).join("");
+    return `<div class="estiba-card">
+      <div class="estiba-top"><span class="eid">Estiba #${esc(e.numero)}</span><span class="eneto">${kg(pesoNetoEstiba(e))} kg neto</span></div>
+      ${chips ? `<div class="echips">${chips}</div>` : ""}
+      <div class="erow"><span>Peso bruto</span><b>${kg(e.pesoBruto)} kg</b></div>
+      <div class="erow"><span>Estiba plástica</span><b>${e.estibaPlastica==="si" ? "Sí" : "No"}</b></div>
+      <div class="erow"><span>Peso canastillas</span><b>${kg(pesoCanastillasEstiba(e))} kg</b></div>
+      <div class="erow"><span>Peso estiba</span><b>${kg(e.pesoEstiba)} kg</b></div>
+      <div class="erow"><span>Descuento total</span><b>${kg(descuentoEstiba(e))} kg</b></div>
+    </div>`;
   }).join("");
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Recepción ${esc(r.remision || r.id)} - Tierra Prometida</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;padding:24px;font-size:12px}
-  .header{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:14px;margin-bottom:18px}
-  .logo{font-size:36px;margin-bottom:4px}
-  .logo img{width:40px;height:40px;object-fit:contain;display:block;margin:0 auto}
-  .htitle{color:#1D6F42;font-size:21px;font-weight:800;letter-spacing:-0.5px}
-  .sub{color:#666;font-size:12px;margin-top:3px}
-  .badge{display:inline-block;background:${r.tipo==="entrada" ? "#1D6F42" : "#c2410c"};color:#fff;padding:4px 18px;border-radius:20px;font-size:10px;margin-top:8px;letter-spacing:0.5px;font-weight:700}
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
-  .campo{background:#f5f5f5;border-radius:8px;padding:8px 10px}
-  .campo .l{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px}
-  .campo .v{font-size:13px;font-weight:700;color:#1a1a1a}
-  .sec{font-size:13px;font-weight:800;color:#1D6F42;background:#e8f5e9;border-left:4px solid #1D6F42;padding:7px 12px;margin:20px 0 10px;border-radius:0 6px 6px 0}
-  table{width:100%;border-collapse:collapse;font-size:11px}
-  th{background:#1D6F42;color:#fff;padding:7px 8px;text-align:left;border:1px solid #145a32}
-  td{padding:6px 8px;border:1px solid #e0e0e0}
-  tr:nth-child(even) td{background:#fafafa}
-  .total{display:flex;justify-content:flex-end;margin-top:14px}
-  .totalbox{background:#e8f5e9;border:2px solid #1D6F42;border-radius:10px;padding:12px 22px;text-align:right}
-  .totalbox .l{font-size:10px;color:#1D6F42;text-transform:uppercase;letter-spacing:0.5px}
-  .totalbox .v{font-size:26px;font-weight:800;color:#1D6F42}
-  .footer{text-align:center;font-size:9px;color:#bbb;margin-top:24px;border-top:1px solid #f0f0f0;padding-top:10px}
-  @media print{body{padding:10px}}
-</style>
-</head>
-<body>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;font-size:12px}
+.sheet{max-width:960px;margin:0 auto;background:#fff}
 
-<div class="header">
-  <div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "🍋"}</div>
-  <div class="htitle">TIERRA PROMETIDA TRADING</div>
-  <div class="sub">Informe de Recepción de Fruta</div>
-  <div class="badge">${r.tipo === "entrada" ? "ENTRADA DE FRUTA" : "SALIDA DE FRUTA"}</div>
-</div>
+.banner{background:linear-gradient(120deg,#173d1a,#1D6F42 60%,#3fa142);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
+.banner::after{content:"🍋";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
+.banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
+.banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+.banner h1{font-size:22px;font-weight:800;letter-spacing:0.2px}
+.banner .sub{font-size:11.5px;opacity:0.88;margin-top:4px}
+.banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
+.banner .chip{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:5px 12px;font-size:10.5px;font-weight:600}
 
-<div class="grid">
-  <div class="campo"><div class="l">Remisión #</div><div class="v">${esc(r.remision) || "—"}</div></div>
-  <div class="campo"><div class="l">Fecha</div><div class="v">${fmtFecha}</div></div>
-  <div class="campo"><div class="l">Placa</div><div class="v">${esc(r.placa) || "—"}</div></div>
-  <div class="campo"><div class="l">Conductor</div><div class="v">${esc(r.conductor) || "—"}</div></div>
-  <div class="campo"><div class="l">Cédula conductor</div><div class="v">${esc(r.cedulaConductor) || "—"}</div></div>
-  <div class="campo"><div class="l">Origen</div><div class="v">${esc(r.origen) || "—"}</div></div>
-  <div class="campo"><div class="l">Proveedor</div><div class="v">${esc(r.proveedor) || "—"}</div></div>
-  <div class="campo"><div class="l">Supervisor</div><div class="v">${esc(r.supervisor) || "—"}</div></div>
-  <div class="campo"><div class="l">Hora inicio</div><div class="v">${esc(r.horaInicio) || "—"}</div></div>
-  <div class="campo"><div class="l">Hora fin</div><div class="v">${esc(r.horaFin) || "—"}</div></div>
-</div>
+.estado-bar{margin:0 34px;margin-top:-16px;position:relative;background:#e9f7ef;border:1px solid #1D6F4233;color:#1D6F42;border-radius:12px;padding:12px 18px;font-weight:700;font-size:12.5px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
 
-<div class="sec">Detalle de estibas</div>
-<table>
-  <thead>
-    <tr>
-      <th style="text-align:center">#</th>
-      <th style="text-align:right">Peso bruto</th>
-      <th style="text-align:center">Est. plástica</th>
-      <th style="text-align:center">Tipo canastilla</th>
-      <th style="text-align:center">Cant.</th>
-      <th style="text-align:right">Peso estiba</th>
-      <th style="text-align:right">Descuento</th>
-      <th style="text-align:right">Peso neto</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${filasEstibas}
-  </tbody>
-</table>
+.content{padding:28px 34px 8px}
 
-<div class="total">
-  <div class="totalbox">
-    <div class="l">Total peso neto</div>
-    <div class="v">${num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})} kg</div>
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:26px}
+.card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center}
+.card-ic{font-size:16px;margin-bottom:2px}
+.card-val{font-size:18px;font-weight:800;color:#1D6F42;line-height:1.15}
+.card-lbl{font-size:8.5px;color:#7c8a7c;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+
+h2{display:flex;align-items:center;gap:8px;color:#173d1a;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
+h2::after{content:"";flex:1;height:1px;background:#dfe8df}
+
+.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+.info-item{background:#fbfdfb;border:1px solid #e2ede2;border-radius:10px;padding:10px 14px}
+.info-item .l{font-size:9px;color:#7c8a7c;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px}
+.info-item .v{font-size:13px;font-weight:700;color:#1a1a1a}
+
+.estiba-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.estiba-card{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 14px;background:#fbfdfb;break-inside:avoid}
+.estiba-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.eid{font-weight:800;font-size:12px;color:#173d1a}
+.eneto{font-size:11px;font-weight:800;color:#1D6F42}
+.echips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.echip{border:1px solid #cfe3cf;background:#eef7ee;color:#1D6F42;border-radius:6px;padding:2px 8px;font-size:9.5px;font-weight:700}
+.erow{display:flex;justify-content:space-between;font-size:10.5px;color:#667;padding:3px 0;border-bottom:1px dashed #eef2ee}
+.erow:last-child{border-bottom:none}
+.erow b{color:#222}
+
+.total{display:flex;justify-content:flex-end;margin-top:20px;gap:10px;flex-wrap:wrap}
+.totalbox{background:#e8f5e9;border:2px solid #1D6F42;border-radius:10px;padding:12px 22px;text-align:right}
+.totalbox.alt{background:#fbfdfb;border:1px solid #e2ede2}
+.totalbox .l{font-size:10px;color:#1D6F42;text-transform:uppercase;letter-spacing:0.5px}
+.totalbox.alt .l{color:#7c8a7c}
+.totalbox .v{font-size:22px;font-weight:800;color:#1D6F42}
+.totalbox.alt .v{font-size:16px;color:#333;font-weight:800}
+
+.obs{background:#fbfdfb;border:1px solid #e2ede2;border-left:4px solid #3fa142;border-radius:10px;padding:12px 16px;font-size:11.5px;margin-top:4px;white-space:pre-wrap;color:#333}
+.firma-row{display:flex;gap:20px;margin-top:26px}
+.firma-box{flex:1}
+.firma-line{border-bottom:1.5px solid #b8c8b8;height:34px}
+.firma-lbl{font-size:10px;color:#7c8a7c;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.firma-val{font-size:12px;color:#222;font-weight:600;margin-top:2px}
+
+.footer{background:#173d1a;color:rgba(255,255,255,0.72);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+
+@media print{
+  body{background:#fff}
+  .sheet{max-width:100%}
+  .banner::after{display:none}
+  @page{size:A4;margin:10mm}
+}
+</style></head><body>
+<div class="sheet">
+
+  <div class="banner">
+    <div class="banner-row">
+      <div>
+        <h1>🍋 Informe de Recepción de Fruta</h1>
+        <div class="sub">Detalle de estibas, canastillas y descuentos de peso</div>
+      </div>
+      ${logoSrc ? `<img src="${logoSrc}" />` : ""}
+    </div>
+    <div class="chips">
+      <span class="chip">${r.tipo === "entrada" ? "⬇️ ENTRADA DE FRUTA" : "⬆️ SALIDA DE FRUTA"}</span>
+      <span class="chip">📋 Remisión ${esc(r.remision) || "—"}</span>
+      <span class="chip">📅 ${fmtFecha}</span>
+      <span class="chip">🪧 ${esc(r.placa) || "Sin placa"}</span>
+    </div>
   </div>
+
+  <div class="estado-bar">✅ ${r.estibas.length} estiba${r.estibas.length !== 1 ? "s" : ""} registrada${r.estibas.length !== 1 ? "s" : ""} · ${kg(r.total)} kg netos en total</div>
+
+  <div class="content">
+
+    <div class="cards">
+      <div class="card"><div class="card-ic">🧱</div><div class="card-val">${r.estibas.length}</div><div class="card-lbl">Estibas</div></div>
+      <div class="card"><div class="card-ic">📦</div><div class="card-val">${canastillasTotal.toLocaleString("es-CO")}</div><div class="card-lbl">Canastillas</div></div>
+      <div class="card"><div class="card-ic">⚖️</div><div class="card-val">${kg(pesoBrutoTotal)}</div><div class="card-lbl">Peso bruto (kg)</div></div>
+      <div class="card"><div class="card-ic">✅</div><div class="card-val">${kg(r.total)}</div><div class="card-lbl">Peso neto (kg)</div></div>
+    </div>
+
+    <h2>🚚 Datos del transporte</h2>
+    <div class="info-grid">
+      <div class="info-item"><div class="l">Conductor</div><div class="v">${esc(r.conductor) || "—"}</div></div>
+      <div class="info-item"><div class="l">Cédula conductor</div><div class="v">${esc(r.cedulaConductor) || "—"}</div></div>
+      <div class="info-item"><div class="l">Origen</div><div class="v">${esc(r.origen) || "—"}</div></div>
+      <div class="info-item"><div class="l">Proveedor</div><div class="v">${esc(r.proveedor) || "—"}</div></div>
+      <div class="info-item"><div class="l">Supervisor</div><div class="v">${esc(r.supervisor) || "—"}</div></div>
+      <div class="info-item"><div class="l">Hora inicio — Hora fin</div><div class="v">${esc(r.horaInicio) || "—"} — ${esc(r.horaFin) || "—"}</div></div>
+    </div>
+
+    <h2>🧱 Detalle de estibas</h2>
+    <div class="estiba-grid">
+      ${estibaCards}
+    </div>
+
+    <div class="total">
+      <div class="totalbox alt"><div class="l">Peso bruto</div><div class="v">${kg(pesoBrutoTotal)} kg</div></div>
+      <div class="totalbox alt"><div class="l">Descuento total</div><div class="v">${kg(descuentoTotal)} kg</div></div>
+      <div class="totalbox"><div class="l">Total peso neto</div><div class="v">${kg(r.total)} kg</div></div>
+    </div>
+
+    ${r.observaciones ? `
+    <h2>📝 Observaciones</h2>
+    <div class="obs">${esc(r.observaciones).replace(/\n/g,"<br>")}</div>
+    ` : ""}
+
+    <div class="firma-row">
+      <div class="firma-box">
+        <div class="firma-line"></div>
+        <div class="firma-lbl">Conductor</div>
+        <div class="firma-val">${esc(r.conductor) || "—"}</div>
+      </div>
+      <div class="firma-box">
+        <div class="firma-line"></div>
+        <div class="firma-lbl">Supervisor</div>
+        <div class="firma-val">${esc(r.supervisor) || "—"}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · Informe generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}</div>
 </div>
-
-${r.observaciones ? `
-<div class="sec">Observaciones</div>
-<div class="campo" style="background:#f5f5f5">${esc(r.observaciones).replace(/\n/g,"<br>")}</div>
-` : ""}
-
-<div class="footer">
-  Generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}
-  &bull; JARVIS &bull; Tierra Prometida Trading
-</div>
-
-</body>
-</html>`;
+</body></html>`;
+  return html;
 }
 
 async function generarInformeGeneralHTML(recs, desde, hasta) {
   const logoSrc = await cargarLogoBase64();
   const fmt = (f) => f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "";
-  const totalNeto = recs.reduce((a, r) => a + num(r.total), 0);
-  const entradas  = recs.filter(r => r.tipo === "entrada").length;
-  const salidas   = recs.filter(r => r.tipo === "salida").length;
+  const totalNeto    = recs.reduce((a, r) => a + num(r.total), 0);
+  const entradas     = recs.filter(r => r.tipo === "entrada").length;
+  const salidas      = recs.filter(r => r.tipo === "salida").length;
+  const totalEstibas = recs.reduce((a, r) => a + (r.estibas?.length || 0), 0);
+  const promedio      = recs.length ? totalNeto / recs.length : 0;
 
   const filas = recs.map(r => `
     <tr>
       <td>${esc(r.remision) || "—"}</td>
       <td>${esc(r.fecha) || "—"}</td>
-      <td style="text-align:center"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:9px;font-weight:700;background:${r.tipo==="entrada"?"#ede9fe":"#fef3c7"};color:${r.tipo==="entrada"?"#6d28d9":"#b45309"}">${r.tipo === "entrada" ? "ENTRADA" : "SALIDA"}</span></td>
+      <td style="text-align:center"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:9px;font-weight:700;background:${r.tipo==="entrada"?"#e9f7ef":"#fef3c7"};color:${r.tipo==="entrada"?"#1D6F42":"#b45309"}">${r.tipo === "entrada" ? "ENTRADA" : "SALIDA"}</span></td>
       <td>${esc(r.placa) || "—"}</td>
       <td>${esc(r.proveedor) || "—"}</td>
       <td>${esc(r.supervisor) || "—"}</td>
       <td style="text-align:center">${r.estibas?.length || 0}</td>
-      <td style="text-align:right;font-weight:700;color:#1D6F42">${num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
+      <td style="text-align:right;font-weight:700;color:#1D6F42">${kg(r.total)}</td>
     </tr>`).join("");
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Informe General de Recepciones - Tierra Prometida</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;padding:24px;font-size:12px}
-  .header{text-align:center;border-bottom:3px solid #1D6F42;padding-bottom:14px;margin-bottom:18px}
-  .logo{font-size:36px;margin-bottom:4px}
-  .logo img{width:40px;height:40px;object-fit:contain;display:block;margin:0 auto}
-  .htitle{color:#1D6F42;font-size:21px;font-weight:800;letter-spacing:-0.5px}
-  .sub{color:#666;font-size:12px;margin-top:3px}
-  .rango{display:inline-block;background:#1D6F42;color:#fff;padding:4px 18px;border-radius:20px;font-size:10px;margin-top:8px;letter-spacing:0.5px;font-weight:700}
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
-  .campo{background:#f5f5f5;border-radius:8px;padding:10px 12px;text-align:center}
-  .campo .l{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px}
-  .campo .v{font-size:20px;font-weight:800;color:#1D6F42}
-  .sec{font-size:13px;font-weight:800;color:#1D6F42;background:#e8f5e9;border-left:4px solid #1D6F42;padding:7px 12px;margin:20px 0 10px;border-radius:0 6px 6px 0}
-  table{width:100%;border-collapse:collapse;font-size:11px}
-  th{background:#1D6F42;color:#fff;padding:7px 8px;text-align:left;border:1px solid #145a32}
-  td{padding:6px 8px;border:1px solid #e0e0e0}
-  tr:nth-child(even) td{background:#fafafa}
-  tfoot td{background:#e8f5e9;font-weight:800;border-top:2px solid #1D6F42}
-  .footer{text-align:center;font-size:9px;color:#bbb;margin-top:24px;border-top:1px solid #f0f0f0;padding-top:10px}
-  @media print{body{padding:10px}}
-</style>
-</head>
-<body>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;font-size:12px}
+.sheet{max-width:960px;margin:0 auto;background:#fff}
 
-<div class="header">
-  <div class="logo">${logoSrc ? `<img src="${logoSrc}"/>` : "🍋"}</div>
-  <div class="htitle">TIERRA PROMETIDA TRADING</div>
-  <div class="sub">Informe General de Recepciones</div>
-  <div class="rango">${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : "Todas las fechas"}</div>
+.banner{background:linear-gradient(120deg,#173d1a,#1D6F42 60%,#3fa142);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
+.banner::after{content:"🍋";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
+.banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
+.banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+.banner h1{font-size:22px;font-weight:800;letter-spacing:0.2px}
+.banner .sub{font-size:11.5px;opacity:0.88;margin-top:4px}
+.banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
+.banner .chip{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:5px 12px;font-size:10.5px;font-weight:600}
+
+.content{padding:28px 34px 8px}
+
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
+.card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.05)}
+.card-ic{font-size:16px;margin-bottom:2px}
+.card-val{font-size:18px;font-weight:800;color:#1D6F42;line-height:1.15}
+.card-lbl{font-size:8.5px;color:#7c8a7c;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+
+h2{display:flex;align-items:center;gap:8px;color:#173d1a;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
+h2::after{content:"";flex:1;height:1px;background:#dfe8df}
+
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{background:#1D6F42;color:#fff;padding:8px 9px;text-align:left;border:1px solid #145a32}
+td{padding:7px 9px;border:1px solid #e2ede2}
+tr:nth-child(even) td{background:#fbfdfb}
+tfoot td{background:#e8f5e9;font-weight:800;border-top:2px solid #1D6F42}
+
+.footer{background:#173d1a;color:rgba(255,255,255,0.72);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+
+@media print{
+  body{background:#fff}
+  .sheet{max-width:100%}
+  .banner::after{display:none}
+  @page{size:A4;margin:10mm}
+}
+</style></head><body>
+<div class="sheet">
+
+  <div class="banner">
+    <div class="banner-row">
+      <div>
+        <h1>🍋 Informe General de Recepciones</h1>
+        <div class="sub">Entradas y salidas de fruta, estibas y peso neto</div>
+      </div>
+      ${logoSrc ? `<img src="${logoSrc}" />` : ""}
+    </div>
+    <div class="chips">
+      <span class="chip">📅 ${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : "Todas las fechas"}</span>
+      <span class="chip">⬇️ ${entradas} entrada${entradas !== 1 ? "s" : ""}</span>
+      <span class="chip">⬆️ ${salidas} salida${salidas !== 1 ? "s" : ""}</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="cards">
+      <div class="card"><div class="card-ic">🍋</div><div class="card-val">${recs.length}</div><div class="card-lbl">Recepciones</div></div>
+      <div class="card"><div class="card-ic">⬇️</div><div class="card-val">${entradas}</div><div class="card-lbl">Entradas</div></div>
+      <div class="card"><div class="card-ic">⬆️</div><div class="card-val">${salidas}</div><div class="card-lbl">Salidas</div></div>
+      <div class="card"><div class="card-ic">🧱</div><div class="card-val">${totalEstibas}</div><div class="card-lbl">Estibas totales</div></div>
+      <div class="card"><div class="card-ic">⚖️</div><div class="card-val">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="card-lbl">Kg netos totales</div></div>
+    </div>
+
+    <h2>📋 Detalle de recepciones</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Remisión</th><th>Fecha</th><th style="text-align:center">Tipo</th><th>Placa</th><th>Proveedor</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas || `<tr><td colspan="8" style="text-align:center;color:#999;padding:16px">Sin recepciones en el rango seleccionado</td></tr>`}
+      </tbody>
+      ${recs.length ? `<tfoot><tr><td colspan="7" style="text-align:right">TOTAL · Promedio ${kg(promedio)} kg/recepción</td><td style="text-align:right;color:#1D6F42">${kg(totalNeto)} kg</td></tr></tfoot>` : ""}
+    </table>
+
+  </div>
+
+  <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · Informe generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}</div>
 </div>
-
-<div class="grid">
-  <div class="campo"><div class="l">Recepciones</div><div class="v">${recs.length}</div></div>
-  <div class="campo"><div class="l">Entradas</div><div class="v">${entradas}</div></div>
-  <div class="campo"><div class="l">Salidas</div><div class="v">${salidas}</div></div>
-  <div class="campo"><div class="l">Kg netos totales</div><div class="v">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:1})}</div></div>
-</div>
-
-<div class="sec">Detalle de recepciones</div>
-<table>
-  <thead>
-    <tr>
-      <th>Remisión</th><th>Fecha</th><th style="text-align:center">Tipo</th><th>Placa</th><th>Proveedor</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${filas || `<tr><td colspan="8" style="text-align:center;color:#999;padding:16px">Sin recepciones en el rango seleccionado</td></tr>`}
-  </tbody>
-  ${recs.length ? `<tfoot><tr><td colspan="7" style="text-align:right">TOTAL</td><td style="text-align:right;color:#1D6F42">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:2})} kg</td></tr></tfoot>` : ""}
-</table>
-
-<div class="footer">
-  Generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}
-  &bull; JARVIS &bull; Tierra Prometida Trading
-</div>
-
-</body>
-</html>`;
+</body></html>`;
+  return html;
 }
 
 export default function RecepcionesTab({ mob }) {
