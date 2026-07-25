@@ -451,13 +451,26 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // Toca un pallet (de la bandeja de pendientes o ya ubicado) para
   // "armarlo", y luego toca la casilla destino — reemplaza al arrastre,
   // que no era confiable en tablet.
-  const renderPalletCard = (pid, idx, col, moverFn) => {
+  // permitirArrastre habilita arrastre nativo con mouse (drag & drop) además
+  // del "tocar para armar y luego tocar destino" — solo se usa en Paso 3
+  // (Contenedor); Paso 2 (Camión) queda igual que antes, solo con toque.
+  const renderPalletCard = (pid, idx, col, moverFn, permitirArrastre = false) => {
+    const soltar = (e) => {
+      if (!permitirArrastre) return;
+      e.preventDefault();
+      const draggedPid = Number(e.dataTransfer.getData("text/plain"));
+      if (draggedPid) { moverFn(draggedPid, col, idx); setArmadoPid(null); }
+    };
+    const sobreVolar = (e) => { if (permitirArrastre) e.preventDefault(); };
+
     if (pid === null) {
       const puedeColocar = armadoPid !== null;
       return (
         <div
           key={`${col}-${idx}-vacio`}
           onClick={() => { if (armadoPid !== null) { moverFn(armadoPid, col, idx); setArmadoPid(null); } }}
+          onDragOver={sobreVolar}
+          onDrop={soltar}
           style={{
             background: puedeColocar ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.02)",
             border: `1.5px dashed ${puedeColocar ? "#22C55E" : "rgba(255,255,255,0.15)"}`,
@@ -489,6 +502,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     return (
       <div
         key={pid}
+        draggable={permitirArrastre}
+        onDragStart={e => {
+          if (!permitirArrastre) return;
+          e.dataTransfer.setData("text/plain", String(pid));
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={sobreVolar}
+        onDrop={soltar}
         onClick={() => {
           if (armadoPid === pid) setArmadoPid(null);
           else if (armadoPid !== null) { moverFn(armadoPid, col, idx); setArmadoPid(null); }
@@ -496,7 +517,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         }}
         style={{
           background:bg, border, borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
-          cursor:"pointer", position:"relative",
+          cursor: permitirArrastre ? "grab" : "pointer", position:"relative",
           transition:"all 0.12s",
           minHeight: m ? 64 : 54, display:"flex", flexDirection:"column", justifyContent:"space-between",
           transform: isArmado ? "scale(1.04)" : "none",
@@ -526,7 +547,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   };
 
   // ── Grid visual del vehículo ─────────────────────────────────
-  const renderVehicleGrid = (currentLayout, moverFn, quitarFn, quitarTodosFn, vehicleIcon, vehicleLabel, hint) => {
+  const renderVehicleGrid = (currentLayout, moverFn, quitarFn, quitarTodosFn, vehicleIcon, vehicleLabel, hint, permitirArrastre = false) => {
     const ubicados      = [...currentLayout.left, ...currentLayout.right].filter(pid => pid !== null);
     const pendientes    = pallets.filter(p => !ubicados.includes(p.id));
     const armadoEnGrid  = armadoPid !== null && ubicados.includes(armadoPid);
@@ -546,7 +567,16 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       </div>
 
       {/* ── Bandeja de pallets sin ubicar ── */}
-      <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding: m ? 10 : 8, marginBottom:10 }}>
+      <div
+        onDragOver={e => { if (permitirArrastre) e.preventDefault(); }}
+        onDrop={e => {
+          if (!permitirArrastre) return;
+          e.preventDefault();
+          const draggedPid = Number(e.dataTransfer.getData("text/plain"));
+          if (draggedPid) { quitarFn(draggedPid); setArmadoPid(null); }
+        }}
+        style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding: m ? 10 : 8, marginBottom:10 }}
+      >
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:8 }}>
           <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>
             📥 Pallets sin ubicar ({pendientes.length}/{pallets.length})
@@ -585,10 +615,16 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
               return (
                 <button
                   key={p.id}
+                  draggable={permitirArrastre}
+                  onDragStart={e => {
+                    if (!permitirArrastre) return;
+                    e.dataTransfer.setData("text/plain", String(p.id));
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
                   onClick={() => setArmadoPid(prev => prev === p.id ? null : p.id)}
                   style={{
                     background:bg, border, borderRadius: m ? 8 : 6, padding: m ? "8px 7px" : "5px 6px",
-                    cursor:"pointer", position:"relative", textAlign:"left", fontFamily:"inherit",
+                    cursor: permitirArrastre ? "grab" : "pointer", position:"relative", textAlign:"left", fontFamily:"inherit",
                     transition:"all 0.12s",
                     minHeight: m ? 64 : 54, display:"flex", flexDirection:"column", justifyContent:"space-between",
                     transform: isArmado ? "scale(1.04)" : "none",
@@ -689,14 +725,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
-                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn))}
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn, permitirArrastre))}
                     </div>
                   </div>
                   <div style={{ width:7, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
-                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn))}
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn, permitirArrastre))}
                     </div>
                   </div>
                 </div>
@@ -815,14 +851,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
-                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn))}
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn, permitirArrastre))}
                     </div>
                   </div>
                   <div style={{ width:8, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
-                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn))}
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn, permitirArrastre))}
                     </div>
                   </div>
                 </div>
@@ -2277,7 +2313,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
           </div>
 
           {renderVehicleGrid(layout, moverContainer, quitarContainer, quitarTodosContainer, "🚢", "CONT.",
-            "Toca un pallet de la lista (o ya ubicado) y luego la casilla donde va"
+            "Toca un pallet de la lista (o ya ubicado) y luego la casilla donde va — o arrástralo con el mouse",
+            true
           )}
 
           <div style={{ display:"flex", flexDirection: m ? "column" : "row", gap: m ? 10 : 8, paddingTop: m ? 14 : 12, borderTop:"1px solid rgba(255,255,255,0.06)", marginBottom: m ? 10 : 8 }}>
