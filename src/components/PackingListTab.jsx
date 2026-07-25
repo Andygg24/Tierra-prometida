@@ -79,7 +79,7 @@ const COL_CAL = {
 // ── Guardado por paso — cada paso solo escribe sus propios campos de
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
-const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs"];
+const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral"];
 const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
@@ -238,6 +238,9 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     port:"", puertoManual:"", moviad:"", temperatura:"",
     // ── Checklist Control de Calidad y Cargue (Paso 1 — Packing Planta) ──
     checklistPlanta:"", checklistCalidad:{}, checklistResponsable:"", checklistCargo:"", checklistObs:"",
+    // ICA general de Paso 1: aplica a todos los pallets salvo que un pallet
+    // tenga su propio Registro ICA (ver "Registro ICA" por calibre, que lo pisa).
+    icaGeneral:"",
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
@@ -1280,10 +1283,15 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
           return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size ?? "—")} <b>${c.cajas || 0}cj</b></span>`;
         }).join("");
         const predio = p.calibres.find(c => c.predio)?.predio;
+        // ICA del pallet: el propio de cada calibre si lo tiene, si no cae al
+        // ICA general de Paso 1 — así un pallet con su propio registro no se
+        // pisa, pero el resto queda cubierto sin escribirlo uno por uno.
+        const icasPallet = [...new Set(p.calibres.map(c => c.ica || admin.icaGeneral).filter(Boolean))];
         return `<div class="pallet-card ${ok ? "" : "warn"}">
           <div class="pallet-top"><span class="pid">Pallet ${p.id}</span><span class="pflag">${ok ? "✓ cuadra" : `⚠ ${sum}/${cpp}`}</span></div>
           <div class="pchips">${chips}</div>
           ${predio ? `<div class="ppredio">📍 ${predio}</div>` : ""}
+          ${icasPallet.length ? `<div class="pica">🏷 ICA ${icasPallet.join(" · ")}</div>` : ""}
         </div>`;
       }).join("");
       const pallOk = pallets.filter(p => palletSum(p) === cpp).length;
@@ -1374,6 +1382,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .pchips{display:flex;flex-wrap:wrap;gap:4px}
 .pchip{border:1px solid;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:600}
 .ppredio{margin-top:6px;font-size:9px;color:#889;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pica{margin-top:3px;font-size:9px;color:#2d8a2d;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Checklist ── */
 .chk-cat{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 16px;margin-bottom:10px;break-inside:avoid}
@@ -1422,6 +1431,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
       <span class="chip">🏭 ${admin.checklistPlanta || "Planta sin especificar"}</span>
       <span class="chip">🍋 ${contenedor?.producto || "Producto sin especificar"}</span>
       <span class="chip">➡️ ${admin.destino || "—"}</span>
+      ${admin.icaGeneral ? `<span class="chip">🏷 ICA general ${admin.icaGeneral}</span>` : ""}
     </div>
   </div>
 
@@ -1844,6 +1854,10 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
                 <div style={lbl}>Packing Date</div>
                 <input type="date" value={admin.packingDate} onChange={e => sa("packingDate", e.target.value)} style={inp} />
               </div>
+              <div>
+                <div style={lbl}>ICA general (todos los pallets)</div>
+                <input value={admin.icaGeneral} onChange={e => sa("icaGeneral", e.target.value)} placeholder="980005905" style={inp} />
+              </div>
               <div style={{ display:"flex", alignItems:"flex-end", gridColumn: m ? "1 / -1" : "auto" }}>
                 <div style={{ flex:1, background: todoCuadra ? "rgba(0,201,167,0.08)" : "rgba(249,115,22,0.08)", border:`1px solid ${todoCuadra ? "rgba(0,201,167,0.3)" : "rgba(249,115,22,0.3)"}`, borderRadius:8, padding:"7px 14px", display:"flex", alignItems:"center", gap:8 }}>
                   <span style={{ fontSize: m ? 18 : 15 }}>{todoCuadra ? "✅" : "⚠️"}</span>
@@ -1931,7 +1945,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
                         </div>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                           <div><div style={lbl}>Predio</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} /></div>
-                          <div><div style={lbl}>Registro ICA</div><input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} /></div>
+                          <div><div style={lbl}>Registro ICA (este pallet)</div><input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder={admin.icaGeneral || "980005905"} style={inp} /></div>
                         </div>
                         <div>{ci === 0
                           ? <button onClick={() => addCal(selPalletIdx)} style={{ width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:8, padding:"12px", color:"#a5b4fc", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>➕ Agregar calibre mixto</button>
