@@ -170,6 +170,29 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
     borderRadius:10, padding: m ? 14 : 10,
   };
+  // Deja solo dígitos, un signo "-" al inicio y un punto decimal — así el
+  // campo de temperatura siempre guarda un número limpio y el "°C" se
+  // muestra aparte (no se escribe junto al número).
+  const soloNumeroTemp = (v) => {
+    let s = String(v).replace(/[^0-9.-]/g, "").replace(/(?!^)-/g, "");
+    const partes = s.split(".");
+    return partes.length > 2 ? `${partes[0]}.${partes.slice(1).join("")}` : s;
+  };
+  const campoTemperatura = (label, value, onChange, placeholder) => (
+    <div>
+      <div style={lbl}>{label}</div>
+      <div style={{ position:"relative" }}>
+        <input
+          value={value}
+          onChange={e => onChange(soloNumeroTemp(e.target.value))}
+          inputMode="decimal"
+          placeholder={placeholder}
+          style={{ ...inp, paddingRight:34 }}
+        />
+        <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", fontSize: m ? 13 : 11, color:"rgba(255,255,255,0.42)", fontWeight:700, pointerEvents:"none" }}>°C</span>
+      </div>
+    </div>
+  );
 
   // ── Persistencia ─────────────────────────────────────────────
   const [plId,       setPlId]       = useState(null);
@@ -922,7 +945,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         vessel:       admin.vessel       || "",
         destino:      admin.destino      || "",
         container:    admin.container    || "",
-        temperatura:  admin.temperatura  || "",
+        temperatura:  admin.temperatura ? `${admin.temperatura}°C` : "",
         tempRecorder: admin.tempRecorder || "",
         finalStamps:  admin.finalStamps  || "",
         moviad:       admin.moviad       || "",
@@ -1629,8 +1652,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
     <div class="info-grid">
       <div class="info-item"><div class="l">Termoregistro</div><div class="v">${admin.termoregistroCamion || "—"}</div></div>
       <div class="info-item"><div class="l">N° de precinto</div><div class="v">${admin.precintoCamion || "—"}</div></div>
-      <div class="info-item"><div class="l">Temp. de llegada</div><div class="v">${admin.tempLlegadaCamion || "—"}</div></div>
-      <div class="info-item"><div class="l">Temp. de salida</div><div class="v">${admin.tempSalidaCamion || "—"}</div></div>
+      <div class="info-item"><div class="l">Temp. de llegada</div><div class="v">${admin.tempLlegadaCamion ? `${admin.tempLlegadaCamion}°C` : "—"}</div></div>
+      <div class="info-item"><div class="l">Temp. de salida</div><div class="v">${admin.tempSalidaCamion ? `${admin.tempSalidaCamion}°C` : "—"}</div></div>
     </div>
     ${(admin.icaCamion || []).some(c => c.ica) ? `
     <div class="info-grid">
@@ -2030,8 +2053,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
                 <div><div style={lbl}>N° de precinto</div><input value={admin.precintoCamion} onChange={e => sa("precintoCamion", e.target.value)} placeholder="Precinto de seguridad" style={inp} /></div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6 }}>
-                <div><div style={lbl}>Temp. de llegada</div><input value={admin.tempLlegadaCamion} onChange={e => sa("tempLlegadaCamion", e.target.value)} placeholder="Ej: 6.5°C" style={inp} /></div>
-                <div><div style={lbl}>Temp. de salida</div><input value={admin.tempSalidaCamion} onChange={e => sa("tempSalidaCamion", e.target.value)} placeholder="Ej: 5.8°C" style={inp} /></div>
+                {campoTemperatura("Temp. de llegada", admin.tempLlegadaCamion, v => sa("tempLlegadaCamion", v), "6.5")}
+                {campoTemperatura("Temp. de salida",   admin.tempSalidaCamion,  v => sa("tempSalidaCamion", v),  "5.8")}
               </div>
             </div>
 
@@ -2164,7 +2187,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
               <div><div style={lbl}>Port</div><input value={admin.port} onChange={e => sa("port", e.target.value)} placeholder="SP CARTAGENA" style={inp} /></div>
               <div><div style={lbl}>Puerto</div><input value={admin.puertoManual} onChange={e => sa("puertoManual", e.target.value)} style={inp} /></div>
               <div><div style={lbl}>Moviad</div><input value={admin.moviad} onChange={e => sa("moviad", e.target.value)} style={inp} /></div>
-              <div><div style={lbl}>Temperature</div><input value={admin.temperatura} onChange={e => sa("temperatura", e.target.value)} placeholder="7.2°C" style={inp} /></div>
+              {campoTemperatura("Temperature", admin.temperatura, v => sa("temperatura", v), "7.2")}
             </div>
           </div>
 
