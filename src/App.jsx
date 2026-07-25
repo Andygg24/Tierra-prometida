@@ -7120,6 +7120,12 @@ function ConfigForm({ config, guardar }) {
   }));
   const [pw, setPw] = useState({ actual:"", nuevo:"", confirmar:"" });
 
+  const ACCIONES_PROTEGIBLES = [
+    { id:"paso1_packing", nombre:"Paso 1 — Packing List", desc:"Calibres y checklist de Control de Calidad y Cargue" },
+  ];
+  const [clavesAcceso, setClavesAcceso] = useState(() => load("cfg_claves_acceso", {}));
+  const [clavesVisibles, setClavesVisibles] = useState({});
+
   const [fiscal, setFiscal] = useState(() => load("cfg_fiscal", {
     regimen:"Régimen Ordinario", responsabilidades:"",
     ciudadExpedicion:"Lebrija", prefijoFactura:"FPE", consecutivo:1,
@@ -7614,6 +7620,35 @@ function ConfigForm({ config, guardar }) {
             }} style={{ marginTop:16, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:10, padding:"10px 22px", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               🔒 Actualizar contraseña
             </button>
+          </div>
+
+          <div style={secS}>
+            <div style={secH}>🔑 Claves de Acceso a Pasos Sensibles</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:14, lineHeight:1.6 }}>
+              Define una clave para proteger pasos específicos del sistema. Si dejas la clave vacía, ese paso queda abierto sin restricción.
+            </div>
+            {ACCIONES_PROTEGIBLES.map(accion => (
+              <div key={accion.id} style={{ display:"flex", alignItems:"flex-end", gap:12, marginBottom:12, flexWrap:"wrap" }}>
+                <div style={{ flex:"1 1 220px" }}>
+                  <label style={lS}>{accion.nombre}</label>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.38)", marginBottom:5 }}>{accion.desc}</div>
+                </div>
+                <div style={{ flex:"0 1 200px", display:"flex", gap:6 }}>
+                  <input
+                    type={clavesVisibles[accion.id] ? "text" : "password"}
+                    style={iS()}
+                    value={clavesAcceso[accion.id] || ""}
+                    onChange={e => setClavesAcceso(p => ({ ...p, [accion.id]: e.target.value }))}
+                    placeholder="Sin clave — acceso libre"
+                  />
+                  <button
+                    onClick={() => setClavesVisibles(p => ({ ...p, [accion.id]: !p[accion.id] }))}
+                    style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"0 10px", color:"rgba(255,255,255,0.6)", cursor:"pointer", fontSize:13 }}
+                  >{clavesVisibles[accion.id] ? "🙈" : "👁️"}</button>
+                </div>
+              </div>
+            ))}
+            <SaveBtn onClick={() => save("cfg_claves_acceso", clavesAcceso)} />
           </div>
 
           <div style={secS}>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { usePackingList } from "../hooks/usePackingList.js";
+import { useConfiguracion } from "../hooks/useConfiguracion.js";
 
 const CALIBRES = [110, 150, 175, 200, 230, 250];
 const DESTINOS = ["Philadelphia", "Miami, FL", "San Juan"];
@@ -75,6 +76,19 @@ const COL_CAL = {
   250: { bg:"#8B5CF6", light:"rgba(139,92,246,0.18)", border:"rgba(139,92,246,0.5)" },
 };
 
+// ── Guardado por paso — cada paso solo escribe sus propios campos de
+// admin_data, así dos personas en pasos distintos del mismo contenedor
+// no se borran el trabajo entre sí. ──
+const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue"];
+const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
+
+function pick(obj, keys) {
+  const out = {};
+  keys.forEach(k => { if (obj[k] !== undefined) out[k] = obj[k]; });
+  return out;
+}
+
 function initPallets(total) {
   const cpp = Math.floor(total / 20);
   return Array.from({ length: 20 }, (_, i) => ({
@@ -136,6 +150,11 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 
   const hoy = new Date().toISOString().split("T")[0];
   const { cargarPorContenedor, guardar } = usePackingList();
+  const { config: cfgSeguridad } = useConfiguracion();
+  const claveRequerida = cfgSeguridad?.cfg_claves_acceso?.paso1_packing || "";
+  const [paso1Ok,       setPaso1Ok]       = useState(false);
+  const [claveInput,    setClaveInput]    = useState("");
+  const [claveError,    setClaveError]    = useState("");
 
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
@@ -220,8 +239,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         setTotalCajas(data.total_cajas || 1400);
         setCajasInput(data.cajas_input || String(data.total_cajas || 1400));
         if (data.pallets?.length) setPallets(data.pallets);
-        if (data.layout_camion?.left) setLayoutCamion(data.layout_camion);
-        if (data.layout_cont?.left)   setLayout(data.layout_cont);
+        if (data.layout_camion?.left?.length) setLayoutCamion(data.layout_camion);
+        if (data.layout_cont?.left?.length)   setLayout(data.layout_cont);
         if (data.admin_data)
           setAdmin(prev => ({ ...prev, ...data.admin_data }));
       }
@@ -230,20 +249,25 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contenedor?.id]);
 
-  // ── Guardar progreso ─────────────────────────────────────────
-  const guardarProgreso = async (faseFinal, extraState = {}) => {
-    if (!contenedor?.id) return;
+  // ── Guardar progreso por paso ──────────────────────────────────
+  // Cada paso sube SOLO sus propios campos (pallets en Paso 1, layout_camion
+  // en Paso 2, layout_cont en Paso 3), y el fragmento de admin_data que le
+  // corresponde — leyendo primero el registro más reciente para no pisar
+  // lo que otra persona ya haya guardado en un paso distinto mientras
+  // trabajaban al mismo tiempo. La fase nunca retrocede: si alguien ya
+  // avanzó más lejos, guardar un paso anterior no lo hace retroceder.
+  const [infoActualizada, setInfoActualizada] = useState(false);
+
+  const guardarParcial = async ({ faseFinal, adminKeys, extra }) => {
+    if (!contenedor?.id) return false;
     setGuardando(true);
+    const { data: fresh } = await cargarPorContenedor(contenedor.id);
     const row = {
-      id:            plId || Date.now(),
+      id:            plId || fresh?.id || Date.now(),
       contenedor_id: contenedor.id,
-      fase:          faseFinal,
-      total_cajas:   totalCajas,
-      cajas_input:   cajasInput,
-      pallets:       extraState.pallets    ?? pallets,
-      layout_camion: extraState.layoutCamion ?? layoutCamion,
-      layout_cont:   extraState.layout     ?? layout,
-      admin_data:    extraState.admin      ?? admin,
+      fase:          Math.max(fresh?.fase || 1, faseFinal),
+      admin_data:    { ...(fresh?.admin_data || {}), ...pick(admin, adminKeys) },
+      ...extra,
     };
     const { data, error } = await guardar(row);
     if (!error && data?.id) setPlId(data.id);
@@ -252,7 +276,44 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2500);
     }
+    return !error;
   };
+
+  const guardarPaso1 = (avanzar) => guardarParcial({
+    faseFinal: avanzar ? 2 : fase,
+    adminKeys: PASO1_ADMIN_KEYS,
+    extra: { total_cajas: totalCajas, cajas_input: cajasInput, pallets },
+  });
+
+  const guardarPaso2 = (avanzar) => guardarParcial({
+    faseFinal: avanzar ? 3 : 2,
+    adminKeys: PASO2_ADMIN_KEYS,
+    extra: { layout_camion: layoutCamion },
+  });
+
+  // Guarda el acomodo del camión tal cual está (no lo toca) y además trae
+  // de la base de datos los calibres/cantidad de cajas más recientes que
+  // se hayan guardado en Paso 1, refrescando el contenido de cada pallet
+  // sin mover su posición dentro del camión.
+  const guardarYActualizarPaso2 = async () => {
+    const ok = await guardarPaso2(false);
+    if (ok) {
+      const { data: fresh } = await cargarPorContenedor(contenedor.id);
+      if (fresh?.pallets?.length) setPallets(fresh.pallets);
+      if (fresh?.total_cajas) {
+        setTotalCajas(fresh.total_cajas);
+        setCajasInput(fresh.cajas_input || String(fresh.total_cajas));
+      }
+      setInfoActualizada(true);
+      setTimeout(() => setInfoActualizada(false), 3000);
+    }
+  };
+
+  const guardarPaso3 = () => guardarParcial({
+    faseFinal: 3,
+    adminKeys: PASO3_ADMIN_KEYS,
+    extra: { layout_cont: layout },
+  });
 
   const cpp = Math.floor(totalCajas / 20);
 
@@ -1530,6 +1591,16 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
     </div>
   );
 
+  const verificarClave = () => {
+    if (claveInput === claveRequerida) {
+      setPaso1Ok(true);
+      setClaveError("");
+      setClaveInput("");
+    } else {
+      setClaveError("Clave incorrecta");
+    }
+  };
+
   const NavBtn = ({ onClick, children, primary, disabled }) => (
     <button onClick={onClick} disabled={disabled} style={{
       flex:1, background: primary ? "linear-gradient(135deg,#00C9A7,#00a88e)" : "rgba(255,255,255,0.06)",
@@ -1608,7 +1679,28 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
       </div>
 
       {/* ══ FASE 1 — PACKING PLANTA ══ */}
-      {fase === 1 && (() => {
+      {fase === 1 && claveRequerida && !paso1Ok && (
+        <div style={{ ...cardS, textAlign:"center", maxWidth:340, margin:"30px auto", padding: m ? "34px 22px" : "40px 30px" }}>
+          <div style={{ fontSize:32, marginBottom:10 }}>🔒</div>
+          <div style={{ fontSize: m ? 14 : 13, fontWeight:700, marginBottom:6 }}>Paso 1 protegido</div>
+          <div style={{ fontSize: m ? 12 : 11, color:"rgba(255,255,255,0.5)", marginBottom:18, lineHeight:1.5 }}>
+            Ingresa la clave de acceso para ver calibres y el checklist de calidad y cargue.
+          </div>
+          <input
+            type="password" autoFocus value={claveInput}
+            onChange={e => { setClaveInput(e.target.value); setClaveError(""); }}
+            onKeyDown={e => e.key === "Enter" && verificarClave()}
+            placeholder="Clave"
+            style={{ ...inp, textAlign:"center", fontSize:18, letterSpacing:4 }}
+          />
+          {claveError && <div style={{ color:"#FF6B6B", fontSize:11, marginTop:8, fontWeight:700 }}>{claveError}</div>}
+          <button onClick={verificarClave} style={{ marginTop:16, width:"100%", background:"linear-gradient(135deg,#00C9A7,#00a88e)", border:"none", borderRadius:10, padding: m ? "13px" : "10px", color:"white", fontSize: m ? 14 : 13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            🔓 Desbloquear
+          </button>
+        </div>
+      )}
+
+      {fase === 1 && (!claveRequerida || paso1Ok) && (() => {
         const selP   = selPalletIdx >= 0 ? pallets[selPalletIdx] : null;
         const selSum = selP ? palletSum(selP) : 0;
         const selOk  = selSum === cpp;
@@ -1809,8 +1901,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             <div style={{ display:"flex", gap:8, paddingTop: m ? 0 : 0, alignItems:"center" }}>
               <SaveIndicator />
               <div style={{ flex:1, display:"flex", gap:8 }}>
-                <NavBtn onClick={() => guardarProgreso(1)}>💾 Guardar</NavBtn>
-                <NavBtn primary onClick={async () => { setSelPid(null); await guardarProgreso(2); setFase(2); }}>
+                <NavBtn onClick={() => guardarPaso1(false)}>💾 Guardar</NavBtn>
+                <NavBtn primary onClick={async () => { setSelPid(null); await guardarPaso1(true); setFase(2); }}>
                   Continuar a Carga Camión →
                 </NavBtn>
               </div>
@@ -1840,6 +1932,13 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             m ? "Mantén presionado y arrastra para cambiar posición" : "Arrastra para cambiar posición"
           )}
 
+          <button onClick={guardarYActualizarPaso2} disabled={guardando} style={{ width:"100%", background:"linear-gradient(135deg,#0EA5E9,#0284C7)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: guardando ? "wait" : "pointer", fontWeight:700, opacity: guardando ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: 4 }}>
+            🔄 Guardar y actualizar información
+          </button>
+          <div style={{ fontSize: m ? 11 : 10, color: infoActualizada ? "#00C9A7" : "rgba(255,255,255,0.4)", textAlign:"center", marginBottom: m ? 14 : 10 }}>
+            {infoActualizada ? "✅ Calibres y cajas actualizados desde Planta — el orden del camión no se movió" : "Trae los calibres/cajas más recientes de Planta sin mover el orden ya armado en el camión"}
+          </div>
+
           <button onClick={generarInformeCargue} disabled={generandoInformeCargue} style={{ width:"100%", background:"linear-gradient(135deg,#c2620a,#e8862c)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoInformeCargue ? "wait" : "pointer", fontWeight:700, opacity: generandoInformeCargue ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: m ? 14 : 10 }}>
             {generandoInformeCargue ? "⏳ Generando..." : "📄 Descargar Informe de Cargue"}
           </button>
@@ -1848,8 +1947,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             <SaveIndicator />
             <div style={{ flex:1, display:"flex", gap:8 }}>
               <NavBtn onClick={() => setFase(1)}>← Volver</NavBtn>
-              <NavBtn onClick={() => guardarProgreso(2)}>💾 Guardar</NavBtn>
-              <NavBtn primary onClick={async () => { await guardarProgreso(3); setFase(3); }}>
+              <NavBtn onClick={() => guardarPaso2(false)}>💾 Guardar</NavBtn>
+              <NavBtn primary onClick={async () => { await guardarPaso2(true); setFase(3); }}>
                 Continuar a Contenedor →
               </NavBtn>
             </div>
@@ -2026,7 +2125,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             <SaveIndicator />
             <div style={{ flex:1, display:"flex", gap:8 }}>
               <NavBtn onClick={() => setFase(2)}>← Volver a Camión</NavBtn>
-              <NavBtn onClick={() => guardarProgreso(3)}>💾 Guardar</NavBtn>
+              <NavBtn onClick={() => guardarPaso3()}>💾 Guardar</NavBtn>
             </div>
           </div>
         </div>
