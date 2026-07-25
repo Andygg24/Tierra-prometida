@@ -80,7 +80,7 @@ const COL_CAL = {
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
 const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs"];
-const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
 function pick(obj, keys) {
@@ -206,6 +206,9 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
     conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
+    // ── Paso 2 — Camión: termoregistro, precinto, temperaturas y pallet(s) con ICA ──
+    termoregistroCamion:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
+    icaCamion:[{ ica:"", palletNo:"" }],
     growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
     ispm15:"CO-68-001 HT",
     // ── Formato ID Pallet — campos sin fuente en otro paso ──
@@ -222,6 +225,12 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     setAdmin(a => ({ ...a, palletCerts: [...a.palletCerts, { ica:"", palletNo:"" }] }));
   const removePalletCert = (i) =>
     setAdmin(a => ({ ...a, palletCerts: a.palletCerts.filter((_, ci) => ci !== i) }));
+  const setIcaCamion    = (i, f, v) =>
+    setAdmin(a => ({ ...a, icaCamion: a.icaCamion.map((c, ci) => ci !== i ? c : { ...c, [f]: v }) }));
+  const addIcaCamion    = ()  =>
+    setAdmin(a => ({ ...a, icaCamion: [...a.icaCamion, { ica:"", palletNo:"" }] }));
+  const removeIcaCamion = (i) =>
+    setAdmin(a => ({ ...a, icaCamion: a.icaCamion.filter((_, ci) => ci !== i) }));
   // Toca de nuevo el mismo valor para desmarcar (vuelve a "sin revisar").
   const setChequeo = (key, val) => setAdmin(a => ({
     ...a,
@@ -1616,6 +1625,18 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
       <div class="info-item"><div class="l">Fecha de cargue</div><div class="v">${fmtDate(admin.fechaCargue) || "—"}</div></div>
     </div>
 
+    <h2>🌡 Termoregistro, precinto y temperatura</h2>
+    <div class="info-grid">
+      <div class="info-item"><div class="l">Termoregistro</div><div class="v">${admin.termoregistroCamion || "—"}</div></div>
+      <div class="info-item"><div class="l">N° de precinto</div><div class="v">${admin.precintoCamion || "—"}</div></div>
+      <div class="info-item"><div class="l">Temp. de llegada</div><div class="v">${admin.tempLlegadaCamion || "—"}</div></div>
+      <div class="info-item"><div class="l">Temp. de salida</div><div class="v">${admin.tempSalidaCamion || "—"}</div></div>
+    </div>
+    ${(admin.icaCamion || []).some(c => c.ica) ? `
+    <div class="info-grid">
+      ${admin.icaCamion.filter(c => c.ica).map(c => `<div class="info-item"><div class="l">ICA${c.palletNo ? ` — Pallet #${c.palletNo}` : ""}</div><div class="v">${c.ica}</div></div>`).join("")}
+    </div>` : ""}
+
     <h2>📊 Resumen de cajas por calibre</h2>
     <div class="cal-chips">${chipsCalibre}</div>
     ${filasCalibre}
@@ -1999,6 +2020,39 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             <div><div style={lbl}>Hora de cargue</div><input type="time" value={admin.horaCargue} onChange={e => sa("horaCargue", e.target.value)} style={inp} /></div>
             <div><div style={lbl}>Hora de salida</div><input type="time" value={admin.horaSalida} onChange={e => sa("horaSalida", e.target.value)} style={inp} /></div>
             <div style={{ gridColumn: m ? "1 / -1" : "auto" }}><div style={lbl}>Fecha de cargue</div><input type="date" value={admin.fechaCargue} onChange={e => sa("fechaCargue", e.target.value)} style={inp} /></div>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(2,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
+            <div style={cardS}>
+              <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TERMOREGISTRO / PRECINTO / TEMPERATURA</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6, marginBottom: m ? 8 : 6 }}>
+                <div><div style={lbl}>Termoregistro</div><input value={admin.termoregistroCamion} onChange={e => sa("termoregistroCamion", e.target.value)} placeholder="N° de termoregistro" style={inp} /></div>
+                <div><div style={lbl}>N° de precinto</div><input value={admin.precintoCamion} onChange={e => sa("precintoCamion", e.target.value)} placeholder="Precinto de seguridad" style={inp} /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6 }}>
+                <div><div style={lbl}>Temp. de llegada</div><input value={admin.tempLlegadaCamion} onChange={e => sa("tempLlegadaCamion", e.target.value)} placeholder="Ej: 6.5°C" style={inp} /></div>
+                <div><div style={lbl}>Temp. de salida</div><input value={admin.tempSalidaCamion} onChange={e => sa("tempSalidaCamion", e.target.value)} placeholder="Ej: 5.8°C" style={inp} /></div>
+              </div>
+            </div>
+
+            <div style={cardS}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 10 : 6 }}>
+                <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>🏷 PALLET CON ICA</div>
+                <button onClick={addIcaCamion} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:7, padding: m ? "6px 12px" : "4px 10px", color:"#a5b4fc", cursor:"pointer", fontSize: m ? 13 : 11, fontWeight:700, fontFamily:"inherit" }}>
+                  ➕ Agregar ICA
+                </button>
+              </div>
+              {admin.icaCamion.map((cert, ci) => (
+                <div key={ci} style={{ display:"grid", gridTemplateColumns:"1fr 90px auto", gap: m ? 8 : 6, marginBottom: ci < admin.icaCamion.length - 1 ? (m ? 8 : 6) : 0, alignItems:"end" }}>
+                  <div><div style={lbl}>Número ICA{admin.icaCamion.length > 1 ? ` #${ci + 1}` : ""}</div><input value={cert.ica} onChange={e => setIcaCamion(ci, "ica", e.target.value)} placeholder="ICA 05-007-26" style={inp} /></div>
+                  <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={cert.palletNo} onChange={e => setIcaCamion(ci, "palletNo", e.target.value)} style={inp} /></div>
+                  <div style={{ paddingBottom:1 }}>{admin.icaCamion.length > 1
+                    ? <button onClick={() => removeIcaCamion(ci)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:7, padding: m ? "10px" : "7px 10px", color:"#fca5a5", cursor:"pointer", fontSize:13, minHeight: m ? 44 : 32, fontFamily:"inherit" }}>✕</button>
+                    : <div style={{ minHeight: m ? 44 : 32 }} />
+                  }</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={{ background:"rgba(249,115,22,0.07)", border:"1px solid rgba(249,115,22,0.25)", borderRadius:10, padding: m ? "10px 14px" : "8px 14px", marginBottom: m ? 12 : 10, fontSize: m ? 12 : 11, color:"rgba(249,115,22,0.9)" }}>
