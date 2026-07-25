@@ -30,8 +30,22 @@ const TIPOS_CANASTILLA = [
 
 function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
+function nuevaTipoCanastilla() {
+  return { tipo: "2", cantidad: "" };
+}
+
+// Compatibilidad con estibas guardadas antes de soportar mezcla de tipos
+// (tenían un solo tipoCanastilla/cantCanastillas en vez del arreglo canastillas).
+function canastillasDeEstiba(e) {
+  if (Array.isArray(e.canastillas) && e.canastillas.length) return e.canastillas;
+  if (e.tipoCanastilla != null || e.cantCanastillas != null) {
+    return [{ tipo: e.tipoCanastilla ?? "2", cantidad: e.cantCanastillas ?? "" }];
+  }
+  return [nuevaTipoCanastilla()];
+}
+
 function pesoCanastillasEstiba(e) {
-  return num(e.cantCanastillas) * num(e.tipoCanastilla);
+  return canastillasDeEstiba(e).reduce((s, c) => s + num(c.cantidad) * num(c.tipo), 0);
 }
 
 // El descuento de la estiba es el resultado de sumar peso canastillas + peso estiba
@@ -48,8 +62,7 @@ function nuevaEstiba(numero) {
     numero,
     pesoBruto: "",
     estibaPlastica: "no",
-    tipoCanastilla: "2",
-    cantCanastillas: "",
+    canastillas: [nuevaTipoCanastilla()],
     pesoEstiba: "",
   };
 }
@@ -69,17 +82,22 @@ function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;",
 async function generarInformeHTML(r) {
   const logoSrc  = await cargarLogoBase64();
   const fmtFecha = r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "—";
-  const filasEstibas = r.estibas.map(e => `
+  const filasEstibas = r.estibas.map(e => {
+    const tipos = canastillasDeEstiba(e);
+    const tipoTxt = tipos.map(c => `${num(c.tipo).toLocaleString("es-CO",{maximumFractionDigits:1})} kg`).join("<br>");
+    const cantTxt = tipos.map(c => num(c.cantidad)).join("<br>");
+    return `
     <tr>
       <td style="text-align:center;font-weight:700">${esc(e.numero)}</td>
       <td style="text-align:right">${num(e.pesoBruto).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
       <td style="text-align:center">${e.estibaPlastica==="si" ? "Sí" : "No"}</td>
-      <td style="text-align:center">${num(e.tipoCanastilla).toLocaleString("es-CO",{maximumFractionDigits:1})} kg</td>
-      <td style="text-align:center">${num(e.cantCanastillas)}</td>
+      <td style="text-align:center">${tipoTxt}</td>
+      <td style="text-align:center">${cantTxt}</td>
       <td style="text-align:right">${num(e.pesoEstiba).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
       <td style="text-align:right">${descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
       <td style="text-align:right;font-weight:700;color:#1D6F42">${pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -336,6 +354,40 @@ export default function RecepcionesTab({ mob }) {
     }));
   };
 
+  // Una estiba es "mixta" cuando trae más de un tipo de canastilla (p.ej.
+  // x canastillas de 2 kg + x de 2.4 kg). setCanastilla edita un tipo puntual;
+  // agregar/quitarTipoCanastilla arman o deshacen la mezcla.
+  const setCanastilla = (idxEstiba, idxTipo, campo, valor) => {
+    setForm(f => ({
+      ...f,
+      estibas: f.estibas.map((e, i) => i !== idxEstiba ? e : {
+        ...e,
+        canastillas: canastillasDeEstiba(e).map((c, j) => j !== idxTipo ? c : { ...c, [campo]: valor }),
+      }),
+    }));
+  };
+
+  const agregarTipoCanastilla = (idxEstiba) => {
+    setForm(f => ({
+      ...f,
+      estibas: f.estibas.map((e, i) => i !== idxEstiba ? e : {
+        ...e,
+        canastillas: [...canastillasDeEstiba(e), nuevaTipoCanastilla()],
+      }),
+    }));
+  };
+
+  const quitarTipoCanastilla = (idxEstiba, idxTipo) => {
+    setForm(f => ({
+      ...f,
+      estibas: f.estibas.map((e, i) => {
+        if (i !== idxEstiba) return e;
+        const tipos = canastillasDeEstiba(e);
+        return tipos.length <= 1 ? e : { ...e, canastillas: tipos.filter((_, j) => j !== idxTipo) };
+      }),
+    }));
+  };
+
   const agregarEstiba = () => {
     setForm(f => ({ ...f, estibas: [...f.estibas, nuevaEstiba(f.estibas.length + 1)] }));
   };
@@ -355,7 +407,12 @@ export default function RecepcionesTab({ mob }) {
       placa: r.placa, conductor: r.conductor, cedulaConductor: r.cedulaConductor || "", origen: r.origen || "",
       proveedor: r.proveedor, supervisor: r.supervisor,
       horaInicio: r.horaInicio, horaFin: r.horaFin, observaciones: r.observaciones || "",
-      estibas: r.estibas.length ? r.estibas : [nuevaEstiba(1)],
+      estibas: r.estibas.length
+        ? r.estibas.map(e => ({
+            numero: e.numero, pesoBruto: e.pesoBruto, estibaPlastica: e.estibaPlastica,
+            pesoEstiba: e.pesoEstiba, canastillas: canastillasDeEstiba(e),
+          }))
+        : [nuevaEstiba(1)],
     });
     setEditId(r.id);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -506,7 +563,12 @@ export default function RecepcionesTab({ mob }) {
             {form.estibas.map((e, idx) => (
               <div key={idx} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:10 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#845EF7" }}>Estiba #{e.numero}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#845EF7" }}>
+                    Estiba #{e.numero}
+                    {canastillasDeEstiba(e).length > 1 && (
+                      <span style={{ marginLeft:8, fontSize:9, fontWeight:700, color:"#F9A826", background:"rgba(249,168,38,0.14)", borderRadius:20, padding:"2px 8px" }}>MIXTA</span>
+                    )}
+                  </div>
                   <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -516,12 +578,29 @@ export default function RecepcionesTab({ mob }) {
                       <option value="si">Sí</option><option value="no">No</option>
                     </CustomSelect>
                   </div>
-                  <div><div style={lbl}>Tipo canastilla</div>
-                    <CustomSelect value={e.tipoCanastilla} onChange={ev=>setEstiba(idx,"tipoCanastilla",ev.target.value)} style={inp}>
-                      {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </CustomSelect>
+                </div>
+
+                <div style={{ marginTop:8 }}>
+                  <div style={lbl}>Canastillas (tipo × cantidad)</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {canastillasDeEstiba(e).map((c, ci) => (
+                      <div key={ci} style={{ display:"grid", gridTemplateColumns: canastillasDeEstiba(e).length>1 ? "1fr 1fr auto" : "1fr 1fr", gap:6, alignItems:"center" }}>
+                        <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={inp}>
+                          {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </CustomSelect>
+                        <input type="number" style={inp} placeholder="Cantidad" value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
+                        {canastillasDeEstiba(e).length > 1 && (
+                          <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={btnTablaEliminar}>✕</button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div><div style={lbl}>Cant. canastillas</div><input type="number" style={inp} value={e.cantCanastillas} onChange={ev=>setEstiba(idx,"cantCanastillas",ev.target.value)} /></div>
+                  <button onClick={()=>agregarTipoCanastilla(idx)} style={{ marginTop:6, background:"rgba(249,168,38,0.10)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:7, color:"#F9A826", padding:"5px 10px", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                    + Mezclar otro tipo de canastilla
+                  </button>
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
                   <div><div style={lbl}>Peso canastillas</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{pesoCanastillasEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
                   <div><div style={lbl}>Peso estiba</div><input type="number" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
                   <div><div style={lbl}>Descuento estiba</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
@@ -538,8 +617,7 @@ export default function RecepcionesTab({ mob }) {
                   <th style={{ padding:"4px 6px" }}>#</th>
                   <th style={{ padding:"4px 6px" }}>Peso bruto</th>
                   <th style={{ padding:"4px 6px" }}>Estiba plástica</th>
-                  <th style={{ padding:"4px 6px" }}>Tipo canastilla</th>
-                  <th style={{ padding:"4px 6px" }}>Cant. canastillas</th>
+                  <th style={{ padding:"4px 6px", minWidth:190 }}>Canastillas (tipo × cant.)</th>
                   <th style={{ padding:"4px 6px" }}>Peso canastillas</th>
                   <th style={{ padding:"4px 6px" }}>Peso estiba</th>
                   <th style={{ padding:"4px 6px" }}>Descuento estiba</th>
@@ -557,12 +635,24 @@ export default function RecepcionesTab({ mob }) {
                         <option value="si">Sí</option><option value="no">No</option>
                       </CustomSelect>
                     </td>
-                    <td style={{ padding:"6px", minWidth:90 }}>
-                      <CustomSelect value={e.tipoCanastilla} onChange={ev=>setEstiba(idx,"tipoCanastilla",ev.target.value)} style={inp}>
-                        {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </CustomSelect>
+                    <td style={{ padding:"6px", minWidth:190 }}>
+                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                        {canastillasDeEstiba(e).map((c, ci) => (
+                          <div key={ci} style={{ display:"flex", gap:4, alignItems:"center" }}>
+                            <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={{ ...inp, minWidth:76 }}>
+                              {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </CustomSelect>
+                            <input type="number" style={{ ...inp, minWidth:60 }} placeholder="Cant." value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
+                            {canastillasDeEstiba(e).length > 1 && (
+                              <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={btnTablaEliminar}>✕</button>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={()=>agregarTipoCanastilla(idx)} style={{ background:"rgba(249,168,38,0.10)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:6, color:"#F9A826", padding:"3px 8px", fontSize:10.5, fontWeight:600, cursor:"pointer", alignSelf:"flex-start" }}>
+                          + Mezclar tipo
+                        </button>
+                      </div>
                     </td>
-                    <td style={{ padding:"6px" }}><input type="number" style={inp} value={e.cantCanastillas} onChange={ev=>setEstiba(idx,"cantCanastillas",ev.target.value)} /></td>
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{pesoCanastillasEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
                     <td style={{ padding:"6px" }}><input type="number" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></td>
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
