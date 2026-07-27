@@ -2302,15 +2302,12 @@ function InventarioDemo() {
         const logoSrc   = await cargarLogoBase64();
         const fechaHoy  = new Date().toLocaleDateString("es-CO");
         const fechaFile = new Date().toISOString().split("T")[0];
-        const cop = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
 
         const insumos      = items.filter(i=>i.categoria==="Insumos");
         const herramientas = items.filter(i=>i.categoria==="Herramientas");
         const agotados     = items.filter(i=>i.cant===0);
         const bajoStock    = items.filter(i=>i.categoria==="Herramientas"?i.cant===0:i.cant<=i.minimo&&i.cant>0);
         const alertas      = items.filter(i=>i.categoria==="Herramientas"?i.cant===0:i.cant<=i.minimo);
-        const valorTotal   = insumos.reduce((s,i)=>s+(i.cant*(i.costo||0)),0);
-        const valorConCosto= insumos.filter(i=>i.costo>0);
 
         const badge = (txt,bg,col) => `<span style="background:${bg};color:${col};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap">${txt}</span>`;
         const estadoBadge = (it) => {
@@ -2324,7 +2321,6 @@ function InventarioDemo() {
         const filaInsumo = (it) => {
           const diff   = it.cant - it.minimo;
           const diffCol= diff<0?"#dc2626":diff===0?"#d97706":"#16a34a";
-          const val    = it.cant*(it.costo||0);
           return `<tr>
             <td><b>${it.nombre}</b>${it.obs?`<br/><span style="font-size:10px;color:#888">📌 ${it.obs}</span>`:""}
             </td>
@@ -2332,8 +2328,6 @@ function InventarioDemo() {
             <td>${it.unidad}</td>
             <td style="text-align:right">${it.minimo}</td>
             <td style="text-align:right;color:${diffCol};font-weight:700">${diff>=0?"+":""}${diff}</td>
-            <td style="text-align:right">${it.costo>0?cop(it.costo):"—"}</td>
-            <td style="text-align:right;font-weight:700">${val>0?cop(val):"—"}</td>
             <td style="text-align:center">${estadoBadge(it)}</td>
           </tr>`;
         };
@@ -2398,7 +2392,6 @@ function InventarioDemo() {
   <div class="card"><div class="card-val">${herramientas.length}</div><div class="card-lbl">Herramientas</div></div>
   <div class="card warn"><div class="card-val">${bajoStock.length}</div><div class="card-lbl">Bajo stock</div></div>
   <div class="card danger"><div class="card-val">${agotados.length}</div><div class="card-lbl">Agotados</div></div>
-  <div class="card green"><div class="card-val">${cop(valorTotal)}</div><div class="card-lbl">Valor inventario*</div></div>
 </div>
 
 ${alertas.length>0?`
@@ -2408,11 +2401,9 @@ ${alertas.length>0?`
 <tbody>${alertaRows}</tbody></table>`:""}
 
 <h2>📦 Insumos (${insumos.length})</h2>
-<p class="section-note">* Valor calculado solo para ítems con costo unitario registrado (${valorConCosto.length} de ${insumos.length}).</p>
-<table><thead><tr><th>Nombre / Obs.</th><th style="text-align:right">Cant. actual</th><th>Unidad</th><th style="text-align:right">Mínimo</th><th style="text-align:right">Diferencia</th><th style="text-align:right">Costo/u</th><th style="text-align:right">Valor total</th><th style="text-align:center">Estado</th></tr></thead>
+<table><thead><tr><th>Nombre / Obs.</th><th style="text-align:right">Cant. actual</th><th>Unidad</th><th style="text-align:right">Mínimo</th><th style="text-align:right">Diferencia</th><th style="text-align:center">Estado</th></tr></thead>
 <tbody>
 ${insumos.map(filaInsumo).join("")}
-<tr class="tot-row"><td colspan="6">VALOR TOTAL INSUMOS</td><td style="text-align:right">${cop(valorTotal)}</td><td></td></tr>
 </tbody></table>
 
 <h2>🔧 Herramientas (${herramientas.length})</h2>
