@@ -2155,9 +2155,9 @@ function InventarioDemo() {
       )}
 
       {/* Controles */}
-      <div style={{ display:"flex", gap:6, marginBottom:10 }}>
-        <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar producto..." style={{...inp, flex:1}} />
-        <CustomSelect value={filtro} onChange={e=>setFiltro(e.target.value)} style={{...inp, minWidth:100}}>
+      <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+        <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar producto..." style={{...inp, flex:"1 1 160px", minWidth:0}} />
+        <CustomSelect value={filtro} onChange={e=>setFiltro(e.target.value)} style={{...inp, minWidth:100, flex:"1 1 100px"}}>
           {categorias.map(c => <option key={c} style={{background:"#1a1a2e"}}>{c}</option>)}
         </CustomSelect>
         <button onClick={() => setShowAdd(!showAdd)} style={{ background:"rgba(132,94,247,0.2)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:6, padding:"5px 10px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>➕ Nuevo</button>
