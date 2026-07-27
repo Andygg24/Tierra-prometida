@@ -122,7 +122,7 @@ const EMPLEADOS_DB = [
 // ─── MODAL CONFIRMACIÓN ───────────────────────────────────────
 function ConfirmModal({ mensaje, onConfirm, onCancel }) {
   return (
-    <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+    <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.75)", zIndex:10000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div style={{ background:"#1a1a2e", border:"1px solid rgba(255,255,255,0.17)", borderRadius:16, padding:24, maxWidth:300, width:"100%", textAlign:"center" }}>
         <div style={{ fontSize:32, marginBottom:10 }}>⚠️</div>
         <div style={{ fontSize:14, color:"white", fontWeight:600, marginBottom:8 }}>¿Estás seguro?</div>
