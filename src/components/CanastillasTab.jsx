@@ -5,6 +5,27 @@ import CustomSelect from "./CustomSelect.jsx";
 import { btnSecundario, btnPrimario, btnTablaEliminar } from "./buttonStyles.js";
 import { useCanastillas } from "../hooks/useCanastillas.js";
 
+// Traduce el error real de getUserMedia/Html5Qrcode a un mensaje accionable —
+// "no se pudo acceder a la cámara" a secas no dice si falta permiso, si el
+// sitio no es HTTPS, si ya la está usando otra app, o si el celular no tiene
+// cámara trasera.
+function mensajeErrorCamara(err) {
+  if (!window.isSecureContext) {
+    return "El navegador solo permite usar la cámara en sitios seguros (https://). Esta página se está abriendo sin HTTPS.";
+  }
+  const nombre = err?.name || "";
+  if (nombre === "NotAllowedError" || nombre === "PermissionDeniedError") {
+    return "El navegador bloqueó el permiso de cámara. Revisa los permisos del sitio (ícono de candado o ajustes del navegador) y vuelve a intentar.";
+  }
+  if (nombre === "NotFoundError" || nombre === "OverconstrainedError") {
+    return "No se encontró una cámara trasera en este dispositivo.";
+  }
+  if (nombre === "NotReadableError" || nombre === "TrackStartError") {
+    return "La cámara está siendo usada por otra app o pestaña. Ciérrala e intenta de nuevo.";
+  }
+  return "No se pudo acceder a la cámara. Usa el campo manual de abajo.";
+}
+
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
 // descargados muestran el logo aunque se abran después, sin servidor.
 async function cargarLogoBase64() {
@@ -949,8 +970,8 @@ function EscanearView({ mob, buscarPorCodigo, confirmarLotePrestamo, pedir, show
         () => {}
       );
       setCamActiva(true);
-    } catch {
-      setCamError("No se pudo acceder a la cámara. Usa el campo manual de abajo.");
+    } catch (err) {
+      setCamError(mensajeErrorCamara(err));
     }
   };
 
@@ -1296,8 +1317,8 @@ function RondaView({ mob, rondaActiva, rondas, iniciarRonda, registrarConteo, ce
         () => {}
       );
       setCamActiva(true);
-    } catch {
-      setCamError("No se pudo acceder a la cámara. Usa el campo manual de abajo.");
+    } catch (err) {
+      setCamError(mensajeErrorCamara(err));
     }
   };
 
