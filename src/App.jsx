@@ -1994,6 +1994,9 @@ function InventarioDemo() {
   const [confirm, setConfirm] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [nuevoItem, setNuevoItem] = useState({ nombre:"", cant:0, unidad:"UNIDADES", minimo:1, categoria:"Insumos", obs:"", costo:0 });
+  // Si está oculto, el historial de movimientos no se muestra en pantalla NI se incluye en el informe descargable.
+  const [mostrarHistorial, setMostrarHistorial] = useState(() => localStorage.getItem("inv_mostrar_historial") !== "0");
+  const toggleHistorial = () => setMostrarHistorial(v => { localStorage.setItem("inv_mostrar_historial", v ? "0" : "1"); return !v; });
 
   const pedir = (msg, fn) => setConfirm({ msg, fn });
 
@@ -2158,6 +2161,10 @@ function InventarioDemo() {
           {categorias.map(c => <option key={c} style={{background:"#1a1a2e"}}>{c}</option>)}
         </CustomSelect>
         <button onClick={() => setShowAdd(!showAdd)} style={{ background:"rgba(132,94,247,0.2)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:6, padding:"5px 10px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>➕ Nuevo</button>
+        <button onClick={toggleHistorial} title={mostrarHistorial ? "Ocultar historial de movimientos (tampoco saldrá en el informe)" : "Mostrar historial de movimientos"}
+          style={{ background: mostrarHistorial ? "rgba(255,255,255,0.06)" : "rgba(255,107,107,0.1)", border:`1px solid ${mostrarHistorial ? "rgba(255,255,255,0.13)" : "rgba(255,107,107,0.3)"}`, borderRadius:6, padding:"5px 10px", fontSize:11, color: mostrarHistorial ? "rgba(255,255,255,0.55)" : "#FF6B6B", cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
+          {mostrarHistorial ? "👁 Movimientos" : "🙈 Movimientos"}
+        </button>
       </div>
 
       {/* Formulario nuevo item */}
@@ -2279,7 +2286,7 @@ function InventarioDemo() {
       </div>
 
       {/* Historial de movimientos */}
-      {historial.length > 0 && (
+      {mostrarHistorial && historial.length > 0 && (
         <div style={{ marginTop:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:10, padding:"10px 12px" }}>
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.42)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>📋 Últimos movimientos</div>
           {historial.slice(0,5).map((h,i) => (
@@ -2385,7 +2392,7 @@ function InventarioDemo() {
 </style></head><body>
 
 <div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>📦 Informe de Inventario — Tierra Prometida Trading</h1></div>
-<div class="meta">Generado: ${fechaHoy} &nbsp;·&nbsp; ${items.length} ítems registrados &nbsp;·&nbsp; ${historial.length} movimientos en historial</div>
+<div class="meta">Generado: ${fechaHoy} &nbsp;·&nbsp; ${items.length} ítems registrados${mostrarHistorial ? ` &nbsp;·&nbsp; ${historial.length} movimientos en historial` : ""}</div>
 
 <div class="cards">
   <div class="card ok"><div class="card-val">${insumos.length}</div><div class="card-lbl">Insumos</div></div>
@@ -2410,7 +2417,7 @@ ${insumos.map(filaInsumo).join("")}
 <table class="herr-table"><thead><tr><th>Nombre</th><th style="text-align:right">Cantidad</th><th>Unidad</th><th style="text-align:center">Estado</th></tr></thead>
 <tbody>${herramientas.map(filaHerr).join("")}</tbody></table>
 
-${historial.length>0?`
+${mostrarHistorial && historial.length>0?`
 <h2>📋 Historial completo de movimientos (${historial.length})</h2>
 <table class="mov-table"><thead><tr><th>Fecha / Hora</th><th>Ítem</th><th style="text-align:center">Tipo</th><th style="text-align:right">Cantidad</th><th>Observación</th></tr></thead>
 <tbody>${movRows}</tbody></table>`:""}
