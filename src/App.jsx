@@ -2164,21 +2164,44 @@ function InventarioDemo() {
       {showAdd && (
         <div style={{ background:"rgba(132,94,247,0.06)", border:"1px solid rgba(132,94,247,0.2)", borderRadius:10, padding:12, marginBottom:10 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#845EF7", marginBottom:8 }}>📦 Agregar nuevo producto</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            <input placeholder="Nombre del producto *" value={nuevoItem.nombre} onChange={e=>setNuevoItem(p=>({...p,nombre:e.target.value}))} style={{...inp,width:"100%"}} />
-            <div style={{ display:"flex", gap:6 }}>
-              <input type="number" placeholder="Cantidad" value={nuevoItem.cant} onChange={e=>setNuevoItem(p=>({...p,cant:e.target.value}))} style={{...inp,flex:1}} />
-              <input placeholder="Unidad" value={nuevoItem.unidad} onChange={e=>setNuevoItem(p=>({...p,unidad:e.target.value}))} style={{...inp,flex:1}} />
-              <input type="number" placeholder="Mínimo" value={nuevoItem.minimo} onChange={e=>setNuevoItem(p=>({...p,minimo:e.target.value}))} style={{...inp,flex:1}} />
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Nombre del producto *</div>
+              <input placeholder='Ej: "Cajas Princesses", "Cera", "Martillo"...' value={nuevoItem.nombre} onChange={e=>setNuevoItem(p=>({...p,nombre:e.target.value}))} style={{...inp,width:"100%"}} />
             </div>
             <div style={{ display:"flex", gap:6 }}>
-              <CustomSelect value={nuevoItem.categoria} onChange={e=>setNuevoItem(p=>({...p,categoria:e.target.value}))} style={{...inp,flex:1}}>
-                <option style={{background:"#1a1a2e"}}>Insumos</option>
-                <option style={{background:"#1a1a2e"}}>Herramientas</option>
-              </CustomSelect>
-              <input type="number" placeholder="Costo unit." value={nuevoItem.costo} onChange={e=>setNuevoItem(p=>({...p,costo:e.target.value}))} style={{...inp,flex:1}} />
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cantidad actual</div>
+                <input type="number" placeholder="Ej: 100" value={nuevoItem.cant} onChange={e=>setNuevoItem(p=>({...p,cant:e.target.value}))} style={{...inp,width:"100%"}} />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Unidad de medida</div>
+                <input placeholder="UNIDADES, LITROS, KILOS..." value={nuevoItem.unidad} onChange={e=>setNuevoItem(p=>({...p,unidad:e.target.value}))} style={{...inp,width:"100%"}} />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Stock mínimo</div>
+                <input type="number" placeholder="Ej: 10" value={nuevoItem.minimo} onChange={e=>setNuevoItem(p=>({...p,minimo:e.target.value}))} style={{...inp,width:"100%"}} />
+              </div>
             </div>
-            <input placeholder="Observaciones" value={nuevoItem.obs} onChange={e=>setNuevoItem(p=>({...p,obs:e.target.value}))} style={{...inp,width:"100%"}} />
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.32)", marginTop:-4 }}>El "Stock mínimo" es la cantidad por debajo de la cual el sistema marca el producto como "⚠️ Stock bajo" en las alertas.</div>
+            <div style={{ display:"flex", gap:6 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Categoría</div>
+                <CustomSelect value={nuevoItem.categoria} onChange={e=>setNuevoItem(p=>({...p,categoria:e.target.value}))} style={{...inp,width:"100%"}}>
+                  <option style={{background:"#1a1a2e"}}>Insumos</option>
+                  <option style={{background:"#1a1a2e"}}>Herramientas</option>
+                </CustomSelect>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Costo por unidad (opcional)</div>
+                <input type="number" placeholder="En pesos, ej: 5000" value={nuevoItem.costo} onChange={e=>setNuevoItem(p=>({...p,costo:e.target.value}))} style={{...inp,width:"100%"}} />
+              </div>
+            </div>
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.32)", marginTop:-4 }}><b>Insumos</b>: se consumen (cajas, cera, zunchos...). <b>Herramientas</b>: se reutilizan (martillo, taladro...). El costo por unidad se usa para calcular el valor total del inventario en el informe.</div>
+            <div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Observaciones (opcional)</div>
+              <input placeholder='Ej: "Comprar más", proveedor, ubicación...' value={nuevoItem.obs} onChange={e=>setNuevoItem(p=>({...p,obs:e.target.value}))} style={{...inp,width:"100%"}} />
+            </div>
             <div style={{ display:"flex", gap:6 }}>
               <button onClick={() => pedir(`¿Agregar "${nuevoItem.nombre}" al inventario?`, confirmarAgregarItem)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:7, padding:"7px", fontSize:11, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Agregar</button>
               <button onClick={() => setShowAdd(false)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:7, padding:"7px 12px", fontSize:11, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>Cancelar</button>
