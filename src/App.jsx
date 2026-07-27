@@ -7142,6 +7142,8 @@ function ConfigForm({ config, guardar }) {
     { id:2, nombre:"Lennix Vega",    cedula:"63557421",  rol:"Administración", avatar:"LV", permisos:[] },
   ]));
   const [nuevoUsr, setNuevoUsr] = useState({ nombre:"", cedula:"", rol:"Operario" });
+  const [editandoUsr, setEditandoUsr] = useState(null);
+  const [editUsrForm, setEditUsrForm] = useState({ nombre:"", cedula:"", rol:"Operario" });
 
   const [correos, setCorreos] = useState(() => load("cfg_correos", {
     temperatura: { para:"", cc:"", bcc:"", asunto:"Carta de Temperatura — {fecha}", firma:"" },
@@ -7307,7 +7309,40 @@ function ConfigForm({ config, guardar }) {
         <div>
           <div style={secS}>
             <div style={secH}>👥 Usuarios del Sistema</div>
-            {cfgUsuarios.map(u => (
+            {cfgUsuarios.map(u => editandoUsr === u.id ? (
+              <div key={u.id} style={{ padding:"13px 0", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                  <div>
+                    <label style={lS}>Nombre completo</label>
+                    <input style={iS()} value={editUsrForm.nombre} onChange={e=>setEditUsrForm(p=>({...p,nombre:e.target.value}))} placeholder="Nombre completo" />
+                  </div>
+                  <div>
+                    <label style={lS}>Cédula</label>
+                    <input style={iS()} value={editUsrForm.cedula} onChange={e=>setEditUsrForm(p=>({...p,cedula:e.target.value}))} placeholder="Número de cédula" />
+                  </div>
+                  <div>
+                    <label style={lS}>Rol</label>
+                    <CustomSelect style={iS()} value={editUsrForm.rol} onChange={e=>setEditUsrForm(p=>({...p,rol:e.target.value}))}>
+                      {["Owner","Administrador","Supervisor","Operario"].map(r=><option key={r} value={r} style={{ background:"#1a1c26" }}>{r}</option>)}
+                    </CustomSelect>
+                  </div>
+                </div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginTop:8 }}>Nombre y cédula son lo que la persona escribe para entrar — si los cambias, avísale.</div>
+                <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                  <button onClick={() => {
+                    if (!editUsrForm.nombre.trim() || !editUsrForm.cedula.trim()) { showToast("Completa nombre y cédula", false); return; }
+                    const avatar = editUsrForm.nombre.trim().split(" ").slice(0,2).map(x=>x[0]).join("").toUpperCase();
+                    setCfgUsuarios(prev => {
+                      const next = prev.map(x => x.id===u.id ? { ...x, nombre:editUsrForm.nombre.trim(), cedula:editUsrForm.cedula.trim(), rol:editUsrForm.rol, avatar } : x);
+                      save("cfg_usuarios", next, "Usuario actualizado ✓");
+                      return next;
+                    });
+                    setEditandoUsr(null);
+                  }} style={{ background:"linear-gradient(135deg,#6366F1,#0891b2)", border:"none", borderRadius:8, padding:"8px 16px", color:"white", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Guardar</button>
+                  <button onClick={() => setEditandoUsr(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 14px", color:"rgba(255,255,255,0.58)", cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
               <div key={u.id} style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"13px 0", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
                 <div style={{ width:38, height:38, borderRadius:10, background:`${ROL_COLORS[u.rol]||"#64748B"}22`, border:`1px solid ${ROL_COLORS[u.rol]||"#64748B"}50`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:ROL_COLORS[u.rol]||"#94a3b8", flexShrink:0 }}>{u.avatar||u.nombre[0]}</div>
                 <div style={{ flex:1, minWidth:0 }}>
@@ -7331,6 +7366,7 @@ function ConfigForm({ config, guardar }) {
                     })}
                   </div>
                 </div>
+                <button onClick={() => { setEditandoUsr(u.id); setEditUsrForm({ nombre:u.nombre, cedula:u.cedula, rol:u.rol }); }} style={{ background:"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:7, padding:"6px 10px", color:"#845EF7", cursor:"pointer", fontSize:12, flexShrink:0, fontFamily:"inherit" }}>✏️</button>
                 {u.rol !== "Owner" && (
                   <button onClick={() => setConfirmDel({ action:() => setCfgUsuarios(prev=>prev.filter(x=>x.id!==u.id)) })} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B30", borderRadius:7, padding:"6px 10px", color:"#FF6B6B", cursor:"pointer", fontSize:12, flexShrink:0, fontFamily:"inherit" }}>✕</button>
                 )}
