@@ -143,11 +143,19 @@ export function useInventario(seedData = []) {
   const ajustarLotes = useCallback(async (lotes) => {
     const cambios = lotes.filter(l => l.newCant !== undefined && l.id !== undefined);
     if (!cambios.length) return true;
+    // Optimistic update (mismo motivo que registrarMovimiento): sin esto, la
+    // cantidad no se refleja en pantalla hasta que llegue el evento realtime.
+    const anteriores = new Map(items.filter(i => cambios.some(c => c.id === i.id)).map(i => [i.id, i.cant]));
+    setItems(prev => prev.map(i => {
+      const cambio = cambios.find(c => c.id === i.id);
+      return cambio ? { ...i, cant: cambio.newCant } : i;
+    }));
     const ts = new Date().toISOString();
     const upserts = cambios.map(l => ({ id: l.id, cant: l.newCant, updated_at: ts }));
     const { error } = await supabase.from("inventario").upsert(upserts, { onConflict: "id" });
+    if (error) setItems(prev => prev.map(i => anteriores.has(i.id) ? { ...i, cant: anteriores.get(i.id) } : i));
     return !error;
-  }, []);
+  }, [items]);
 
   const eliminarItem = useCallback(async (id) => {
     const removed = items.find(i => i.id === id);
