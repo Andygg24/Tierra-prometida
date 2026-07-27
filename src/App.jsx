@@ -251,7 +251,7 @@ function PersonalDemo() {
       {/* ── Modal editar empleado ── */}
       {editando && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.8)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#1a1a2e", border:"1px solid rgba(0,201,167,0.3)", borderRadius:16, padding:24, maxWidth:320, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
+          <div style={{ background:"#1a1a2e", border:"1px solid rgba(0,201,167,0.3)", borderRadius:16, padding:24, maxWidth:380, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
             <div style={{ fontSize:14, fontWeight:700, color:"#00C9A7", marginBottom:14 }}>✏️ Editar empleado</div>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <input placeholder="Nombre" value={editForm.nombre||""} onChange={e=>setEditForm(f=>({...f,nombre:e.target.value}))} style={inp} />
@@ -264,6 +264,23 @@ function PersonalDemo() {
               <div style={{ display:"flex", gap:6 }}>
                 <input placeholder="Teléfono" value={editForm.tel||""} onChange={e=>setEditForm(f=>({...f,tel:e.target.value}))} style={{...inp,flex:1}} />
                 <input placeholder="Área"     value={editForm.area||""} onChange={e=>setEditForm(f=>({...f,area:e.target.value}))} style={{...inp,flex:1}} />
+              </div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:0.5, marginTop:4 }}>📍 Dirección</div>
+              <input placeholder="Dirección" value={editForm.direccion||""} onChange={e=>setEditForm(f=>({...f,direccion:e.target.value}))} style={inp} />
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:0.5, marginTop:4 }}>🚨 Contacto de emergencia</div>
+              <div style={{ display:"flex", gap:6 }}>
+                <input placeholder="Nombre" value={editForm.contactoEmergencia||""} onChange={e=>setEditForm(f=>({...f,contactoEmergencia:e.target.value}))} style={{...inp,flex:1}} />
+                <input placeholder="Teléfono" value={editForm.telEmergencia||""} onChange={e=>setEditForm(f=>({...f,telEmergencia:e.target.value}))} style={{...inp,flex:1}} />
+              </div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:0.5, marginTop:4 }}>🏦 Cuenta de pago</div>
+              <div style={{ display:"flex", gap:6 }}>
+                <input placeholder="Banco" value={editForm.banco||""} onChange={e=>setEditForm(f=>({...f,banco:e.target.value}))} style={{...inp,flex:1}} />
+                <input placeholder="Número de cuenta" value={editForm.cuenta||""} onChange={e=>setEditForm(f=>({...f,cuenta:e.target.value}))} style={{...inp,flex:1}} />
+              </div>
+              <div style={{ display:"flex", gap:6 }}>
+                <input placeholder="Titular de la cuenta" value={editForm.titularNombre||""} onChange={e=>setEditForm(f=>({...f,titularNombre:e.target.value}))} style={{...inp,flex:1}} />
+                <input placeholder="Doc. titular" value={editForm.titularDoc||""} onChange={e=>setEditForm(f=>({...f,titularDoc:e.target.value}))} style={{...inp,flex:1}} />
+                <input placeholder="N° doc. titular" value={editForm.titularDocNum||""} onChange={e=>setEditForm(f=>({...f,titularDocNum:e.target.value}))} style={{...inp,flex:1}} />
               </div>
               <div style={{ display:"flex", gap:8, marginTop:4 }}>
                 <button onClick={()=>pedir("¿Guardar cambios?",guardarEdicion)} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>✅ Guardar</button>
@@ -455,6 +472,13 @@ function PersonalDemo() {
                         {emp.num!=="-" && <><span style={{ color:"rgba(255,255,255,0.28)" }}> · </span><span>{emp.num}</span></>}
                         {emp.tel!=="-" && <><span style={{ color:"rgba(255,255,255,0.28)" }}> · </span><span>📞 {emp.tel}</span></>}
                       </div>
+                      {(emp.contactoEmergencia || emp.banco) && (
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.38)", lineHeight:1.6 }}>
+                          {emp.contactoEmergencia && <span>🚨 {emp.contactoEmergencia}{emp.telEmergencia?` (${emp.telEmergencia})`:""}</span>}
+                          {emp.contactoEmergencia && emp.banco && <span style={{ color:"rgba(255,255,255,0.22)" }}> · </span>}
+                          {emp.banco && <span>🏦 {emp.banco}{emp.cuenta?` ${emp.cuenta}`:""}</span>}
+                        </div>
+                      )}
                       <div style={{ display:"flex", gap:4, marginTop:5, flexWrap:"wrap" }}>
                         {cont && <span style={{ fontSize:8, background:`${contColor(dias)}15`, color:contColor(dias), borderRadius:4, padding:"1px 6px", fontWeight:700, border:`1px solid ${contColor(dias)}28` }}>📄 {cont.tipo}{dias!==null?` · ${dias<0?"VENCIDO":`${dias}d`}`:""}</span>}
                         {seg?.eps && <span style={{ fontSize:8, background:"rgba(255,107,107,0.1)", color:"#FF6B6B", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🏥 {seg.eps}</span>}
@@ -466,7 +490,7 @@ function PersonalDemo() {
                   </div>
                   {!showBroadcast && (
                     <div style={{ borderTop:"1px solid rgba(255,255,255,0.09)", display:"flex" }}>
-                      <button onClick={e=>{e.stopPropagation();setEditando(emp.num);setEditForm({nombre:emp.nombre,doc:emp.doc,num:emp.num,tel:emp.tel,area:emp.area});}}
+                      <button onClick={e=>{e.stopPropagation();setEditando(emp.num);setEditForm({nombre:emp.nombre,doc:emp.doc,num:emp.num,tel:emp.tel,area:emp.area,banco:emp.banco,cuenta:emp.cuenta,direccion:emp.direccion,contactoEmergencia:emp.contactoEmergencia,telEmergencia:emp.telEmergencia,titularNombre:emp.titularNombre,titularDoc:emp.titularDoc,titularDocNum:emp.titularDocNum});}}
                         style={{ flex:1, background:"rgba(255,255,255,0.05)", border:"none", borderRight:"1px solid rgba(255,255,255,0.09)", padding:"9px", fontSize:11, color:"rgba(255,255,255,0.58)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
                         ✏️ Editar
                       </button>

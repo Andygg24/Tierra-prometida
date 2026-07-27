@@ -4,6 +4,8 @@ import { supabase } from "../supabase.js";
 const rowToEmp = (r) => ({
   no: r.no, nombre: r.nombre, doc: r.doc, num: r.num,
   tel: r.tel || "-", area: r.area || "", banco: r.banco || "", cuenta: r.cuenta || "",
+  direccion: r.direccion || "", contactoEmergencia: r.contacto_emergencia || "", telEmergencia: r.tel_emergencia || "",
+  titularNombre: r.titular_nombre || "", titularDoc: r.titular_doc || "", titularDocNum: r.titular_doc_num || "",
 });
 
 export function usePersonal() {
@@ -151,6 +153,9 @@ export function usePersonal() {
     setEmpleados(prev => prev.map(e => e.num === num ? { ...e, ...campos } : e));
     const { error } = await supabase.from("empleados").update({
       nombre: campos.nombre, doc: campos.doc, tel: campos.tel, area: campos.area,
+      banco: campos.banco, cuenta: campos.cuenta, direccion: campos.direccion,
+      contacto_emergencia: campos.contactoEmergencia, tel_emergencia: campos.telEmergencia,
+      titular_nombre: campos.titularNombre, titular_doc: campos.titularDoc, titular_doc_num: campos.titularDocNum,
     }).eq("num", num);
     if (error) {
       supabase.from("empleados").select("*").eq("activo", true).order("no")
