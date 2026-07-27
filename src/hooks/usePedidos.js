@@ -44,7 +44,7 @@ export function usePedidos() {
   // ── Mutaciones
 
   const agregarPedido = useCallback(async (p) => {
-    const { error } = await supabase.from("pedidos").insert({
+    const row = {
       id:          p.id,
       cliente:     p.cliente,
       producto:    p.producto,
@@ -54,7 +54,12 @@ export function usePedidos() {
       fecha:       p.fecha,
       contenedor:  p.contenedor || null,
       obs:         p.notas      || null,
-    });
+    };
+    // Optimistic insert — antes dependía solo del roundtrip de tiempo real,
+    // así que el pedido nuevo no se veía en el Pipeline hasta que llegara.
+    setPedidos(prev => [rowToPedido(row), ...prev]);
+    const { error } = await supabase.from("pedidos").insert(row);
+    if (error) setPedidos(prev => prev.filter(x => x.id !== row.id));
     return !error;
   }, []);
 

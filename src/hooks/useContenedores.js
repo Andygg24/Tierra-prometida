@@ -162,14 +162,16 @@ export function useContenedores() {
 
   const eliminarContenedor = useCallback(async (id) => {
     const removed = procesos.find(p => p.id === id);
+    const removedInsumos = contInsumos.filter(c => c.contId === id);
     // Optimistic remove
     setProcesos(prev => prev.filter(p => p.id !== id));
     setContInsumos(prev => prev.filter(c => c.contId !== id));
-    await supabase.from("contenedor_insumos").delete().eq("cont_id", id);
+    const { error: errorInsumos } = await supabase.from("contenedor_insumos").delete().eq("cont_id", id);
     const { error } = await supabase.from("contenedores").delete().eq("id", id);
     if (error && removed) setProcesos(prev => [removed, ...prev]);
-    return !error;
-  }, [procesos]);
+    if (errorInsumos && removedInsumos.length) setContInsumos(prev => [...removedInsumos, ...prev]);
+    return !error && !errorInsumos;
+  }, [procesos, contInsumos]);
 
   const agregarTrazabilidad = useCallback(async (contId, evento) => {
     const cont = procesos.find(p => p.id === contId);
@@ -179,6 +181,7 @@ export function useContenedores() {
     const { error } = await supabase.from("contenedores")
       .update({ trazabilidad: nuevaTraz })
       .eq("id", contId);
+    if (error) setProcesos(prev => prev.map(p => p.id === contId ? cont : p));
     return !error;
   }, [procesos]);
 
