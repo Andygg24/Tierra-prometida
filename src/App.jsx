@@ -1997,6 +1997,9 @@ function InventarioDemo() {
   // Si está oculto, el historial de movimientos no se muestra en pantalla NI se incluye en el informe descargable.
   const [mostrarHistorial, setMostrarHistorial] = useState(() => localStorage.getItem("inv_mostrar_historial") !== "0");
   const toggleHistorial = () => setMostrarHistorial(v => { localStorage.setItem("inv_mostrar_historial", v ? "0" : "1"); return !v; });
+  // Si está oculto, la sección de stock faltante/bajo no se muestra en pantalla NI se incluye en el informe descargable.
+  const [mostrarFaltante, setMostrarFaltante] = useState(() => localStorage.getItem("inv_mostrar_faltante") !== "0");
+  const toggleFaltante = () => setMostrarFaltante(v => { localStorage.setItem("inv_mostrar_faltante", v ? "0" : "1"); return !v; });
 
   const pedir = (msg, fn) => setConfirm({ msg, fn });
 
@@ -2141,7 +2144,7 @@ function InventarioDemo() {
       </div>
 
       {/* Alertas stock bajo */}
-      {bajoStock.length > 0 && (
+      {mostrarFaltante && bajoStock.length > 0 && (
         <div style={{ background:"rgba(255,107,107,0.08)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:10, padding:"8px 12px", marginBottom:12 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#FF6B6B", marginBottom:5 }}>🚨 Productos bajo stock mínimo</div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
@@ -2164,6 +2167,10 @@ function InventarioDemo() {
         <button onClick={toggleHistorial} title={mostrarHistorial ? "Ocultar historial de movimientos (tampoco saldrá en el informe)" : "Mostrar historial de movimientos"}
           style={{ background: mostrarHistorial ? "rgba(255,255,255,0.06)" : "rgba(255,107,107,0.1)", border:`1px solid ${mostrarHistorial ? "rgba(255,255,255,0.13)" : "rgba(255,107,107,0.3)"}`, borderRadius:6, padding:"5px 10px", fontSize:11, color: mostrarHistorial ? "rgba(255,255,255,0.55)" : "#FF6B6B", cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
           {mostrarHistorial ? "👁 Movimientos" : "🙈 Movimientos"}
+        </button>
+        <button onClick={toggleFaltante} title={mostrarFaltante ? "Ocultar stock faltante (tampoco saldrá en el informe)" : "Mostrar stock faltante"}
+          style={{ background: mostrarFaltante ? "rgba(255,255,255,0.06)" : "rgba(255,107,107,0.1)", border:`1px solid ${mostrarFaltante ? "rgba(255,255,255,0.13)" : "rgba(255,107,107,0.3)"}`, borderRadius:6, padding:"5px 10px", fontSize:11, color: mostrarFaltante ? "rgba(255,255,255,0.55)" : "#FF6B6B", cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
+          {mostrarFaltante ? "👁 Faltante" : "🙈 Faltante"}
         </button>
       </div>
 
@@ -2401,7 +2408,7 @@ function InventarioDemo() {
   <div class="card danger"><div class="card-val">${agotados.length}</div><div class="card-lbl">Agotados</div></div>
 </div>
 
-${alertas.length>0?`
+${mostrarFaltante && alertas.length>0?`
 <h2>⚠️ Alertas de stock (${alertas.length})</h2>
 <p class="section-note">Ítems agotados o por debajo del mínimo establecido.</p>
 <table class="alerta-table"><thead><tr><th>Estado</th><th>Nombre</th><th>Categoría</th><th>Stock actual</th><th>Unidad</th><th>Mínimo</th><th>Observación</th></tr></thead>
