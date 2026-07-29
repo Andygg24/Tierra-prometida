@@ -4719,7 +4719,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const providerSection = proveedoresCont.length > 1 ? `
 <h2>Rendimiento por proveedor</h2>
 <table>
-  <thead><tr><th>Proveedor</th><th>Camiones</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
+  <thead><tr><th>Proveedor</th><th>Contenedores</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
   <tbody>
   ${statsPorProveedor.map(s => {
     const sc = s.rdto >= 80 ? "#15803d" : s.rdto >= 60 ? "#b45309" : "#b91c1c";
@@ -4742,7 +4742,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             const rc = c.rendGen >= 80 ? "#15803d" : c.rendGen >= 60 ? "#b45309" : "#b91c1c";
             return `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #f8fafc;">
   <div>
-    <span style="font-size:11px;font-weight:600;color:#374151;">Camión ${i+1}</span>
+    <span style="font-size:11px;font-weight:600;color:#374151;">Contenedor ${i+1}</span>
     ${r.proveedor ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:4px;">${r.proveedor}</span>` : ""}
     <div style="font-size:9px;color:#94a3b8;">${r.fecha}</div>
   </div>
@@ -4884,7 +4884,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
     ${cont.producto ? `<span class="pv-tag">${cont.producto}</span>` : ""}
     ${cont.estado   ? `<span class="pv-tag">${cont.estado}</span>`   : ""}
   </div>
-  <div class="sub">Fecha contenedor: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy} &nbsp;·&nbsp; ${rendsDelCont.length} camión${rendsDelCont.length !== 1 ? "es" : ""} registrado${rendsDelCont.length !== 1 ? "s" : ""}</div>
+  <div class="sub">Fecha contenedor: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy} &nbsp;·&nbsp; ${rendsDelCont.length} contenedor${rendsDelCont.length !== 1 ? "es" : ""} registrado${rendsDelCont.length !== 1 ? "s" : ""}</div>
 </div>
 
 ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
@@ -4930,7 +4930,7 @@ ${calibreSection}
   ${truckBars}
 </div>
 
-<h2>Detalle por camión</h2>
+<h2>Detalle por contenedor</h2>
 <table>
   <thead>
     <tr>
