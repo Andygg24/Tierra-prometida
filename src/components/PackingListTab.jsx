@@ -1396,7 +1396,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 .card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center}
 .card-ic{font-size:16px;margin-bottom:2px}
 .card-val{font-size:18px;font-weight:800;color:#1f5c1f;line-height:1.15}
-.card-lbl{font-size:8.5px;color:#889;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px;color:#7c8a7c}
+.card-lbl{font-size:8.5px;color:#4a564a;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px;font-weight:700}
 .card.warn .card-val{color:#c62828}
 
 h2{display:flex;align-items:center;gap:8px;color:#173d1a;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
@@ -1410,7 +1410,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .cal-bar-track{flex:1;height:14px;background:#eef2ee;border-radius:7px;overflow:hidden}
 .cal-bar{height:100%;border-radius:7px}
 .cal-qty{width:70px;text-align:right;font-size:10.5px;font-weight:700;color:#333;flex-shrink:0}
-.cal-pct{width:36px;text-align:right;font-size:10.5px;color:#889;flex-shrink:0}
+.cal-pct{width:36px;text-align:right;font-size:10.5px;color:#3f4a3f;font-weight:600;flex-shrink:0}
 .cal-total{margin-top:10px;padding-top:10px;border-top:1px dashed #dfe8df;display:flex;justify-content:space-between;font-weight:800;font-size:12px;color:#173d1a}
 
 /* ── Pallets: grid de tarjetas ── */
@@ -1423,32 +1423,32 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .pallet-card.warn .pflag{color:#c9720e}
 .pchips{display:flex;flex-wrap:wrap;gap:4px}
 .pchip{border:1px solid;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:600}
-.ppredio{margin-top:6px;font-size:9px;color:#889;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppredio{margin-top:6px;font-size:9px;color:#222;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pica{margin-top:3px;font-size:9px;color:#2d8a2d;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Checklist ── */
 .chk-cat{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 16px;margin-bottom:10px;break-inside:avoid}
 .chk-cat.hasbad{border-left-color:#c62828}
 .chk-cat-hdr{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:11.5px;color:#173d1a;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.3px}
-.chk-cat-count{background:#eef2ee;color:#5a6b5a;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700}
+.chk-cat-count{background:#eef2ee;color:#3a4a3a;border-radius:10px;padding:2px 9px;font-size:10px;font-weight:700}
 .chk-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f1;font-size:11px}
 .chk-row:last-child{border-bottom:none}
 .chk-icon{font-size:11px;flex-shrink:0}
 .chk-label{flex:1;color:#333}
 .ok{color:#1D6F42;font-weight:800;font-size:10.5px}
 .bad{color:#c62828;font-weight:800;font-size:10.5px}
-.pend{color:#aaa;font-style:italic;font-size:10.5px}
+.pend{color:#6b6b6b;font-style:italic;font-weight:700;font-size:10.5px}
 
 /* ── Observaciones + firma ── */
 .obs{background:#fbfdfb;border:1px solid #e2ede2;border-left:4px solid #3fa142;border-radius:10px;padding:12px 16px;font-size:11.5px;margin-top:4px;white-space:pre-wrap;color:#333}
 .firma-row{display:flex;gap:20px;margin-top:26px}
 .firma-box{flex:1}
 .firma-line{border-bottom:1.5px solid #b8c8b8;height:34px}
-.firma-lbl{font-size:10px;color:#889;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.firma-lbl{font-size:10px;color:#3a4a3a;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
 .firma-val{font-size:12px;color:#222;font-weight:600;margin-top:2px}
 
 /* ── Footer ── */
-.footer{background:#173d1a;color:rgba(255,255,255,0.72);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+.footer{background:#173d1a;color:rgba(255,255,255,0.85);text-align:center;font-size:10px;padding:16px;margin-top:30px}
 
 @media print{
   body{background:#fff}
