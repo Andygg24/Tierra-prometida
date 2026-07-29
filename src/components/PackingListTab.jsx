@@ -1318,7 +1318,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
           const col = COL_CAL[c.size]?.bg || "#94a3b8";
           return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size ?? "—")} <b>${c.cajas || 0}cj</b></span>`;
         }).join("");
-        const predio = p.calibres.find(c => c.predio)?.predio;
+        const observacion = p.calibres.find(c => c.predio)?.predio;
         // ICA del pallet: el propio de cada calibre si lo tiene, si no cae al
         // ICA general de Paso 1 — así un pallet con su propio registro no se
         // pisa, pero el resto queda cubierto sin escribirlo uno por uno.
@@ -1326,7 +1326,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
         return `<div class="pallet-card ${ok ? "" : "warn"}">
           <div class="pallet-top"><span class="pid">Pallet ${p.id}</span><span class="pflag">${ok ? "✓ cuadra" : `⚠ ${sum}/${cpp}`}</span></div>
           <div class="pchips">${chips}</div>
-          ${predio ? `<div class="ppredio">📍 ${predio}</div>` : ""}
+          ${observacion ? `<div class="ppredio">📝 ${observacion}</div>` : ""}
           ${icasPallet.length ? `<div class="pica">🏷 ICA ${icasPallet.join(" · ")}</div>` : ""}
         </div>`;
       }).join("");
@@ -1986,7 +1986,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
                           <div><div style={lbl}>N° Cajas</div><input type="number" inputMode="numeric" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} /></div>
                         </div>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                          <div><div style={lbl}>Predio</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} /></div>
+                          <div><div style={lbl}>Observación</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Observación de este calibre" style={inp} /></div>
                           <div><div style={lbl}>Registro ICA (este pallet)</div><input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder={admin.icaGeneral || "980005905"} style={inp} /></div>
                         </div>
                         <div>{ci === 0
@@ -2004,7 +2004,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
                           </CustomSelect>
                         </div>
                         <div><div style={lbl}>N° Cajas</div><input type="number" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} /></div>
-                        <div><div style={lbl}>Predio</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Nombre del predio" style={inp} /></div>
+                        <div><div style={lbl}>Observación</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Observación de este calibre" style={inp} /></div>
                         <div><div style={lbl}>Registro ICA</div><input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} /></div>
                         <div style={{ paddingBottom:1 }}>{ci === 0
                           ? <button onClick={() => addCal(selPalletIdx)} style={{ background:"rgba(99,102,241,0.2)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:7, padding:"6px 10px", color:"#a5b4fc", cursor:"pointer", fontSize:12, width:"100%" }}>➕</button>
