@@ -3,6 +3,7 @@ import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
+import { fechaLocalISO } from "../utils/dates.js";
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
 // descargados muestran el logo aunque se abran después, sin servidor.
@@ -68,7 +69,7 @@ function nuevaEstiba(numero) {
 }
 
 function formVacio() {
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = fechaLocalISO();
   return {
     remision: "", fecha: hoy, tipo: "entrada",
     placa: "", conductor: "", cedulaConductor: "", origen: "", proveedor: "", supervisor: "",
@@ -486,7 +487,7 @@ export default function RecepcionesTab({ mob }) {
 
   const quitarEstiba = (idx) => {
     setForm(f => {
-      const restantes = f.estibas.filter((_, i) => i !== idx);
+      const restantes = f.estibas.filter((_, i) => i !== idx).map((e, i) => ({ ...e, numero: i + 1 }));
       return { ...f, estibas: restantes.length ? restantes : [nuevaEstiba(1)] };
     });
   };
@@ -513,7 +514,7 @@ export default function RecepcionesTab({ mob }) {
   const verInforme = async (r) => {
     const html = await generarInformeHTML(r);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-    setPreview({ url, filename: `Recepcion_${r.remision || r.id}.html` });
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Recepcion_${r.remision || r.id}.html` }; });
   };
 
   const recepcionesFiltradas = useMemo(() => {
@@ -528,7 +529,7 @@ export default function RecepcionesTab({ mob }) {
     const html = await generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : "todas";
-    setPreview({ url, filename: `Informe_General_Recepciones_${sufijo}.html` });
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Informe_General_Recepciones_${sufijo}.html` }; });
   };
 
   const descargarInforme = () => {
@@ -547,7 +548,10 @@ export default function RecepcionesTab({ mob }) {
   };
 
   const guardar = async () => {
-    if (!form.fecha) return;
+    if (!form.fecha) {
+      alert("Falta la fecha de la recepción.");
+      return;
+    }
     setGuardando(true);
     const estibasCalc = form.estibas.map(e => ({ ...e, descuentoEstiba: descuentoEstiba(e), pesoNeto: pesoNetoEstiba(e) }));
     const ok = await guardarRecepcion({ ...form, estibas: estibasCalc, total: totalNeto }, editId);
@@ -664,7 +668,7 @@ export default function RecepcionesTab({ mob }) {
                   <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                  <div><div style={lbl}>Peso bruto</div><input type="number" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></div>
+                  <div><div style={lbl}>Peso bruto</div><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></div>
                   <div><div style={lbl}>Estiba plástica</div>
                     <CustomSelect value={e.estibaPlastica} onChange={ev=>setEstiba(idx,"estibaPlastica",ev.target.value)} style={inp}>
                       <option value="si">Sí</option><option value="no">No</option>
@@ -688,7 +692,7 @@ export default function RecepcionesTab({ mob }) {
                           <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={inpCan}>
                             {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </CustomSelect>
-                          <input type="number" style={inpCan} placeholder="Cantidad" value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
+                          <input type="number" min="0" style={inpCan} placeholder="Cantidad" value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
                           <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", textAlign:"right", whiteSpace:"nowrap" }}>{pesoLinea.toLocaleString("es-CO",{maximumFractionDigits:2})}</div>
                           {multi && (
                             <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={{ ...btnTablaEliminar, padding:"3px 7px" }}>✕</button>
@@ -703,9 +707,9 @@ export default function RecepcionesTab({ mob }) {
                 </div>
 
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
-                  <div><div style={lbl}>Peso estiba</div><input type="number" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
+                  <div><div style={lbl}>Peso estiba</div><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
                   <div><div style={lbl}>Descuento estiba</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
-                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso neto</div><div style={{...inp, background:"rgba(0,201,167,0.1)", color:"#00C9A7", fontWeight:700, display:"flex", alignItems:"center"}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
+                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso neto</div><div style={{...inp, background: pesoNetoEstiba(e) < 0 ? "rgba(240,68,56,0.12)" : "rgba(0,201,167,0.1)", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700, display:"flex", alignItems:"center"}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</div></div>
                 </div>
               </div>
             ))}
@@ -730,7 +734,7 @@ export default function RecepcionesTab({ mob }) {
                 {form.estibas.map((e, idx) => (
                   <tr key={idx} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                     <td style={{ padding:"6px", color:"white", fontWeight:700 }}>{e.numero}</td>
-                    <td style={{ padding:"6px" }}><input type="number" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></td>
+                    <td style={{ padding:"6px" }}><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></td>
                     <td style={{ padding:"6px", minWidth:100 }}>
                       <CustomSelect value={e.estibaPlastica} onChange={ev=>setEstiba(idx,"estibaPlastica",ev.target.value)} style={inp}>
                         <option value="si">Sí</option><option value="no">No</option>
@@ -746,7 +750,7 @@ export default function RecepcionesTab({ mob }) {
                               <CustomSelect value={c.tipo} onChange={ev=>setCanastilla(idx,ci,"tipo",ev.target.value)} style={inpCan}>
                                 {TIPOS_CANASTILLA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                               </CustomSelect>
-                              <input type="number" style={inpCan} placeholder="Cant." value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
+                              <input type="number" min="0" style={inpCan} placeholder="Cant." value={c.cantidad} onChange={ev=>setCanastilla(idx,ci,"cantidad",ev.target.value)} />
                               <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.5)", textAlign:"right", whiteSpace:"nowrap" }}>{pesoLinea.toLocaleString("es-CO",{maximumFractionDigits:1})}</div>
                               {multi && (
                                 <button onClick={()=>quitarTipoCanastilla(idx,ci)} style={{ ...btnTablaEliminar, padding:"2px 6px" }}>✕</button>
@@ -760,9 +764,9 @@ export default function RecepcionesTab({ mob }) {
                       </div>
                     </td>
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{pesoCanastillasEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-                    <td style={{ padding:"6px" }}><input type="number" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></td>
+                    <td style={{ padding:"6px" }}><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></td>
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
-                    <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
+                    <td style={{ padding:"6px", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700 }}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</td>
                     <td style={{ padding:"6px" }}>
                       <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>✕</button>
                     </td>
@@ -861,7 +865,7 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
                       <button onClick={()=>verInforme(r)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, color:"#00C9A7", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>📄 Informe</button>
                       <button onClick={()=>editarRecepcion(r)} style={btnTablaEditar}>Editar</button>
-                      <button onClick={()=>eliminarRecepcion(r.id)} style={btnTablaEliminar}>Eliminar</button>
+                      <button onClick={()=>{ if (window.confirm(`¿Eliminar la recepción con remisión "${r.remision || r.id}"? Esta acción no se puede deshacer.`)) eliminarRecepcion(r.id); }} style={btnTablaEliminar}>Eliminar</button>
                     </td>
                   </tr>
                 ))}
