@@ -1041,11 +1041,11 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 
     // Construir lista de predios ordenada por calibre desc
     const growers = CALIBRES.slice().reverse()
-      .filter(cal => assignments[cal])
+      .filter(cal => assignments[cal] && cajasPerCal[cal] > 0)
       .map(cal => {
         const predio = PREDIOS.find(p => p.registro === assignments[cal]);
         if (!predio) return null;
-        return { ...predio, cajas: cajasPerCal[cal] || 0 };
+        return { ...predio, cajas: cajasPerCal[cal] };
       })
       .filter(Boolean);
 
