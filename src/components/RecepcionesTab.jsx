@@ -259,6 +259,7 @@ async function generarInformeGeneralHTML(recs, desde, hasta) {
   const entradas     = recs.filter(r => r.tipo === "entrada").length;
   const salidas      = recs.filter(r => r.tipo === "salida").length;
   const totalEstibas = recs.reduce((a, r) => a + (r.estibas?.length || 0), 0);
+  const totalCanastillas = recs.reduce((a, r) => a + (r.estibas || []).reduce((s, e) => s + canastillasDeEstiba(e).reduce((x, c) => x + num(c.cantidad), 0), 0), 0);
   const promedio      = recs.length ? totalNeto / recs.length : 0;
 
   const filas = recs.map(r => `
@@ -292,7 +293,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 
 .content{padding:28px 34px 8px}
 
-.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
 .card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.05)}
 .card-ic{font-size:16px;margin-bottom:2px}
 .card-val{font-size:18px;font-weight:800;color:#1D6F42;line-height:1.15}
@@ -340,6 +341,7 @@ tfoot td{background:#e8f5e9;font-weight:800;border-top:2px solid #1D6F42}
       <div class="card"><div class="card-ic">⬇️</div><div class="card-val">${entradas}</div><div class="card-lbl">Entradas</div></div>
       <div class="card"><div class="card-ic">⬆️</div><div class="card-val">${salidas}</div><div class="card-lbl">Salidas</div></div>
       <div class="card"><div class="card-ic">🧱</div><div class="card-val">${totalEstibas}</div><div class="card-lbl">Estibas totales</div></div>
+      <div class="card"><div class="card-ic">📦</div><div class="card-val">${totalCanastillas.toLocaleString("es-CO")}</div><div class="card-lbl">Canastillas totales</div></div>
       <div class="card"><div class="card-ic">⚖️</div><div class="card-val">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="card-lbl">Kg netos totales</div></div>
     </div>
 
