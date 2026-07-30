@@ -80,7 +80,7 @@ const COL_CAL = {
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
 const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral"];
-const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
 function pick(obj, keys) {
@@ -160,6 +160,9 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const [previewInforme, setPreviewInforme] = useState(null); // { url, filename }
   useEffect(() => () => { if (previewInforme?.url) URL.revokeObjectURL(previewInforme.url); }, [previewInforme]);
 
+  // ── Carta de Responsabilidad ─────────────────────────────────────
+  const [cartaResp, setCartaResp] = useState(null); // null = cerrada; objeto = formulario abierto
+
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
     background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
@@ -233,7 +236,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     vessel:"", palletCerts:[{ ica:"", palletNo:"" }],
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
-    conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
+    conductor:"", cedulaConductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
     // ── Paso 2 — Camión: termoregistro, precinto, temperaturas y pallet(s) con ICA ──
     termoregistroCamion:"", termoregistroCamionPalletNo:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
     icaCamion:[{ ica:"", palletNo:"" }],
@@ -1831,6 +1834,152 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
     }
   };
 
+  // ── Carta de Responsabilidad — datos fijos de la empresa/representante,
+  // no cambian por envío, así que van directo en el HTML sin pasar por el
+  // formulario ──────────────────────────────────────────────────
+  const CARTA_FIJOS = {
+    representanteNombre: "JUAN ABUCHAIBE",
+    representanteFirma:  "Juan Alberto Abuchaibe Raheb",
+    representanteCedula: "1140828407",
+    representanteExpedida: "Campo de la Cruz - Atlántico",
+    empresaNombre: "Tierra Prometida Trading",
+    empresaNit:    "901078532-0",
+  };
+
+  const abrirCartaResp = () => {
+    setCartaResp({
+      fecha: hoy,
+      facturaProforma: "",
+      motonave:      contenedor?.vessel || admin.vessel || "",
+      puertoDestino: admin.destino || "",
+      contenedor:    admin.container || "",
+      precintos:     admin.precintoCamion || "",
+      porcentajeVacio: "5%",
+      mercancia: "LIMON TAHITI",
+      empaque:   `${pallets.length} PALLETS`,
+      pesoNeto:  "22.226",
+      pesoBruto: "22.226",
+      importadorNombre:    "PRINCESSES KINGDOM CORP",
+      importadorDireccion: "1001 S. Dairy Ashford, Suite 100-163 Houston, TX 77077",
+      transportadora: admin.empresaTransporte || "",
+      placa:          admin.placa || "",
+      conductor:      admin.conductor || "",
+      cedulaConductor: admin.cedulaConductor || "",
+      agenciaAduanas: "AGENCIA DE ADUANAS MOVIADUANAS SAS NIVEL 1.",
+      nitAduanas:     "802.000.259-1",
+      vuce: "SI",
+    });
+  };
+
+  const setCartaCampo = (campo, valor) => setCartaResp(c => ({ ...c, [campo]: valor }));
+
+  const generarCartaRespHTML = async (c) => {
+    const logoSrc = await cargarLogoBase64();
+    const fechaFmt = c.fecha
+      ? new Date(c.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" })
+      : "";
+    const campo = (label, valor) => `<div class="fila"><div class="lbl">${label}:</div><div class="val">${valor || "—"}</div></div>`;
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>Carta de Responsabilidad ${admin.container || contenedor?.numContenedor || ""}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#1a1a1a;background:#f4f7f3;font-size:12.5px;line-height:1.5}
+.sheet{max-width:800px;margin:0 auto;background:#fff;padding:40px 46px}
+.logo{width:64px;height:64px;object-fit:contain;margin-bottom:18px}
+.fecha{margin-bottom:16px}
+.destinatario{margin-bottom:14px}
+.destinatario b{display:block}
+.ref{font-weight:800;margin-bottom:14px}
+p{text-align:justify;margin-bottom:14px}
+.campos{margin:18px 0}
+.fila{display:flex;gap:6px;padding:3px 0}
+.fila .lbl{width:260px;flex-shrink:0;font-weight:700}
+.fila .val{font-weight:400}
+.campos .grupo{margin-bottom:10px}
+.legal{font-size:11px;color:#333;text-align:justify;margin-top:18px}
+.firma{margin-top:40px}
+.firma-nombre{margin-top:36px;font-weight:700}
+@media print{
+  body{background:#fff}
+  .sheet{max-width:100%;padding:20mm}
+  @page{size:A4;margin:0}
+}
+</style></head><body>
+<div class="sheet">
+
+  ${logoSrc ? `<img class="logo" src="${logoSrc}" />` : ""}
+
+  <div class="fecha">Barranquilla, ${fechaFmt}</div>
+
+  <div class="destinatario">
+    Señores:<br>
+    <b>POLICÍA ANTINARCÓTICOS</b>
+    <b>COMPAÑÍA ANTINARCÓTICOS</b>
+    <b>PUERTO CARTAGENA</b>
+    Ciudad
+  </div>
+
+  <div class="ref">REF: CARTA DE RESPONSABILIDAD</div>
+
+  <p>Yo, ${CARTA_FIJOS.representanteNombre}, identificado con cédula de ciudadanía Nº. ${CARTA_FIJOS.representanteCedula} expedida en ${CARTA_FIJOS.representanteExpedida}, en condición de representante de la empresa <b>${CARTA_FIJOS.empresaNombre}</b> con NIT: <b>${CARTA_FIJOS.empresaNit}</b>, certifico que el contenido de la presente carga se ajusta a lo declarado en la factura proforma Nº <b>${c.facturaProforma || "—"}</b>, correspondiente a nuestro despacho así:</p>
+
+  <div class="campos">
+    ${campo("NOMBRE MOTONAVE Y NUMERO DE VIAJE", c.motonave)}
+    ${campo("PUERTO DE DESTINO", c.puertoDestino)}
+    ${campo("PREFIJO DEL CONTENEDOR", c.contenedor)}
+    ${campo("NUMERO DE PRECINTOS", c.precintos)}
+    ${campo("PORCENTAJE VACIO", c.porcentajeVacio)}
+    ${campo("DESCRIPCION DE LA MERCANCIA", c.mercancia)}
+    ${campo("EMPAQUE", c.empaque)}
+    ${campo("PESO NETO", c.pesoNeto ? `${c.pesoNeto} KGS` : "")}
+    ${campo("PESO BRUTO", c.pesoBruto ? `${c.pesoBruto} KGS` : "")}
+    <div class="fila"><div class="lbl">IMPORTADOR (DIRECCIÓN):</div><div class="val">${c.importadorNombre || "—"}<br>${c.importadorDireccion || ""}</div></div>
+  </div>
+
+  <div class="campos">
+    ${campo("EMPRESA TRANSPORTADORA", c.transportadora)}
+    ${campo("PLACA", c.placa)}
+    ${campo("NOMBRE DEL CONDUCTOR", c.conductor)}
+    ${campo("NUMERO DE CEDULA", c.cedulaConductor)}
+    ${campo("NOMBRE AGENCIA DE ADUANAS", c.agenciaAduanas)}
+    ${campo("NIT", c.nitAduanas)}
+  </div>
+
+  <div class="fila"><div class="lbl">ALCANCE POR LA VUCE:</div><div class="val">SI ${c.vuce === "SI" ? "_X_" : "___"} NO ${c.vuce === "NO" ? "_X_" : "___"}</div></div>
+
+  <p class="legal">Nos hacemos responsables por el contenido de esta carga ante las autoridades colombianas, extranjeras y ante el transportador, en caso que se encuentren sustancias o elementos narcóticos, explosivo, ilícitos o prohibidos (estipulado en las normas internacionales excepción de aquellos que expresamente se han declarado como tal), armas, o partes de ellas, municiones, material de guerra o sus partes u otros elementos que no cumplan con las obligaciones legales establecidas para este tipo de carga, siempre que se conserve sus empaques, características y sellos originales con las que sea entregada al transportador. El embarque ha sido preparado en lugares con óptimas condiciones de seguridad y protegido de toda intervención ilícita durante su preparación, embalaje, almacenamiento y transporte hacia las instalaciones portuarias y cumple con todos los requisitos exigidos por la ley.</p>
+
+  <div class="firma">
+    Atentamente,
+    <div class="firma-nombre">NOMBRE: ${CARTA_FIJOS.representanteFirma}</div>
+    <div>C.C. ${CARTA_FIJOS.representanteCedula} REPRESENTANTE LEGAL</div>
+  </div>
+
+</div>
+</body></html>`;
+    return html;
+  };
+
+  const generarYVerCarta = async (modo = "previsualizar") => {
+    const html = await generarCartaRespHTML(cartaResp);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const u = URL.createObjectURL(blob);
+    const filename = `Carta-Responsabilidad-${admin.container || contenedor?.numContenedor || "packing"}.html`;
+
+    if (modo === "previsualizar") {
+      setPreviewInforme({ url: u, filename });
+      return;
+    }
+
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(u);
+  };
+
   // ── Botones nav ───────────────────────────────────────────────
   const SaveIndicator = () => (
     <div style={{ display:"flex", alignItems:"center", gap:6, fontSize: m ? 12 : 10, color: guardadoOk ? "#00C9A7" : guardando ? "#F9A826" : "rgba(255,255,255,0.3)" }}>
@@ -2196,6 +2345,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             <div><div style={lbl}>Empresa transporte</div><input value={admin.empresaTransporte} onChange={e => sa("empresaTransporte", e.target.value)} placeholder="Transportando Express" style={inp} /></div>
             <div><div style={lbl}>Placa</div><input value={admin.placa} onChange={e => sa("placa", e.target.value)} placeholder="QJN678" style={inp} /></div>
             <div><div style={lbl}>Conductor</div><input value={admin.conductor} onChange={e => sa("conductor", e.target.value)} placeholder="Nombre del conductor" style={inp} /></div>
+            <div><div style={lbl}>Cédula del conductor</div><input value={admin.cedulaConductor} onChange={e => sa("cedulaConductor", e.target.value)} placeholder="Ej: 88.171.056" style={inp} /></div>
             <div><div style={lbl}>Supervisor de cargue</div><input value={admin.supervisorCargue} onChange={e => sa("supervisorCargue", e.target.value)} placeholder="Nombre del supervisor" style={inp} /></div>
             <div><div style={lbl}>Hora de cargue</div><input type="time" value={admin.horaCargue} onChange={e => sa("horaCargue", e.target.value)} style={inp} /></div>
             <div><div style={lbl}>Hora de salida</div><input type="time" value={admin.horaSalida} onChange={e => sa("horaSalida", e.target.value)} style={inp} /></div>
@@ -2260,6 +2410,10 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
               👁 Vista previa
             </button>
           </div>
+
+          <button onClick={abrirCartaResp} style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"rgba(255,255,255,0.85)", cursor:"pointer", fontWeight:700, minHeight: m ? 52 : 38, marginBottom: m ? 14 : 10 }}>
+            📋 Crear Carta de Responsabilidad
+          </button>
 
           <div style={{ display:"flex", gap:8, paddingTop: m ? 0 : 0, alignItems:"center" }}>
             <SaveIndicator />
@@ -2445,6 +2599,68 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             <div style={{ flex:1, display:"flex", gap:8 }}>
               <NavBtn onClick={() => setFase(2)}>← Volver a Camión</NavBtn>
               <NavBtn onClick={() => guardarPaso3()}>💾 Guardar</NavBtn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cartaResp && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", flexDirection:"column", padding: m ? 0 : 24 }}>
+          <div style={{ background:"#1a1a2e", borderRadius: m ? 0 : 14, border: m ? "none" : "1px solid rgba(255,255,255,0.1)", maxWidth:720, width:"100%", margin:"0 auto", maxHeight:"100%", overflowY:"auto", padding: m ? 16 : 22 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ fontSize:14, fontWeight:700, color:"white" }}>📋 Carta de Responsabilidad</div>
+              <button onClick={() => setCartaResp(null)} style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:7, padding:"5px 10px", color:"rgba(255,255,255,0.6)", cursor:"pointer", fontSize:12 }}>✕</button>
+            </div>
+
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:12 }}>
+              Se precargó lo que ya está registrado en este contenedor. Revisa y completa lo que falte antes de generar.
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap:8, marginBottom:8 }}>
+              <div><div style={lbl}>Fecha</div><input type="date" style={inp} value={cartaResp.fecha} onChange={e=>setCartaCampo("fecha", e.target.value)} /></div>
+              <div><div style={lbl}>N° Factura Proforma</div><input style={inp} value={cartaResp.facturaProforma} onChange={e=>setCartaCampo("facturaProforma", e.target.value)} placeholder="Ej: 621" /></div>
+              <div><div style={lbl}>Nombre motonave y N° de viaje</div><input style={inp} value={cartaResp.motonave} onChange={e=>setCartaCampo("motonave", e.target.value)} placeholder="Ej: NEWYORKER" /></div>
+              <div><div style={lbl}>Puerto de destino</div><input style={inp} value={cartaResp.puertoDestino} onChange={e=>setCartaCampo("puertoDestino", e.target.value)} placeholder="Ej: MIAMI FL" /></div>
+              <div><div style={lbl}>Prefijo del contenedor</div><input style={inp} value={cartaResp.contenedor} onChange={e=>setCartaCampo("contenedor", e.target.value)} /></div>
+              <div><div style={lbl}>N° de precintos</div><input style={inp} value={cartaResp.precintos} onChange={e=>setCartaCampo("precintos", e.target.value)} /></div>
+              <div><div style={lbl}>Porcentaje vacío</div><input style={inp} value={cartaResp.porcentajeVacio} onChange={e=>setCartaCampo("porcentajeVacio", e.target.value)} placeholder="Ej: 5%" /></div>
+              <div><div style={lbl}>Descripción de la mercancía</div><input style={inp} value={cartaResp.mercancia} onChange={e=>setCartaCampo("mercancia", e.target.value)} /></div>
+              <div><div style={lbl}>Empaque</div><input style={inp} value={cartaResp.empaque} onChange={e=>setCartaCampo("empaque", e.target.value)} /></div>
+              <div><div style={lbl}>Peso neto (KGS)</div><input style={inp} value={cartaResp.pesoNeto} onChange={e=>setCartaCampo("pesoNeto", e.target.value)} /></div>
+              <div><div style={lbl}>Peso bruto (KGS)</div><input style={inp} value={cartaResp.pesoBruto} onChange={e=>setCartaCampo("pesoBruto", e.target.value)} /></div>
+              <div><div style={lbl}>Empresa transportadora</div><input style={inp} value={cartaResp.transportadora} onChange={e=>setCartaCampo("transportadora", e.target.value)} /></div>
+              <div><div style={lbl}>Placa</div><input style={inp} value={cartaResp.placa} onChange={e=>setCartaCampo("placa", e.target.value)} /></div>
+              <div><div style={lbl}>Nombre del conductor</div><input style={inp} value={cartaResp.conductor} onChange={e=>setCartaCampo("conductor", e.target.value)} /></div>
+              <div><div style={lbl}>N° de cédula del conductor</div><input style={inp} value={cartaResp.cedulaConductor} onChange={e=>setCartaCampo("cedulaConductor", e.target.value)} placeholder="Ej: 88.171.056" /></div>
+            </div>
+
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:0.5, margin:"12px 0 6px" }}>Importador</div>
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap:8, marginBottom:8 }}>
+              <div><div style={lbl}>Nombre</div><input style={inp} value={cartaResp.importadorNombre} onChange={e=>setCartaCampo("importadorNombre", e.target.value)} /></div>
+              <div><div style={lbl}>Dirección</div><input style={inp} value={cartaResp.importadorDireccion} onChange={e=>setCartaCampo("importadorDireccion", e.target.value)} /></div>
+            </div>
+
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:0.5, margin:"12px 0 6px" }}>Agencia de aduanas</div>
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap:8, marginBottom:8 }}>
+              <div><div style={lbl}>Nombre</div><input style={inp} value={cartaResp.agenciaAduanas} onChange={e=>setCartaCampo("agenciaAduanas", e.target.value)} /></div>
+              <div><div style={lbl}>NIT</div><input style={inp} value={cartaResp.nitAduanas} onChange={e=>setCartaCampo("nitAduanas", e.target.value)} /></div>
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <div style={lbl}>Alcance por la VUCE</div>
+              <CustomSelect value={cartaResp.vuce} onChange={e=>setCartaCampo("vuce", e.target.value)} style={{ ...inp, maxWidth:160 }}>
+                <option value="SI">SI</option>
+                <option value="NO">NO</option>
+              </CustomSelect>
+            </div>
+
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => generarYVerCarta("previsualizar")} style={{ flex:1, background:"rgba(0,201,167,0.15)", border:"1px solid rgba(0,201,167,0.4)", borderRadius:8, color:"#00C9A7", padding:"10px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                👁 Vista previa
+              </button>
+              <button onClick={() => generarYVerCarta("descargar")} style={{ flex:1, background:"linear-gradient(135deg,#6366F1,#8B5CF6)", border:"none", borderRadius:8, color:"white", padding:"10px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                📥 Descargar
+              </button>
             </div>
           </div>
         </div>

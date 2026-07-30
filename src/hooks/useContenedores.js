@@ -19,6 +19,7 @@ const rowToCont = (r) => ({
   grupoNoche:    r.grupo_noche     || "",
   booking:       r.booking         || "",
   naviera:       r.naviera         || "",
+  vessel:        r.vessel          || "",
   destino:       r.destino         || "",
   trazabilidad:  Array.isArray(r.trazabilidad) ? r.trazabilidad : [],
 });
@@ -138,6 +139,7 @@ export function useContenedores() {
       grupo_noche:    form.grupoNoche     || null,
       booking:        form.booking        || null,
       naviera:        form.naviera        || null,
+      vessel:         form.vessel         || null,
       destino:        form.destino        || null,
       trazabilidad:   form.trazabilidad   || [],
     };

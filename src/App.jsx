@@ -3262,7 +3262,7 @@ function ContenedoresDemo() {
   const empleadosContReal = empleadosCont.length > 0 ? empleadosCont : EMPLEADOS_DB;
 
   // ── Tab 0: Contenedores ──
-  const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", destino:"Miami, FL", trazabilidad:[] };
+  const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", vessel:"", destino:"Miami, FL", trazabilidad:[] };
   const [showForm, setShowForm]   = useState(false);
   const [editIdx, setEditIdx]     = useState(null); // container id or null
   const [busqueda, setBusqueda]   = useState("");
@@ -3468,6 +3468,7 @@ function ContenedoresDemo() {
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Booking #</div><input value={form.booking} onChange={e=>setForm(p=>({...p,booking:e.target.value}))} placeholder="Ej: BK-20260312-01" style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Naviera</div><input value={form.naviera} onChange={e=>setForm(p=>({...p,naviera:e.target.value}))} placeholder="Ej: Maersk, MSC..." style={inp} /></div>
+                  <div style={{flex:1}}><div style={lbl}>Motonave</div><input value={form.vessel} onChange={e=>setForm(p=>({...p,vessel:e.target.value}))} placeholder="Ej: NEWYORKER" style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>Destino</div><input value={form.destino} onChange={e=>setForm(p=>({...p,destino:e.target.value}))} placeholder="Miami, FL" style={inp} /></div>
                 </div>
                 <div><div style={lbl}>Supervisores a cargo</div><input value={form.operadores} onChange={e=>setForm(p=>({...p,operadores:e.target.value}))} placeholder="Ej: Jhair Andres Uribe..." style={inp} /></div>
