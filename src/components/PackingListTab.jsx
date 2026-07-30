@@ -122,6 +122,19 @@ async function cargarLogoBase64() {
   } catch { return ""; }
 }
 
+// Firma escaneada del representante legal, para la Carta de Responsabilidad.
+async function cargarFirmaBase64() {
+  try {
+    const res  = await fetch("/firma-abuchaibe.jpeg");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(blob);
+    });
+  } catch { return ""; }
+}
+
 // Pre-fill admin desde datos del contenedor
 function adminDesdeContenedor(cont) {
   if (!cont) return {};
@@ -1874,7 +1887,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
   const setCartaCampo = (campo, valor) => setCartaResp(c => ({ ...c, [campo]: valor }));
 
   const generarCartaRespHTML = async (c) => {
-    const logoSrc = await cargarLogoBase64();
+    const logoSrc  = await cargarLogoBase64();
+    const firmaSrc = await cargarFirmaBase64();
     const fechaFmt = c.fecha
       ? new Date(c.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" })
       : "";
@@ -1900,7 +1914,8 @@ p{text-align:justify;margin-bottom:14px}
 .campos .grupo{margin-bottom:10px}
 .legal{font-size:11px;color:#333;text-align:justify;margin-top:18px}
 .firma{margin-top:40px}
-.firma-nombre{margin-top:36px;font-weight:700}
+.firma-img{height:70px;object-fit:contain;display:block;margin-top:10px}
+.firma-nombre{margin-top:10px;font-weight:700}
 @media print{
   body{background:#fff}
   .sheet{max-width:100%;padding:20mm}
@@ -1953,6 +1968,7 @@ p{text-align:justify;margin-bottom:14px}
 
   <div class="firma">
     Atentamente,
+    ${firmaSrc ? `<img class="firma-img" src="${firmaSrc}" />` : ""}
     <div class="firma-nombre">NOMBRE: ${CARTA_FIJOS.representanteFirma}</div>
     <div>C.C. ${CARTA_FIJOS.representanteCedula} REPRESENTANTE LEGAL</div>
   </div>
