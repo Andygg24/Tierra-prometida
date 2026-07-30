@@ -4942,7 +4942,7 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     <div class="card" style="border-left-color:#0369a1;"><div class="lbl">Kg procesados reales</div><div class="val" style="color:#0369a1;">${totales.kilosProcesadosReales.toLocaleString("es-CO")}</div><div class="sub2">base del rendimiento</div></div>` : ""}
     <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card" style="border-left-color:#b45309;"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
-    ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">De eso, de primera</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
+    ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kilos de limón de primera devueltos</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
     <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
     <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
   </div>
@@ -5109,7 +5109,7 @@ ${calibreSection}
                     {totales.kilosNoProcesados > 0 && card("Kg no procesados", `${totales.kilosNoProcesados.toLocaleString("es-CO")} kg`, "#fb923c", `real: ${totales.kilosProcesadosReales.toLocaleString("es-CO")} kg`)}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
                     {card("Kg devueltos", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "dato informativo")}
-                    {totales.kilosPrimeraDevueltos > 0 && card("De eso, de primera", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
+                    {totales.kilosPrimeraDevueltos > 0 && card("Kilos de limón de primera devueltos", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
                     {card("Merma del contenedor", `${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg`, "#FF6B6B", "no empacados ni devueltos")}
                     {card("Merma %", `${mermaPct.toFixed(1)}%`, "#FF6B6B", "de lo procesado")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
@@ -5412,7 +5412,7 @@ ${calibreSection}
                         </div>
                         {r.kilosPrimeraDevueltos > 0 && (
                           <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>De eso, de primera</div>
+                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Limón de primera devuelto</div>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{r.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg</div>
                           </div>
                         )}
