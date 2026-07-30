@@ -3308,7 +3308,7 @@ function ContenedoresDemo() {
   const KG_DEL_MONTE = 16.8;
   const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
-  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosProcesados: "", kilosNoProcesados: "", kilosDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosProcesados: "", kilosNoProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
   const calFormDef   = { nombre: "", tipo: "cajas", cantidad: "", marca: "Del Monte" };
   const parseProveedores = (str) => {
     if (!str) return [];
@@ -4642,11 +4642,12 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             kilosNoProcesados:    acc.kilosNoProcesados    + (r.kilosNoProcesados || 0),
             kilosProcesadosReales: acc.kilosProcesadosReales + c.procReal,
             kilosDevueltos:  acc.kilosDevueltos  + r.kilosDevueltos,
+            kilosPrimeraDevueltos: acc.kilosPrimeraDevueltos + (r.kilosPrimeraDevueltos || 0),
             kgEmp:           acc.kgEmp           + c.kgEmp,
             cajasDelMonte:   acc.cajasDelMonte   + r.cajasDelMonte,
             cajasPrincess:   acc.cajasPrincess   + r.cajasPrincess,
           };
-        }, { kilosProcesados: 0, kilosNoProcesados: 0, kilosProcesadosReales: 0, kilosDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
+        }, { kilosProcesados: 0, kilosNoProcesados: 0, kilosProcesadosReales: 0, kilosDevueltos: 0, kilosPrimeraDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
 
         const rendGeneralTotal = totales.kilosProcesadosReales > 0
           ? (totales.kgEmp / totales.kilosProcesadosReales) * 100 : 0;
@@ -4829,7 +4830,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   <td>${r.proveedor ? `<span class="pv-badge">${r.proveedor}</span>` : `<span class="dim">—</span>`}</td>
   <td>${r.kilosProcesados.toLocaleString("es-CO")} kg</td>
   <td style="color:#ea580c;">${r.kilosNoProcesados > 0 ? `${r.kilosNoProcesados.toLocaleString("es-CO")} kg` : `<span class="dim">—</span>`}</td>
-  <td style="color:#b45309;">${r.kilosDevueltos.toLocaleString("es-CO")} kg</td>
+  <td style="color:#b45309;">${r.kilosDevueltos.toLocaleString("es-CO")} kg${r.kilosPrimeraDevueltos > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">de primera: ${r.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg</div>` : ""}</td>
   <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
   <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
   <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
@@ -4941,6 +4942,7 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     <div class="card" style="border-left-color:#0369a1;"><div class="lbl">Kg procesados reales</div><div class="val" style="color:#0369a1;">${totales.kilosProcesadosReales.toLocaleString("es-CO")}</div><div class="sub2">base del rendimiento</div></div>` : ""}
     <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card" style="border-left-color:#b45309;"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
+    ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">De eso, de primera</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
     <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
     <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
   </div>
@@ -5007,7 +5009,7 @@ ${calibreSection}
 
         const abrirFormRend = (r = null) => {
           if (r) {
-            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosProcesados: r.kilosProcesados, kilosNoProcesados: r.kilosNoProcesados || "", kilosDevueltos: r.kilosDevueltos, cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosProcesados: r.kilosProcesados, kilosNoProcesados: r.kilosNoProcesados || "", kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
             setEditRendId(r.id);
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
@@ -5107,6 +5109,7 @@ ${calibreSection}
                     {totales.kilosNoProcesados > 0 && card("Kg no procesados", `${totales.kilosNoProcesados.toLocaleString("es-CO")} kg`, "#fb923c", `real: ${totales.kilosProcesadosReales.toLocaleString("es-CO")} kg`)}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
                     {card("Kg devueltos", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "dato informativo")}
+                    {totales.kilosPrimeraDevueltos > 0 && card("De eso, de primera", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
                     {card("Merma del contenedor", `${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg`, "#FF6B6B", "no empacados ni devueltos")}
                     {card("Merma %", `${mermaPct.toFixed(1)}%`, "#FF6B6B", "de lo procesado")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
@@ -5173,6 +5176,10 @@ ${calibreSection}
                         <div style={lbl}>Kilos devueltos al camión</div>
                         <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={inp} />
                       </div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={lbl}>Kilos de primera procesados y devueltos <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(dato informativo, no afecta ningún cálculo)</span></div>
+                      <input type="number" min="0" step="0.1" value={formRend.kilosPrimeraDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosPrimeraDevueltos: e.target.value }))} placeholder="ej. 300 — limón apto para exportación devuelto por falta de espacio" style={inp} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
@@ -5403,6 +5410,12 @@ ${calibreSection}
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Devueltos</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#F9A826" }}>{r.kilosDevueltos.toLocaleString("es-CO")} kg</div>
                         </div>
+                        {r.kilosPrimeraDevueltos > 0 && (
+                          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
+                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>De eso, de primera</div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{r.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg</div>
+                          </div>
+                        )}
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Rdto. general</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: colorRend(c.rendGen) }}>{c.rendGen.toFixed(1)}%</div>
