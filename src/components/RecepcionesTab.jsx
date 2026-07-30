@@ -414,6 +414,7 @@ export default function RecepcionesTab({ mob }) {
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
   const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
+  const [seccion,     setSeccion]     = useState("form"); // "stats" muestra las tarjetas KPI, ocultas por defecto; formulario e historial siempre visibles
 
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
@@ -588,6 +589,24 @@ export default function RecepcionesTab({ mob }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
+      {/* ── Botón discreto para revelar estadísticas — ocultas por defecto,
+          el operario las abre solo si las necesita ── */}
+      <div style={{ display:"flex", justifyContent:"flex-end" }}>
+        <button
+          onClick={()=>setSeccion(seccion === "stats" ? "form" : "stats")}
+          style={{
+            padding:"6px 12px", borderRadius:20, fontSize:11, fontWeight:600, cursor:"pointer",
+            background: seccion === "stats" ? "#6366F122" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${seccion === "stats" ? "#6366F166" : "rgba(255,255,255,0.12)"}`,
+            color: seccion === "stats" ? "#a5b4fc" : "rgba(255,255,255,0.45)",
+          }}
+        >
+          {seccion === "stats" ? "✕ Ocultar estadísticas" : "👁 Ver estadísticas"}
+        </button>
+      </div>
+
+      {seccion === "stats" && (<>
+
       {/* ── KPIs ── */}
       <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:10 }}>
         {[
@@ -605,6 +624,8 @@ export default function RecepcionesTab({ mob }) {
           </div>
         ))}
       </div>
+
+      </>)}
 
       {/* ── Formulario ── */}
       <div style={cardS}>
