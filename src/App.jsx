@@ -1928,7 +1928,7 @@ const EXTRAS_BASE = [
 
 const PLANTILLAS_CC = [
   {
-    id:"princess_1400", label:"Princess · 1400 cajas", color:"#845EF7",
+    id:"princess_1400", label:"Princesses · 1400 cajas", color:"#845EF7",
     totalRef: 16312222,
     items:{
       3:{cant:1400, costoUnit:6113}, 4:{cant:0, costoUnit:7112},
@@ -1944,7 +1944,7 @@ const PLANTILLAS_CC = [
     extras: EXTRAS_BASE,
   },
   {
-    id:"princess_1600", label:"Princess · 1600 cajas", color:"#6366F1",
+    id:"princess_1600", label:"Princesses · 1600 cajas", color:"#6366F1",
     totalRef: 17632427,
     items:{
       3:{cant:1600, costoUnit:6113}, 4:{cant:0, costoUnit:7112},
@@ -3432,8 +3432,8 @@ function ContenedoresDemo() {
                     <CustomSelect value={form.producto} onChange={e=>setForm(p=>({...p,producto:e.target.value}))} style={inp}>
                       <option value="" style={{background:"#1a1a2e"}}>Seleccionar...</option>
                       <option style={{background:"#1a1a2e"}}>Caja Del Monte</option>
-                      <option style={{background:"#1a1a2e"}}>Caja Princess</option>
-                      <option style={{background:"#1a1a2e"}}>Caja Del Monte + Princess</option>
+                      <option style={{background:"#1a1a2e"}}>Caja Princesses</option>
+                      <option style={{background:"#1a1a2e"}}>Caja Del Monte + Princesses</option>
                     </CustomSelect>
                   </div>
                 </div>
@@ -4697,7 +4697,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   <div style="display:inline-block;padding:5px 20px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px;background:${gColor}15;color:${gColor};border:1.5px solid ${gColor}60;font-family:'Segoe UI',Arial,sans-serif;">${gLabel}</div>
 </div>`;
 
-          // ── Mini barra para DM/Princess ────────────────────────────
+          // ── Mini barra para DM/Princesses ────────────────────────────
           const miniGauge = (pct, color, label) => `
 <div style="padding:4px 0;">
   <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">${label}</div>
@@ -4717,7 +4717,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             cont.turno      ? `<span><b>Turno:</b> ${cont.turno}</span>`           : "",
           ].filter(Boolean).join('<span style="color:#cbd5e1;margin:0 6px;">·</span>');
 
-          // ── Split bar DM vs Princess ─────────────────────────────────
+          // ── Split bar DM vs Princesses ─────────────────────────────────
           const totalCajas = totales.cajasDelMonte + totales.cajasPrincess;
           const pctDMc  = totalCajas > 0 ? (totales.cajasDelMonte / totalCajas * 100) : 50;
           const pctPric = 100 - pctDMc;
@@ -4905,18 +4905,16 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     ${(totales.cajasDelMonte > 0 || totales.cajasPrincess > 0) ? `
     <div style="border-top:1px solid #f0f0f0;padding:14px 16px 6px;display:grid;grid-template-columns:${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? "1fr 1fr" : "1fr"};gap:16px;">
       ${totales.cajasDelMonte > 0 ? miniGauge(rendDMTotal,  "#16a34a", "Del Monte") : ""}
-      ${totales.cajasPrincess > 0 ? miniGauge(rendPriTotal, "#ca8a04", "Princess") : ""}
+      ${totales.cajasPrincess > 0 ? miniGauge(rendPriTotal, "#ca8a04", "Princesses") : ""}
     </div>` : ""}
   </div>
   <div class="cards">
-    <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princess` : ""].filter(Boolean).join(" · ")}</div></div>
+    <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princesses` : ""].filter(Boolean).join(" · ")}</div></div>
     <div class="card"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">kg entrada</div></div>
     <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
     <div class="card"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
     <div class="card"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
-    ${totales.cajasDelMonte > 0 ? `<div class="card"><div class="lbl">Rdto. Del Monte</div><div class="val" style="color:#16a34a;">${rendDMTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg empacados</div></div>` : ""}
-    ${totales.cajasPrincess > 0 ? `<div class="card"><div class="lbl">Rdto. Princess</div><div class="val" style="color:#ca8a04;">${rendPriTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg empacados</div></div>` : ""}
   </div>
 </div>
 
@@ -4924,7 +4922,7 @@ ${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? `
 <div class="split-wrap">
   <div class="split-legend">
     <span><span class="split-dot" style="background:#6366f1;"></span>Del Monte: <b>${totales.cajasDelMonte} cajas</b> (${pctDMc.toFixed(1)}%)</span>
-    <span><span class="split-dot" style="background:#a855f7;"></span>Princess: <b>${totales.cajasPrincess} cajas</b> (${pctPric.toFixed(1)}%)</span>
+    <span><span class="split-dot" style="background:#a855f7;"></span>Princesses: <b>${totales.cajasPrincess} cajas</b> (${pctPric.toFixed(1)}%)</span>
   </div>
   <div class="split-bar">
     <div style="background:#6366f1;width:${pctDMc.toFixed(1)}%;"></div>
@@ -5084,7 +5082,7 @@ ${calibreSection}
                     {card("Merma %", `${mermaPct.toFixed(1)}%`, "#FF6B6B", "de lo procesado")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
                       `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
-                    {totales.cajasPrincess > 0 && card("Rdto. Princess", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
+                    {totales.cajasPrincess > 0 && card("Rdto. Princesses", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
                       `${totales.cajasPrincess} cajas · ${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg`)}
                   </div>
                 )}
@@ -5149,7 +5147,7 @@ ${calibreSection}
                         <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={inp} />
                       </div>
                       <div>
-                        <div style={lbl}>Cajas Princess (15.7 kg)</div>
+                        <div style={lbl}>Cajas Princesses (15.7 kg)</div>
                         <input type="number" min="0" value={formRend.cajasPrincess} onChange={e => setFormRend(f => ({ ...f, cajasPrincess: e.target.value }))} placeholder="0" style={inp} />
                       </div>
                     </div>
@@ -5185,7 +5183,7 @@ ${calibreSection}
                                   <div style={{ fontSize: 13, fontWeight: 700, color: "#818CF8" }}>{rdm}%</div>
                                 </div>
                                 <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px" }}>
-                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Rdto. Princess</div>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Rdto. Princesses</div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
                                 </div>
                               </>
@@ -5299,7 +5297,7 @@ ${calibreSection}
                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Marca</div>
                             <CustomSelect value={calForm.marca} onChange={e => setCalForm(f => ({ ...f, marca: e.target.value }))} style={{ ...inp }}>
                               <option>Del Monte</option>
-                              <option>Princess</option>
+                              <option>Princesses</option>
                             </CustomSelect>
                           </div>
                         )}
@@ -5372,7 +5370,7 @@ ${calibreSection}
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#818CF8" }}>{c.rendDM.toFixed(1)}%</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Princess ({r.cajasPrincess} cajas)</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Princesses ({r.cajasPrincess} cajas)</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#C084FC" }}>{c.rendPri.toFixed(1)}%</div>
                         </div>
                       </div>
@@ -6484,7 +6482,7 @@ function EstadisticasDemo() {
 
 // ─── MÓDULO PEDIDOS / CLIENTES ───────────────────────────────
 const CLIENTES_BASE = [
-  { id:1, nombre:"Princess Kingdom Corp",    pais:"🇺🇸 USA",      contacto:"Carlos Morales", tel:"+17867102522", tipo:"Exportación" },
+  { id:1, nombre:"Princesses Kingdom Corp",    pais:"🇺🇸 USA",      contacto:"Carlos Morales", tel:"+17867102522", tipo:"Exportación" },
   { id:2, nombre:"Comercializadora Nacional", pais:"🇨🇴 Colombia", contacto:"—",              tel:"—",           tipo:"Nacional"    },
 ];
 
@@ -6506,7 +6504,7 @@ function PedidosDemo() {
     const lista = (cfgPed.cfg_exportacion || {}).clientes || [];
     return lista.length > 0 ? lista : CLIENTES_BASE;
   })();
-  const primerCliente = clientes[0]?.nombre || "Princess Kingdom Corp";
+  const primerCliente = clientes[0]?.nombre || "Princesses Kingdom Corp";
 
   const [showForm,       setShowForm]       = useState(false);
   const [editId,         setEditId]         = useState(null);
@@ -7168,7 +7166,7 @@ function ConfigForm({ config, guardar }) {
   }));
 
   const [expData, setExpData] = useState(() => load("cfg_exportacion", {
-    clientes:    [{ id:1, nombre:"Princess Kingdom Corp", ciudad:"Miami", pais:"USA", email:"", tel:"+17867102522" }],
+    clientes:    [{ id:1, nombre:"Princesses Kingdom Corp", ciudad:"Miami", pais:"USA", email:"", tel:"+17867102522" }],
     navieras:    [{ id:1, nombre:"MSC", codigo:"MSC", contacto:"", diasLibres:null, diasLibresDesde:"" }],
     puertos:       ["Miami, FL", "Port Everglades, FL"],
     puertosOrigen: [],
@@ -7875,13 +7873,13 @@ const MODULES = [
   { id:"inicio",        icon:"🏠", title:"Inicio",        color:"#845EF7", demo:{ type:"inicio_live" },        capabilities:["Dashboard ejecutivo","KPIs en tiempo real","Acceso rápido a módulos","Alertas inteligentes","Reloj en vivo","Resumen del negocio"] },
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
   { id:"personal",      icon:"👥", title:"Personal",      color:"#a78bfa", demo:{ type:"personal_live" },     capabilities:["Base de datos 50+ empleados","Búsqueda y filtros","Agregar empleados","Broadcast WhatsApp","Editar fichas","Documentos: CC, PPT, Venezuela"] },
-  { id:"contenedores",  icon:"🚢", title:"Contenedores",  color:"#6366F1", demo:{ type:"contenedores_live" }, capabilities:["Registro por fecha y proceso","N° contenedor y proveedor","Tipo de caja Del Monte / Princess","Supervisores a cargo","Empresa, placa y trailer","Informe descargable"] },
+  { id:"contenedores",  icon:"🚢", title:"Contenedores",  color:"#6366F1", demo:{ type:"contenedores_live" }, capabilities:["Registro por fecha y proceso","N° contenedor y proveedor","Tipo de caja Del Monte / Princesses","Supervisores a cargo","Empresa, placa y trailer","Informe descargable"] },
   { id:"recepciones",   icon:"🍋", title:"Recepción",     color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
   { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Excel, PDF o CSV","JARVIS analiza con IA real","Informe ejecutivo para socios","Historial de análisis","Comparativos con IA","Resumen ejecutivo en segundos"] },
   { id:"asistencia",    icon:"📅", title:"Asistencia",    color:"#4ECDC4", demo:{ type:"asistencia_live" },   capabilities:["Registro diario de asistencia","✅ Presente · ❌ Ausente · ⏰ Tardanza","📋 Licencias y permisos · 🎉 Festivos","Marcar todos en un click","Filtro por nombre y área","Informe mensual descargable"] },
-  { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princess Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
+  { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"pedidos",       icon:"📋", title:"Pedidos",       color:"#0284c7", demo:{ type:"pedidos_live" },       capabilities:["Pipeline visual de estados","CRM clientes y contactos","Gestión completa de pedidos","Valor total en USD","Contenedor por pedido","Registro histórico exportable"] },
   { id:"logistica",     icon:"🚛", title:"Logística",     color:"#F97316", demo:{ type:"logistica_live" },     capabilities:["Gestión de bookings","Estado de contenedores por naviera","Transporte terrestre","Novedades e inspecciones portuarias","Línea de tiempo de 12 hitos","Alertas de días libres y cutoffs"] },
   { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Seguridad y backup"] },
