@@ -1167,6 +1167,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
 
     const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <title>Packing List ${admin.container || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1413,6 +1414,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
       const logoSrc = await cargarLogoBase64();
 
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <title>Informe Planta — ${admin.container || contenedor?.numContenedor || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1649,6 +1651,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
       const pallOk   = pallets.filter(p => palletSum(p) === cpp).length;
 
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <title>Informe Cargue Camión — ${admin.container || contenedor?.numContenedor || ""}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
