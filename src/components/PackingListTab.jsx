@@ -80,7 +80,7 @@ const COL_CAL = {
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
 const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral"];
-const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
 function pick(obj, keys) {
@@ -231,7 +231,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
     conductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
     // ── Paso 2 — Camión: termoregistro, precinto, temperaturas y pallet(s) con ICA ──
-    termoregistroCamion:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
+    termoregistroCamion:"", termoregistroCamionPalletNo:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
     icaCamion:[{ ica:"", palletNo:"" }],
     growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
     ispm15:"CO-68-001 HT",
@@ -1721,7 +1721,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
 
     <h2>🌡 Termoregistro, precinto y temperatura</h2>
     <div class="info-grid">
-      <div class="info-item"><div class="l">Termoregistro</div><div class="v">${admin.termoregistroCamion || "—"}</div></div>
+      <div class="info-item"><div class="l">Termoregistro${admin.termoregistroCamionPalletNo ? ` — Pallet #${admin.termoregistroCamionPalletNo}` : ""}</div><div class="v">${admin.termoregistroCamion || "—"}</div></div>
       <div class="info-item"><div class="l">N° de precinto</div><div class="v">${admin.precintoCamion || "—"}</div></div>
       <div class="info-item"><div class="l">Temp. de llegada</div><div class="v">${admin.tempLlegadaCamion ? `${admin.tempLlegadaCamion}°C` : "—"}</div></div>
       <div class="info-item"><div class="l">Temp. de salida</div><div class="v">${admin.tempSalidaCamion ? `${admin.tempSalidaCamion}°C` : "—"}</div></div>
@@ -2145,9 +2145,10 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
           <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(2,1fr)", gap: m ? 10 : 8, marginBottom: m ? 14 : 12 }}>
             <div style={cardS}>
               <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 6, fontWeight:700 }}>🌡 TERMOREGISTRO / PRECINTO / TEMPERATURA</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6, marginBottom: m ? 8 : 6 }}>
+              <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 90px" : "1fr 90px 1fr", gap: m ? 10 : 6, marginBottom: m ? 8 : 6 }}>
                 <div><div style={lbl}>Termoregistro</div><input value={admin.termoregistroCamion} onChange={e => sa("termoregistroCamion", e.target.value)} placeholder="N° de termoregistro" style={inp} /></div>
-                <div><div style={lbl}>N° de precinto</div><input value={admin.precintoCamion} onChange={e => sa("precintoCamion", e.target.value)} placeholder="Precinto de seguridad" style={inp} /></div>
+                <div><div style={lbl}>En pallet #</div><input type="number" inputMode="numeric" min={1} max={20} value={admin.termoregistroCamionPalletNo} onChange={e => sa("termoregistroCamionPalletNo", e.target.value)} style={inp} /></div>
+                <div style={{ gridColumn: m ? "1 / -1" : "auto" }}><div style={lbl}>N° de precinto</div><input value={admin.precintoCamion} onChange={e => sa("precintoCamion", e.target.value)} placeholder="Precinto de seguridad" style={inp} /></div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: m ? 10 : 6 }}>
                 {campoTemperatura("Temp. de llegada", admin.tempLlegadaCamion, v => sa("tempLlegadaCamion", v), "6.5")}
