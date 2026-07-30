@@ -4648,6 +4648,13 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
         const rendPriTotal = totales.kilosProcesados > 0
           ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesados) * 100 : 0;
 
+        // Merma: lo que no terminó ni empacado en cajas ni devuelto al
+        // proveedor — se pierde en el proceso (jugo, fruta dañada, descarte).
+        // No cambia el % de Rendimiento General, solo se muestra junto a él
+        // para explicar la diferencia entre lo procesado y lo empacado.
+        const mermaTotal = totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos;
+        const mermaPct   = totales.kilosProcesados > 0 ? (mermaTotal / totales.kilosProcesados) * 100 : 0;
+
         const colorRend = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
 
         const proveedoresCont = parseProveedores(contSelRend?.proveedor);
@@ -4895,21 +4902,25 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
 <div class="summary-row">
   <div class="gauge-box">
     ${gaugeBox}
-    <div style="border-top:1px solid #f0f0f0;padding:14px 16px 6px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      ${miniGauge(rendDMTotal,  "#16a34a", "Del Monte")}
-      ${miniGauge(rendPriTotal, "#ca8a04", "Princess")}
-    </div>
+    ${(totales.cajasDelMonte > 0 || totales.cajasPrincess > 0) ? `
+    <div style="border-top:1px solid #f0f0f0;padding:14px 16px 6px;display:grid;grid-template-columns:${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? "1fr 1fr" : "1fr"};gap:16px;">
+      ${totales.cajasDelMonte > 0 ? miniGauge(rendDMTotal,  "#16a34a", "Del Monte") : ""}
+      ${totales.cajasPrincess > 0 ? miniGauge(rendPriTotal, "#ca8a04", "Princess") : ""}
+    </div>` : ""}
   </div>
   <div class="cards">
+    <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princess` : ""].filter(Boolean).join(" · ")}</div></div>
     <div class="card"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">kg entrada</div></div>
     <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
-    <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${totales.cajasDelMonte} Del Monte · ${totales.cajasPrincess} Princess</div></div>
-    <div class="card"><div class="lbl">Rdto. Del Monte</div><div class="val" style="color:#16a34a;">${rendDMTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg empacados</div></div>
-    <div class="card"><div class="lbl">Rdto. Princess</div><div class="val" style="color:#ca8a04;">${rendPriTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg empacados</div></div>
+    <div class="card"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
+    <div class="card"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
+    ${totales.cajasDelMonte > 0 ? `<div class="card"><div class="lbl">Rdto. Del Monte</div><div class="val" style="color:#16a34a;">${rendDMTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg empacados</div></div>` : ""}
+    ${totales.cajasPrincess > 0 ? `<div class="card"><div class="lbl">Rdto. Princess</div><div class="val" style="color:#ca8a04;">${rendPriTotal.toFixed(1)}%</div><div class="sub2">${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg empacados</div></div>` : ""}
   </div>
 </div>
 
+${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? `
 <div class="split-wrap">
   <div class="split-legend">
     <span><span class="split-dot" style="background:#6366f1;"></span>Del Monte: <b>${totales.cajasDelMonte} cajas</b> (${pctDMc.toFixed(1)}%)</span>
@@ -4919,7 +4930,7 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     <div style="background:#6366f1;width:${pctDMc.toFixed(1)}%;"></div>
     <div style="background:#a855f7;width:${pctPric.toFixed(1)}%;"></div>
   </div>
-</div>
+</div>` : ""}
 
 ${providerSection}
 
@@ -5069,11 +5080,11 @@ ${calibreSection}
                     {card("Kg procesados", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`)}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
                     {card("Kg devueltos", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "dato informativo")}
-                    {card("Rdto. general", `${rendGeneralTotal.toFixed(1)}%`, colorRend(rendGeneralTotal),
-                      `${totales.cajasDelMonte + totales.cajasPrincess} cajas totales`)}
-                    {card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
+                    {card("Merma del contenedor", `${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg`, "#FF6B6B", "no empacados ni devueltos")}
+                    {card("Merma %", `${mermaPct.toFixed(1)}%`, "#FF6B6B", "de lo procesado")}
+                    {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
                       `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
-                    {card("Rdto. Princess", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
+                    {totales.cajasPrincess > 0 && card("Rdto. Princess", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
                       `${totales.cajasPrincess} cajas · ${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg`)}
                   </div>
                 )}
