@@ -1334,14 +1334,30 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
       ).join("");
 
       // ── Pallets que aportan a cada calibre (panel derecho) ──────────
+      // Un pallet mixto (2+ calibres con cajas) sigue siendo UN solo pallet
+      // físico — no se suma en cada calibre, se agrupa aparte como "Mixto".
+      const sizesPorPallet = pallets.map(p =>
+        [...new Set(p.calibres.filter(c => Number(c.cajas || 0) > 0).map(c => Number(c.size)))]
+      );
       const filasPalletsCalibre = calibresConCajas.map(s => {
-        const nPallets = pallets.filter(p => p.calibres.some(c => Number(c.size) === s && Number(c.cajas || 0) > 0)).length;
+        const nPallets = sizesPorPallet.filter(sizes => sizes.length === 1 && sizes[0] === s).length;
         const col = COL_CAL[s]?.bg || "#94a3b8";
         return `<div class="cal-pallet-row">
           <div class="cal-tag" style="background:${col}">${s}</div>
           <div class="cal-pallet-count"><b>${nPallets}</b> pallet${nPallets !== 1 ? "s" : ""}</div>
         </div>`;
       }).join("");
+      const mixtosMap = {};
+      sizesPorPallet.forEach(sizes => {
+        if (sizes.length > 1) {
+          const key = sizes.slice().sort((a, b) => a - b).join(" + ");
+          mixtosMap[key] = (mixtosMap[key] || 0) + 1;
+        }
+      });
+      const filasPalletsMixtos = Object.entries(mixtosMap).map(([combo, n]) => `<div class="cal-pallet-row">
+          <div class="cal-tag" style="background:#94a3b8;font-size:8.5px;padding:0 3px">${combo}</div>
+          <div class="cal-pallet-count"><b>${n}</b> pallet${n !== 1 ? "s" : ""} mixto${n !== 1 ? "s" : ""}</div>
+        </div>`).join("");
 
       // ── Detalle por pallet — tarjetas, no tabla plana ──
       const pallCards = pallets.map(p => {
@@ -1531,6 +1547,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
       <div class="cal-col-right">
         <div class="cal-col-title">Pallets por calibre</div>
         ${filasPalletsCalibre}
+        ${filasPalletsMixtos ? `<div class="cal-col-title" style="margin-top:10px">Pallets mixtos</div>${filasPalletsMixtos}` : ""}
       </div>
     </div>
 
