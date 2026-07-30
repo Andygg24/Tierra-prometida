@@ -94,6 +94,7 @@ function initPallets(total) {
   return Array.from({ length: 20 }, (_, i) => ({
     id: i + 1,
     calibres: [{ size: 200, cajas: cpp, predio: "", ica: "", plu: false }],
+    listo: false,
   }));
 }
 // El camión/contenedor arranca vacío — el operario lo va llenando
@@ -380,6 +381,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     setPallets(prev => prev.map((p, i) => i !== pi ? p : {
       ...p, calibres: p.calibres.map((c, j) => j !== ci ? c : { ...c, [field]: val }),
     }));
+  // "listo" es del pallet completo (lo marca el supervisor al terminar de
+  // revisarlo en Paso 1), no de un calibre puntual — por eso va aparte de setPF.
+  const setPalletField = (pi, field, val) =>
+    setPallets(prev => prev.map((p, i) => i !== pi ? p : { ...p, [field]: val }));
   // El selector de Calibre/Size incluye "230PLU" como opción aparte de "230" —
   // internamente sigue siendo size:230, solo cambia la bandera plu, para que
   // toda la lógica que hace Number(size) en otros lugares no se rompa.
@@ -454,7 +459,9 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // permitirArrastre habilita arrastre nativo con mouse (drag & drop) además
   // del "tocar para armar y luego tocar destino" — solo se usa en Paso 3
   // (Contenedor); Paso 2 (Camión) queda igual que antes, solo con toque.
-  const renderPalletCard = (pid, idx, col, moverFn, permitirArrastre = false) => {
+  // mostrarListo pinta el badge "LISTO" — solo se activa en Paso 2 (Camión),
+  // para que el operario vea qué pallets ya aprobó el supervisor en Paso 1.
+  const renderPalletCard = (pid, idx, col, moverFn, permitirArrastre = false, mostrarListo = false) => {
     const soltar = (e) => {
       if (!permitirArrastre) return;
       e.preventDefault();
@@ -499,6 +506,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       border = "1px solid rgba(255,255,255,0.25)";
     }
     if (isArmado) { bg = "rgba(99,102,241,0.2)"; border = "2px solid #6366F1"; }
+    const marcadoListo = mostrarListo && !!p.listo;
     return (
       <div
         key={pid}
@@ -521,13 +529,18 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
           transition:"all 0.12s",
           minHeight: m ? 64 : 54, display:"flex", flexDirection:"column", justifyContent:"space-between",
           transform: isArmado ? "scale(1.04)" : "none",
-          boxShadow: isArmado ? "0 0 0 3px rgba(99,102,241,0.3)" : "none",
+          boxShadow: isArmado ? "0 0 0 3px rgba(99,102,241,0.3)" : (marcadoListo ? "0 0 0 2px rgba(0,201,167,0.55)" : "none"),
           WebkitTapHighlightColor:"transparent", userSelect:"none",
         }}
       >
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <span style={{ fontSize: m ? 12 : 11, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{pid}</span>
-          {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
+          <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+            {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
+            {marcadoListo && (
+              <span style={{ fontSize: m ? 8 : 7, fontWeight:800, color:"#00C9A7", background:"rgba(0,201,167,0.18)", border:"1px solid rgba(0,201,167,0.5)", borderRadius:4, padding:"1px 4px", letterSpacing:0.3, lineHeight:1.4 }}>LISTO</span>
+            )}
+          </div>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
           {p.calibres.map((c, ci) => (
@@ -547,7 +560,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   };
 
   // ── Grid visual del vehículo ─────────────────────────────────
-  const renderVehicleGrid = (currentLayout, moverFn, quitarFn, quitarTodosFn, vehicleIcon, vehicleLabel, hint, permitirArrastre = false) => {
+  const renderVehicleGrid = (currentLayout, moverFn, quitarFn, quitarTodosFn, vehicleIcon, vehicleLabel, hint, permitirArrastre = false, mostrarListo = false) => {
     const ubicados      = [...currentLayout.left, ...currentLayout.right].filter(pid => pid !== null);
     const pendientes    = pallets.filter(p => !ubicados.includes(p.id));
     const armadoEnGrid  = armadoPid !== null && ubicados.includes(armadoPid);
@@ -612,6 +625,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                 border = "1px solid rgba(255,255,255,0.25)";
               }
               if (isArmado) { bg = "rgba(99,102,241,0.2)"; border = "2px solid #6366F1"; }
+              const marcadoListo = mostrarListo && !!p.listo;
               return (
                 <button
                   key={p.id}
@@ -628,14 +642,19 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                     transition:"all 0.12s",
                     minHeight: m ? 64 : 54, display:"flex", flexDirection:"column", justifyContent:"space-between",
                     transform: isArmado ? "scale(1.04)" : "none",
-                    boxShadow: isArmado ? "0 0 0 3px rgba(99,102,241,0.3)" : "none",
+                    boxShadow: isArmado ? "0 0 0 3px rgba(99,102,241,0.3)" : (marcadoListo ? "0 0 0 2px rgba(0,201,167,0.55)" : "none"),
                     WebkitTapHighlightColor:"transparent",
                   }}
                 >
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize: m ? 12 : 11, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{p.id}</span>
-                    {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
-                    {ok  && <span style={{ fontSize: m ? 9 : 8, color:"#00C9A7" }}>✓</span>}
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
+                      {ok  && <span style={{ fontSize: m ? 9 : 8, color:"#00C9A7" }}>✓</span>}
+                      {marcadoListo && (
+                        <span style={{ fontSize: m ? 8 : 7, fontWeight:800, color:"#00C9A7", background:"rgba(0,201,167,0.18)", border:"1px solid rgba(0,201,167,0.5)", borderRadius:4, padding:"1px 4px", letterSpacing:0.3, lineHeight:1.4 }}>LISTO</span>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                     {p.calibres.map((c, ci) => (
@@ -725,14 +744,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
-                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn, permitirArrastre))}
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn, permitirArrastre, mostrarListo))}
                     </div>
                   </div>
                   <div style={{ width:7, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:5 }}>
-                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn, permitirArrastre))}
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn, permitirArrastre, mostrarListo))}
                     </div>
                   </div>
                 </div>
@@ -851,14 +870,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>IZQ</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
-                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn, permitirArrastre))}
+                      {currentLayout.left.map((pid, idx) => renderPalletCard(pid, idx, "left", moverFn, permitirArrastre, mostrarListo))}
                     </div>
                   </div>
                   <div style={{ width:8, background:"linear-gradient(180deg,rgba(90,160,210,0.08),rgba(90,160,210,0.03),rgba(90,160,210,0.08))", borderRadius:3, border:"1px solid rgba(90,160,210,0.1)", flexShrink:0 }} />
                   <div style={{ display:"flex", flexDirection:"column", gap:4, flex:1 }}>
                     <div style={{ fontSize:8, fontWeight:800, color:"rgba(99,179,237,0.45)", textAlign:"center", letterSpacing:2 }}>DER</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:4 }}>
-                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn, permitirArrastre))}
+                      {currentLayout.right.map((pid, idx) => renderPalletCard(pid, idx, "right", moverFn, permitirArrastre, mostrarListo))}
                     </div>
                   </div>
                 </div>
@@ -1971,6 +1990,28 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
                   </div>
                   <button onClick={() => setSelPid(null)} style={{ background:"transparent", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 24 : 18, lineHeight:1, padding:"4px 8px", minWidth: m ? 44 : 28, minHeight: m ? 44 : 28 }}>✕</button>
                 </div>
+
+                <div
+                  onClick={() => setPalletField(selPalletIdx, "listo", !selP.listo)}
+                  style={{
+                    display:"flex", alignItems:"center", gap:9, cursor:"pointer", userSelect:"none",
+                    background: selP.listo ? "rgba(0,201,167,0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${selP.listo ? "rgba(0,201,167,0.4)" : "rgba(255,255,255,0.12)"}`,
+                    borderRadius:8, padding: m ? "10px 12px" : "7px 10px", marginBottom:10,
+                  }}
+                >
+                  <div style={{
+                    width: m ? 20 : 17, height: m ? 20 : 17, borderRadius:5, flexShrink:0,
+                    background: selP.listo ? "#00C9A7" : "transparent",
+                    border: `2px solid ${selP.listo ? "#00C9A7" : "rgba(255,255,255,0.3)"}`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize: m ? 13 : 11, color:"#0b1a16", fontWeight:900,
+                  }}>{selP.listo ? "✓" : ""}</div>
+                  <span style={{ fontSize: m ? 13 : 11.5, fontWeight:700, color: selP.listo ? "#00C9A7" : "rgba(255,255,255,0.65)" }}>
+                    {selP.listo ? "✓ Marcado como listo para cargar" : "Marcar como listo para cargar"}
+                  </span>
+                </div>
+
                 {selP.calibres.map((c, ci) => (
                   <div key={ci} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[c.size]?.border||"rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 14 : 10, marginBottom:10 }}>
                     {m ? (
@@ -2139,7 +2180,8 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
           </div>
 
           {renderVehicleGrid(layoutCamion, moverCamion, quitarCamion, quitarTodosCamion, "🚛", "CAMIÓN",
-            "Toca un pallet de la lista (o ya ubicado) y luego la casilla donde va"
+            "Toca un pallet de la lista (o ya ubicado) y luego la casilla donde va",
+            false, true
           )}
 
           <button onClick={guardarYActualizarPaso2} disabled={guardando} style={{ width:"100%", background:"linear-gradient(135deg,#0EA5E9,#0284C7)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: guardando ? "wait" : "pointer", fontWeight:700, opacity: guardando ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: 4 }}>
