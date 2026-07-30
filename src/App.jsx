@@ -4537,10 +4537,11 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
         // Si hay contenedor activo, mostrar el PL
         if (plContenedorActivo) {
+          const contenedorActivoLive = procesos.find(p => p.id === plContenedorActivo.id) || plContenedorActivo;
           return (
             <PackingListTab
               mob={mob}
-              contenedor={plContenedorActivo}
+              contenedor={contenedorActivoLive}
               onClose={() => { setPlContenedorActivo(null); handleTabPL(); }}
             />
           );
@@ -4724,7 +4725,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
           // ── Tabla por proveedor ──────────────────────────────────────
           const providerSection = proveedoresCont.length > 1 ? `
-<h2>Rendimiento por proveedor</h2>
+<h2>🚚 Rendimiento por proveedor</h2>
 <table>
   <thead><tr><th>Proveedor</th><th>Contenedores</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
   <tbody>
@@ -4777,26 +4778,29 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const calibreEntries = Object.entries(calibreAgg).sort(([a],[b]) => a.localeCompare(b));
 
           const calibreSection = calibreEntries.length > 0 ? `
-<h2>Desglose por calibre</h2>
-<table>
-  <thead>
-    <tr><th>Calibre</th><th>Kg total</th><th>% Procesado</th><th>% Empacado</th><th>Barra</th></tr>
-  </thead>
-  <tbody>
+<h2>🎨 Desglose por calibre</h2>
+<div class="chart-wrap">
+  <div class="calibre-note">ℹ️ Los dos porcentajes usan bases distintas: <b>% procesado</b> es sobre el total de kg que <b>entraron</b> (antes de merma); <b>% empacado</b> es sobre el total de kg que <b>quedaron en caja</b> (después de merma). Por eso el % empacado suele ser mayor.</div>
+  <div class="calibre-grid">
     ${calibreEntries.map(([nombre, kg]) => {
       const pctPro = totales.kilosProcesados > 0 ? (kg / totales.kilosProcesados) * 100 : 0;
       const pctEmp = totales.kgEmp > 0 ? (kg / totales.kgEmp) * 100 : 0;
       const cc = pctPro >= 80 ? "#15803d" : pctPro >= 60 ? "#b45309" : "#374151";
-      return `<tr>
-  <td><span style="font-size:14px;font-weight:800;color:#1e1b4b;">${nombre}</span></td>
-  <td style="font-weight:600;color:#15803d;">${kg.toFixed(1)} kg</td>
-  <td><span style="font-weight:700;color:${cc};">${pctPro.toFixed(1)}%</span></td>
-  <td><span style="font-weight:700;color:#6366f1;">${pctEmp.toFixed(1)}%</span></td>
-  <td><div class="bar-cell"><div class="bar-bg" style="width:90px;"><div class="bar-fill" style="width:${Math.min(pctPro,100).toFixed(1)}%;background:${cc};"></div></div></div></td>
-</tr>`;
+      return `
+    <div class="calibre-card">
+      <div class="calibre-head">
+        <span class="calibre-name">${nombre}</span>
+        <span class="calibre-kg">${kg.toFixed(1)} kg</span>
+      </div>
+      <div class="bar-cell">
+        <div class="bar-bg" style="flex:1;width:auto;height:14px;" title="% sobre el total procesado (antes de merma)"><div class="bar-fill" style="width:${Math.min(pctPro,100).toFixed(1)}%;background:${cc};"></div></div>
+        <span style="font-weight:800;color:${cc};min-width:46px;text-align:right;flex-shrink:0;" title="% sobre el total procesado (antes de merma)">${pctPro.toFixed(1)}%</span>
+      </div>
+      <div class="calibre-sub"><span title="% sobre el total de kg que entraron, antes de merma">% del total procesado (kg crudo)</span> &nbsp;·&nbsp; <b style="color:#6366f1;" title="% sobre el total de kg que quedaron empacados, después de merma">${pctEmp.toFixed(1)}%</b> del total empacado (kg en caja)</div>
+    </div>`;
     }).join("")}
-  </tbody>
-</table>` : "";
+  </div>
+</div>` : "";
 
           // ── Tabla detalle con observaciones ─────────────────────────
           const truckRows = rendsDelCont.map((r, i) => {
@@ -4833,48 +4837,60 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; font-size:13px; }
-  .hdr { background:linear-gradient(135deg,#052e16 0%,#14532d 55%,#16a34a 100%); color:#fff; padding:28px 36px 22px; }
-  .hdr h1 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px; }
-  .hdr .sub { font-size:11px; color:rgba(255,255,255,0.6); margin-top:4px; }
-  .hdr .badge { display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:3px 14px; font-size:10px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; }
-  .hdr-top { display:flex; justify-content:space-between; align-items:flex-start; }
-  .hdr-logo { width:44px; height:44px; object-fit:contain; background:#fff; border-radius:10px; padding:5px; flex-shrink:0; }
-  .hdr .pv-tag { display:inline-block; background:rgba(255,255,255,0.12); border-radius:12px; padding:2px 10px; font-size:10px; margin-right:4px; }
-  .infobar { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:9px 36px; font-size:11px; color:#475569; }
-  .body { padding:24px 36px; }
-  h2 { font-size:13px; font-weight:700; color:#14532d; margin:22px 0 10px; padding-bottom:6px; border-bottom:2px solid #bbf7d0; text-transform:uppercase; letter-spacing:.5px; }
-  .summary-row { display:grid; grid-template-columns:240px 1fr; gap:20px; margin-bottom:20px; align-items:start; }
-  .gauge-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px 12px 10px; text-align:center; }
+  .hdr { background:linear-gradient(120deg,#173d1a,#2d7a2d 60%,#3fa142); color:#fff; padding:30px 36px 26px; position:relative; overflow:hidden; }
+  .hdr::after { content:"📊"; position:absolute; right:-10px; top:-22px; font-size:130px; opacity:0.12; transform:rotate(12deg); }
+  .hdr h1 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px; position:relative; }
+  .hdr .sub { font-size:11px; color:rgba(255,255,255,0.75); margin-top:4px; position:relative; }
+  .hdr .badge { display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.28); border-radius:20px; padding:3px 14px; font-size:10px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; }
+  .hdr-top { display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
+  .hdr-logo { width:112px; height:112px; object-fit:contain; background:#fff; border-radius:12px; padding:6px; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
+  .hdr .pv-tag { display:inline-block; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.28); border-radius:20px; padding:3px 11px; font-size:10px; font-weight:600; margin-right:4px; position:relative; }
+  .infobar { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:11px 36px; font-size:11.5px; color:#475569; }
+  .body { padding:32px 40px; }
+  h2 { font-size:14px; font-weight:700; color:#14532d; margin:34px 0 16px; padding-bottom:8px; border-bottom:2px solid #bbf7d0; text-transform:uppercase; letter-spacing:.5px; }
+  h2:first-of-type { margin-top:0; }
+  .summary-row { display:grid; grid-template-columns:260px 1fr; gap:28px; margin-bottom:30px; align-items:start; }
+  .gauge-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:22px 18px 16px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
   .gauge-sub { font-size:10px; color:#64748b; margin-top:6px; }
-  .gauge-types { display:flex; justify-content:center; gap:16px; margin-top:10px; }
-  .cards { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .card { border:1px solid #e2e8f0; border-radius:10px; padding:11px 14px; }
-  .card .lbl { font-size:9px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
-  .card .val { font-size:19px; font-weight:700; color:#1e1b4b; }
-  .card .sub2 { font-size:9px; color:#94a3b8; margin-top:2px; }
-  .split-wrap { margin-bottom:18px; }
-  .split-bar { display:flex; height:13px; border-radius:6px; overflow:hidden; margin-top:7px; }
-  .split-legend { display:flex; gap:16px; font-size:11px; }
+  .gauge-types { display:flex; justify-content:center; gap:20px; margin-top:12px; }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .card { border:1px solid #e2e8f0; border-left:3px solid #cbd5e1; border-radius:12px; padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .card .lbl { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .card .val { font-size:23px; font-weight:800; color:#1e1b4b; }
+  .card .sub2 { font-size:10px; color:#94a3b8; margin-top:4px; }
+  .split-wrap { margin-bottom:30px; }
+  .split-bar { display:flex; gap:2px; height:16px; border-radius:7px; overflow:hidden; margin-top:9px; background:#fff; }
+  .split-bar > div { border-radius:3px; }
+  .split-legend { display:flex; gap:20px; font-size:11.5px; }
   .split-dot { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:middle; }
-  table { width:100%; border-collapse:collapse; margin-bottom:6px; }
-  th { background:#f1f5f9; text-align:left; padding:7px 10px; font-size:10px; color:#475569; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
-  td { padding:7px 10px; border-bottom:1px solid #f8fafc; font-size:11.5px; vertical-align:top; }
-  tr:hover td { background:#fafbff; }
+  table { width:100%; border-collapse:collapse; margin-bottom:8px; }
+  th { background:#f1f5f9; text-align:left; padding:10px 14px; font-size:10px; color:#475569; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+  td { padding:11px 14px; border-bottom:1px solid #f8fafc; font-size:12px; vertical-align:top; }
+  tbody tr:nth-child(even) td { background:#fafbfc; }
+  tr:hover td { background:#f0fdf4; }
   .num-cell { color:#94a3b8; font-size:11px; font-weight:600; }
   .pv-badge { background:#f0fdf4; color:#15803d; border-radius:10px; padding:2px 8px; font-size:10px; font-weight:700; white-space:nowrap; border:1px solid #bbf7d0; }
   .tag-dm  { background:#dcfce7; color:#15803d; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; margin-right:3px; display:inline-block; }
   .tag-pri { background:#fef9c3; color:#854d0e; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; display:inline-block; }
   .obs-chip { background:#fef3c7; color:#92400e; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:600; margin-right:3px; display:inline-block; margin-bottom:2px; }
   .dim { color:#cbd5e1; }
-  .bar-cell { display:flex; align-items:center; gap:8px; }
+  .bar-cell { display:flex; align-items:center; gap:10px; }
   .bar-bg { background:#f1f5f9; border-radius:4px; height:10px; width:70px; overflow:hidden; flex-shrink:0; }
   .bar-fill { height:100%; border-radius:4px; }
-  .chart-wrap { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:20px; }
-  .footer { margin-top:28px; padding:14px 36px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; background:#f8fafc; }
+  .chart-wrap { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; margin-bottom:26px; }
+  .calibre-note { font-size:10.5px; color:#64748b; background:#eef2f7; border:1px solid #dbe3ec; border-radius:8px; padding:9px 12px; margin-bottom:16px; line-height:1.5; }
+  .calibre-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
+  .calibre-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
+  .calibre-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+  .calibre-name { font-size:16px; font-weight:800; color:#1e1b4b; }
+  .calibre-kg { font-size:12px; font-weight:600; color:#15803d; }
+  .calibre-sub { font-size:10px; color:#94a3b8; margin-top:8px; }
+  .footer { margin-top:36px; padding:18px 36px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; background:#f8fafc; }
   @media print {
     .hdr { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     body { font-size:11.5px; }
-    .body { padding:16px 24px; }
+    .body { padding:20px 28px; }
+    .calibre-grid { grid-template-columns:1fr 1fr; }
   }
 </style>
 </head>
@@ -4882,7 +4898,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
 <div class="hdr">
   <div class="hdr-top">
-    <div class="badge">🚢 INFORME DE RENDIMIENTO</div>
+    <div class="badge">📊 INFORME DE RENDIMIENTO</div>
     ${logoSrc ? `<img class="hdr-logo" src="${logoSrc}"/>` : ""}
   </div>
   <h1>${cont.numContenedor}</h1>
@@ -4898,7 +4914,7 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
 
 <div class="body">
 
-<h2>Resumen general</h2>
+<h2>📊 Resumen general</h2>
 <div class="summary-row">
   <div class="gauge-box">
     ${gaugeBox}
@@ -4909,12 +4925,12 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     </div>` : ""}
   </div>
   <div class="cards">
-    <div class="card"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princesses` : ""].filter(Boolean).join(" · ")}</div></div>
-    <div class="card"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">kg entrada</div></div>
-    <div class="card"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
-    <div class="card"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
-    <div class="card"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
-    <div class="card"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
+    <div class="card" style="border-left-color:#6366f1;"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princesses` : ""].filter(Boolean).join(" · ")}</div></div>
+    <div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">kg entrada</div></div>
+    <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
+    <div class="card" style="border-left-color:#b45309;"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
+    <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
+    <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
   </div>
 </div>
 
@@ -4934,12 +4950,12 @@ ${providerSection}
 
 ${calibreSection}
 
-<h2>Rendimiento del proceso</h2>
+<h2>📈 Rendimiento del proceso</h2>
 <div class="chart-wrap">
   ${truckBars}
 </div>
 
-<h2>Detalle por contenedor</h2>
+<h2>📋 Detalle del contenedor</h2>
 <table>
   <thead>
     <tr>
@@ -4953,8 +4969,8 @@ ${calibreSection}
 </div>
 
 <div class="footer">
-  <span>🌿 Tierra Prometida Trading · Sistema JARVIS</span>
-  <span>${fechaHoy}</span>
+  <span>🍋 Tierra Prometida Trading · JARVIS</span>
+  <span>Informe generado el ${fechaHoy}</span>
 </div>
 
 </body></html>`;

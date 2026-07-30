@@ -156,6 +156,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const [claveInput,    setClaveInput]    = useState("");
   const [claveError,    setClaveError]    = useState("");
 
+  // ── Vista previa de informes (Planta / Cargue) ──────────────────
+  const [previewInforme, setPreviewInforme] = useState(null); // { url, filename }
+  useEffect(() => () => { if (previewInforme?.url) URL.revokeObjectURL(previewInforme.url); }, [previewInforme]);
+
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
     background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
@@ -1301,7 +1305,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
 
   // ── Informe general Paso 1 — Calibres + Checklist Calidad y Cargue ──
   const [generandoInformePlanta, setGenerandoInformePlanta] = useState(false);
-  const generarInformePlanta = async () => {
+  const generarInformePlanta = async (modo = "descargar") => {
     setGenerandoInformePlanta(true);
     try {
       // ── Resumen de cajas por calibre — barras horizontales a color ──
@@ -1329,6 +1333,16 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
         `<span class="cal-chip" style="background:${COL_CAL[s]?.light || "#f1f5f9"};color:${COL_CAL[s]?.bg || "#475569"};border-color:${COL_CAL[s]?.border || "#cbd5e1"}">${s}</span>`
       ).join("");
 
+      // ── Pallets que aportan a cada calibre (panel derecho) ──────────
+      const filasPalletsCalibre = calibresConCajas.map(s => {
+        const nPallets = pallets.filter(p => p.calibres.some(c => Number(c.size) === s && Number(c.cajas || 0) > 0)).length;
+        const col = COL_CAL[s]?.bg || "#94a3b8";
+        return `<div class="cal-pallet-row">
+          <div class="cal-tag" style="background:${col}">${s}</div>
+          <div class="cal-pallet-count"><b>${nPallets}</b> pallet${nPallets !== 1 ? "s" : ""}</div>
+        </div>`;
+      }).join("");
+
       // ── Detalle por pallet — tarjetas, no tabla plana ──
       const pallCards = pallets.map(p => {
         const sum   = palletSum(p);
@@ -1341,21 +1355,15 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
         // ICA del pallet: el propio de cada calibre si lo tiene, si no cae al
         // ICA general de Paso 1 — así un pallet con su propio registro no se
         // pisa, pero el resto queda cubierto sin escribirlo uno por uno.
-        const icasPallet = [...new Set(p.calibres.map(c => c.ica || admin.icaGeneral).filter(Boolean))];
+        const icasPallet = [...new Set(p.calibres.map(c => (c.ica || admin.icaGeneral || "").trim()).filter(Boolean))];
         return `<div class="pallet-card ${ok ? "" : "warn"}">
           <div class="pallet-top"><span class="pid">Pallet ${p.id}</span><span class="pflag">${ok ? "✓ cuadra" : `⚠ ${sum}/${cpp}`}</span></div>
           <div class="pchips">${chips}</div>
           ${observacion ? `<div class="ppredio">📝 ${observacion}</div>` : ""}
-          ${icasPallet.length ? `<div class="pica">🏷 ICA ${icasPallet.join(" · ")}</div>` : ""}
+          ${icasPallet.length ? `<div class="pica">🏷 ${icasPallet.join(" · ")}</div>` : ""}
         </div>`;
       }).join("");
       const pallOk = pallets.filter(p => palletSum(p) === cpp).length;
-
-      // ── ICA(s) usados en todo el contenedor — para el encabezado ──
-      const icasUsados = [...new Set(
-        pallets.flatMap(p => p.calibres.map(c => c.ica || admin.icaGeneral)).filter(Boolean)
-      )];
-      const chipsIca = icasUsados.map(ica => `<span class="chip">🏷 ICA ${ica}</span>`).join("");
 
       // ── Checklist: por categoría, con contador propio y estado por ítem ──
       const chequeos    = admin.checklistCalidad || {};
@@ -1363,7 +1371,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
       const conNo       = Object.values(chequeos).filter(v => v === "no").length;
       const pctRevisado = CHEQUEO_TOTAL_ITEMS ? Math.round(marcados / CHEQUEO_TOTAL_ITEMS * 100) : 0;
       const estadoGeneral = conNo > 0
-        ? { txt: `⚠️ ${conNo} punto${conNo !== 1 ? "s" : ""} sin cumplir — requiere revisión`, col: "#c62828", bg: "#fdecea" }
+        ? { txt: `⚠️ ${conNo} punto${conNo !== 1 ? "s" : ""} sin cumplir`, col: "#c62828", bg: "#fdecea" }
         : marcados === CHEQUEO_TOTAL_ITEMS
           ? { txt: "✅ Checklist completo — todo en orden", col: "#1D6F42", bg: "#e9f7ef" }
           : { txt: `🕓 Checklist en curso — ${marcados}/${CHEQUEO_TOTAL_ITEMS} ítems revisados`, col: "#a06600", bg: "#fdf6e3" };
@@ -1399,7 +1407,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 .banner{background:linear-gradient(120deg,#173d1a,#2d7a2d 60%,#3fa142);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
 .banner::after{content:"🍋";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
 .banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
-.banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+.banner img{width:98px;height:98px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
 .banner h1{font-size:22px;font-weight:800;letter-spacing:0.2px}
 .banner .sub{font-size:11.5px;opacity:0.88;margin-top:4px}
 .banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
@@ -1431,6 +1439,12 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .cal-qty{width:70px;text-align:right;font-size:10.5px;font-weight:700;color:#333;flex-shrink:0}
 .cal-pct{width:36px;text-align:right;font-size:10.5px;color:#3f4a3f;font-weight:600;flex-shrink:0}
 .cal-total{margin-top:10px;padding-top:10px;border-top:1px dashed #dfe8df;display:flex;justify-content:space-between;font-weight:800;font-size:12px;color:#173d1a}
+.cal-split{display:grid;grid-template-columns:1fr 210px;gap:22px;align-items:start}
+.cal-col-right{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 14px 6px}
+.cal-col-title{font-size:9.5px;color:#4a564a;text-transform:uppercase;letter-spacing:0.4px;font-weight:800;margin-bottom:10px}
+.cal-pallet-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.cal-pallet-count{font-size:11px;color:#333;font-weight:600}
+.cal-pallet-count b{font-size:13px;color:#173d1a;font-weight:800}
 
 /* ── Pallets: grid de tarjetas ── */
 .pallet-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -1492,7 +1506,6 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
       <span class="chip">🏭 ${admin.checklistPlanta || "Planta sin especificar"}</span>
       <span class="chip">🍋 ${contenedor?.producto || "Producto sin especificar"}</span>
       <span class="chip">➡️ ${admin.destino || "—"}</span>
-      ${chipsIca}
     </div>
   </div>
 
@@ -1509,9 +1522,17 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
     </div>
 
     <h2>📊 Resumen de cajas por calibre</h2>
-    <div class="cal-chips">${chipsCalibre}</div>
-    ${filasCalibre}
-    <div class="cal-total"><span>TOTAL</span><span>${totalCal.toLocaleString("es-CO")} cajas</span></div>
+    <div class="cal-split">
+      <div>
+        <div class="cal-chips">${chipsCalibre}</div>
+        ${filasCalibre}
+        <div class="cal-total"><span>TOTAL</span><span>${totalCal.toLocaleString("es-CO")} cajas</span></div>
+      </div>
+      <div class="cal-col-right">
+        <div class="cal-col-title">Pallets por calibre</div>
+        ${filasPalletsCalibre}
+      </div>
+    </div>
 
     <h2>🧱 Distribución por pallet (${pallets.length})</h2>
     <div class="pallet-grid">${pallCards}</div>
@@ -1542,9 +1563,16 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const u = URL.createObjectURL(blob);
+      const filename = `Informe-Planta-${admin.container || contenedor?.numContenedor || "packing"}.html`;
+
+      if (modo === "previsualizar") {
+        setPreviewInforme({ url: u, filename });
+        return;
+      }
+
       const a = document.createElement("a");
       a.href = u;
-      a.download = `Informe-Planta-${admin.container || contenedor?.numContenedor || "packing"}.html`;
+      a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(u);
     } finally {
@@ -1554,7 +1582,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 
   // ── Informe general Paso 2 — Cargue del camión ──────────────────
   const [generandoInformeCargue, setGenerandoInformeCargue] = useState(false);
-  const generarInformeCargue = async () => {
+  const generarInformeCargue = async (modo = "descargar") => {
     setGenerandoInformeCargue(true);
     try {
       const logoSrc = await cargarLogoBase64();
@@ -1613,7 +1641,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 .banner{background:linear-gradient(120deg,#7a3d05,#c2620a 60%,#e8862c);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
 .banner::after{content:"🚛";position:absolute;right:-6px;top:-14px;font-size:120px;opacity:0.14;transform:rotate(-8deg)}
 .banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
-.banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+.banner img{width:105px;height:105px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
 .banner h1{font-size:22px;font-weight:800;letter-spacing:0.2px}
 .banner .sub{font-size:11.5px;opacity:0.88;margin-top:4px}
 .banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
@@ -1766,9 +1794,16 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
 
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const u = URL.createObjectURL(blob);
+      const filename = `Informe-Cargue-${admin.container || contenedor?.numContenedor || "packing"}.html`;
+
+      if (modo === "previsualizar") {
+        setPreviewInforme({ url: u, filename });
+        return;
+      }
+
       const a = document.createElement("a");
       a.href = u;
-      a.download = `Informe-Cargue-${admin.container || contenedor?.numContenedor || "packing"}.html`;
+      a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(u);
     } finally {
@@ -2112,9 +2147,14 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
               );
             })()}
 
-            <button onClick={generarInformePlanta} disabled={generandoInformePlanta} style={{ width:"100%", background:"linear-gradient(135deg,#1f5c1f,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoInformePlanta ? "wait" : "pointer", fontWeight:700, opacity: generandoInformePlanta ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: m ? 14 : 10 }}>
-              {generandoInformePlanta ? "⏳ Generando..." : "📄 Descargar Informe General (Calibres + Checklist)"}
-            </button>
+            <div style={{ display:"flex", gap:8, marginBottom: m ? 14 : 10 }}>
+              <button onClick={() => generarInformePlanta("descargar")} disabled={generandoInformePlanta} style={{ flex:1, background:"linear-gradient(135deg,#1f5c1f,#2d8a2d)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoInformePlanta ? "wait" : "pointer", fontWeight:700, opacity: generandoInformePlanta ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
+                {generandoInformePlanta ? "⏳ Generando..." : "📄 Descargar Informe General (Calibres + Checklist)"}
+              </button>
+              <button onClick={() => generarInformePlanta("previsualizar")} disabled={generandoInformePlanta} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:10, padding: m ? "0 18px" : "0 14px", fontSize: m ? 15 : 12, color:"#a5b4fc", cursor: generandoInformePlanta ? "wait" : "pointer", fontWeight:700, opacity: generandoInformePlanta ? 0.7 : 1, minHeight: m ? 52 : 38, fontFamily:"inherit" }}>
+                👁 Vista previa
+              </button>
+            </div>
 
             <div style={{ display:"flex", gap:8, paddingTop: m ? 0 : 0, alignItems:"center" }}>
               <SaveIndicator />
@@ -2192,9 +2232,14 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
             {infoActualizada ? "✅ Calibres y cajas actualizados desde Planta — el orden del camión no se movió" : "Trae los calibres/cajas más recientes de Planta sin mover el orden ya armado en el camión"}
           </div>
 
-          <button onClick={generarInformeCargue} disabled={generandoInformeCargue} style={{ width:"100%", background:"linear-gradient(135deg,#c2620a,#e8862c)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoInformeCargue ? "wait" : "pointer", fontWeight:700, opacity: generandoInformeCargue ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: m ? 14 : 10 }}>
-            {generandoInformeCargue ? "⏳ Generando..." : "📄 Descargar Informe de Cargue"}
-          </button>
+          <div style={{ display:"flex", gap:8, marginBottom: m ? 14 : 10 }}>
+            <button onClick={() => generarInformeCargue("descargar")} disabled={generandoInformeCargue} style={{ flex:1, background:"linear-gradient(135deg,#c2620a,#e8862c)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: generandoInformeCargue ? "wait" : "pointer", fontWeight:700, opacity: generandoInformeCargue ? 0.7 : 1, minHeight: m ? 52 : 38 }}>
+              {generandoInformeCargue ? "⏳ Generando..." : "📄 Descargar Informe de Cargue"}
+            </button>
+            <button onClick={() => generarInformeCargue("previsualizar")} disabled={generandoInformeCargue} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:10, padding: m ? "0 18px" : "0 14px", fontSize: m ? 15 : 12, color:"#a5b4fc", cursor: generandoInformeCargue ? "wait" : "pointer", fontWeight:700, opacity: generandoInformeCargue ? 0.7 : 1, minHeight: m ? 52 : 38, fontFamily:"inherit" }}>
+              👁 Vista previa
+            </button>
+          </div>
 
           <div style={{ display:"flex", gap:8, paddingTop: m ? 0 : 0, alignItems:"center" }}>
             <SaveIndicator />
@@ -2382,6 +2427,19 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
               <NavBtn onClick={() => guardarPaso3()}>💾 Guardar</NavBtn>
             </div>
           </div>
+        </div>
+      )}
+
+      {previewInforme && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", flexDirection:"column" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding: m ? "12px 16px" : "10px 18px", background:"#1a1a2e", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
+            <span style={{ color:"white", fontWeight:700, fontSize: m ? 12 : 13 }}>👁 Vista previa — {previewInforme.filename}</span>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => { const a = document.createElement("a"); a.href = previewInforme.url; a.download = previewInforme.filename; a.click(); }} style={{ background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding: m ? "8px 14px" : "7px 16px", fontSize: m ? 11 : 12, color:"white", cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>📥 Descargar</button>
+              <button onClick={() => setPreviewInforme(null)} style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, padding: m ? "8px 14px" : "7px 16px", fontSize: m ? 11 : 12, color:"white", cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>✕ Cerrar</button>
+            </div>
+          </div>
+          <iframe src={previewInforme.url} style={{ flex:1, border:"none", background:"white" }} title="Vista previa del informe" />
         </div>
       )}
 
