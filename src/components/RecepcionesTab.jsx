@@ -82,9 +82,27 @@ function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;",
 
 const kg = (n) => Number(n || 0).toLocaleString("es-CO", { maximumFractionDigits: 2 });
 
+// Paleta por tipo — entrada en verde (tema histórico del módulo), salida en
+// ámbar (mismo acento que ya usa el chip "Salida" del historial y el informe
+// de Cargue de Camión), así entradas y salidas se distinguen de un vistazo
+// aunque se impriman sin el chip de color.
+const TEMA_RECEPCION = {
+  entrada: {
+    dark:"#173d1a", mid:"#1D6F42", light:"#3fa142",
+    estadoBg:"#e9f7ef", totalboxBg:"#e8f5e9", echipBg:"#eef7ee", echipBorder:"#cfe3cf",
+    divider:"#dfe8df", label:"⬇️ Informe de Entrada de Fruta", tituloDoc:"Entrada de Fruta",
+  },
+  salida: {
+    dark:"#7a3d05", mid:"#c2620a", light:"#e8862c",
+    estadoBg:"#fdf3e7", totalboxBg:"#fdf0e0", echipBg:"#fdf3e7", echipBorder:"#f3d9b8",
+    divider:"#f0e3d3", label:"⬆️ Informe de Salida de Fruta", tituloDoc:"Salida de Fruta",
+  },
+};
+
 async function generarInformeHTML(r) {
   const logoSrc  = await cargarLogoBase64();
   const fmtFecha = r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "—";
+  const t = TEMA_RECEPCION[r.tipo] || TEMA_RECEPCION.entrada;
 
   const pesoBrutoTotal = r.estibas.reduce((s, e) => s + num(e.pesoBruto), 0);
   const descuentoTotal = r.estibas.reduce((s, e) => s + descuentoEstiba(e), 0);
@@ -108,13 +126,13 @@ async function generarInformeHTML(r) {
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Recepción ${esc(r.remision || r.id)} - Tierra Prometida</title>
+<title>${t.tituloDoc} ${esc(r.remision || r.id)} - Tierra Prometida</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;font-size:12px}
 .sheet{max-width:960px;margin:0 auto;background:#fff}
 
-.banner{background:linear-gradient(120deg,#173d1a,#1D6F42 60%,#3fa142);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
+.banner{background:linear-gradient(120deg,${t.dark},${t.mid} 60%,${t.light});color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
 .banner::after{content:"🍋";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
 .banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
 .banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
@@ -123,51 +141,51 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 .banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
 .banner .chip{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:5px 12px;font-size:10.5px;font-weight:600}
 
-.estado-bar{margin:0 34px;margin-top:-16px;position:relative;background:#e9f7ef;border:1px solid #1D6F4233;color:#1D6F42;border-radius:12px;padding:12px 18px;font-weight:700;font-size:12.5px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+.estado-bar{margin:0 34px;margin-top:-16px;position:relative;background:${t.estadoBg};border:1px solid ${t.mid}33;color:${t.mid};border-radius:12px;padding:12px 18px;font-weight:700;font-size:12.5px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
 
 .content{padding:28px 34px 8px}
 
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:26px}
 .card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center}
 .card-ic{font-size:16px;margin-bottom:2px}
-.card-val{font-size:18px;font-weight:800;color:#1D6F42;line-height:1.15}
-.card-lbl{font-size:8.5px;color:#7c8a7c;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+.card-val{font-size:18px;font-weight:800;color:${t.mid};line-height:1.15}
+.card-lbl{font-size:8.5px;color:#5a5a5a;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
 
-h2{display:flex;align-items:center;gap:8px;color:#173d1a;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
-h2::after{content:"";flex:1;height:1px;background:#dfe8df}
+h2{display:flex;align-items:center;gap:8px;color:${t.dark};font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
+h2::after{content:"";flex:1;height:1px;background:${t.divider}}
 
 .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
 .info-item{background:#fbfdfb;border:1px solid #e2ede2;border-radius:10px;padding:10px 14px}
-.info-item .l{font-size:9px;color:#7c8a7c;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px}
+.info-item .l{font-size:9px;color:#5a5a5a;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px}
 .info-item .v{font-size:13px;font-weight:700;color:#1a1a1a}
 
 .estiba-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.estiba-card{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 14px;background:#fbfdfb;break-inside:avoid}
+.estiba-card{border:1px solid ${t.divider};border-left:4px solid ${t.mid};border-radius:10px;padding:12px 14px;background:#fbfdfb;break-inside:avoid}
 .estiba-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.eid{font-weight:800;font-size:12px;color:#173d1a}
-.eneto{font-size:11px;font-weight:800;color:#1D6F42}
+.eid{font-weight:800;font-size:12px;color:${t.dark}}
+.eneto{font-size:11px;font-weight:800;color:${t.mid}}
 .echips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
-.echip{border:1px solid #cfe3cf;background:#eef7ee;color:#1D6F42;border-radius:6px;padding:2px 8px;font-size:9.5px;font-weight:700}
-.erow{display:flex;justify-content:space-between;font-size:10.5px;color:#667;padding:3px 0;border-bottom:1px dashed #eef2ee}
+.echip{border:1px solid ${t.echipBorder};background:${t.echipBg};color:${t.mid};border-radius:6px;padding:2px 8px;font-size:9.5px;font-weight:700}
+.erow{display:flex;justify-content:space-between;font-size:10.5px;color:#555;padding:3px 0;border-bottom:1px dashed #eef2ee}
 .erow:last-child{border-bottom:none}
 .erow b{color:#222}
 
 .total{display:flex;justify-content:flex-end;margin-top:20px;gap:10px;flex-wrap:wrap}
-.totalbox{background:#e8f5e9;border:2px solid #1D6F42;border-radius:10px;padding:12px 22px;text-align:right}
+.totalbox{background:${t.totalboxBg};border:2px solid ${t.mid};border-radius:10px;padding:12px 22px;text-align:right}
 .totalbox.alt{background:#fbfdfb;border:1px solid #e2ede2}
-.totalbox .l{font-size:10px;color:#1D6F42;text-transform:uppercase;letter-spacing:0.5px}
-.totalbox.alt .l{color:#7c8a7c}
-.totalbox .v{font-size:22px;font-weight:800;color:#1D6F42}
+.totalbox .l{font-size:10px;color:${t.mid};text-transform:uppercase;letter-spacing:0.5px}
+.totalbox.alt .l{color:#5a5a5a}
+.totalbox .v{font-size:22px;font-weight:800;color:${t.mid}}
 .totalbox.alt .v{font-size:16px;color:#333;font-weight:800}
 
-.obs{background:#fbfdfb;border:1px solid #e2ede2;border-left:4px solid #3fa142;border-radius:10px;padding:12px 16px;font-size:11.5px;margin-top:4px;white-space:pre-wrap;color:#333}
+.obs{background:#fbfdfb;border:1px solid #e2ede2;border-left:4px solid ${t.light};border-radius:10px;padding:12px 16px;font-size:11.5px;margin-top:4px;white-space:pre-wrap;color:#333}
 .firma-row{display:flex;gap:20px;margin-top:26px}
 .firma-box{flex:1}
 .firma-line{border-bottom:1.5px solid #b8c8b8;height:34px}
-.firma-lbl{font-size:10px;color:#7c8a7c;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.firma-lbl{font-size:10px;color:#4a4a4a;margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
 .firma-val{font-size:12px;color:#222;font-weight:600;margin-top:2px}
 
-.footer{background:#173d1a;color:rgba(255,255,255,0.72);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+.footer{background:${t.dark};color:rgba(255,255,255,0.85);text-align:center;font-size:10px;padding:16px;margin-top:30px}
 
 @media print{
   body{background:#fff}
@@ -181,7 +199,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
   <div class="banner">
     <div class="banner-row">
       <div>
-        <h1>🍋 Informe de Recepción de Fruta</h1>
+        <h1>🍋 ${t.label}</h1>
         <div class="sub">Detalle de estibas, canastillas y descuentos de peso</div>
       </div>
       ${logoSrc ? `<img src="${logoSrc}" />` : ""}
@@ -252,12 +270,12 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
   return html;
 }
 
-async function generarInformeGeneralHTML(recs, desde, hasta) {
+async function generarInformeGeneralHTML(recs, desde, hasta, tipo) {
   const logoSrc = await cargarLogoBase64();
+  const t = TEMA_RECEPCION[tipo] || TEMA_RECEPCION.entrada;
+  const nombrePlural = tipo === "salida" ? "Salidas" : "Entradas";
   const fmt = (f) => f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) : "";
   const totalNeto    = recs.reduce((a, r) => a + num(r.total), 0);
-  const entradas     = recs.filter(r => r.tipo === "entrada").length;
-  const salidas      = recs.filter(r => r.tipo === "salida").length;
   const totalEstibas = recs.reduce((a, r) => a + (r.estibas?.length || 0), 0);
   const totalCanastillas = recs.reduce((a, r) => a + (r.estibas || []).reduce((s, e) => s + canastillasDeEstiba(e).reduce((x, c) => x + num(c.cantidad), 0), 0), 0);
   const promedio      = recs.length ? totalNeto / recs.length : 0;
@@ -266,23 +284,22 @@ async function generarInformeGeneralHTML(recs, desde, hasta) {
     <tr>
       <td>${esc(r.remision) || "—"}</td>
       <td>${esc(r.fecha) || "—"}</td>
-      <td style="text-align:center"><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:9px;font-weight:700;background:${r.tipo==="entrada"?"#e9f7ef":"#fef3c7"};color:${r.tipo==="entrada"?"#1D6F42":"#b45309"}">${r.tipo === "entrada" ? "ENTRADA" : "SALIDA"}</span></td>
       <td>${esc(r.placa) || "—"}</td>
       <td>${esc(r.proveedor) || "—"}</td>
       <td>${esc(r.supervisor) || "—"}</td>
       <td style="text-align:center">${r.estibas?.length || 0}</td>
-      <td style="text-align:right;font-weight:700;color:#1D6F42">${kg(r.total)}</td>
+      <td style="text-align:right;font-weight:700;color:${t.mid}">${kg(r.total)}</td>
     </tr>`).join("");
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Informe General de Recepciones - Tierra Prometida</title>
+<title>Informe General de ${nombrePlural} - Tierra Prometida</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;font-size:12px}
 .sheet{max-width:960px;margin:0 auto;background:#fff}
 
-.banner{background:linear-gradient(120deg,#173d1a,#1D6F42 60%,#3fa142);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
+.banner{background:linear-gradient(120deg,${t.dark},${t.mid} 60%,${t.light});color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
 .banner::after{content:"🍋";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
 .banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
 .banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
@@ -293,22 +310,22 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 
 .content{padding:28px 34px 8px}
 
-.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
 .card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.05)}
 .card-ic{font-size:16px;margin-bottom:2px}
-.card-val{font-size:18px;font-weight:800;color:#1D6F42;line-height:1.15}
-.card-lbl{font-size:8.5px;color:#7c8a7c;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+.card-val{font-size:18px;font-weight:800;color:${t.mid};line-height:1.15}
+.card-lbl{font-size:8.5px;color:#5a5a5a;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
 
-h2{display:flex;align-items:center;gap:8px;color:#173d1a;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
-h2::after{content:"";flex:1;height:1px;background:#dfe8df}
+h2{display:flex;align-items:center;gap:8px;color:${t.dark};font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
+h2::after{content:"";flex:1;height:1px;background:${t.divider}}
 
 table{width:100%;border-collapse:collapse;font-size:11px}
-th{background:#1D6F42;color:#fff;padding:8px 9px;text-align:left;border:1px solid #145a32}
+th{background:${t.mid};color:#fff;padding:8px 9px;text-align:left;border:1px solid ${t.dark}}
 td{padding:7px 9px;border:1px solid #e2ede2}
 tr:nth-child(even) td{background:#fbfdfb}
-tfoot td{background:#e8f5e9;font-weight:800;border-top:2px solid #1D6F42}
+tfoot td{background:${t.totalboxBg};font-weight:800;border-top:2px solid ${t.mid}}
 
-.footer{background:#173d1a;color:rgba(255,255,255,0.72);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+.footer{background:${t.dark};color:rgba(255,255,255,0.85);text-align:center;font-size:10px;padding:16px;margin-top:30px}
 
 @media print{
   body{background:#fff}
@@ -322,40 +339,38 @@ tfoot td{background:#e8f5e9;font-weight:800;border-top:2px solid #1D6F42}
   <div class="banner">
     <div class="banner-row">
       <div>
-        <h1>🍋 Informe General de Recepciones</h1>
-        <div class="sub">Entradas y salidas de fruta, estibas y peso neto</div>
+        <h1>${tipo === "salida" ? "⬆️" : "⬇️"} Informe General de ${nombrePlural}</h1>
+        <div class="sub">${nombrePlural} de fruta, estibas y peso neto</div>
       </div>
       ${logoSrc ? `<img src="${logoSrc}" />` : ""}
     </div>
     <div class="chips">
       <span class="chip">📅 ${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : "Todas las fechas"}</span>
-      <span class="chip">⬇️ ${entradas} entrada${entradas !== 1 ? "s" : ""}</span>
-      <span class="chip">⬆️ ${salidas} salida${salidas !== 1 ? "s" : ""}</span>
+      <span class="chip">${tipo === "salida" ? "⬆️" : "⬇️"} ${recs.length} ${nombrePlural.toLowerCase()}</span>
     </div>
   </div>
 
   <div class="content">
 
     <div class="cards">
-      <div class="card"><div class="card-ic">🍋</div><div class="card-val">${recs.length}</div><div class="card-lbl">Recepciones</div></div>
-      <div class="card"><div class="card-ic">⬇️</div><div class="card-val">${entradas}</div><div class="card-lbl">Entradas</div></div>
-      <div class="card"><div class="card-ic">⬆️</div><div class="card-val">${salidas}</div><div class="card-lbl">Salidas</div></div>
+      <div class="card"><div class="card-ic">🍋</div><div class="card-val">${recs.length}</div><div class="card-lbl">${nombrePlural}</div></div>
       <div class="card"><div class="card-ic">🧱</div><div class="card-val">${totalEstibas}</div><div class="card-lbl">Estibas totales</div></div>
       <div class="card"><div class="card-ic">📦</div><div class="card-val">${totalCanastillas.toLocaleString("es-CO")}</div><div class="card-lbl">Canastillas totales</div></div>
       <div class="card"><div class="card-ic">⚖️</div><div class="card-val">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="card-lbl">Kg netos totales</div></div>
+      <div class="card"><div class="card-ic">📊</div><div class="card-val">${kg(promedio)}</div><div class="card-lbl">Kg promedio</div></div>
     </div>
 
-    <h2>📋 Detalle de recepciones</h2>
+    <h2>📋 Detalle de ${nombrePlural.toLowerCase()}</h2>
     <table>
       <thead>
         <tr>
-          <th>Remisión</th><th>Fecha</th><th style="text-align:center">Tipo</th><th>Placa</th><th>Proveedor</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
+          <th>Remisión</th><th>Fecha</th><th>Placa</th><th>Proveedor</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
         </tr>
       </thead>
       <tbody>
-        ${filas || `<tr><td colspan="8" style="text-align:center;color:#999;padding:16px">Sin recepciones en el rango seleccionado</td></tr>`}
+        ${filas || `<tr><td colspan="7" style="text-align:center;color:#999;padding:16px">Sin ${nombrePlural.toLowerCase()} en el rango seleccionado</td></tr>`}
       </tbody>
-      ${recs.length ? `<tfoot><tr><td colspan="7" style="text-align:right">TOTAL · Promedio ${kg(promedio)} kg/recepción</td><td style="text-align:right;color:#1D6F42">${kg(totalNeto)} kg</td></tr></tfoot>` : ""}
+      ${recs.length ? `<tfoot><tr><td colspan="6" style="text-align:right">TOTAL · Promedio ${kg(promedio)} kg/recepción</td><td style="text-align:right;color:${t.mid}">${kg(totalNeto)} kg</td></tr></tfoot>` : ""}
     </table>
 
   </div>
@@ -398,6 +413,7 @@ export default function RecepcionesTab({ mob }) {
   const [preview,    setPreview]    = useState(null); // { url, filename }
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
+  const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
 
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
@@ -521,17 +537,19 @@ export default function RecepcionesTab({ mob }) {
 
   const recepcionesFiltradas = useMemo(() => {
     return recepciones.filter(r => {
+      if (r.tipo !== tipoTab) return false;
       if (filtroDesde && r.fecha < filtroDesde) return false;
       if (filtroHasta && r.fecha > filtroHasta) return false;
       return true;
     });
-  }, [recepciones, filtroDesde, filtroHasta]);
+  }, [recepciones, filtroDesde, filtroHasta, tipoTab]);
 
   const verInformeGeneral = async () => {
-    const html = await generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta);
+    const html = await generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta, tipoTab);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : "todas";
-    setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Informe_General_Recepciones_${sufijo}.html` }; });
+    const nombreTipo = tipoTab === "salida" ? "Salidas" : "Entradas";
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Informe_General_${nombreTipo}_${sufijo}.html` }; });
   };
 
   const descargarInforme = () => {
@@ -810,6 +828,28 @@ export default function RecepcionesTab({ mob }) {
           <div style={{ fontSize:13, fontWeight:700, color:"white" }}>📋 Recepciones registradas</div>
         </div>
 
+        {/* Entradas y salidas se ven, filtran e informan por separado — cada
+            una es un flujo de negocio distinto (fruta que entra vs. que sale). */}
+        <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+          {[
+            { id:"entrada", label:"⬇️ Entradas", color:"#845EF7" },
+            { id:"salida",  label:"⬆️ Salidas",  color:"#F9A826" },
+          ].map(tb => (
+            <button
+              key={tb.id}
+              onClick={()=>setTipoTab(tb.id)}
+              style={{
+                flex: m ? 1 : "0 0 auto", padding:"8px 18px", borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer",
+                background: tipoTab===tb.id ? `${tb.color}22` : "rgba(255,255,255,0.03)",
+                border: `1px solid ${tipoTab===tb.id ? `${tb.color}66` : "rgba(255,255,255,0.1)"}`,
+                color: tipoTab===tb.id ? tb.color : "rgba(255,255,255,0.45)",
+              }}
+            >
+              {tb.label} ({recepciones.filter(r=>r.tipo===tb.id).length})
+            </button>
+          ))}
+        </div>
+
         <div style={{ display:"flex", flexWrap:"wrap", gap:8, alignItems:"flex-end", marginBottom:14 }}>
           <div style={{ flex: m ? "1 1 100%" : "0 1 160px" }}>
             <div style={lbl}>Desde</div>
@@ -825,13 +865,13 @@ export default function RecepcionesTab({ mob }) {
             </button>
           )}
           <button onClick={verInformeGeneral} disabled={recepcionesFiltradas.length===0} style={{ marginLeft: m ? 0 : "auto", background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color: recepcionesFiltradas.length===0 ? "rgba(0,201,167,0.4)" : "#00C9A7", padding:"0 16px", fontSize:12, fontWeight:700, cursor: recepcionesFiltradas.length===0 ? "default" : "pointer", height: isLandscape?36:(m?44:32), display:"flex", alignItems:"center", justifyContent:"center" }}>
-            📄 Informe general ({recepcionesFiltradas.length})
+            📄 Informe general de {tipoTab === "salida" ? "Salidas" : "Entradas"} ({recepcionesFiltradas.length})
           </button>
         </div>
 
         {recepcionesFiltradas.length === 0 ? (
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>
-            {recepciones.length === 0 ? "Sin recepciones registradas todavía." : "Ninguna recepción cae en el rango de fechas seleccionado."}
+            {recepciones.length === 0 ? "Sin recepciones registradas todavía." : `Ninguna ${tipoTab === "salida" ? "salida" : "entrada"} cae en el rango de fechas seleccionado.`}
           </div>
         ) : (
           <div style={{ overflowX:"auto" }}>
@@ -840,7 +880,6 @@ export default function RecepcionesTab({ mob }) {
                 <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
                   <th style={{ padding:"6px" }}>Remisión</th>
                   <th style={{ padding:"6px" }}>Fecha</th>
-                  <th style={{ padding:"6px" }}>Tipo</th>
                   <th style={{ padding:"6px" }}>Placa</th>
                   <th style={{ padding:"6px" }}>Proveedor</th>
                   <th style={{ padding:"6px" }}>Supervisor</th>
@@ -854,11 +893,6 @@ export default function RecepcionesTab({ mob }) {
                   <tr key={r.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                     <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{r.remision || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.fecha}</td>
-                    <td style={{ padding:"6px" }}>
-                      <span style={{ padding:"2px 8px", borderRadius:6, fontSize:10, fontWeight:700, background: r.tipo==="entrada" ? "rgba(132,94,247,0.15)" : "rgba(249,168,38,0.15)", color: r.tipo==="entrada" ? "#a78bfa" : "#F9A826" }}>
-                        {r.tipo === "entrada" ? "Entrada" : "Salida"}
-                      </span>
-                    </td>
                     <td style={{ padding:"6px" }}>{r.placa || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.supervisor || "—"}</td>
