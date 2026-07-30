@@ -80,7 +80,7 @@ const COL_CAL = {
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
 const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral"];
-const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "firmaConductor"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "firmaConductor", "firmaSupervisor"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
 function pick(obj, keys) {
@@ -133,6 +133,86 @@ async function cargarFirmaBase64() {
       r.readAsDataURL(blob);
     });
   } catch { return ""; }
+}
+
+// Firma dibujada a mano (dedo o mouse) sobre un <canvas> — se usa para la
+// firma del conductor y la del supervisor, cada una con su propio campo
+// en `admin` (ej. "firmaConductor" / "firmaSupervisor").
+function useFirmaPad(sa, campo) {
+  const canvasRef      = useRef(null);
+  const drawingRef     = useRef(false);
+  const tieneTrazoRef  = useRef(false);
+
+  const setCanvasRef = (el) => {
+    if (el && !el.dataset.init) {
+      const ctx = el.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, el.width, el.height);
+      el.dataset.init = "1";
+    }
+    canvasRef.current = el;
+  };
+
+  const pos = (e, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const iniciar = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    e.preventDefault();
+    drawingRef.current = true;
+    const { x, y } = pos(e, canvas);
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const mover = (e) => {
+    if (!drawingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    e.preventDefault();
+    const { x, y } = pos(e, canvas);
+    const ctx = canvas.getContext("2d");
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    tieneTrazoRef.current = true;
+  };
+
+  const soltar = () => { drawingRef.current = false; };
+
+  const limpiar = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    tieneTrazoRef.current = false;
+  };
+
+  const guardar = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !tieneTrazoRef.current) return;
+    sa(campo, canvas.toDataURL("image/png"));
+  };
+
+  const eliminar = () => {
+    sa(campo, "");
+    tieneTrazoRef.current = false;
+  };
+
+  return { setCanvasRef, iniciar, mover, soltar, limpiar, guardar, eliminar };
 }
 
 // Pre-fill admin desde datos del contenedor
@@ -249,7 +329,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     vessel:"", palletCerts:[{ ica:"", palletNo:"" }],
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
     packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
-    conductor:"", cedulaConductor:"", firmaConductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"",
+    conductor:"", cedulaConductor:"", firmaConductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"", firmaSupervisor:"",
     // ── Paso 2 — Camión: termoregistro, precinto, temperaturas y pallet(s) con ICA ──
     termoregistroCamion:"", termoregistroCamionPalletNo:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
     icaCamion:[{ ica:"", palletNo:"" }],
@@ -279,79 +359,43 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const removeIcaCamion = (i) =>
     setAdmin(a => ({ ...a, icaCamion: a.icaCamion.filter((_, ci) => ci !== i) }));
 
-  // ── Firma del conductor — canvas dibujado a mano (dedo o mouse) ──
-  const firmaCanvasRef    = useRef(null);
-  const firmaDrawingRef   = useRef(false);
-  const firmaTieneTrazoRef = useRef(false);
+  // ── Firmas (conductor / supervisor) — canvas dibujado a mano ──
+  const firmaConductorPad  = useFirmaPad(sa, "firmaConductor");
+  const firmaSupervisorPad = useFirmaPad(sa, "firmaSupervisor");
 
-  const firmaSetCanvasRef = (el) => {
-    if (el && !el.dataset.init) {
-      const ctx = el.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, el.width, el.height);
-      el.dataset.init = "1";
-    }
-    firmaCanvasRef.current = el;
-  };
+  const renderFirmaPad = (valor, pad, quien) => (
+    <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
+      <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 8, fontWeight:700 }}>✍️ FIRMA {quien.toUpperCase()}</div>
+      {valor ? (
+        <div>
+          <img src={valor} alt={`Firma ${quien}`} style={{ width:"100%", maxWidth:400, height:140, objectFit:"contain", background:"#fff", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", display:"block" }} />
+          <button onClick={pad.eliminar} style={{ marginTop:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding: m ? "10px 14px" : "7px 12px", color:"#fca5a5", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:600, fontFamily:"inherit" }}>
+            🗑 Eliminar firma
+          </button>
+        </div>
+      ) : (
+        <div>
+          <canvas
+            ref={pad.setCanvasRef}
+            width={500} height={180}
+            style={{ width:"100%", maxWidth:500, height:140, background:"#fff", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", touchAction:"none", cursor:"crosshair", display:"block" }}
+            onMouseDown={pad.iniciar} onMouseMove={pad.mover} onMouseUp={pad.soltar} onMouseLeave={pad.soltar}
+            onTouchStart={pad.iniciar} onTouchMove={pad.mover} onTouchEnd={pad.soltar}
+          />
+          <div style={{ fontSize: m ? 10 : 9, color:"rgba(255,255,255,0.3)", marginTop:4 }}>Firma aquí con el dedo (o el mouse)</div>
+          <div style={{ display:"flex", gap:8, marginTop:8 }}>
+            <button onClick={pad.limpiar} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, padding: m ? "10px 14px" : "7px 12px", color:"rgba(255,255,255,0.7)", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:600, fontFamily:"inherit" }}>
+              🧹 Limpiar
+            </button>
+            <button onClick={pad.guardar} style={{ background:"rgba(0,201,167,0.15)", border:"1px solid rgba(0,201,167,0.4)", borderRadius:8, padding: m ? "10px 14px" : "7px 12px", color:"#00C9A7", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:700, fontFamily:"inherit" }}>
+              ✓ Guardar firma
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
-  const firmaPos = (e, canvas) => {
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-      x: (clientX - rect.left) * (canvas.width / rect.width),
-      y: (clientY - rect.top) * (canvas.height / rect.height),
-    };
-  };
-
-  const firmaIniciar = (e) => {
-    const canvas = firmaCanvasRef.current;
-    if (!canvas) return;
-    e.preventDefault();
-    firmaDrawingRef.current = true;
-    const { x, y } = firmaPos(e, canvas);
-    const ctx = canvas.getContext("2d");
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const firmaMover = (e) => {
-    if (!firmaDrawingRef.current) return;
-    const canvas = firmaCanvasRef.current;
-    if (!canvas) return;
-    e.preventDefault();
-    const { x, y } = firmaPos(e, canvas);
-    const ctx = canvas.getContext("2d");
-    ctx.strokeStyle = "#1a1a1a";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    firmaTieneTrazoRef.current = true;
-  };
-
-  const firmaSoltar = () => { firmaDrawingRef.current = false; };
-
-  const firmaLimpiarCanvas = () => {
-    const canvas = firmaCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    firmaTieneTrazoRef.current = false;
-  };
-
-  const firmaGuardar = () => {
-    const canvas = firmaCanvasRef.current;
-    if (!canvas || !firmaTieneTrazoRef.current) return;
-    sa("firmaConductor", canvas.toDataURL("image/png"));
-  };
-
-  const firmaEliminar = () => {
-    sa("firmaConductor", "");
-    firmaTieneTrazoRef.current = false;
-  };
   // Toca de nuevo el mismo valor para desmarcar (vuelve a "sin revisar").
   const setChequeo = (key, val) => setAdmin(a => ({
     ...a,
@@ -1891,7 +1935,7 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
         <div class="firma-val">${admin.conductor || "—"}</div>
       </div>
       <div class="firma-box">
-        <div class="firma-line"></div>
+        ${admin.firmaSupervisor ? `<img class="firma-img" src="${admin.firmaSupervisor}" />` : `<div class="firma-line"></div>`}
         <div class="firma-lbl">Supervisor de cargue</div>
         <div class="firma-val">${admin.supervisorCargue || "—"}</div>
       </div>
@@ -2486,36 +2530,8 @@ p{text-align:justify;margin-bottom:14px}
             false, true
           )}
 
-          <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
-            <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", marginBottom: m ? 10 : 8, fontWeight:700 }}>✍️ FIRMA DEL CONDUCTOR</div>
-            {admin.firmaConductor ? (
-              <div>
-                <img src={admin.firmaConductor} alt="Firma del conductor" style={{ width:"100%", maxWidth:400, height:140, objectFit:"contain", background:"#fff", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", display:"block" }} />
-                <button onClick={firmaEliminar} style={{ marginTop:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding: m ? "10px 14px" : "7px 12px", color:"#fca5a5", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:600, fontFamily:"inherit" }}>
-                  🗑 Eliminar firma
-                </button>
-              </div>
-            ) : (
-              <div>
-                <canvas
-                  ref={firmaSetCanvasRef}
-                  width={500} height={180}
-                  style={{ width:"100%", maxWidth:500, height:140, background:"#fff", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", touchAction:"none", cursor:"crosshair", display:"block" }}
-                  onMouseDown={firmaIniciar} onMouseMove={firmaMover} onMouseUp={firmaSoltar} onMouseLeave={firmaSoltar}
-                  onTouchStart={firmaIniciar} onTouchMove={firmaMover} onTouchEnd={firmaSoltar}
-                />
-                <div style={{ fontSize: m ? 10 : 9, color:"rgba(255,255,255,0.3)", marginTop:4 }}>El conductor firma aquí con el dedo (o el mouse)</div>
-                <div style={{ display:"flex", gap:8, marginTop:8 }}>
-                  <button onClick={firmaLimpiarCanvas} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, padding: m ? "10px 14px" : "7px 12px", color:"rgba(255,255,255,0.7)", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:600, fontFamily:"inherit" }}>
-                    🧹 Limpiar
-                  </button>
-                  <button onClick={firmaGuardar} style={{ background:"rgba(0,201,167,0.15)", border:"1px solid rgba(0,201,167,0.4)", borderRadius:8, padding: m ? "10px 14px" : "7px 12px", color:"#00C9A7", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:700, fontFamily:"inherit" }}>
-                    ✓ Guardar firma
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          {renderFirmaPad(admin.firmaConductor, firmaConductorPad, "del conductor")}
+          {renderFirmaPad(admin.firmaSupervisor, firmaSupervisorPad, "del supervisor")}
 
           <button onClick={guardarYActualizarPaso2} disabled={guardando} style={{ width:"100%", background:"linear-gradient(135deg,#0EA5E9,#0284C7)", border:"none", borderRadius:10, padding: m ? "15px" : "11px", fontSize: m ? 15 : 12, color:"white", cursor: guardando ? "wait" : "pointer", fontWeight:700, opacity: guardando ? 0.7 : 1, minHeight: m ? 52 : 38, marginBottom: 4 }}>
             🔄 Guardar y actualizar información
