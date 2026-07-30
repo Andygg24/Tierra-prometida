@@ -334,7 +334,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     termoregistroCamion:"", termoregistroCamionPalletNo:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
     icaCamion:[{ ica:"", palletNo:"" }],
     growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
-    ispm15:"CO-68-001 HT",
+    ispm15:"CO-68-009 HT",
     // ── Formato ID Pallet — campos sin fuente en otro paso ──
     port:"", puertoManual:"", moviad:"", temperatura:"",
     // ── Checklist Control de Calidad y Cargue (Paso 1 — Packing Planta) ──
@@ -1280,10 +1280,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       const pr = pcell(layout.right[i]);
       return `<tr>
         <td class="pc">Pallet ${pl.id}</td><td class="ps">${pl.size}</td>
-        <td class="pi">${(admin.ispm15 || "CO-68-001 HT").replace(" ", "<br>")}</td><td class="pd">${fmtDate(admin.packingDate)}</td>
+        <td class="pi">${(admin.ispm15 || "CO-68-009 HT").replace(" ", "<br>")}</td><td class="pd">${fmtDate(admin.packingDate)}</td>
         <td class="sep"></td>
         <td class="pc">Pallet ${pr.id}</td><td class="ps">${pr.size}</td>
-        <td class="pi">${(admin.ispm15 || "CO-68-001 HT").replace(" ", "<br>")}</td><td class="pd">${fmtDate(admin.packingDate)}</td>
+        <td class="pi">${(admin.ispm15 || "CO-68-009 HT").replace(" ", "<br>")}</td><td class="pd">${fmtDate(admin.packingDate)}</td>
       </tr>`;
     }).join("");
 
@@ -2631,7 +2631,7 @@ p{text-align:justify;margin-bottom:14px}
               </div>
               <div>
                 <div style={lbl}>Código ISPM-15 (Pallet Certificate)</div>
-                <input value={admin.ispm15} onChange={e => sa("ispm15", e.target.value)} placeholder="CO-68-001 HT" style={inp} />
+                <input value={admin.ispm15} onChange={e => sa("ispm15", e.target.value)} placeholder="CO-68-009 HT" style={inp} />
               </div>
             </div>
           </div>
