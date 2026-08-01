@@ -544,16 +544,23 @@ export default function LogisticaTab({ mob, logistica }) {
                       {ESTADOS_CONTENEDOR.map(x => <option key={x} value={x}>{x}</option>)}
                     </CustomSelect>
                   </div>
-                  {campoDiasLibres === "ingreso_puerto" && (
-                    <div style={campoBox}><div style={lbl}>Fecha de ingreso al puerto</div><input type="date" style={inp} value={form.fechaIngresoPuerto} onChange={e => setCampo("fechaIngresoPuerto", e.target.value)} /></div>
-                  )}
-                  {campoDiasLibres === "asignacion" && (
-                    <div style={campoBox}><div style={lbl}>Fecha de asignación</div><input type="date" style={inp} value={form.fechaAsignacion} onChange={e => setCampo("fechaAsignacion", e.target.value)} /></div>
-                  )}
+                  <div style={campoBox}>
+                    <div style={lbl}>Fecha de asignación</div>
+                    <input type="date" style={inp} value={form.fechaAsignacion} onChange={e => setCampo("fechaAsignacion", e.target.value)} />
+                  </div>
+                  <div style={campoBox}>
+                    <div style={lbl}>Fecha de ingreso al puerto</div>
+                    <input type="date" style={inp} value={form.fechaIngresoPuerto} onChange={e => setCampo("fechaIngresoPuerto", e.target.value)} />
+                  </div>
                   {!campoDiasLibres && form.naviera && (
                     <div style={campoBox}><div style={lbl}>Días libres</div><div style={{ ...inp, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.4)" }}>No configurado para {form.naviera}</div></div>
                   )}
                 </div>
+                {campoDiasLibres && (
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: -6, marginBottom: 14 }}>
+                    "{campoDiasLibres === "asignacion" ? "Fecha de asignación" : "Fecha de ingreso al puerto"}" se usa para calcular los días libres de {form.naviera}.
+                  </div>
+                )}
 
                 <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Línea de tiempo (hitos manuales)</div>
                 <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
@@ -618,7 +625,8 @@ export default function LogisticaTab({ mob, logistica }) {
                       <div style={campoBox}><div style={lbl}>Fecha de descargue</div><input type="date" style={inp} value={transForm.fechaDescargue} onChange={e => setCampoTrans("fechaDescargue", e.target.value)} /></div>
                       <div style={campoBox}><div style={lbl}>Costo adicional</div><input type="number" style={inp} value={transForm.costoAdicional} onChange={e => setCampoTrans("costoAdicional", e.target.value)} placeholder="0" /></div>
                       <div style={campoBox}>
-                        <div style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, marginTop: m ? 10 : 6 }}>
+                        <div style={lbl}>&nbsp;</div>
+                        <div style={{ ...inp, display: "flex", alignItems: "center", gap: 6 }}>
                           <input type="checkbox" checked={transForm.standBy} onChange={e => setCampoTrans("standBy", e.target.checked)} style={{ width: 16, height: 16 }} /> Generó Stand By
                         </div>
                       </div>
