@@ -462,6 +462,7 @@ export function calcularAlertasLogistica(bookings = [], transporte = [], naviera
 
   bookings.forEach(b => {
     if (b.estado === "Cancelado" || b.estado === "Finalizado") return;
+    if (calcularHitos(b, transporte).every(h => h.completado)) return;
 
     if (b.siCutoffFecha) {
       const cutoff = new Date(`${b.siCutoffFecha}T${b.siCutoffHora || "23:59"}`);
