@@ -251,6 +251,8 @@ export default function LogisticaTab({ mob, logistica }) {
     if (!form.numeroBooking && !form.numeroContenedor) return;
     setGuardando(true);
     const eraNueva = !editId;
+    const previo = editId ? log.bookings.find(b => b.id === editId) : null;
+    const rollOverContenedor = !!(previo && previo.numeroContenedor && form.numeroContenedor && form.numeroContenedor !== previo.numeroContenedor);
     const ok = await log.guardarBooking(form, editId);
     setGuardando(false);
     if (ok) {
@@ -259,6 +261,12 @@ export default function LogisticaTab({ mob, logistica }) {
       // Si era una operación nueva volvemos a la lista; si era una edición nos
       // quedamos en el detalle para seguir agregando transporte/novedades.
       if (eraNueva) volverALista();
+      // Reasignaron el número de contenedor (Roll Over): guardarBooking ya limpió
+      // esos campos en la base de datos, pero el formulario abierto sigue mostrando
+      // lo que se acaba de escribir — hay que reflejar el reseteo aquí también.
+      else if (rollOverContenedor) {
+        setForm(f => ({ ...f, estadoContenedor: "Vacío", fechaIngresoPuerto: "", fechaAsignacion: "" }));
+      }
     }
   };
 
@@ -895,7 +903,7 @@ export default function LogisticaTab({ mob, logistica }) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {log.contratos.map(c => {
-                  const restantes = c.fechaFin ? diferenciaDias(new Date().toISOString().split("T")[0], c.fechaFin) : null;
+                  const restantes = c.fechaFin ? diferenciaDias(hoyISO(), c.fechaFin) : null;
                   return (
                     <div key={c.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>

@@ -190,11 +190,17 @@ export function useLogistica() {
     }
 
     // Reasignación de número de contenedor (p.ej. Roll Over) → dejar rastro en el historial
+    // y limpiar los datos de gestión del contenedor anterior: si no, el Seguimiento
+    // seguiría mostrando "Contenedor asignado"/"Ingresó al puerto" ya completos con
+    // fechas que en realidad pertenecen al contenedor viejo, no al reasignado.
     if (previo && previo.numeroContenedor && form.numeroContenedor && form.numeroContenedor !== previo.numeroContenedor) {
       row.historial_contenedores = [
         ...(previo.historialContenedores || []),
         { numeroAnterior: previo.numeroContenedor, fecha: new Date().toISOString(), motivo: form.estado },
       ];
+      row.estado_contenedor = "Vacío";
+      row.fecha_ingreso_puerto = null;
+      row.fecha_asignacion = null;
     }
 
     if (id) {
