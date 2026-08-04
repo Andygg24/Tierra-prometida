@@ -47,5 +47,37 @@ export function usePackingList() {
     return { data, error };
   }, []);
 
-  return { cargarPorContenedor, cargarTodos, guardar, ultimaActualizacion };
+  // Busca un packing list por su id (el que va codificado en el QR de la
+  // tirilla de pallet) y le suma el N° de contenedor real desde la tabla
+  // contenedores, para poder mostrarlo en Pallet Verification sin depender
+  // de que admin_data.container ya se haya guardado en ese paso.
+  const cargarPorIdConContenedor = useCallback(async (id) => {
+    const { data: pl, error } = await supabase
+      .from("packing_lists")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !pl) return { data: null, error: error || new Error("No encontrado") };
+    const { data: cont } = await supabase
+      .from("contenedores")
+      .select("num_contenedor")
+      .eq("id", pl.contenedor_id)
+      .maybeSingle();
+    return { data: { ...pl, numContenedor: cont?.num_contenedor || "" }, error: null };
+  }, []);
+
+  // Actualiza solo la columna `pallets` — así marcar un pallet como
+  // verificado no pisa admin_data ni ningún otro campo que otra persona
+  // pueda estar guardando al mismo tiempo desde otro paso.
+  const actualizarPallets = useCallback(async (id, pallets) => {
+    const { data, error } = await supabase
+      .from("packing_lists")
+      .update({ pallets, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return { data, error };
+  }, []);
+
+  return { cargarPorContenedor, cargarTodos, guardar, cargarPorIdConContenedor, actualizarPallets, ultimaActualizacion };
 }

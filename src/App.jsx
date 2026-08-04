@@ -11,6 +11,7 @@ import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
 import CanastillasTab from "./components/CanastillasTab.jsx";
+import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
 import { fechaLocalISO, diferenciaDiasLocal } from "./utils/dates.js";
@@ -3302,7 +3303,7 @@ function ContenedoresDemo() {
   );
   const stats = { total:procesos.length, comp:procesos.filter(p=>p.estado==="Completado").length, enProc:procesos.filter(p=>p.estado==="En proceso").length, cajas:procesos.reduce((s,p)=>s+Number(p.cajasSalida||0),0) };
   const COL_EST = { "En proceso":"#F9A826","Completado":"#00C9A7","Pausado":"#845EF7","Cancelado":"#FF6B6B" };
-  const TAB_CONT = ["🚢 Contenedores","👥 Grupos / Turnos","💰 Nómina","🗺 Trazabilidad","📦 Centro de Costos","📊 Rendimientos","📋 Packing List"];
+  const TAB_CONT = ["🚢 Contenedores","👥 Grupos / Turnos","💰 Nómina","🗺 Trazabilidad","📦 Centro de Costos","📊 Rendimientos","📋 Packing List","🔎 Verificación"];
 
   // ── Tab 5: Rendimientos ──
   const KG_DEL_MONTE = 16.8;
@@ -4616,6 +4617,9 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           </div>
         );
       })()}
+
+      {/* ═══ TAB 7: VERIFICACIÓN ═══ */}
+      {tabCont === 7 && <PalletVerificationTab mob={mob} />}
 
       {/* ═══ TAB 5: RENDIMIENTOS ═══ */}
       {tabCont === 5 && (() => {

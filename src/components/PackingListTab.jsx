@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import QRCode from "qrcode";
 import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { usePackingList } from "../hooks/usePackingList.js";
@@ -135,6 +136,139 @@ async function cargarFirmaBase64() {
   } catch { return ""; }
 }
 
+// Texto plano que va dentro del QR — exactamente los mismos datos que se
+// imprimen en la tirilla (sin observación ni ICA), así el QR sirve para
+// verificar en el sitio que la tirilla no fue alterada, sin depender de
+// internet ni de una página propia para mostrarlo.
+//
+// La primera línea es un identificador técnico ("TPQR|<id del packing list
+// en Supabase>|<n° de pallet>") que usa la pantalla "Pallet Verification"
+// para buscar el pallet real y en vivo — el mismo prefijo se usa en
+// PalletVerificationTab.jsx para parsearlo, deben mantenerse sincronizados.
+// El resto del texto es el mismo resumen legible de siempre, así cualquier
+// lector de QR genérico lo sigue mostrando igual que antes.
+export const QR_PALLET_PREFIX = "TPQR";
+function textoQrPallet(p, admin, contenedor, plId, sumaCajas, pesoTotal) {
+  const calibresTxt = p.calibres
+    .map(c => `  ${c.plu ? `${c.size}PLU` : c.size}: ${Number(c.cajas || 0)} cajas`)
+    .join("\n");
+  return [
+    `${QR_PALLET_PREFIX}|${plId}|${p.id}`,
+    "TIERRA PROMETIDA TRADING",
+    `PALLET: ${p.id}`,
+    `CONTENEDOR: ${admin.container || contenedor?.numContenedor || "—"}`,
+    `FECHA DE EMPAQUE: ${fmtDate(admin.packingDate) || "—"}`,
+    "PRODUCTO: LIMON TAHITI - Categoria 1",
+    "CALIBRES:",
+    calibresTxt,
+    `TOTAL CAJAS: ${sumaCajas}`,
+    `PESO/CAJA: ${PESO_STR}`,
+    `PESO TOTAL: ${pesoTotal.toFixed(1)} KG`,
+    `LISTO PARA CARGAR: ${p.listo ? "SI" : "NO"}`,
+  ].join("\n");
+}
+
+// Tirilla imprimible de un pallet (paso 1) — formato angosto tipo térmica
+// (100x50mm), con toda la info del pallet excepto observación e ICA, más
+// el QR de verificación con esos mismos datos. `plId` es el id ya guardado
+// del packing list en Supabase — sin él el QR no se podría buscar después.
+async function buildTirillaPallet(p, admin, contenedor, plId) {
+  const logoSrc   = await cargarLogoBase64();
+  const sumaCajas = p.calibres.reduce((s, c) => s + Number(c.cajas || 0), 0);
+  const pesoCaja  = parseFloat(PESO_STR) || 0;
+  const pesoTotal = pesoCaja * sumaCajas;
+  const qrTexto   = textoQrPallet(p, admin, contenedor, plId, sumaCajas, pesoTotal);
+  const qrDataUrl = await QRCode.toDataURL(qrTexto, { errorCorrectionLevel: "M", margin: 1, width: 260 });
+
+  const filasCalibres = p.calibres.map(c => `
+    <tr>
+      <td class="cal">${c.plu ? `${c.size}PLU` : c.size}</td>
+      <td class="caj">${Number(c.cajas || 0).toLocaleString("es-CO")}</td>
+    </tr>`).join("");
+
+  // Formato horizontal 100x50mm (tirilla térmica tipo shipping label) — dos
+  // columnas: datos del pallet a la izquierda, QR grande a la derecha, todo
+  // en unidades mm para que imprima al tamaño físico exacto.
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Tirilla Pallet ${p.id}</title>
+<style>
+  *{box-sizing:border-box}
+  @page{size:100mm 50mm;margin:0}
+  html,body{margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#111;width:100mm;height:50mm}
+  .box{width:100mm;height:50mm;padding:1.8mm;display:flex;gap:2.5mm;overflow:hidden}
+  .left{flex:1;min-width:0;display:flex;flex-direction:column}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:0.5mm solid #111;padding-bottom:0.6mm;margin-bottom:0.8mm}
+  .brand{display:flex;align-items:center;gap:1.3mm;min-width:0}
+  .brand img{width:6mm;height:6mm;object-fit:contain;flex-shrink:0}
+  .brand .nom{font-size:2.6mm;font-weight:800;line-height:1.15}
+  .brand .sub{font-size:2.1mm;color:#555;font-weight:600}
+  .pallet-no{text-align:right;flex-shrink:0}
+  .pallet-no .lbl{font-size:2.1mm;color:#555;font-weight:800;letter-spacing:0.3mm}
+  .pallet-no .num{font-size:9.5mm;font-weight:900;line-height:0.9}
+  .meta{display:flex;justify-content:space-between;gap:2mm;font-size:2.3mm;font-weight:700;margin-bottom:0.8mm}
+  .meta span{color:#555;font-weight:600}
+  table.cal{width:100%;border-collapse:collapse;font-size:3.4mm}
+  table.cal th{background:#111;color:#fff;padding:0.5mm 1.5mm;font-size:2.1mm;text-align:left}
+  table.cal th.r,table.cal td.caj{text-align:right}
+  table.cal td{padding:0.4mm 1.5mm;border-bottom:0.25mm solid #ddd}
+  table.cal td.cal{font-weight:800}
+  table.cal td.caj{font-weight:700}
+  table.cal tr.total td{border-top:0.5mm solid #111;border-bottom:none;font-weight:900;font-size:3.8mm;padding-top:0.6mm}
+  .bottom-row{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:2mm}
+  .peso{font-size:2.4mm;font-weight:700;color:#333}
+  .estado{text-align:center;padding:0.7mm 2mm;border-radius:1.5mm;font-size:2.3mm;font-weight:800;white-space:nowrap}
+  .estado.ok{background:#dcfce7;color:#166534}
+  .estado.pend{background:#fef3c7;color:#92400e}
+  .right{width:30mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1mm}
+  .right img{width:28mm;height:28mm}
+  .qr-lbl{font-size:1.9mm;color:#777;text-align:center;line-height:1.2;font-weight:600}
+  @media print{ body{padding:0} }
+</style></head>
+<body>
+  <div class="box">
+    <div class="left">
+      <div class="top">
+        <div class="brand">
+          ${logoSrc ? `<img src="${logoSrc}"/>` : ""}
+          <div>
+            <div class="nom">TIERRA PROMETIDA</div>
+            <div class="sub">Limón Tahití · Cat 1</div>
+          </div>
+        </div>
+        <div class="pallet-no">
+          <div class="lbl">PALLET</div>
+          <div class="num">${p.id}</div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div><span>Cont:</span> ${admin.container || contenedor?.numContenedor || "—"}</div>
+        <div><span>Fecha:</span> ${fmtDate(admin.packingDate) || "—"}</div>
+      </div>
+
+      <table class="cal">
+        <thead><tr><th>Calibre</th><th class="r">Cajas</th></tr></thead>
+        <tbody>
+          ${filasCalibres}
+          <tr class="total"><td class="cal">TOTAL</td><td class="caj">${sumaCajas.toLocaleString("es-CO")}</td></tr>
+        </tbody>
+      </table>
+
+      <div class="bottom-row">
+        <div class="peso">${PESO_STR}/cj · ${pesoTotal.toFixed(1)} KG</div>
+        <div class="estado ${p.listo ? "ok" : "pend"}">${p.listo ? "✓ LISTO" : "⚠ PENDIENTE"}</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <img src="${qrDataUrl}" alt="QR pallet ${p.id}" />
+      <div class="qr-lbl">Escanear para verificar</div>
+    </div>
+  </div>
+</body></html>`;
+}
+
 // Firma dibujada a mano (dedo o mouse) sobre un <canvas> — se usa para la
 // firma del conductor y la del supervisor, cada una con su propio campo
 // en `admin` (ej. "firmaConductor" / "firmaSupervisor").
@@ -249,9 +383,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const [claveInput,    setClaveInput]    = useState("");
   const [claveError,    setClaveError]    = useState("");
 
-  // ── Vista previa de informes (Planta / Cargue) ──────────────────
+  // ── Vista previa de informes (Planta / Cargue / Tirilla de pallet) ──
   const [previewInforme, setPreviewInforme] = useState(null); // { url, filename }
   useEffect(() => () => { if (previewInforme?.url) URL.revokeObjectURL(previewInforme.url); }, [previewInforme]);
+  const previewInformeIframeRef = useRef(null);
 
   // ── Carta de Responsabilidad ─────────────────────────────────────
   const [cartaResp, setCartaResp] = useState(null); // null = cerrada; objeto = formulario abierto
@@ -300,6 +435,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const [guardando,  setGuardando]  = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [cargando,   setCargando]   = useState(true);
+  // Espejo síncrono de plId — setPlId() no se refleja de inmediato en este
+  // closure tras un await (React agrupa el re-render), y la tirilla necesita
+  // el id recién guardado apenas termina guardarPaso1(), no en el próximo render.
+  const plIdRef = useRef(null);
 
   // ── Fases ─────────────────────────────────────────────────────
   const [fase, setFase] = useState(1);
@@ -408,6 +547,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     cargarPorContenedor(contenedor.id).then(({ data }) => {
       if (data) {
         setPlId(data.id);
+        plIdRef.current = data.id;
         setFase(data.fase || 1);
         setTotalCajas(data.total_cajas || 1400);
         setCajasInput(data.cajas_input || String(data.total_cajas || 1400));
@@ -450,7 +590,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
       ...extra,
     };
     const { data, error } = await guardar(row);
-    if (!error && data?.id) setPlId(data.id);
+    if (!error && data?.id) { setPlId(data.id); plIdRef.current = data.id; }
     setGuardando(false);
     if (!error) {
       setGuardadoOk(true);
@@ -545,6 +685,28 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const palletSum  = (p)   => p.calibres.reduce((s, c) => s + Number(c.cajas || 0), 0);
   const palletById = (pid) => pallets.find(p => p.id === pid);
   const selPalletIdx = selPid !== null ? pallets.findIndex(p => p.id === selPid) : -1;
+
+  // ── Tirilla de pallet (Paso 1) — imprime info del pallet + QR de verificación ──
+  const [generandoTirilla, setGenerandoTirilla] = useState(false);
+  const imprimirTirillaPallet = async (p) => {
+    setGenerandoTirilla(true);
+    try {
+      // El QR necesita el id real del packing list en Supabase para que
+      // "Pallet Verification" pueda buscarlo después — se guarda lo que haya
+      // en pantalla (igual que el botón "Guardar" de este paso) antes de
+      // generar la tirilla, así lo impreso coincide con lo que quedó guardado.
+      await guardarPaso1(false);
+      if (!plIdRef.current) {
+        alert("No se pudo guardar el packing list antes de generar la tirilla. Intenta de nuevo.");
+        return;
+      }
+      const html = await buildTirillaPallet(p, admin, contenedor, plIdRef.current);
+      const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+      setPreviewInforme({ url, filename: `Tirilla-Pallet-${p.id}-${admin.container || contenedor?.numContenedor || "packing"}.html` });
+    } finally {
+      setGenerandoTirilla(false);
+    }
+  };
 
   // Coloca/mueve un pallet a una casilla (col, idx). Si esa casilla ya
   // tenía otro pallet, ese pallet queda desplazado — si el que se mueve
@@ -2394,7 +2556,21 @@ p{text-align:justify;margin-bottom:14px}
                     )}
                   </div>
                 ))}
-                <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.25)", marginTop:4 }}>Peso/caja: {PESO_STR} · LIMON TAHITI · Categoría 1</div>
+                <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.25)", marginTop:4, marginBottom:10 }}>Peso/caja: {PESO_STR} · LIMON TAHITI · Categoría 1</div>
+
+                <button
+                  onClick={() => imprimirTirillaPallet(selP)}
+                  disabled={generandoTirilla}
+                  style={{
+                    width:"100%", background:"linear-gradient(135deg,#0f766e,#14b8a6)", border:"none",
+                    borderRadius:9, padding: m ? "13px" : "10px", fontSize: m ? 14 : 12, color:"white",
+                    cursor: generandoTirilla ? "wait" : "pointer", fontWeight:700,
+                    opacity: generandoTirilla ? 0.7 : 1, minHeight: m ? 48 : 38, fontFamily:"inherit",
+                    display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                  }}
+                >
+                  🏷️ {generandoTirilla ? "Generando..." : "Imprimir tirilla + QR"}
+                </button>
               </div>
             )}
 
@@ -2809,11 +2985,12 @@ p{text-align:justify;margin-bottom:14px}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding: m ? "12px 16px" : "10px 18px", background:"#1a1a2e", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
             <span style={{ color:"white", fontWeight:700, fontSize: m ? 12 : 13 }}>👁 Vista previa — {previewInforme.filename}</span>
             <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => previewInformeIframeRef.current?.contentWindow?.print()} style={{ background:"rgba(99,102,241,0.2)", border:"1px solid rgba(99,102,241,0.5)", borderRadius:8, padding: m ? "8px 14px" : "7px 16px", fontSize: m ? 11 : 12, color:"#a5b4fc", cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>🖨 Imprimir</button>
               <button onClick={() => { const a = document.createElement("a"); a.href = previewInforme.url; a.download = previewInforme.filename; a.click(); }} style={{ background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, padding: m ? "8px 14px" : "7px 16px", fontSize: m ? 11 : 12, color:"white", cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>📥 Descargar</button>
               <button onClick={() => setPreviewInforme(null)} style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, padding: m ? "8px 14px" : "7px 16px", fontSize: m ? 11 : 12, color:"white", cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>✕ Cerrar</button>
             </div>
           </div>
-          <iframe src={previewInforme.url} style={{ flex:1, border:"none", background:"white" }} title="Vista previa del informe" />
+          <iframe ref={previewInformeIframeRef} src={previewInforme.url} style={{ flex:1, border:"none", background:"white" }} title="Vista previa del informe" />
         </div>
       )}
 
