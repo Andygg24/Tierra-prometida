@@ -181,14 +181,15 @@ async function buildTirillaPallet(p, admin, contenedor, plId) {
   const qrDataUrl = await QRCode.toDataURL(qrTexto, { errorCorrectionLevel: "M", margin: 1, width: 260 });
 
   const filasCalibres = p.calibres.map(c => `
-    <tr>
-      <td class="cal">${c.plu ? `${c.size}PLU` : c.size}</td>
-      <td class="caj">${Number(c.cajas || 0).toLocaleString("es-CO")}</td>
-    </tr>`).join("");
+    <div class="cal-row">
+      <span class="cal-num">${c.plu ? `${c.size}PLU` : c.size}</span>
+      <span class="cal-cajas">${Number(c.cajas || 0).toLocaleString("es-CO")}</span>
+    </div>`).join("");
 
   // Formato horizontal 100x50mm (tirilla térmica tipo shipping label) — dos
   // columnas: datos del pallet a la izquierda, QR grande a la derecha, todo
-  // en unidades mm para que imprima al tamaño físico exacto.
+  // en unidades mm para que imprima al tamaño físico exacto. Sin contenedor
+  // (queda solo en el QR/Verificación) para dejar más espacio a letras grandes.
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <title>Tirilla Pallet ${p.id}</title>
 <style>
@@ -198,26 +199,24 @@ async function buildTirillaPallet(p, admin, contenedor, plId) {
   body{font-family:Arial,sans-serif;color:#111;width:100mm;height:50mm}
   .box{width:100mm;height:50mm;padding:1.8mm;display:flex;gap:2.5mm;overflow:hidden}
   .left{flex:1;min-width:0;display:flex;flex-direction:column}
-  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:0.5mm solid #111;padding-bottom:0.6mm;margin-bottom:0.8mm}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:0.5mm solid #111;padding-bottom:0.4mm;margin-bottom:0.7mm}
   .brand{display:flex;align-items:center;gap:1.3mm;min-width:0}
-  .brand img{width:6mm;height:6mm;object-fit:contain;flex-shrink:0}
-  .brand .nom{font-size:2.6mm;font-weight:800;line-height:1.15}
-  .brand .sub{font-size:2.1mm;color:#555;font-weight:600}
+  .brand img{width:6.5mm;height:6.5mm;object-fit:contain;flex-shrink:0}
+  .brand .nom{font-size:3mm;font-weight:800;line-height:1.15}
+  .brand .sub{font-size:2.2mm;color:#555;font-weight:600}
   .pallet-no{text-align:right;flex-shrink:0}
-  .pallet-no .lbl{font-size:2.1mm;color:#555;font-weight:800;letter-spacing:0.3mm}
-  .pallet-no .num{font-size:9.5mm;font-weight:900;line-height:0.9}
-  .meta{display:flex;justify-content:space-between;gap:2mm;font-size:2.3mm;font-weight:700;margin-bottom:0.8mm}
-  .meta span{color:#555;font-weight:600}
-  table.cal{width:100%;border-collapse:collapse;font-size:3.4mm}
-  table.cal th{background:#111;color:#fff;padding:0.5mm 1.5mm;font-size:2.1mm;text-align:left}
-  table.cal th.r,table.cal td.caj{text-align:right}
-  table.cal td{padding:0.4mm 1.5mm;border-bottom:0.25mm solid #ddd}
-  table.cal td.cal{font-weight:800}
-  table.cal td.caj{font-weight:700}
-  table.cal tr.total td{border-top:0.5mm solid #111;border-bottom:none;font-weight:900;font-size:3.8mm;padding-top:0.6mm}
+  .pallet-no .lbl{font-size:2.2mm;color:#555;font-weight:800;letter-spacing:0.3mm}
+  .pallet-no .num{font-size:10.5mm;font-weight:900;line-height:0.85}
+  .pallet-no .fecha-mini{font-size:2mm;color:#777;font-weight:700;margin-top:0.3mm}
+  .cal-title{display:flex;justify-content:space-between;font-size:2.6mm;font-weight:800;letter-spacing:0.3mm;color:#555;text-transform:uppercase;border-bottom:0.4mm solid #111;padding-bottom:0.4mm;margin-bottom:0.4mm}
+  .cal-row{display:flex;justify-content:space-between;align-items:baseline;padding:0.4mm 0;border-bottom:0.25mm solid #ddd}
+  .cal-row .cal-num{font-size:4.6mm;font-weight:900}
+  .cal-row .cal-cajas{font-size:3.6mm;font-weight:700;color:#333}
+  .cal-row.total{border-top:0.5mm solid #111;border-bottom:none;margin-top:0.2mm;padding-top:0.5mm}
+  .cal-row.total .cal-num,.cal-row.total .cal-cajas{font-size:4mm;font-weight:900;color:#111}
   .bottom-row{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:2mm}
-  .peso{font-size:2.4mm;font-weight:700;color:#333}
-  .estado{text-align:center;padding:0.7mm 2mm;border-radius:1.5mm;font-size:2.3mm;font-weight:800;white-space:nowrap}
+  .peso{font-size:2.5mm;font-weight:700;color:#333}
+  .estado{text-align:center;padding:0.8mm 2.2mm;border-radius:1.5mm;font-size:2.6mm;font-weight:800;white-space:nowrap}
   .estado.ok{background:#dcfce7;color:#166534}
   .estado.pend{background:#fef3c7;color:#92400e}
   .right{width:30mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1mm}
@@ -239,21 +238,15 @@ async function buildTirillaPallet(p, admin, contenedor, plId) {
         <div class="pallet-no">
           <div class="lbl">PALLET</div>
           <div class="num">${p.id}</div>
+          <div class="fecha-mini">${fmtDate(admin.packingDate) || "—"}</div>
         </div>
       </div>
 
-      <div class="meta">
-        <div><span>Cont:</span> ${admin.container || contenedor?.numContenedor || "—"}</div>
-        <div><span>Fecha:</span> ${fmtDate(admin.packingDate) || "—"}</div>
+      <div class="cal-title"><span>Calibre</span><span>Cajas</span></div>
+      <div class="cal-list">
+        ${filasCalibres}
+        <div class="cal-row total"><span class="cal-num">TOTAL</span><span class="cal-cajas">${sumaCajas.toLocaleString("es-CO")}</span></div>
       </div>
-
-      <table class="cal">
-        <thead><tr><th>Calibre</th><th class="r">Cajas</th></tr></thead>
-        <tbody>
-          ${filasCalibres}
-          <tr class="total"><td class="cal">TOTAL</td><td class="caj">${sumaCajas.toLocaleString("es-CO")}</td></tr>
-        </tbody>
-      </table>
 
       <div class="bottom-row">
         <div class="peso">${PESO_STR}/cj · ${pesoTotal.toFixed(1)} KG</div>
