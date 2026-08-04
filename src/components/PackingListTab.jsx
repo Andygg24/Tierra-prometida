@@ -136,48 +136,33 @@ async function cargarFirmaBase64() {
   } catch { return ""; }
 }
 
-// Texto plano que va dentro del QR — exactamente los mismos datos que se
-// imprimen en la tirilla (sin observación ni ICA), así el QR sirve para
-// verificar en el sitio que la tirilla no fue alterada, sin depender de
-// internet ni de una página propia para mostrarlo.
+// Texto que va dentro del QR — solo el identificador técnico
+// ("TPQR|<id del packing list en Supabase>|<n° de pallet>") que usa la
+// pantalla "Pallet Verification" para buscar el pallet real y en vivo (el
+// mismo prefijo se usa en PalletVerificationTab.jsx para parsearlo, deben
+// mantenerse sincronizados).
 //
-// La primera línea es un identificador técnico ("TPQR|<id del packing list
-// en Supabase>|<n° de pallet>") que usa la pantalla "Pallet Verification"
-// para buscar el pallet real y en vivo — el mismo prefijo se usa en
-// PalletVerificationTab.jsx para parsearlo, deben mantenerse sincronizados.
-// El resto del texto es el mismo resumen legible de siempre, así cualquier
-// lector de QR genérico lo sigue mostrando igual que antes.
+// Antes el QR llevaba además todo el resumen legible del pallet, pero eso
+// lo volvía un QR versión 11 (61x61 módulos) — a 28mm de impresión cada
+// módulo medía <0.5mm y el celular no lo leía de forma confiable. Con solo
+// el identificador queda en versión 2 (25x25), mucho más grande y rápido
+// de escanear; la info completa igual se ve al escanear, porque
+// Verificación la trae en vivo desde Supabase.
 export const QR_PALLET_PREFIX = "TPQR";
-function textoQrPallet(p, admin, contenedor, plId, sumaCajas, pesoTotal) {
-  const calibresTxt = p.calibres
-    .map(c => `  ${c.plu ? `${c.size}PLU` : c.size}: ${Number(c.cajas || 0)} cajas`)
-    .join("\n");
-  return [
-    `${QR_PALLET_PREFIX}|${plId}|${p.id}`,
-    "TIERRA PROMETIDA TRADING",
-    `PALLET: ${p.id}`,
-    `CONTENEDOR: ${admin.container || contenedor?.numContenedor || "—"}`,
-    `FECHA DE EMPAQUE: ${fmtDate(admin.packingDate) || "—"}`,
-    "PRODUCTO: LIMON TAHITI - Categoria 1",
-    "CALIBRES:",
-    calibresTxt,
-    `TOTAL CAJAS: ${sumaCajas}`,
-    `PESO/CAJA: ${PESO_STR}`,
-    `PESO TOTAL: ${pesoTotal.toFixed(1)} KG`,
-    `LISTO PARA CARGAR: ${p.listo ? "SI" : "NO"}`,
-  ].join("\n");
+function textoQrPallet(plId, palletId) {
+  return `${QR_PALLET_PREFIX}|${plId}|${palletId}`;
 }
 
 // Tirilla imprimible de un pallet (paso 1) — formato angosto tipo térmica
 // (100x50mm), con toda la info del pallet excepto observación e ICA, más
 // el QR de verificación con esos mismos datos. `plId` es el id ya guardado
 // del packing list en Supabase — sin él el QR no se podría buscar después.
-async function buildTirillaPallet(p, admin, contenedor, plId) {
+async function buildTirillaPallet(p, admin, plId) {
   const logoSrc   = await cargarLogoBase64();
   const sumaCajas = p.calibres.reduce((s, c) => s + Number(c.cajas || 0), 0);
   const pesoCaja  = parseFloat(PESO_STR) || 0;
   const pesoTotal = pesoCaja * sumaCajas;
-  const qrTexto   = textoQrPallet(p, admin, contenedor, plId, sumaCajas, pesoTotal);
+  const qrTexto   = textoQrPallet(plId, p.id);
   const qrDataUrl = await QRCode.toDataURL(qrTexto, { errorCorrectionLevel: "M", margin: 1, width: 260 });
 
   const filasCalibres = p.calibres.map(c => `
@@ -693,7 +678,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         alert("No se pudo guardar el packing list antes de generar la tirilla. Intenta de nuevo.");
         return;
       }
-      const html = await buildTirillaPallet(p, admin, contenedor, plIdRef.current);
+      const html = await buildTirillaPallet(p, admin, plIdRef.current);
       const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
       setPreviewInforme({ url, filename: `Tirilla-Pallet-${p.id}-${admin.container || contenedor?.numContenedor || "packing"}.html` });
     } finally {
