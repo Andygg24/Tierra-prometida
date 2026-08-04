@@ -78,8 +78,9 @@ export default function PalletVerificationTab({ mob }) {
   const [toast, setToast] = useState(null);
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3200); };
 
-  const html5QrRef   = useRef(null);
+  const html5QrRef    = useRef(null);
   const procesandoRef = useRef(false);
+  const ignoradoRef   = useRef(null); // último texto no reconocido — evita repetir el aviso en cada frame
   const READER_ID = "qr-reader-pallet-verification";
 
   const detenerCamara = async () => {
@@ -105,9 +106,18 @@ export default function PalletVerificationTab({ mob }) {
     if (procesandoRef.current) return;
     const primeraLinea = (decodedText || "").split("\n")[0].trim();
     const partes = primeraLinea.split("|");
-    // No es un QR de tirilla de pallet (puede ser cualquier otro código
-    // captado sin querer, ej. el de Canastillas) — se ignora en silencio.
-    if (partes[0] !== QR_PALLET_PREFIX || partes.length < 3) return;
+    // No es un QR de tirilla de pallet reconocible — puede ser otro código
+    // (ej. el de Canastillas) o una tirilla impresa antes de esta
+    // actualización (formato viejo, sin el identificador). Se avisa una
+    // sola vez por código distinto, no en cada frame que la cámara escanea.
+    if (partes[0] !== QR_PALLET_PREFIX || partes.length < 3) {
+      if (primeraLinea && primeraLinea !== ignoradoRef.current) {
+        ignoradoRef.current = primeraLinea;
+        showToast("Ese QR no es una tirilla de pallet válida. Si es una tirilla vieja, imprime una nueva desde Packing List.", false);
+      }
+      return;
+    }
+    ignoradoRef.current = null;
 
     procesandoRef.current = true;
     playBeep();
@@ -119,6 +129,7 @@ export default function PalletVerificationTab({ mob }) {
   const iniciarCamara = async () => {
     setCamError("");
     setResultado(null);
+    ignoradoRef.current = null;
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       const inst = new Html5Qrcode(READER_ID);
