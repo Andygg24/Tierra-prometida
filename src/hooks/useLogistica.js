@@ -449,8 +449,9 @@ export function buscarNaviera(navierasCfg, nombre) {
   return navierasCfg.find(n => (n.nombre || "").trim().toLowerCase() === nombre.trim().toLowerCase()) || null;
 }
 
-// Días restantes de free time para un booking (null si la naviera no tiene regla o falta la fecha base)
+// Días restantes de free time para un booking (null si la naviera no tiene regla, falta la fecha base, o la operación ya terminó)
 export function diasLibresRestantes(booking, navierasCfg) {
+  if (booking.estado === "Finalizado" || booking.estado === "Cancelado") return null;
   const naviera = buscarNaviera(navierasCfg, booking.naviera);
   if (!naviera || naviera.diasLibres == null) return null;
   const fechaBase = naviera.diasLibresDesde === "ingreso_puerto" ? booking.fechaIngresoPuerto

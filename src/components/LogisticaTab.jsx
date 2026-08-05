@@ -210,6 +210,7 @@ export default function LogisticaTab({ mob, logistica }) {
   const [operacionSel, setOperacionSel] = useState(null); // null = lista | "new" | id de un booking existente
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
+  const [errorGuardado, setErrorGuardado] = useState("");
   const [busqueda, setBusqueda]   = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
 
@@ -248,7 +249,11 @@ export default function LogisticaTab({ mob, logistica }) {
   };
 
   const guardar = async () => {
-    if (!form.numeroBooking && !form.numeroContenedor) return;
+    setErrorGuardado("");
+    if (!form.numeroBooking && !form.numeroContenedor) {
+      setErrorGuardado("Falta el número de booking o el número de contenedor.");
+      return;
+    }
     setGuardando(true);
     const eraNueva = !editId;
     const previo = editId ? log.bookings.find(b => b.id === editId) : null;
@@ -267,6 +272,8 @@ export default function LogisticaTab({ mob, logistica }) {
       else if (rollOverContenedor) {
         setForm(f => ({ ...f, estadoContenedor: "Vacío", fechaIngresoPuerto: "", fechaAsignacion: "" }));
       }
+    } else {
+      setErrorGuardado("No se pudo guardar la operación. Revisa tu conexión e intenta de nuevo.");
     }
   };
 
@@ -481,8 +488,8 @@ export default function LogisticaTab({ mob, logistica }) {
 
                 <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Datos del booking</div>
                 <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
-                  <div style={campoBox}><div style={lbl}>Número booking</div><input style={inp} value={form.numeroBooking} onChange={e => setCampo("numeroBooking", e.target.value)} placeholder="Ej: BK-00123" /></div>
-                  <div style={campoBox}><div style={lbl}>Número contenedor</div><input style={inp} value={form.numeroContenedor} onChange={e => setCampo("numeroContenedor", e.target.value.toUpperCase())} placeholder="MSKU1234567" /></div>
+                  <div style={campoBox}><div style={lbl}>Número booking {!form.numeroBooking && !form.numeroContenedor && <span style={{ color: "#FF6B6B" }}>*</span>}</div><input style={inp} value={form.numeroBooking} onChange={e => setCampo("numeroBooking", e.target.value)} placeholder="Ej: BK-00123" /></div>
+                  <div style={campoBox}><div style={lbl}>Número contenedor {!form.numeroBooking && !form.numeroContenedor && <span style={{ color: "#FF6B6B" }}>*</span>}</div><input style={inp} value={form.numeroContenedor} onChange={e => setCampo("numeroContenedor", e.target.value.toUpperCase())} placeholder="MSKU1234567" /></div>
                   <div style={campoBox}><div style={lbl}>Estado</div>
                     <CustomSelect value={form.estado} onChange={e => setCampo("estado", e.target.value)} style={inp}>
                       {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}
@@ -585,7 +592,10 @@ export default function LogisticaTab({ mob, logistica }) {
                   <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={form.obs} onChange={e => setCampo("obs", e.target.value)} placeholder="Notas sobre esta operación..." />
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  {errorGuardado && (
+                    <span style={{ color: "#FF6B6B", fontSize: 12, marginRight: "auto" }}>{errorGuardado}</span>
+                  )}
                   <button onClick={guardar} disabled={guardando} style={btnPrimario(guardadoOk, guardando)}>
                     {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : editId ? "Guardar cambios" : "Guardar booking"}
                   </button>
