@@ -5,7 +5,6 @@ import { useAsistencia } from "./hooks/useAsistencia.js";
 import { useContenedores } from "./hooks/useContenedores.js";
 import { useInventario } from "./hooks/useInventario.js";
 import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
-import { usePedidos } from "./hooks/usePedidos.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
@@ -5954,7 +5953,6 @@ function EstadisticasDemo() {
   const mesActual = hoy.toISOString().slice(0,7);
   const { procesos: contsStats } = useContenedores();
   const { liquidaciones: liqStats } = useLiquidaciones();
-  const { pedidos: pedidosReales } = usePedidos();
   const { config: estCfg } = useConfiguracion();
   const { registros: asistRegs } = useAsistencia();
 
@@ -6002,7 +6000,6 @@ function EstadisticasDemo() {
 
   // Parámetros configurados desde Supabase
   const nominaCfgEst = estCfg.cfg_nomina      || {};
-  const expCfgEst    = estCfg.cfg_exportacion || {};
   const valCont      = nominaCfgEst.valorContenedor ?? VALOR_CONTENEDOR;
   const salMin       = nominaCfgEst.salarioMinimo   ?? SALARIO_MINIMO;
   const valQuin      = nominaCfgEst.valorQuincena   ?? QUINCENA_DESCARGUE;
@@ -6043,19 +6040,6 @@ function EstadisticasDemo() {
     return { ...h, gastos };
   });
 
-  // Pedidos reales desde Supabase (via usePedidos)
-
-  // Exportaciones por cliente
-  const expCliente = {};
-  pedidosReales.forEach(p => {
-    if (!expCliente[p.cliente]) expCliente[p.cliente] = { kg:0, usd:0, pedidos:0 };
-    expCliente[p.cliente].kg      += p.cantidadKg;
-    expCliente[p.cliente].usd     += p.cantidadKg * p.precioUSD;
-    expCliente[p.cliente].pedidos += 1;
-  });
-  const expArr       = Object.entries(expCliente).map(([c,v])=>({cliente:c,...v}));
-  const totalExpUSD  = expArr.reduce((s,e)=>s+e.usd,0);
-
   // Descarga CSV
   const descargarCSV = (headers, rows, filename) => {
     const csv  = [headers.join(","), ...rows.map(r=>r.map(v=>`"${v}"`).join(","))].join("\n");
@@ -6070,7 +6054,6 @@ function EstadisticasDemo() {
     { icon:"💰", label:"Nómina"        },
     { icon:"📅", label:"Asistencia"    },
     { icon:"💸", label:"Gastos"        },
-    { icon:"🚢", label:"Exportaciones" },
   ];
 
   const btnCSV = (label, onClick) => (
@@ -6431,104 +6414,6 @@ function EstadisticasDemo() {
         );
       })()}
 
-      {/* ══ TAB 4: EXPORTACIONES ══ */}
-      {tab===4 && (
-        <div>
-          <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:12 }}>
-            {[
-              { icon:"🤝", l:"Clientes activos",   v:expArr.length,                                            c:"#0EA5E9" },
-              { icon:"⚖️",  l:"Kg en pipeline",    v:expArr.reduce((s,e)=>s+e.kg,0).toLocaleString("es-CO"),  c:"#00C9A7" },
-              { icon:"💵", l:"Valor USD total",     v:`$${totalExpUSD.toLocaleString("en-US",{maximumFractionDigits:0})}`, c:"#F9A826" },
-            ].map((k,i)=>(
-              <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${k.c}22`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
-                <div style={{ fontSize:18 }}>{k.icon}</div>
-                <div style={{ fontSize:16, fontWeight:800, color:k.c, marginTop:2 }}>{k.v}</div>
-                <div style={{ fontSize:8, color:"rgba(255,255,255,0.42)", marginTop:2, lineHeight:1.3 }}>{k.l}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Cards por cliente */}
-          <div style={{ marginBottom:10 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.52)" }}>🤝 Por cliente</div>
-              {btnCSV("CSV exportaciones", ()=>descargarCSV(
-                ["Cliente","País","Pedidos","Kg totales","Valor USD","Precio USD/kg"],
-                expArr.map(e=>[e.cliente,"USA",e.pedidos,e.kg,e.usd.toFixed(0),(e.usd/e.kg).toFixed(2)]),
-                "exportaciones_cliente.csv"
-              ))}
-            </div>
-            {expArr.map((e,i)=>{
-              const pct        = Math.round(e.usd/(totalExpUSD||1)*100);
-              const cfgClients = expCfgEst.clientes || [];
-              const dest       = cfgClients.find(c=>c.nombre===e.cliente) || CLIENTES_BASE.find(c=>c.nombre===e.cliente);
-              const pedCliente = pedidosReales.filter(p=>p.cliente===e.cliente);
-              const entregados = pedCliente.filter(p=>p.estado==="entregado").length;
-              const enProceso  = pedCliente.filter(p=>p.estado==="produccion"||p.estado==="listo").length;
-              const estadoLabel = entregados>0 ? `${entregados} entregado${entregados!==1?"s":""}` : enProceso>0 ? `${enProceso} en proceso` : `${e.pedidos} en pipeline`;
-              return (
-                <div key={i} style={{ background:"rgba(14,165,233,0.04)", border:"1px solid rgba(14,165,233,0.14)", borderRadius:12, padding:"14px", marginBottom:8 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:2 }}>{e.cliente}</div>
-                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)" }}>
-                        {dest?.pais || "🌎 Internacional"}
-                        {dest?.contacto && dest.contacto!=="—" && <> · {dest.contacto}</>}
-                        {dest?.tel && dest.tel!=="—" && <> · {dest.tel}</>}
-                      </div>
-                    </div>
-                    <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:16, fontWeight:800, color:"#F9A826" }}>${e.usd.toLocaleString("en-US",{maximumFractionDigits:0})}</div>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)" }}>USD · {pct}% del total</div>
-                    </div>
-                  </div>
-                  <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:3, height:5, marginBottom:8 }}>
-                    <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#0EA5E9,#6366F1)", borderRadius:3 }}/>
-                  </div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    {[["kg total",`${e.kg.toLocaleString("es-CO")} kg`,"#00C9A7"],
-                      ["precio",`$${(e.usd/e.kg).toFixed(2)}/kg`,"#F9A826"],
-                      ["pedidos",`${e.pedidos} pedido${e.pedidos!==1?"s":""}`, "#0EA5E9"],
-                      ["estado", estadoLabel, entregados>0?"#00C9A7":enProceso>0?"#F9A826":"#6366F1"]].map(([l,v,c])=>(
-                      <div key={l} style={{ flex:1, background:`${c}0d`, borderRadius:6, padding:"4px 3px", textAlign:"center" }}>
-                        <div style={{ fontSize:10, color:c, fontWeight:700 }}>{v}</div>
-                        <div style={{ fontSize:7, color:"rgba(255,255,255,0.38)", marginTop:1 }}>{l}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Pedidos detalle */}
-          <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.48)", marginBottom:8 }}>📋 Pedidos activos en pipeline</div>
-            {pedidosReales.map((p,i)=>{
-              const est = PEDIDO_ESTADOS.find(e=>e.key===p.estado)||{label:p.estado,color:"#aaa",icon:"📦"};
-              return (
-                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-                  <div>
-                    <div style={{ fontSize:10, color:"white", fontWeight:600 }}>{p.producto} · {p.cantidadKg.toLocaleString("es-CO")} kg</div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:1 }}>
-                      {p.fecha}{p.contenedor?` · ${p.contenedor}`:""} · {p.cliente}
-                    </div>
-                  </div>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ fontSize:12, fontWeight:800, color:"#F9A826" }}>${(p.cantidadKg*p.precioUSD).toLocaleString("en-US",{maximumFractionDigits:0})} USD</div>
-                    <span style={{ fontSize:8, background:`${est.color}20`, color:est.color, borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{est.icon} {est.label}</span>
-                  </div>
-                </div>
-              );
-            })}
-            <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.09)" }}>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.48)" }}>Total pipeline</span>
-              <span style={{ fontSize:13, fontWeight:800, color:"#F9A826" }}>${totalExpUSD.toLocaleString("en-US",{maximumFractionDigits:0})} USD</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Botón PDF / imprimir ── */}
       <div style={{ marginTop:16, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
         <button onClick={()=>window.print()}
@@ -6541,251 +6426,6 @@ function EstadisticasDemo() {
   );
 }
 
-// ─── MÓDULO PEDIDOS / CLIENTES ───────────────────────────────
-const CLIENTES_BASE = [
-  { id:1, nombre:"Princesses Kingdom Corp",    pais:"🇺🇸 USA",      contacto:"Carlos Morales", tel:"+17867102522", tipo:"Exportación" },
-  { id:2, nombre:"Comercializadora Nacional", pais:"🇨🇴 Colombia", contacto:"—",              tel:"—",           tipo:"Nacional"    },
-];
-
-const PEDIDO_ESTADOS = [
-  { key:"cotizacion", label:"Cotización",     color:"#845EF7", icon:"📝" },
-  { key:"confirmado", label:"Confirmado",     color:"#0EA5E9", icon:"✅" },
-  { key:"produccion", label:"En producción",  color:"#F9A826", icon:"🏭" },
-  { key:"listo",      label:"Listo despacho", color:"#00C9A7", icon:"📦" },
-  { key:"despachado", label:"Despachado",     color:"#6366F1", icon:"🚢" },
-  { key:"entregado",  label:"Entregado",      color:"#25D366", icon:"🎉" },
-];
-
-function PedidosDemo() {
-  const mob = useM();
-  const { pedidos, loading: loadingPed, agregarPedido, avanzarEstado, eliminarPedido, editarPedido } = usePedidos();
-  const { config: cfgPed } = useConfiguracion();
-
-  const clientes = (() => {
-    const lista = (cfgPed.cfg_exportacion || {}).clientes || [];
-    return lista.length > 0 ? lista : CLIENTES_BASE;
-  })();
-  const primerCliente = clientes[0]?.nombre || "Princesses Kingdom Corp";
-
-  const [showForm,       setShowForm]       = useState(false);
-  const [editId,         setEditId]         = useState(null);
-  const [detalle,        setDetalle]        = useState(null);
-  const [filtroEst,      setFiltroEst]      = useState("todos");
-  const [confirm,        setConfirm]        = useState(null);
-  const [toast,          setToastPed]       = useState(null);
-  const [busqPedidos,    setBusqPedidos]    = useState("");
-  const [filtroPedDesde, setFiltroPedDesde] = useState("");
-  const [filtroPedHasta, setFiltroPedHasta] = useState("");
-  const [nuevo,          setNuevo]          = useState({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
-
-  const pedir     = (msg, fn) => setConfirm({ msg, fn });
-  const showToastPed = (msg, ok=true) => { setToastPed({ msg, ok }); setTimeout(() => setToastPed(null), 3000); };
-  const estInfo   = (key) => PEDIDO_ESTADOS.find(e => e.key === key) || PEDIDO_ESTADOS[0];
-  const nextEst   = (key) => { const i = PEDIDO_ESTADOS.findIndex(e=>e.key===key); return PEDIDO_ESTADOS[Math.min(i+1, PEDIDO_ESTADOS.length-1)]; };
-  const filtrados = pedidos.filter(p => {
-    if (filtroEst !== "todos" && p.estado !== filtroEst) return false;
-    if (busqPedidos && ![p.cliente,p.producto,p.contenedor].some(f=>(f||"").toLowerCase().includes(busqPedidos.toLowerCase()))) return false;
-    if (filtroPedDesde && p.fecha < filtroPedDesde) return false;
-    if (filtroPedHasta && p.fecha > filtroPedHasta) return false;
-    return true;
-  });
-  const totalUSD  = pedidos.reduce((s,p) => s + p.cantidadKg * p.precioUSD, 0);
-
-  const abrirEditar = (p) => {
-    setNuevo({ cliente:p.cliente, producto:p.producto, cantidadKg:String(p.cantidadKg), precioUSD:String(p.precioUSD), estado:p.estado, contenedor:p.contenedor||"", notas:p.notas||"" });
-    setEditId(p.id);
-    setShowForm(true);
-  };
-
-  const agregar = async () => {
-    if (!nuevo.cantidadKg) return;
-    const campos = { ...nuevo, cantidadKg:Number(nuevo.cantidadKg), precioUSD:Number(nuevo.precioUSD) };
-    if (editId) {
-      const ok = await editarPedido(editId, campos);
-      showToastPed(ok ? "Pedido actualizado ✓" : "Error al actualizar", ok);
-      setEditId(null);
-    } else {
-      agregarPedido({ ...campos, id:Date.now(), fecha:new Date().toISOString().split("T")[0] });
-    }
-    setNuevo({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" });
-    setShowForm(false);
-  };
-  const avanzar = (id) => {
-    const p = pedidos.find(x => x.id === id);
-    if (p) avanzarEstado(id, nextEst(p.estado).key);
-  };
-
-  const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:6, padding:"6px 8px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
-
-  if (loadingPed) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.38)", fontSize:13 }}>Cargando pedidos...</div>;
-
-  return (
-    <div>
-      {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={()=>{confirm.fn();setConfirm(null);}} onCancel={()=>setConfirm(null)} />}
-      {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:toast.ok?"#064e3b":"#450a0a", border:`1px solid ${toast.ok?"#059669":"#dc2626"}`, color:toast.ok?"#6ee7b7":"#fca5a5", borderRadius:10, padding:"10px 20px", fontSize:12, fontWeight:600, zIndex:9999, pointerEvents:"none", whiteSpace:"nowrap" }}>{toast.ok?"✅":"❌"} {toast.msg}</div>}
-
-      {/* Detalle modal */}
-      {detalle && (
-        <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"#1a1a2e", border:"1px solid rgba(14,165,233,0.35)", borderRadius:16, padding:22, maxWidth:360, width:"100%", maxHeight:"calc(100vh - 40px)", overflowY:"auto" }}>
-            <div style={{ fontSize:13, fontWeight:700, color:"#0EA5E9", marginBottom:14 }}>📋 Pedido #{detalle.id}</div>
-            {[["Cliente",detalle.cliente],["Producto",detalle.producto],["Cantidad",`${Number(detalle.cantidadKg).toLocaleString("es-CO")} kg`],["Precio",`$${detalle.precioUSD} USD/kg`],["Total USD",`$${(detalle.cantidadKg*detalle.precioUSD).toLocaleString("en-US",{maximumFractionDigits:0})}`],["Fecha",detalle.fecha],["Contenedor",detalle.contenedor||"Sin asignar"],["Notas",detalle.notas||"—"]].map(([l,v])=>(
-              <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.48)" }}>{l}</span>
-                <span style={{ fontSize:11, color:"white", fontWeight:600, maxWidth:"58%", textAlign:"right" }}>{v}</span>
-              </div>
-            ))}
-            <div style={{ display:"flex", gap:8, marginTop:14 }}>
-              {detalle.estado !== "entregado" && (
-                <button onClick={()=>{ avanzar(detalle.id); setDetalle(p=>({...p, estado:nextEst(p.estado).key})); }}
-                  style={{ flex:1, background:"linear-gradient(135deg,#0EA5E9,#845EF7)", border:"none", borderRadius:8, padding:"9px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>
-                  → {nextEst(detalle.estado).label}
-                </button>
-              )}
-              <button onClick={()=>setDetalle(null)} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"9px 14px", fontSize:12, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>✕</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* KPIs */}
-      <div style={{ display:"grid", gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)", gap:8, marginBottom:12 }}>
-        {[
-          { icon:"📋", label:"Total pedidos",   value:pedidos.length,                                                                  color:"#0EA5E9" },
-          { icon:"💵", label:"Total USD",        value:`$${totalUSD.toLocaleString("en-US",{maximumFractionDigits:0})}`,               color:"#F9A826" },
-          { icon:"🏭", label:"En producción",    value:pedidos.filter(p=>p.estado==="produccion"||p.estado==="listo").length,          color:"#00C9A7" },
-        ].map((s,i)=>(
-          <div key={i} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${s.color}22`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
-            <div style={{ fontSize:20 }}>{s.icon}</div>
-            <div style={{ fontSize:17, fontWeight:800, color:s.color, marginTop:2 }}>{s.value}</div>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:2 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Búsqueda y fechas */}
-      <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
-        <input value={busqPedidos} onChange={e=>setBusqPedidos(e.target.value)} placeholder="🔍 Buscar cliente, producto, contenedor..." style={{...inp, flex:2, minWidth:140}} />
-        <input type="date" value={filtroPedDesde} onChange={e=>setFiltroPedDesde(e.target.value)} title="Desde" style={{...inp, flex:1, minWidth:100}} />
-        <input type="date" value={filtroPedHasta} onChange={e=>setFiltroPedHasta(e.target.value)} title="Hasta" style={{...inp, flex:1, minWidth:100}} />
-        {(busqPedidos||filtroPedDesde||filtroPedHasta) && <button onClick={()=>{setBusqPedidos("");setFiltroPedDesde("");setFiltroPedHasta("");}} style={{background:"rgba(255,80,80,0.1)",border:"1px solid rgba(255,80,80,0.2)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#FF6B6B",cursor:"pointer"}}>✕</button>}
-      </div>
-
-      {/* Pipeline filtros */}
-      <div style={{ display:"flex", gap:4, marginBottom:10, flexWrap:"wrap" }}>
-        {[{key:"todos",label:"Todos",icon:"📋",color:"#ffffff"},...PEDIDO_ESTADOS].map(e=>{
-          const cnt = e.key==="todos"?pedidos.length:pedidos.filter(p=>p.estado===e.key).length;
-          return (
-            <button key={e.key} onClick={()=>setFiltroEst(e.key)}
-              style={{ background:filtroEst===e.key?`${e.color}25`:"rgba(255,255,255,0.04)", border:`1px solid ${filtroEst===e.key?e.color+"60":"rgba(255,255,255,0.08)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:10, color:filtroEst===e.key?e.color:"rgba(255,255,255,0.52)", fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
-              {e.icon} {e.label} {cnt>0&&<span style={{ background:`${e.color}30`, borderRadius:20, padding:"0 5px", fontSize:9 }}>{cnt}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Botón nuevo */}
-      <button onClick={()=>{ setEditId(null); setNuevo({ cliente:primerCliente, producto:"Limón Tahití", cantidadKg:"", precioUSD:"0.45", estado:"cotizacion", contenedor:"", notas:"" }); setShowForm(!showForm || !!editId); }} style={{ marginBottom:10, background:showForm?"rgba(14,165,233,0.2)":"rgba(14,165,233,0.1)", border:"1px solid rgba(14,165,233,0.35)", borderRadius:8, padding:"6px 14px", fontSize:11, color:"#0EA5E9", cursor:"pointer", fontWeight:700 }}>➕ Nuevo pedido</button>
-
-      {/* Formulario */}
-      {showForm && (
-        <div style={{ background:"rgba(14,165,233,0.05)", border:"1px solid rgba(14,165,233,0.2)", borderRadius:12, padding:14, marginBottom:12 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#0EA5E9", marginBottom:10 }}>{editId ? "✏️ Editar pedido" : "📋 Nuevo pedido"}</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-            <div style={{ display:"flex", gap:6 }}>
-              <div style={{ flex:2 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cliente</div>
-                <CustomSelect value={nuevo.cliente} onChange={e=>setNuevo(p=>({...p,cliente:e.target.value}))} style={inp}>
-                  {clientes.map(c=><option key={c.id} style={{background:"#1a1a2e"}}>{c.nombre}</option>)}
-                </CustomSelect>
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Estado inicial</div>
-                <CustomSelect value={nuevo.estado} onChange={e=>setNuevo(p=>({...p,estado:e.target.value}))} style={inp}>
-                  {PEDIDO_ESTADOS.map(e=><option key={e.key} value={e.key} style={{background:"#1a1a2e"}}>{e.label}</option>)}
-                </CustomSelect>
-              </div>
-            </div>
-            <div style={{ display:"flex", gap:6 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Cantidad (kg) *</div>
-                <input type="number" placeholder="20000" value={nuevo.cantidadKg} onChange={e=>setNuevo(p=>({...p,cantidadKg:e.target.value}))} style={inp} />
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Precio USD/kg</div>
-                <input type="number" step="0.01" placeholder="0.45" value={nuevo.precioUSD} onChange={e=>setNuevo(p=>({...p,precioUSD:e.target.value}))} style={inp} />
-              </div>
-            </div>
-            <div style={{ display:"flex", gap:6 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Producto</div>
-                <input placeholder="Limón Tahití" value={nuevo.producto} onChange={e=>setNuevo(p=>({...p,producto:e.target.value}))} style={inp} />
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>N° Contenedor</div>
-                <input placeholder="CONT-2026-XXX" value={nuevo.contenedor} onChange={e=>setNuevo(p=>({...p,contenedor:e.target.value}))} style={inp} />
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 }}>Notas</div>
-              <input placeholder="Observaciones..." value={nuevo.notas} onChange={e=>setNuevo(p=>({...p,notas:e.target.value}))} style={inp} />
-            </div>
-            <div style={{ display:"flex", gap:6 }}>
-              <button onClick={()=>pedir(editId?"¿Guardar cambios en este pedido?":"¿Crear este pedido?", agregar)} style={{ flex:1, background:"linear-gradient(135deg,#0EA5E9,#845EF7)", border:"none", borderRadius:8, padding:"8px", fontSize:12, color:"white", cursor:"pointer", fontWeight:700 }}>{editId ? "✅ Guardar cambios" : "✅ Crear pedido"}</button>
-              <button onClick={()=>{ setShowForm(false); setEditId(null); }} style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:12, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lista */}
-      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-        {filtrados.length === 0 && <div style={{ textAlign:"center", color:"rgba(255,255,255,0.38)", fontSize:12, padding:20 }}>Sin pedidos en este estado</div>}
-        {filtrados.map(p => {
-          const est = estInfo(p.estado);
-          const nxt = nextEst(p.estado);
-          const valorUSD = p.cantidadKg * p.precioUSD;
-          return (
-            <div key={p.id} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${est.color}30`, borderRadius:12, overflow:"hidden" }}>
-              <div style={{ padding:"12px 14px 10px" }}>
-                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8 }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, flexWrap:"wrap" }}>
-                      <span style={{ fontSize:10, background:`${est.color}20`, color:est.color, borderRadius:6, padding:"2px 8px", fontWeight:700, border:`1px solid ${est.color}40` }}>{est.icon} {est.label}</span>
-                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)" }}>#{p.id} · {p.fecha}</span>
-                    </div>
-                    <div style={{ fontSize:13, color:"white", fontWeight:700 }}>{p.cliente}</div>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.52)", marginTop:2 }}>
-                      {p.producto} · {Number(p.cantidadKg).toLocaleString("es-CO")} kg
-                      {p.contenedor && <> · <span style={{color:"#6366F1"}}>{p.contenedor}</span></>}
-                    </div>
-                    {p.notas && <div style={{ fontSize:10, color:"rgba(249,168,38,0.7)", marginTop:2 }}>📌 {p.notas}</div>}
-                  </div>
-                  <div style={{ textAlign:"right", flexShrink:0 }}>
-                    <div style={{ fontSize:14, fontWeight:800, color:"#F9A826" }}>${valorUSD.toLocaleString("en-US",{maximumFractionDigits:0})}</div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)" }}>USD</div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ borderTop:`1px solid ${est.color}15`, display:"flex" }}>
-                <button onClick={()=>setDetalle(p)} style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"none", padding:"10px", fontSize:11, color:"rgba(255,255,255,0.58)", cursor:"pointer", fontWeight:600 }}>👁 Detalle</button>
-                <div style={{ width:1, background:"rgba(255,255,255,0.07)" }}/>
-                {p.estado !== "entregado" && (
-                  <button onClick={()=>avanzar(p.id)} style={{ flex:2, background:`${nxt.color}12`, border:"none", padding:"10px", fontSize:11, color:nxt.color, cursor:"pointer", fontWeight:700 }}>→ {nxt.label}</button>
-                )}
-                <div style={{ width:1, background:"rgba(255,255,255,0.07)" }}/>
-                <button onClick={()=>abrirEditar(p)} style={{ background:"rgba(249,168,38,0.07)", border:"none", padding:"10px 14px", fontSize:13, cursor:"pointer", color:"rgba(249,168,38,0.7)" }} title="Editar">✏️</button>
-                <div style={{ width:1, background:"rgba(255,255,255,0.07)" }}/>
-                <button onClick={()=>pedir(`¿Eliminar pedido #${p.id}?`,()=>eliminarPedido(p.id))} style={{ background:"rgba(255,80,80,0.05)", border:"none", padding:"10px 14px", fontSize:13, cursor:"pointer", color:"rgba(255,80,80,0.5)" }}>🗑</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── MÓDULO INICIO — DASHBOARD EJECUTIVO ─────────────────────
 function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const mob   = useM();
@@ -6793,7 +6433,6 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const [hora,  setHora]  = useState(new Date());
   const [clima, setClima] = useState(null);
   const { items: invInicio, loading: loadingInvInicio } = useInventario();
-  const { pedidos, loading: loadingPedInicio } = usePedidos();
   const { registros: asistRegs, loading: loadingAsistInicio } = useAsistencia();
   const { empleados: empleadosInicio, loading: loadingPersonalInicio } = usePersonal();
   const empleadosReal = empleadosInicio.length > 0 ? empleadosInicio : EMPLEADOS_DB;
@@ -6864,7 +6503,6 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const sinTel      = empleadosReal.filter(e => !e.tel    || e.tel    === "-").length;
   const alertaCount = bajoStock.length + (sinCuenta > 0 ? 1 : 0) + (sinTel > 0 ? 1 : 0);
   const nominaFija  = SALARIO_MINIMO + QUINCENA_DESCARGUE * 2 * 3;
-  const ingresoUSD  = pedidos.reduce((s, p) => s + p.cantidadKg * p.precioUSD, 0);
 
   // Clima — mapeo de código WMO a emoji/descripción
   const wDesc = (code) => {
@@ -6887,12 +6525,11 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
     { icon:"🍋", label:"Recepción",    color:"#00C9A7", id:"recepciones"  },
     { icon:"📊", label:"Informes",     color:"#FF6B6B", id:"informes"     },
     { icon:"🚢", label:"Exportación",  color:"#0EA5E9", id:"documentos"   },
-    { icon:"📋", label:"Pedidos",      color:"#38bdf8", id:"pedidos"      },
   ];
 
   const hayTendencia = tendencia.some(d => d.p > 0 || d.a > 0);
 
-  if (loadingInvInicio || loadingPedInicio || loadingAsistInicio || loadingPersonalInicio) {
+  if (loadingInvInicio || loadingAsistInicio || loadingPersonalInicio) {
     return <LimonLoader texto="Cargando panel" />;
   }
 
@@ -7008,14 +6645,6 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
             ? <div style={{ fontSize:9, color:"rgba(255,107,107,0.6)", lineHeight:1.4 }}>{bajoStock.slice(0,2).map(i=>i.nombre).join(", ")}{bajoStock.length>2?` +${bajoStock.length-2}`:""}</div>
             : <div style={{ fontSize:9, color:"rgba(0,201,167,0.55)" }}>✓ Stock en niveles normales</div>
           }
-        </div>
-
-        {/* Pedidos / Ingresos */}
-        <div onClick={()=>onNavigate("pedidos")} style={{ background:"rgba(14,165,233,0.05)", border:"1px solid rgba(14,165,233,0.14)", borderRadius:12, padding:"12px 14px", cursor:"pointer" }}>
-          <div style={{ fontSize:9, color:"rgba(14,165,233,0.7)", textTransform:"uppercase", letterSpacing:0.8, fontWeight:700, marginBottom:5 }}>📋 Pedidos activos</div>
-          <div style={{ fontSize:28, fontWeight:800, color:"#0EA5E9", lineHeight:1, marginBottom:4 }}>{pedidos.length}</div>
-          <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginBottom:4 }}>en pipeline de exportación</div>
-          <div style={{ fontSize:9, color:"rgba(14,165,233,0.65)" }}>💵 ${ingresoUSD.toLocaleString("en-US",{maximumFractionDigits:0})} USD estimado</div>
         </div>
 
         {/* Proceso */}
@@ -7277,7 +6906,7 @@ function ConfigForm({ config, guardar }) {
   const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
-  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Logística","Control Expo","Configuración"];
+  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Logística","Control Expo","Configuración"];
   const TABS = [
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
@@ -7941,7 +7570,6 @@ const MODULES = [
   { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Excel, PDF o CSV","JARVIS analiza con IA real","Informe ejecutivo para socios","Historial de análisis","Comparativos con IA","Resumen ejecutivo en segundos"] },
   { id:"asistencia",    icon:"📅", title:"Asistencia",    color:"#4ECDC4", demo:{ type:"asistencia_live" },   capabilities:["Registro diario de asistencia","✅ Presente · ❌ Ausente · ⏰ Tardanza","📋 Licencias y permisos · 🎉 Festivos","Marcar todos en un click","Filtro por nombre y área","Informe mensual descargable"] },
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
-  { id:"pedidos",       icon:"📋", title:"Pedidos",       color:"#0284c7", demo:{ type:"pedidos_live" },       capabilities:["Pipeline visual de estados","CRM clientes y contactos","Gestión completa de pedidos","Valor total en USD","Contenedor por pedido","Registro histórico exportable"] },
   { id:"logistica",     icon:"🚛", title:"Logística",     color:"#F97316", demo:{ type:"logistica_live" },     capabilities:["Gestión de bookings","Estado de contenedores por naviera","Transporte terrestre","Novedades e inspecciones portuarias","Línea de tiempo de 12 hitos","Alertas de días libres y cutoffs"] },
   { id:"control_expo",  icon:"🛃", title:"Control Expo",  color:"#059669", demo:{ type:"control_expo_live" },  capabilities:["Seguimiento de documentos DEX","Estado Pendiente/Radicado/Cancelado","Verificación con un clic","Filtro y orden por fecha","Valor del DEX en USD","Informe descargable"] },
   { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Seguridad y backup"] },
@@ -8198,7 +7826,6 @@ export default function App() {
   const renderDemo = (demo) => {
     if (demo.type === "configuracion_live") return <ConfiguracionDemo />;
     if (demo.type === "inicio_live")      return <InicioDemo usuario={usuario} onNavigate={navigateToModule} puedeAcceder={(id) => { const m = MODULES.find(x=>x.id===id); return m ? tieneAcceso(m) : true; }} />;
-    if (demo.type === "pedidos_live")     return <PedidosDemo />;
     if (demo.type === "personal_live")    return <PersonalDemo />;
     if (demo.type === "nomina_live")      return <NominaDemo />;
     if (demo.type === "informes_live")    return <InformesDemo />;
