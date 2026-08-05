@@ -10,6 +10,7 @@ import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
+import ControlExpoTab from "./components/ControlExpoTab.jsx";
 import CanastillasTab from "./components/CanastillasTab.jsx";
 import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
@@ -7276,7 +7277,7 @@ function ConfigForm({ config, guardar }) {
   const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
-  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Logística","Configuración"];
+  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Pedidos","Logística","Control Expo","Configuración"];
   const TABS = [
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
@@ -7942,6 +7943,7 @@ const MODULES = [
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"pedidos",       icon:"📋", title:"Pedidos",       color:"#0284c7", demo:{ type:"pedidos_live" },       capabilities:["Pipeline visual de estados","CRM clientes y contactos","Gestión completa de pedidos","Valor total en USD","Contenedor por pedido","Registro histórico exportable"] },
   { id:"logistica",     icon:"🚛", title:"Logística",     color:"#F97316", demo:{ type:"logistica_live" },     capabilities:["Gestión de bookings","Estado de contenedores por naviera","Transporte terrestre","Novedades e inspecciones portuarias","Línea de tiempo de 12 hitos","Alertas de días libres y cutoffs"] },
+  { id:"control_expo",  icon:"🛃", title:"Control Expo",  color:"#059669", demo:{ type:"control_expo_live" },  capabilities:["Seguimiento de documentos DEX","Estado Pendiente/Radicado/Cancelado","Verificación con un clic","Filtro y orden por fecha","Valor del DEX en USD","Informe descargable"] },
   { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Seguridad y backup"] },
 ];
 
@@ -8205,6 +8207,7 @@ export default function App() {
     if (demo.type === "contenedores_live") return <ContenedoresDemo />;
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
     if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
+    if (demo.type === "control_expo_live") return <ControlExpoTab mob={isMobile} />;
     if (demo.type === "documentos_live")  return <DocumentosDemo />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
