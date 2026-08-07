@@ -4661,12 +4661,6 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
         const rendPriTotal = totales.kilosProcesadosReales > 0
           ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesadosReales) * 100 : 0;
 
-        // Merma: de lo REALMENTE procesado, lo que no terminó empacado en
-        // cajas ni devuelto al proveedor — se pierde en el proceso (jugo,
-        // fruta dañada, descarte). No cuenta lo que nunca se procesó.
-        const mermaTotal = totales.kilosProcesadosReales - totales.kgEmp - totales.kilosDevueltos;
-        const mermaPct   = totales.kilosProcesadosReales > 0 ? (mermaTotal / totales.kilosProcesadosReales) * 100 : 0;
-
         const colorRend = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
 
         const proveedoresCont = parseProveedores(contSelRend?.proveedor);
@@ -4948,8 +4942,6 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card" style="border-left-color:#b45309;"><div class="lbl">Kg devueltos</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">dato informativo</div></div>
     ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kilos de limón de primera devueltos</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
-    <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma del contenedor</div><div class="val" style="color:#dc2626;">${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="sub2">kg no empacados ni devueltos</div></div>
-    <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Merma %</div><div class="val" style="color:#dc2626;">${mermaPct.toFixed(1)}%</div><div class="sub2">de lo procesado</div></div>
   </div>
 </div>
 
@@ -5115,8 +5107,6 @@ ${calibreSection}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
                     {card("Kg devueltos", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "dato informativo")}
                     {totales.kilosPrimeraDevueltos > 0 && card("Kilos de limón de primera devueltos", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
-                    {card("Merma del contenedor", `${mermaTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg`, "#FF6B6B", "no empacados ni devueltos")}
-                    {card("Merma %", `${mermaPct.toFixed(1)}%`, "#FF6B6B", "de lo procesado")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
                       `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
                     {totales.cajasPrincess > 0 && card("Rdto. Princesses", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
