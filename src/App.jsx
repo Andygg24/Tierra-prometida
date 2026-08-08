@@ -5536,7 +5536,7 @@ function DocumentosDemo({ logisticaBookings = [] }) {
           <div style={{marginBottom:10}}>
             {lbl("🔗 Cargar desde Logística (opcional)")}
             <CustomSelect value="" onChange={e=>{
-              const b = logisticaBookings.find(x=>String(x.id)===e.target.value);
+              const b = logisticaBookings.find(x=>x.id===Number(e.target.value));
               if (!b) return;
               setForm(p=>({...p,
                 booking:    b.numeroBooking    || p.booking,
