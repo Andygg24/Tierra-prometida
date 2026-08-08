@@ -21,6 +21,7 @@ const rowToCont = (r) => ({
   naviera:       r.naviera         || "",
   vessel:        r.vessel          || "",
   destino:       r.destino         || "",
+  logisticaBookingId: r.logistica_booking_id != null ? r.logistica_booking_id : null,
   trazabilidad:  Array.isArray(r.trazabilidad) ? r.trazabilidad : [],
 });
 
@@ -140,6 +141,7 @@ export function useContenedores() {
       naviera:        form.naviera        || null,
       vessel:         form.vessel         || null,
       destino:        form.destino        || null,
+      logistica_booking_id: form.logisticaBookingId || null,
       trazabilidad:   form.trazabilidad   || [],
     };
 

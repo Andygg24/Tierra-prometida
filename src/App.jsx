@@ -3224,7 +3224,7 @@ ${seccionObs}
 }
 
 // ─── MÓDULO CONTENEDORES ─────────────────────────────────────
-function ContenedoresDemo() {
+function ContenedoresDemo({ logisticaBookings = [] }) {
   const mob = useM();
   const hoy = new Date().toISOString().split("T")[0];
 
@@ -3263,7 +3263,7 @@ function ContenedoresDemo() {
   const empleadosContReal = empleadosCont.length > 0 ? empleadosCont : EMPLEADOS_DB;
 
   // ── Tab 0: Contenedores ──
-  const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", vessel:"", destino:"Miami, FL", trazabilidad:[] };
+  const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", vessel:"", destino:"Miami, FL", logisticaBookingId:null, trazabilidad:[] };
   const [showForm, setShowForm]   = useState(false);
   const [editIdx, setEditIdx]     = useState(null); // container id or null
   const [busqueda, setBusqueda]   = useState("");
@@ -3409,6 +3409,26 @@ function ContenedoresDemo() {
             <div style={{background:"rgba(99,102,241,0.07)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:12,padding:14,marginBottom:12}}>
               <div style={{fontSize:12,fontWeight:700,color:"#6366F1",marginBottom:10}}>🚢 {editIdx!==null?"Editar":"Registrar nuevo"} contenedor</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {logisticaBookings.length > 0 && (
+                  <div style={{background:"rgba(14,165,233,0.08)",border:"1px solid rgba(14,165,233,0.25)",borderRadius:8,padding:8}}>
+                    <div style={{...lbl,color:"#0EA5E9"}}>🔗 Cargar desde Logística (opcional)</div>
+                    <CustomSelect value={form.logisticaBookingId||""} onChange={e=>{
+                      const id = e.target.value ? Number(e.target.value) : null;
+                      const b = logisticaBookings.find(x=>x.id===id);
+                      setForm(p=>({...p, logisticaBookingId:id,
+                        numContenedor: b?.numeroContenedor || p.numContenedor,
+                        booking:       b?.numeroBooking    || p.booking,
+                        naviera:       b?.naviera          || p.naviera,
+                        destino:       b?.puertoDestino    || p.destino,
+                      }));
+                    }} style={inp}>
+                      <option value="" style={{background:"#1a1a2e"}}>— Elige un booking de Logística —</option>
+                      {logisticaBookings.map(b=>(
+                        <option key={b.id} value={b.id} style={{background:"#1a1a2e"}}>🚢 {b.numeroContenedor||b.numeroBooking||"(sin número)"} · {b.naviera||"—"} · {b.estado}</option>
+                      ))}
+                    </CustomSelect>
+                  </div>
+                )}
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Fecha *</div><input type="date" value={form.fecha} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>N° Contenedor *</div><input value={form.numContenedor} onChange={e=>setForm(p=>({...p,numContenedor:e.target.value}))} placeholder="Ej: MNBU3679199" style={inp} /></div>
@@ -3505,6 +3525,7 @@ function ContenedoresDemo() {
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
                       <span style={{fontSize:15,fontWeight:800,color:"white"}}>🚢 {p.numContenedor}</span>
                       <span style={{fontSize:10,background:`${col}22`,color:col,borderRadius:6,padding:"3px 8px",fontWeight:700,border:`1px solid ${col}40`}}>{p.estado}</span>
+                      {p.logisticaBookingId && <span style={{fontSize:10,background:"rgba(14,165,233,0.15)",border:"1px solid rgba(14,165,233,0.3)",color:"#0EA5E9",borderRadius:6,padding:"3px 8px",fontWeight:700}}>🔗 Logística</span>}
                       <span style={{fontSize:10,background:"rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.58)",borderRadius:6,padding:"3px 8px",fontWeight:600}}>
                         {p.turno==="Día"?"☀️":p.turno==="Noche"?"🌙":"🌗"} {p.turno}
                       </span>
@@ -5459,7 +5480,7 @@ ${calibreSection}
 }
 
 // ─── MÓDULO DOCUMENTOS DE EXPORTACIÓN ────────────────────────
-function DocumentosDemo() {
+function DocumentosDemo({ logisticaBookings = [] }) {
   const mob = useM();
   const hoy = new Date();
   const p2  = (n) => String(n).padStart(2,"0");
@@ -5511,6 +5532,25 @@ function DocumentosDemo() {
       {/* CAMPOS COMUNES */}
       <div style={{background:"rgba(14,165,233,0.07)",border:"1px solid rgba(14,165,233,0.22)",borderRadius:12,padding:14,marginBottom:10}}>
         <div style={{fontSize:11,color:"#0EA5E9",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>📋 Campos comunes — los 3 documentos</div>
+        {logisticaBookings.length > 0 && (
+          <div style={{marginBottom:10}}>
+            {lbl("🔗 Cargar desde Logística (opcional)")}
+            <CustomSelect value="" onChange={e=>{
+              const b = logisticaBookings.find(x=>String(x.id)===e.target.value);
+              if (!b) return;
+              setForm(p=>({...p,
+                booking:    b.numeroBooking    || p.booking,
+                naviera:    b.naviera          || p.naviera,
+                contenedor: b.numeroContenedor || p.contenedor,
+              }));
+            }} style={inp}>
+              <option value="">— Elige un booking de Logística —</option>
+              {logisticaBookings.map(b=>(
+                <option key={b.id} value={b.id}>🚢 {b.numeroContenedor||b.numeroBooking||"(sin número)"} · {b.naviera||"—"} · {b.estado}</option>
+              ))}
+            </CustomSelect>
+          </div>
+        )}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
           <div>
             {lbl("Fecha")}
@@ -7798,11 +7838,11 @@ export default function App() {
     if (demo.type === "informes_live")    return <InformesDemo />;
     if (demo.type === "inventario_live")  return <InventarioDemo />;
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
-    if (demo.type === "contenedores_live") return <ContenedoresDemo />;
+    if (demo.type === "contenedores_live") return <ContenedoresDemo logisticaBookings={logisticaApp.bookings} />;
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
     if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
     if (demo.type === "control_expo_live") return <ControlExpoTab mob={isMobile} />;
-    if (demo.type === "documentos_live")  return <DocumentosDemo />;
+    if (demo.type === "documentos_live")  return <DocumentosDemo logisticaBookings={logisticaApp.bookings} />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
       <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
