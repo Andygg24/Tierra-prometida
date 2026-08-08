@@ -467,6 +467,112 @@ export default function ControlExpoTab({ mob }) {
 
 /* ══════════════ Sección: Liquidación de DEX ══════════════ */
 
+async function generarInformeLiquidacionHTML(filas, filtroEstadoPago) {
+  const logoSrc = await cargarLogoBase64();
+  const valorTotal  = filas.reduce((a, r) => a + (Number(r.valor) || 0), 0);
+  const pagadoTotal = filas.reduce((a, r) => a + (Number(r.pagado) || 0), 0);
+  const pendiente   = valorTotal - pagadoTotal;
+  const pagados     = filas.filter(r => r.estadoPago === "Pagado").length;
+
+  const filasHtml = filas.map(r => `
+    <tr>
+      <td>${esc(r.numeroExpo) || "—"}</td>
+      <td>${esc(r.numeroDex) || "—"}</td>
+      <td style="text-align:right">${usd(r.valor)}</td>
+      <td style="text-align:right">${usd(r.pagado)}</td>
+      <td style="text-align:right">${usd(r.saldo)}</td>
+      <td>${esc(r.estadoPago)}</td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Informe Liquidación de DEX - Tierra Prometida</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",Arial,sans-serif;color:#1e231e;background:#f4f7f3;font-size:12px}
+.sheet{max-width:960px;margin:0 auto;background:#fff}
+
+.banner{background:linear-gradient(120deg,#064e3b,#059669 60%,#34d399);color:#fff;padding:30px 34px 26px;position:relative;overflow:hidden}
+.banner::after{content:"💵";position:absolute;right:-10px;top:-22px;font-size:130px;opacity:0.12;transform:rotate(12deg)}
+.banner-row{display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative}
+.banner img{width:58px;height:58px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+.banner h1{font-size:22px;font-weight:800;letter-spacing:0.2px}
+.banner .sub{font-size:11.5px;opacity:0.88;margin-top:4px}
+.banner .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative}
+.banner .chip{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:5px 12px;font-size:10.5px;font-weight:600}
+
+.content{padding:28px 34px 8px}
+
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
+.card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.05)}
+.card-ic{font-size:16px;margin-bottom:2px}
+.card-val{font-size:16px;font-weight:800;color:#059669;line-height:1.15}
+.card-lbl{font-size:8.5px;color:#5a5a5a;margin-top:4px;text-transform:uppercase;letter-spacing:0.4px}
+
+h2{display:flex;align-items:center;gap:8px;color:#064e3b;font-size:13.5px;font-weight:800;margin:26px 0 12px;text-transform:uppercase;letter-spacing:0.3px}
+h2::after{content:"";flex:1;height:1px;background:#dfe8df}
+
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{background:#059669;color:#fff;padding:8px 9px;text-align:left;border:1px solid #064e3b}
+td{padding:7px 9px;border:1px solid #e2ede2}
+tr:nth-child(even) td{background:#fbfdfb}
+tfoot td{background:#e8f5ee;font-weight:800;border-top:2px solid #059669}
+
+.footer{background:#064e3b;color:rgba(255,255,255,0.85);text-align:center;font-size:10px;padding:16px;margin-top:30px}
+
+@media print{
+  body{background:#fff}
+  .sheet{max-width:100%}
+  .banner::after{display:none}
+  @page{size:A4;margin:10mm}
+}
+</style></head><body>
+<div class="sheet">
+
+  <div class="banner">
+    <div class="banner-row">
+      <div>
+        <h1>💵 Informe Liquidación de DEX</h1>
+        <div class="sub">Control de pagos y saldos por Declaración de Exportación</div>
+      </div>
+      ${logoSrc ? `<img src="${logoSrc}" />` : ""}
+    </div>
+    <div class="chips">
+      <span class="chip">📅 ${new Date().toLocaleDateString("es-CO")}</span>
+      <span class="chip">🛃 ${filas.length} DEX</span>
+      ${filtroEstadoPago ? `<span class="chip">Filtro: ${esc(filtroEstadoPago)}</span>` : ""}
+    </div>
+  </div>
+
+  <div class="content">
+
+    <div class="cards">
+      <div class="card"><div class="card-ic">💵</div><div class="card-val">${valorTotal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}</div><div class="card-lbl">Valor total USD</div></div>
+      <div class="card"><div class="card-ic">✅</div><div class="card-val">${pagadoTotal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}</div><div class="card-lbl">Pagado USD</div></div>
+      <div class="card"><div class="card-ic">⏳</div><div class="card-val">${pendiente.toLocaleString("es-CO", { maximumFractionDigits: 0 })}</div><div class="card-lbl">Saldo pendiente USD</div></div>
+      <div class="card"><div class="card-ic">🛃</div><div class="card-val">${pagados}/${filas.length}</div><div class="card-lbl">DEX pagados</div></div>
+    </div>
+
+    <h2>📋 Detalle de liquidación</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>N° Expo</th><th>N° DEX</th><th style="text-align:right">Valor USD</th><th style="text-align:right">Pagado USD</th><th style="text-align:right">Saldo USD</th><th>Estado pago</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filasHtml || `<tr><td colspan="6" style="text-align:center;color:#999;padding:16px">Sin registros para estos filtros</td></tr>`}
+      </tbody>
+      ${filas.length ? `<tfoot><tr><td colspan="2" style="text-align:right">TOTAL</td><td style="text-align:right;color:#059669">${valorTotal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}</td><td style="text-align:right;color:#059669">${pagadoTotal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}</td><td style="text-align:right;color:#059669">${pendiente.toLocaleString("es-CO", { maximumFractionDigits: 0 })}</td><td></td></tr></tfoot>` : ""}
+    </table>
+
+  </div>
+
+  <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · Informe generado el ${new Date().toLocaleDateString("es-CO")} a las ${new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</div>
+</div>
+</body></html>`;
+}
+
 function saldoDex(r, totalPagadoPorDex) {
   const valor  = Number(r.valorDexUsd) || 0;
   const pagado = totalPagadoPorDex[r.id] || 0;
@@ -481,6 +587,7 @@ function SeccionLiquidacion({ m, registros, pagos, agregarPago, eliminarPago, ac
   const [editAbonoId, setEditAbonoId]   = useState(null); // abono en edición (null = abono nuevo)
   const [guardando, setGuardando]       = useState(false);
   const [errorAbono, setErrorAbono]     = useState("");
+  const [preview, setPreview]           = useState(null);
 
   const totalPagadoPorDex = useMemo(() => {
     const acc = {};
@@ -575,6 +682,26 @@ function SeccionLiquidacion({ m, registros, pagos, agregarPago, eliminarPago, ac
   const pagosDelDex = dexAbono ? pagos.filter(p => p.dexId === dexAbono.id).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")) : [];
   const dexAbonoCalc = dexAbono ? saldoDex(dexAbono, totalPagadoPorDex) : null;
 
+  const verInforme = async () => {
+    const html = await generarInformeLiquidacionHTML(filas, filtroEstadoPago);
+    const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const sufijo = filtroEstadoPago ? filtroEstadoPago.toLowerCase().replace(/\s+/g, "_") : "todos";
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Informe_Liquidacion_DEX_${sufijo}.html` }; });
+  };
+  const descargarInforme = () => {
+    if (!preview) return;
+    const a = document.createElement("a");
+    a.href = preview.url;
+    a.download = preview.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+  const cerrarPreview = () => {
+    if (preview) URL.revokeObjectURL(preview.url);
+    setPreview(null);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
@@ -600,6 +727,9 @@ function SeccionLiquidacion({ m, registros, pagos, agregarPago, eliminarPago, ac
       <div style={cardS}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>💵 Liquidación de DEX</div>
+          <button onClick={verInforme} style={{ background: "rgba(0,201,167,0.12)", border: "1px solid rgba(0,201,167,0.35)", borderRadius: 8, color: "#00C9A7", padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            📄 Informe
+          </button>
         </div>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
@@ -716,6 +846,24 @@ function SeccionLiquidacion({ m, registros, pagos, agregarPago, eliminarPago, ac
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Modal vista previa del informe ── */}
+      {preview && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", flexDirection: "column", padding: m ? 8 : 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ color: "white", fontSize: 13, fontWeight: 700 }}>📄 Vista previa — Informe Liquidación de DEX</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={descargarInforme} style={{ background: "linear-gradient(135deg,#845EF7,#6366F1)", border: "none", borderRadius: 8, color: "white", padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                ⬇ Descargar
+              </button>
+              <button onClick={cerrarPreview} style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "rgba(255,255,255,0.78)", cursor: "pointer" }}>
+                ✕ Cerrar
+              </button>
+            </div>
+          </div>
+          <iframe src={preview.url} style={{ flex: 1, border: "none", borderRadius: 10, background: "white" }} title="Vista previa del informe" />
         </div>
       )}
     </div>
