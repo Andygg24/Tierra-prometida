@@ -85,6 +85,26 @@ function inspeccionVacia() {
 function contratoVacio() {
   return { naviera: "", numeroContrato: "", fechaInicio: "", fechaFin: "", destinosTexto: "", obs: "" };
 }
+function checklistVacio() {
+  return {
+    empresa: "TP", salida: "", cliente: "",
+    proformaHecha: false, temperatura: false, isfBorrador: false, isfAprobado: false,
+    transportePlaca: "", tmrDiaria: "", facturaComercial: "",
+    certificadoOrigen: false, docs: false, ordenDespacho: false, dexListo: false,
+    costo: "", costoCajas: "", costoTransporte: "", costoPuerto: "", costoAgencia: "", precioVenta: "",
+    obs: "",
+  };
+}
+const CHECKLIST_ITEMS = [
+  ["proformaHecha", "Proforma hecha"],
+  ["temperatura", "Temperatura"],
+  ["isfBorrador", "ISF Borrador"],
+  ["isfAprobado", "ISF Aprobado"],
+  ["certificadoOrigen", "Certificado de Origen"],
+  ["docs", "DOCS"],
+  ["ordenDespacho", "Orden de Despacho"],
+  ["dexListo", "DEX"],
+];
 
 function labelBooking(b) {
   if (!b) return "—";
@@ -124,7 +144,7 @@ export default function LogisticaTab({ mob, logistica }) {
   const consigneesCfg      = config.cfg_exportacion?.consignees      || [];
 
   const [tabLog, setTabLog] = useState(0);
-  const TAB_LOG = ["📋 Operaciones", "🔔 Alertas", "📊 Estadísticas", "📄 Contratos"];
+  const TAB_LOG = ["📋 Operaciones", "✅ Lista de Chequeo", "🔔 Alertas", "📊 Estadísticas", "📄 Contratos"];
 
   const alertas = useMemo(
     () => calcularAlertasLogistica(log.bookings, log.transporte, navierasCfg, log.contratos),
@@ -342,6 +362,64 @@ export default function LogisticaTab({ mob, logistica }) {
     () => log.inspecciones.filter(i => i.bookingId === editId),
     [log.inspecciones, editId]
   );
+
+  // ══════════════ LISTA DE CHEQUEO (pestaña propia, 1:1 con un booking) ══════════════
+  const [chkBookingSel, setChkBookingSel] = useState(null); // null = lista | id de booking
+  const [chkForm, setChkForm]         = useState(checklistVacio);
+  const [guardandoChk, setGuardandoChk] = useState(false);
+  const [guardadoOkChk, setGuardadoOkChk] = useState(false);
+  const [busquedaChk, setBusquedaChk] = useState("");
+  const setCampoChk = (campo, valor) => setChkForm(f => ({ ...f, [campo]: valor }));
+
+  const chkBooking = useMemo(
+    () => log.bookings.find(b => b.id === chkBookingSel) || null,
+    [log.bookings, chkBookingSel]
+  );
+
+  const abrirChecklist = (b) => {
+    setChkBookingSel(b.id);
+    const chk = log.checklists.find(c => c.bookingId === b.id);
+    setChkForm({ ...checklistVacio(), ...(chk || {}) });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const volverListaChk = () => {
+    setChkBookingSel(null);
+    setChkForm(checklistVacio());
+  };
+
+  const guardarChk = async () => {
+    if (!chkBookingSel) return;
+    setGuardandoChk(true);
+    const ok = await log.guardarChecklist(chkBookingSel, chkForm);
+    setGuardandoChk(false);
+    if (ok) { setGuardadoOkChk(true); setTimeout(() => setGuardadoOkChk(false), 2000); }
+  };
+  const chkCalc = useMemo(() => {
+    const cajas = Number(chkBooking?.numeroCajas) || 0;
+    const tmr   = Number(chkForm.tmrDiaria) || 0;
+    const costoTotal = ["costo", "costoCajas", "costoTransporte", "costoPuerto", "costoAgencia"]
+      .reduce((a, k) => a + (Number(chkForm[k]) || 0), 0);
+    const costoUnitarioUsd = cajas > 0 && tmr > 0 ? (costoTotal / tmr) / cajas : 0;
+    const pvTotalUsd    = (Number(chkForm.precioVenta) || 0) * cajas;
+    const ventaTotalCop = pvTotalUsd * tmr;
+    const ganancia       = ventaTotalCop - costoTotal;
+    return { cajas, tmr, costoTotal, costoUnitarioUsd, pvTotalUsd, ventaTotalCop, ganancia };
+  }, [chkForm, chkBooking]);
+
+  const checklistPorBooking = useMemo(() => {
+    const mapa = {};
+    log.checklists.forEach(c => { mapa[c.bookingId] = c; });
+    return mapa;
+  }, [log.checklists]);
+
+  const checklistsFiltrados = useMemo(() => {
+    const q = busquedaChk.trim().toLowerCase();
+    return log.bookings.filter(b => {
+      if (!q) return true;
+      return [b.numeroBooking, b.numeroContenedor, b.naviera, String(b.numeroExportacion || "")]
+        .some(v => (v || "").toLowerCase().includes(q));
+    });
+  }, [log.bookings, busquedaChk]);
 
   // ══════════════ CONTRATOS CON NAVIERAS ══════════════
   const [contratoForm, setContratoForm] = useState(contratoVacio);
@@ -780,8 +858,143 @@ export default function LogisticaTab({ mob, logistica }) {
         </>
       )}
 
-      {/* ═══ TAB 1 — ALERTAS ═══ */}
+      {/* ═══ TAB 1 — LISTA DE CHEQUEO ═══ */}
       {tabLog === 1 && (
+        chkBookingSel === null ? (
+          /* ── Lista maestra ── */
+          <div style={cardS}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>✅ Lista de Chequeo</div>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              <input value={busquedaChk} onChange={e => setBusquedaChk(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera, N° expo..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+            </div>
+            {checklistsFiltrados.length === 0 ? (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin operaciones registradas todavía. Crea un booking en Operaciones primero.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                      <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th>
+                      <th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>Naviera</th>
+                      <th style={{ padding: "6px" }}>Checklist</th><th style={{ padding: "6px" }}>Ganancia (COP)</th><th style={{ padding: "6px" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checklistsFiltrados.map(b => {
+                      const chk = checklistPorBooking[b.id];
+                      const completados = chk ? CHECKLIST_ITEMS.filter(([campo]) => chk[campo]).length : 0;
+                      const cajas = Number(b.numeroCajas) || 0;
+                      const tmr   = Number(chk?.tmrDiaria) || 0;
+                      const costoTotal = chk ? ["costo", "costoCajas", "costoTransporte", "costoPuerto", "costoAgencia"].reduce((a, k) => a + (Number(chk[k]) || 0), 0) : 0;
+                      const ganancia = chk ? ((Number(chk.precioVenta) || 0) * cajas * tmr) - costoTotal : 0;
+                      return (
+                        <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirChecklist(b)}>
+                          <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>
+                          <td style={{ padding: "6px" }}>{b.numeroContenedor || "—"}</td>
+                          <td style={{ padding: "6px" }}>{b.numeroExportacion || "—"}</td>
+                          <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
+                          <td style={{ padding: "6px" }}>
+                            <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: completados === CHECKLIST_ITEMS.length ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.08)", color: completados === CHECKLIST_ITEMS.length ? "#00C9A7" : "rgba(255,255,255,0.6)" }}>
+                              {completados}/{CHECKLIST_ITEMS.length}
+                            </span>
+                          </td>
+                          <td style={{ padding: "6px", color: !chk ? "rgba(255,255,255,0.3)" : ganancia >= 0 ? "#00C9A7" : "#FF6B6B", fontWeight: 700 }}>
+                            {chk && costoTotal ? `$${Math.round(ganancia).toLocaleString("es-CO")}` : "—"}
+                          </td>
+                          <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                            <button onClick={() => abrirChecklist(b)} style={btnTablaEditar}>Abrir</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── Detalle de la lista de chequeo ── */
+          <div style={cardS}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>✅ {labelBooking(chkBooking)}</div>
+              <button onClick={volverListaChk} style={btnSecundario}>← Volver a la lista</button>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
+              <span>🛃 Expo <b style={{ color: "white" }}>{chkBooking?.numeroExportacion || "—"}</b></span>
+              <span>· 🧾 Proforma <b style={{ color: "white" }}>{chkBooking?.numeroProforma || "—"}</b></span>
+              <span>· 🚢 {chkBooking?.naviera || "—"}</span>
+              <span>· 📦 {chkBooking?.numeroCajas || 0} cajas</span>
+              <span>· 📍 {chkBooking?.puertoDestino || "—"}</span>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+              <div style={campoBox}><div style={lbl}>Empresa</div><input style={inp} value={chkForm.empresa} onChange={e => setCampoChk("empresa", e.target.value)} placeholder="TP" /></div>
+              <div style={campoBox}><div style={lbl}>Salida (origen)</div>
+                <CustomSelect value={chkForm.salida} onChange={e => setCampoChk("salida", e.target.value)} style={inp}>
+                  <option value="">Seleccionar...</option>
+                  {puertosOrigenCfg.map((p, i) => <option key={i} value={p}>{p}</option>)}
+                </CustomSelect>
+              </div>
+              <div style={campoBox}><div style={lbl}>Cliente</div><input style={inp} value={chkForm.cliente} onChange={e => setCampoChk("cliente", e.target.value)} placeholder="Nombre del cliente" /></div>
+              <div style={campoBox}><div style={lbl}>Transporte / Placa</div><input style={inp} value={chkForm.transportePlaca} onChange={e => setCampoChk("transportePlaca", e.target.value)} placeholder="Ej: CO - TTX370" /></div>
+              <div style={campoBox}><div style={lbl}>N° Factura Comercial</div><input style={inp} value={chkForm.facturaComercial} onChange={e => setCampoChk("facturaComercial", e.target.value)} placeholder="Ej: 742" /></div>
+              <div style={campoBox}><div style={lbl}>TRM diaria</div><input type="number" style={inp} value={chkForm.tmrDiaria} onChange={e => setCampoChk("tmrDiaria", e.target.value)} placeholder="Ej: 3144" /></div>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Estado de documentos</div>
+            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+              {CHECKLIST_ITEMS.map(([campo, label]) => (
+                <div key={campo} style={{ ...campoBox, background: chkForm[campo] ? "rgba(0,201,167,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${chkForm[campo] ? "rgba(0,201,167,0.25)" : "rgba(255,255,255,0.06)"}`, borderRadius: 8, padding: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 600, color: chkForm[campo] ? "#00C9A7" : "rgba(255,255,255,0.6)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!chkForm[campo]} onChange={e => setCampoChk(campo, e.target.checked)} style={{ width: 16, height: 16 }} />
+                    {label}
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Costos (COP) y rentabilidad</div>
+            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 10 }}>
+              <div style={campoBox}><div style={lbl}>Costo</div><input type="number" style={inp} value={chkForm.costo} onChange={e => setCampoChk("costo", e.target.value)} placeholder="0" /></div>
+              <div style={campoBox}><div style={lbl}>Costo cajas</div><input type="number" style={inp} value={chkForm.costoCajas} onChange={e => setCampoChk("costoCajas", e.target.value)} placeholder="0" /></div>
+              <div style={campoBox}><div style={lbl}>Transporte</div><input type="number" style={inp} value={chkForm.costoTransporte} onChange={e => setCampoChk("costoTransporte", e.target.value)} placeholder="0" /></div>
+              <div style={campoBox}><div style={lbl}>Puerto</div><input type="number" style={inp} value={chkForm.costoPuerto} onChange={e => setCampoChk("costoPuerto", e.target.value)} placeholder="0" /></div>
+              <div style={campoBox}><div style={lbl}>Agencia</div><input type="number" style={inp} value={chkForm.costoAgencia} onChange={e => setCampoChk("costoAgencia", e.target.value)} placeholder="0" /></div>
+              <div style={campoBox}><div style={lbl}>Precio venta (USD/caja)</div><input type="number" style={inp} value={chkForm.precioVenta} onChange={e => setCampoChk("precioVenta", e.target.value)} placeholder="0" /></div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+              {[
+                { l: "Costo Total (COP)", v: chkCalc.costoTotal ? `$${Math.round(chkCalc.costoTotal).toLocaleString("es-CO")}` : "—", c: "#F9A826" },
+                { l: "Costo Unit. (USD)",  v: chkCalc.costoUnitarioUsd ? `$${chkCalc.costoUnitarioUsd.toFixed(2)}` : "—", c: "#0EA5E9" },
+                { l: "Venta Total (USD)",  v: chkCalc.pvTotalUsd ? `$${chkCalc.pvTotalUsd.toLocaleString("es-CO")}` : "—", c: "#845EF7" },
+                { l: "Ganancia (COP)",     v: chkCalc.ventaTotalCop ? `$${Math.round(chkCalc.ganancia).toLocaleString("es-CO")}` : "—", c: chkCalc.ganancia >= 0 ? "#00C9A7" : "#FF6B6B" },
+              ].map((s, i) => (
+                <div key={i} style={{ ...campoBox, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 10, textAlign: "center" }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: s.c }}>{s.v}</div>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={lbl}>Observaciones</div>
+              <textarea style={{ ...inp, minHeight: isLandscape ? 44 : (m ? 70 : 56), resize: "vertical", fontFamily: "inherit" }} value={chkForm.obs} onChange={e => setCampoChk("obs", e.target.value)} placeholder="Notas sobre esta lista de chequeo..." />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              <button onClick={guardarChk} disabled={guardandoChk} style={btnPrimario(guardadoOkChk, guardandoChk)}>
+                {guardadoOkChk ? "✓ Guardado" : guardandoChk ? "Guardando..." : "Guardar Lista de Chequeo"}
+              </button>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ═══ TAB 2 — ALERTAS ═══ */}
+      {tabLog === 2 && (
         <div style={cardS}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔔 Alertas activas</div>
           {alertas.length === 0 ? (
@@ -807,8 +1020,8 @@ export default function LogisticaTab({ mob, logistica }) {
         </div>
       )}
 
-      {/* ═══ TAB 2 — ESTADÍSTICAS ═══ */}
-      {tabLog === 2 && (
+      {/* ═══ TAB 3 — ESTADÍSTICAS ═══ */}
+      {tabLog === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
             {[
@@ -877,8 +1090,8 @@ export default function LogisticaTab({ mob, logistica }) {
         </div>
       )}
 
-      {/* ═══ TAB 3 — CONTRATOS CON NAVIERAS ═══ */}
-      {tabLog === 3 && (
+      {/* ═══ TAB 4 — CONTRATOS CON NAVIERAS ═══ */}
+      {tabLog === 4 && (
         <>
           <div style={cardS}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>

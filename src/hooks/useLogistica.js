@@ -78,12 +78,39 @@ const rowToContrato = (r) => ({
   obs:            r.obs             || "",
 });
 
+const rowToChecklist = (r) => ({
+  id:                r.id,
+  bookingId:         r.booking_id,
+  empresa:           r.empresa            || "",
+  salida:            r.salida             || "",
+  cliente:           r.cliente            || "",
+  proformaHecha:     !!r.proforma_hecha,
+  temperatura:       !!r.temperatura,
+  isfBorrador:       !!r.isf_borrador,
+  isfAprobado:       !!r.isf_aprobado,
+  transportePlaca:   r.transporte_placa   || "",
+  tmrDiaria:         r.tmr_diaria    != null ? Number(r.tmr_diaria)    : "",
+  facturaComercial:  r.factura_comercial  || "",
+  certificadoOrigen: !!r.certificado_origen,
+  docs:              !!r.docs,
+  ordenDespacho:     !!r.orden_despacho,
+  dexListo:          !!r.dex_listo,
+  costo:             r.costo         != null ? Number(r.costo)         : "",
+  costoCajas:        r.costo_cajas   != null ? Number(r.costo_cajas)   : "",
+  costoTransporte:   r.costo_transporte != null ? Number(r.costo_transporte) : "",
+  costoPuerto:       r.costo_puerto  != null ? Number(r.costo_puerto)  : "",
+  costoAgencia:      r.costo_agencia != null ? Number(r.costo_agencia) : "",
+  precioVenta:       r.precio_venta  != null ? Number(r.precio_venta)  : "",
+  obs:               r.obs                || "",
+});
+
 export function useLogistica() {
   const [bookings,     setBookings]     = useState([]);
   const [transporte,   setTransporte]   = useState([]);
   const [novedades,    setNovedades]    = useState([]);
   const [inspecciones, setInspecciones] = useState([]);
   const [contratos,    setContratos]    = useState([]);
+  const [checklists,   setChecklists]   = useState([]);
   const [loading,      setLoading]      = useState(true);
 
   // ── Carga inicial ────────────────────────────────────────────
@@ -96,12 +123,14 @@ export function useLogistica() {
         { data: novs,  error: e3 },
         { data: insps, error: e4 },
         { data: cons,  error: e5 },
+        { data: chks,  error: e6 },
       ] = await Promise.all([
         supabase.from("logistica_bookings").select("*").order("created_at", { ascending: false }),
         supabase.from("logistica_transporte").select("*").order("created_at", { ascending: false }),
         supabase.from("logistica_novedades").select("*").order("fecha", { ascending: false }),
         supabase.from("logistica_inspecciones").select("*").order("fecha", { ascending: false }),
         supabase.from("logistica_contratos").select("*").order("fecha_fin", { ascending: true }),
+        supabase.from("logistica_checklist").select("*"),
       ]);
       if (cancelled) return;
       if (!e1) setBookings((bks || []).map(rowToBooking));
@@ -109,11 +138,13 @@ export function useLogistica() {
       if (!e3) setNovedades((novs || []).map(rowToNovedad));
       if (!e4) setInspecciones((insps || []).map(rowToInspeccion));
       if (!e5) setContratos((cons || []).map(rowToContrato));
+      if (!e6) setChecklists((chks || []).map(rowToChecklist));
       if (e1) console.error("[logistica_bookings]", e1.message);
       if (e2) console.error("[logistica_transporte]", e2.message);
       if (e3) console.error("[logistica_novedades]", e3.message);
       if (e4) console.error("[logistica_inspecciones]", e4.message);
       if (e5) console.error("[logistica_contratos]", e5.message);
+      if (e6) console.error("[logistica_checklist]", e6.message);
       setLoading(false);
     }
     fetchAll();
@@ -123,8 +154,9 @@ export function useLogistica() {
   // ── Suscripciones en tiempo real ────────────────────────────
   useEffect(() => {
     const refetch = (table, setter, mapper, orderCol, ascending = false) => () => {
-      supabase.from(table).select("*").order(orderCol, { ascending })
-        .then(({ data }) => data && setter(data.map(mapper)));
+      const q = supabase.from(table).select("*");
+      if (orderCol) q.order(orderCol, { ascending });
+      q.then(({ data }) => data && setter(data.map(mapper)));
     };
 
     const ch = supabase.channel(`logistica-changes-${Date.now()}`)
@@ -138,6 +170,8 @@ export function useLogistica() {
           refetch("logistica_inspecciones", setInspecciones, rowToInspeccion, "fecha"))
       .on("postgres_changes", { event: "*", schema: "public", table: "logistica_contratos" },
           refetch("logistica_contratos", setContratos, rowToContrato, "fecha_fin", true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "logistica_checklist" },
+          refetch("logistica_checklist", setChecklists, rowToChecklist, null))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -405,13 +439,60 @@ export function useLogistica() {
     return !error;
   }, [contratos]);
 
+  // ── LISTA DE CHEQUEO (1 por booking — upsert por booking_id) ──────────
+
+  const guardarChecklist = useCallback(async (bookingId, form) => {
+    const numOrNull = (v) => v !== "" && v != null ? Number(v) : null;
+    const previo = checklists.find(c => c.bookingId === bookingId);
+    const row = {
+      booking_id:         bookingId,
+      empresa:            form.empresa            || null,
+      salida:             form.salida             || null,
+      cliente:            form.cliente             || null,
+      proforma_hecha:     !!form.proformaHecha,
+      temperatura:        !!form.temperatura,
+      isf_borrador:       !!form.isfBorrador,
+      isf_aprobado:       !!form.isfAprobado,
+      transporte_placa:   form.transportePlaca    || null,
+      tmr_diaria:         numOrNull(form.tmrDiaria),
+      factura_comercial:  form.facturaComercial   || null,
+      certificado_origen: !!form.certificadoOrigen,
+      docs:               !!form.docs,
+      orden_despacho:     !!form.ordenDespacho,
+      dex_listo:          !!form.dexListo,
+      costo:              numOrNull(form.costo),
+      costo_cajas:        numOrNull(form.costoCajas),
+      costo_transporte:   numOrNull(form.costoTransporte),
+      costo_puerto:       numOrNull(form.costoPuerto),
+      costo_agencia:      numOrNull(form.costoAgencia),
+      precio_venta:       numOrNull(form.precioVenta),
+      obs:                form.obs                || null,
+      updated_at:         new Date().toISOString(),
+    };
+
+    if (previo) {
+      setChecklists(prev => prev.map(c => c.bookingId === bookingId ? rowToChecklist({ ...row, id: previo.id }) : c));
+    } else {
+      row.id = Date.now();
+      setChecklists(prev => [...prev, rowToChecklist(row)]);
+    }
+
+    const { error } = await supabase.from("logistica_checklist").upsert(row, { onConflict: "booking_id" });
+    if (error) {
+      supabase.from("logistica_checklist").select("*")
+        .then(({ data }) => data && setChecklists(data.map(rowToChecklist)));
+    }
+    return !error;
+  }, [checklists]);
+
   return {
-    bookings, transporte, novedades, inspecciones, contratos, loading,
+    bookings, transporte, novedades, inspecciones, contratos, checklists, loading,
     guardarBooking, eliminarBooking, marcarEtaVista, guardarNumeroProforma,
     guardarTransporte, eliminarTransporte,
     guardarNovedad, eliminarNovedad,
     guardarInspeccion, eliminarInspeccion,
     guardarContrato, eliminarContrato,
+    guardarChecklist,
   };
 }
 
