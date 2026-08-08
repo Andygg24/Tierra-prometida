@@ -59,7 +59,7 @@ function hoyISO() { return fechaLocalISO(); }
 
 function bookingVacio() {
   return {
-    numeroBooking: "", numeroContenedor: "", estado: "Pendiente",
+    numeroBooking: "", numeroContenedor: "", numeroExportacion: "", numeroProforma: "", estado: "Pendiente",
     puertoOrigen: "", puertoDestino: "", naviera: "",
     consignee: "", numeroCajas: "",
     siCutoffFecha: "", siCutoffHora: "", cyCutoffFecha: "", cyCutoffHora: "",
@@ -432,7 +432,7 @@ export default function LogisticaTab({ mob, logistica }) {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead>
                       <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                        <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>Estado</th>
+                        <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>Estado</th>
                         <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Estado contenedor</th>
                         <th style={{ padding: "6px" }}>Días libres</th><th style={{ padding: "6px" }}>Hitos</th><th style={{ padding: "6px" }}></th>
                       </tr>
@@ -445,6 +445,7 @@ export default function LogisticaTab({ mob, logistica }) {
                           <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirOperacion(b)}>
                             <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>
                             <td style={{ padding: "6px" }}>{b.numeroContenedor || "—"}</td>
+                            <td style={{ padding: "6px" }}>{b.numeroExportacion || "—"}</td>
                             <td style={{ padding: "6px" }}>
                               <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${COLOR_ESTADO_BOOKING[b.estado]}22`, color: COLOR_ESTADO_BOOKING[b.estado] }}>{b.estado}</span>
                             </td>
@@ -490,6 +491,8 @@ export default function LogisticaTab({ mob, logistica }) {
                 <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
                   <div style={campoBox}><div style={lbl}>Número booking {!form.numeroBooking && !form.numeroContenedor && <span style={{ color: "#FF6B6B" }}>*</span>}</div><input style={inp} value={form.numeroBooking} onChange={e => setCampo("numeroBooking", e.target.value)} placeholder="Ej: BK-00123" /></div>
                   <div style={campoBox}><div style={lbl}>Número contenedor {!form.numeroBooking && !form.numeroContenedor && <span style={{ color: "#FF6B6B" }}>*</span>}</div><input style={inp} value={form.numeroContenedor} onChange={e => setCampo("numeroContenedor", e.target.value.toUpperCase())} placeholder="MSKU1234567" /></div>
+                  <div style={campoBox}><div style={lbl}>N° Exportación</div><input type="number" style={inp} value={form.numeroExportacion} onChange={e => setCampo("numeroExportacion", e.target.value)} placeholder="Ej: 180" /></div>
+                  <div style={campoBox}><div style={lbl}>N° Proforma</div><input type="number" style={inp} value={form.numeroProforma} onChange={e => setCampo("numeroProforma", e.target.value)} placeholder="Ej: 693" /></div>
                   <div style={campoBox}><div style={lbl}>Estado</div>
                     <CustomSelect value={form.estado} onChange={e => setCampo("estado", e.target.value)} style={inp}>
                       {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}

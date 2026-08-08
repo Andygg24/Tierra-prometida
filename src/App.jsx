@@ -5480,7 +5480,7 @@ ${calibreSection}
 }
 
 // ─── MÓDULO DOCUMENTOS DE EXPORTACIÓN ────────────────────────
-function DocumentosDemo({ logisticaBookings = [] }) {
+function DocumentosDemo({ logisticaBookings = [], guardarNumeroProforma }) {
   const mob = useM();
   const hoy = new Date();
   const p2  = (n) => String(n).padStart(2,"0");
@@ -5497,6 +5497,7 @@ function DocumentosDemo({ logisticaBookings = [] }) {
   const { config: cfgDocs, guardar: guardarCfgDocs } = useConfiguracion();
   const [destino, setDestino]     = useState(null);
   const [facturaNum, setFacturaNum] = useState(693);
+  const [bookingLogisticaId, setBookingLogisticaId] = useState(null);
 
   // Cargar consecutivo desde Supabase cuando el config esté listo
   useEffect(() => {
@@ -5538,11 +5539,13 @@ function DocumentosDemo({ logisticaBookings = [] }) {
             <CustomSelect value="" onChange={e=>{
               const b = logisticaBookings.find(x=>x.id===Number(e.target.value));
               if (!b) return;
+              setBookingLogisticaId(b.id);
               setForm(p=>({...p,
                 booking:    b.numeroBooking    || p.booking,
                 naviera:    b.naviera          || p.naviera,
                 contenedor: b.numeroContenedor || p.contenedor,
               }));
+              if (b.numeroProforma) setFacturaNum(Number(b.numeroProforma));
             }} style={inp}>
               <option value="">— Elige un booking de Logística —</option>
               {logisticaBookings.map(b=>(
@@ -5608,7 +5611,8 @@ function DocumentosDemo({ logisticaBookings = [] }) {
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr",gap:8}}>
           <div>
             {lbl("N° Factura (auto)")}
-            <input type="number" value={facturaNum} onChange={e=>setFacturaNum(parseInt(e.target.value)||693)} style={{...inp,color:"#38bdf8",fontWeight:700}} />
+            <input type="number" value={facturaNum} onChange={e=>{setFacturaNum(parseInt(e.target.value)||693); setBookingLogisticaId(null);}} style={{...inp,color:"#38bdf8",fontWeight:700}} />
+            {bookingLogisticaId && <div style={{fontSize:9,color:"#0EA5E9",marginTop:3}}>🔗 Se guardará en el booking de Logística al generar</div>}
           </div>
           <div>
             {lbl("Fecha Expedición")}
@@ -5703,6 +5707,7 @@ function DocumentosDemo({ logisticaBookings = [] }) {
               : "⚠️ Selecciona el puerto de descargue primero",
             disabled: !destino,
             fn: () => destino && descargarDoc("/api/proforma", `proforma-${facturaNum}-${form.booking||"export"}.xlsx`, "proforma", () => {
+              if (bookingLogisticaId && guardarNumeroProforma) guardarNumeroProforma(bookingLogisticaId, facturaNum);
               const next = facturaNum + 1;
               setFacturaNum(next);
               guardarCfgDocs("factura_num", next);
@@ -7842,7 +7847,7 @@ export default function App() {
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
     if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
     if (demo.type === "control_expo_live") return <ControlExpoTab mob={isMobile} />;
-    if (demo.type === "documentos_live")  return <DocumentosDemo logisticaBookings={logisticaApp.bookings} />;
+    if (demo.type === "documentos_live")  return <DocumentosDemo logisticaBookings={logisticaApp.bookings} guardarNumeroProforma={logisticaApp.guardarNumeroProforma} />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
       <div style={{ display:"flex", flexDirection:"column", gap:12 }}>

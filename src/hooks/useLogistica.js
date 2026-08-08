@@ -6,6 +6,8 @@ const rowToBooking = (r) => ({
   id:                    r.id,
   numeroBooking:         r.numero_booking         || "",
   numeroContenedor:      r.numero_contenedor       || "",
+  numeroExportacion:     r.numero_exportacion != null ? r.numero_exportacion : "",
+  numeroProforma:        r.numero_proforma    != null ? r.numero_proforma    : "",
   historialContenedores: Array.isArray(r.historial_contenedores) ? r.historial_contenedores : [],
   estado:                r.estado                  || "Pendiente",
   fechaConfirmado:       r.fecha_confirmado        || "",
@@ -148,6 +150,8 @@ export function useLogistica() {
     const row = {
       numero_booking:          form.numeroBooking          || null,
       numero_contenedor:       form.numeroContenedor        || null,
+      numero_exportacion:      form.numeroExportacion !== "" && form.numeroExportacion != null ? Number(form.numeroExportacion) : null,
+      numero_proforma:         form.numeroProforma    !== "" && form.numeroProforma    != null ? Number(form.numeroProforma)    : null,
       historial_contenedores:  previo?.historialContenedores || [],
       estado:                  form.estado                  || "Pendiente",
       fecha_confirmado:        previo?.fechaConfirmado       || null,
@@ -242,6 +246,15 @@ export function useLogistica() {
   const marcarEtaVista = useCallback(async (id) => {
     setBookings(prev => prev.map(b => b.id === id ? { ...b, etaCambioVisto: true } : b));
     const { error } = await supabase.from("logistica_bookings").update({ eta_cambio_visto: true }).eq("id", id);
+    return !error;
+  }, []);
+
+  // Enlaza el N° de Proforma generado en el módulo Exportación con su booking de origen.
+  const guardarNumeroProforma = useCallback(async (id, numeroProforma) => {
+    if (!id) return false;
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, numeroProforma } : b));
+    const { error } = await supabase.from("logistica_bookings")
+      .update({ numero_proforma: numeroProforma, updated_at: new Date().toISOString() }).eq("id", id);
     return !error;
   }, []);
 
@@ -394,7 +407,7 @@ export function useLogistica() {
 
   return {
     bookings, transporte, novedades, inspecciones, contratos, loading,
-    guardarBooking, eliminarBooking, marcarEtaVista,
+    guardarBooking, eliminarBooking, marcarEtaVista, guardarNumeroProforma,
     guardarTransporte, eliminarTransporte,
     guardarNovedad, eliminarNovedad,
     guardarInspeccion, eliminarInspeccion,
