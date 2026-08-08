@@ -20,6 +20,14 @@ async function cargarLogoBase64() {
 
 const ESTADOS_DEX = ["Pendiente", "Radicado", "Cancelado"];
 const COLOR_ESTADO_DEX = { Pendiente: "#F9A826", Radicado: "#00C9A7", Cancelado: "#FF6B6B" };
+const COLOR_ESTADO_PAGO = { Pagado: "#00C9A7", Parcial: "#F9A826", "Sin abonos": "rgba(255,255,255,0.4)" };
+
+function estadoPagoDex(valorDexUsd, totalPagado) {
+  const valor = Number(valorDexUsd) || 0;
+  if (totalPagado <= 0) return "Sin abonos";
+  if (valor > 0 && totalPagado >= valor) return "Pagado";
+  return "Parcial";
+}
 
 function dexVacio() {
   return { numeroExpo: "", numeroDex: "", estado: "Pendiente", valorDexUsd: "", facturaComercial: "", fecha: "", obs: "" };
@@ -146,7 +154,9 @@ export default function ControlExpoTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { registros, loading, guardarDex, eliminarDex, toggleVerificado } = useControlExpo();
+  const { registros, pagos, loading, guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago } = useControlExpo();
+
+  const [vista, setVista] = useState("registro"); // registro | liquidacion
 
   const [form, setForm]           = useState(dexVacio);
   const [editId, setEditId]       = useState(null);
@@ -270,6 +280,29 @@ export default function ControlExpoTab({ mob }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+      {/* ── Tabs de sección ── */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {[
+          { id: "registro",    label: "🛃 Registro DEX" },
+          { id: "liquidacion", label: "💵 Liquidación de DEX" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setVista(t.id)}
+            style={{
+              background: vista === t.id ? "rgba(132,94,247,0.2)" : "rgba(255,255,255,0.04)",
+              border: `1px solid ${vista === t.id ? "rgba(132,94,247,0.5)" : "rgba(255,255,255,0.08)"}`,
+              borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontSize: 12,
+              color: vista === t.id ? "#a78bfa" : "rgba(255,255,255,0.5)", fontWeight: vista === t.id ? 700 : 500,
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {vista === "liquidacion" ? (
+        <SeccionLiquidacion m={m} registros={registros} pagos={pagos} agregarPago={agregarPago} eliminarPago={eliminarPago} actualizarPago={actualizarPago}
+          inp={inp} lbl={lbl} cardS={cardS} />
+      ) : (
+      <>
       {/* ── KPIs ── */}
       <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
         {[
@@ -424,6 +457,265 @@ export default function ControlExpoTab({ mob }) {
             </div>
           </div>
           <iframe src={preview.url} style={{ flex: 1, border: "none", borderRadius: 10, background: "white" }} title="Vista previa del informe" />
+        </div>
+      )}
+      </>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════ Sección: Liquidación de DEX ══════════════ */
+
+function saldoDex(r, totalPagadoPorDex) {
+  const valor  = Number(r.valorDexUsd) || 0;
+  const pagado = totalPagadoPorDex[r.id] || 0;
+  return { valor, pagado, saldo: valor - pagado };
+}
+
+function SeccionLiquidacion({ m, registros, pagos, agregarPago, eliminarPago, actualizarPago, inp, lbl, cardS }) {
+  const [busqueda, setBusqueda]         = useState("");
+  const [filtroEstadoPago, setFiltroEstadoPago] = useState("");
+  const [dexAbono, setDexAbono]         = useState(null); // registro seleccionado para abonar
+  const [formAbono, setFormAbono]       = useState({ fecha: "", montoUsd: "", obs: "" });
+  const [editAbonoId, setEditAbonoId]   = useState(null); // abono en edición (null = abono nuevo)
+  const [guardando, setGuardando]       = useState(false);
+  const [errorAbono, setErrorAbono]     = useState("");
+
+  const totalPagadoPorDex = useMemo(() => {
+    const acc = {};
+    for (const p of pagos) acc[p.dexId] = (acc[p.dexId] || 0) + p.montoUsd;
+    return acc;
+  }, [pagos]);
+
+  const filas = useMemo(() => {
+    return registros
+      .map(r => {
+        const { valor, pagado, saldo } = saldoDex(r, totalPagadoPorDex);
+        const estadoPago = estadoPagoDex(valor, pagado);
+        return { ...r, valor, pagado, saldo, estadoPago };
+      })
+      .filter(r => {
+        if (filtroEstadoPago && r.estadoPago !== filtroEstadoPago) return false;
+        if (busqueda) {
+          const q = busqueda.toLowerCase();
+          const hay = [String(r.numeroExpo || ""), r.numeroDex, r.facturaComercial].some(v => (v || "").toLowerCase().includes(q));
+          if (!hay) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (Number(b.numeroExpo) || 0) - (Number(a.numeroExpo) || 0));
+  }, [registros, totalPagadoPorDex, filtroEstadoPago, busqueda]);
+
+  const kpis = useMemo(() => {
+    const conValor = registros.filter(r => Number(r.valorDexUsd) > 0);
+    const valorTotal  = conValor.reduce((a, r) => a + (Number(r.valorDexUsd) || 0), 0);
+    const pagadoTotal = pagos.reduce((a, p) => a + p.montoUsd, 0);
+    const pendiente   = valorTotal - pagadoTotal;
+    const pagadosCompletos = conValor.filter(r => estadoPagoDex(r.valorDexUsd, totalPagadoPorDex[r.id] || 0) === "Pagado").length;
+    return { valorTotal, pagadoTotal, pendiente, pagadosCompletos, totalConValor: conValor.length };
+  }, [registros, pagos, totalPagadoPorDex]);
+
+  const abrirAbono = (r) => {
+    setDexAbono(r);
+    setFormAbono({ fecha: new Date().toISOString().slice(0, 10), montoUsd: "", obs: "" });
+    setEditAbonoId(null);
+    setErrorAbono("");
+  };
+  const cerrarAbono = () => { setDexAbono(null); setEditAbonoId(null); setErrorAbono(""); };
+
+  const editarAbono = (p) => {
+    setFormAbono({ fecha: p.fecha, montoUsd: String(p.montoUsd), obs: p.obs });
+    setEditAbonoId(p.id);
+    setErrorAbono("");
+  };
+  const cancelarEdicionAbono = () => {
+    setFormAbono({ fecha: new Date().toISOString().slice(0, 10), montoUsd: "", obs: "" });
+    setEditAbonoId(null);
+    setErrorAbono("");
+  };
+
+  const registrarAbono = async () => {
+    setErrorAbono("");
+    if (!formAbono.montoUsd || Number(formAbono.montoUsd) <= 0) {
+      setErrorAbono("Ingresa un monto en USD mayor a 0.");
+      return;
+    }
+    setGuardando(true);
+    const ok = editAbonoId ? await actualizarPago(editAbonoId, formAbono) : await agregarPago(dexAbono.id, formAbono);
+    setGuardando(false);
+    if (ok) {
+      setFormAbono({ fecha: new Date().toISOString().slice(0, 10), montoUsd: "", obs: "" });
+      setEditAbonoId(null);
+    } else {
+      setErrorAbono(editAbonoId ? "No se pudo guardar el cambio. Revisa tu conexión e intenta de nuevo." : "No se pudo registrar el abono. Revisa tu conexión e intenta de nuevo.");
+    }
+  };
+
+  const pagarCompleto = async (r) => {
+    const { saldo } = saldoDex(r, totalPagadoPorDex);
+    if (saldo <= 0) return;
+    if (!window.confirm(`¿Registrar pago completo de $${saldo.toLocaleString("es-CO")} USD para la expo "${r.numeroExpo || r.numeroDex || r.id}"?`)) return;
+    await agregarPago(r.id, { fecha: new Date().toISOString().slice(0, 10), montoUsd: saldo, obs: "Pago completo" });
+  };
+
+  const borrarAbono = (p) => {
+    if (window.confirm(`¿Eliminar el abono de $${p.montoUsd.toLocaleString("es-CO")}? Esta acción no se puede deshacer.`)) {
+      eliminarPago(p.id);
+    }
+  };
+
+  const anularPago = async (r) => {
+    const pagosDex = pagos.filter(p => p.dexId === r.id);
+    if (pagosDex.length === 0) return;
+    if (!window.confirm(`¿Anular el pago de la expo "${r.numeroExpo || r.numeroDex || r.id}"? Se eliminarán ${pagosDex.length} abono(s) por un total de $${r.pagado.toLocaleString("es-CO")} USD. Esta acción no se puede deshacer.`)) return;
+    for (const p of pagosDex) await eliminarPago(p.id);
+  };
+
+  const pagosDelDex = dexAbono ? pagos.filter(p => p.dexId === dexAbono.id).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")) : [];
+  const dexAbonoCalc = dexAbono ? saldoDex(dexAbono, totalPagadoPorDex) : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* ── KPIs de liquidación ── */}
+      <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+        {[
+          { l: "Valor total USD",   v: `$${kpis.valorTotal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`, c: "#845EF7", i: "💵" },
+          { l: "Pagado USD",        v: `$${kpis.pagadoTotal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`, c: "#00C9A7", i: "✅" },
+          { l: "Saldo pendiente USD", v: `$${kpis.pendiente.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`, c: kpis.pendiente > 0 ? "#F9A826" : "#00C9A7", i: "⏳" },
+          { l: "DEX pagados",       v: `${kpis.pagadosCompletos}/${kpis.totalConValor}`, c: "#059669", i: "🛃" },
+        ].map((s, i) => (
+          <div key={i} style={{ ...cardS, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 20 }}>{s.i}</div>
+            <div>
+              <div style={{ fontSize: m ? 16 : 20, fontWeight: 800, color: s.c }}>{s.v}</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>{s.l}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Lista de DEX con saldo ── */}
+      <div style={cardS}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>💵 Liquidación de DEX</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+          <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar N° expo, N° DEX, factura..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+          <CustomSelect value={filtroEstadoPago} onChange={e => setFiltroEstadoPago(e.target.value)} style={{ ...inp, width: m ? "100%" : 180 }}>
+            <option value="">Todos los estados de pago</option>
+            <option value="Pagado">Pagado</option>
+            <option value="Parcial">Parcial</option>
+            <option value="Sin abonos">Sin abonos</option>
+          </CustomSelect>
+        </div>
+
+        {filas.length === 0 ? (
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin registros de DEX para estos filtros.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                  <th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>N° DEX</th>
+                  <th style={{ padding: "6px" }}>Valor USD</th><th style={{ padding: "6px" }}>Pagado USD</th>
+                  <th style={{ padding: "6px" }}>Saldo USD</th><th style={{ padding: "6px" }}>Estado pago</th><th style={{ padding: "6px" }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map(r => (
+                  <tr key={r.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{r.numeroExpo || "—"}</td>
+                    <td style={{ padding: "6px" }}>{r.numeroDex || "—"}</td>
+                    <td style={{ padding: "6px" }}>{usd(r.valor)}</td>
+                    <td style={{ padding: "6px", color: r.pagado > 0 ? "#00C9A7" : "inherit" }}>{usd(r.pagado)}</td>
+                    <td style={{ padding: "6px", color: r.saldo > 0 ? "#F9A826" : "rgba(255,255,255,0.5)", fontWeight: 700 }}>{usd(r.saldo)}</td>
+                    <td style={{ padding: "6px" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${COLOR_ESTADO_PAGO[r.estadoPago]}22`, color: COLOR_ESTADO_PAGO[r.estadoPago] }}>{r.estadoPago}</span>
+                    </td>
+                    <td style={{ padding: "6px", whiteSpace: "nowrap" }}>
+                      <button onClick={() => abrirAbono(r)} style={btnTablaEditar}>💵 Abonar</button>
+                      <button onClick={() => pagarCompleto(r)} disabled={r.saldo <= 0}
+                        style={{ background: "rgba(0,201,167,0.12)", border: "1px solid rgba(0,201,167,0.35)", borderRadius: 6, color: "#00C9A7", padding: "4px 8px", fontSize: 11, cursor: r.saldo > 0 ? "pointer" : "not-allowed", opacity: r.saldo > 0 ? 1 : 0.4, marginRight: 6 }}>
+                        ✅ Pagado
+                      </button>
+                      <button onClick={() => anularPago(r)} disabled={r.estadoPago !== "Pagado"}
+                        style={{ background: "rgba(255,107,107,0.12)", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 6, color: "#FF6B6B", padding: "4px 8px", fontSize: 11, cursor: r.estadoPago === "Pagado" ? "pointer" : "not-allowed", opacity: r.estadoPago === "Pagado" ? 1 : 0.4 }}>
+                        ↩ Anular pago
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Modal de abono ── */}
+      {dexAbono && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: m ? 8 : 24 }}>
+          <div style={{ background: "#1a1f1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: m ? 16 : 22, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "white" }}>💵 Abonar — Expo {dexAbono.numeroExpo || dexAbono.numeroDex || "—"}</div>
+              <button onClick={cerrarAbono} style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "rgba(255,255,255,0.78)", cursor: "pointer" }}>✕</button>
+            </div>
+            {dexAbono.numeroDex && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>N° DEX: {dexAbono.numeroDex}</div>}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+              <div style={{ ...cardS, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#845EF7" }}>{usd(dexAbonoCalc.valor)}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>Valor USD</div>
+              </div>
+              <div style={{ ...cardS, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#00C9A7" }}>{usd(dexAbonoCalc.pagado)}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>Pagado USD</div>
+              </div>
+              <div style={{ ...cardS, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: dexAbonoCalc.saldo > 0 ? "#F9A826" : "#00C9A7" }}>{usd(dexAbonoCalc.saldo)}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>Saldo USD</div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><div style={lbl}>Fecha</div><input type="date" style={inp} value={formAbono.fecha} onChange={e => setFormAbono(f => ({ ...f, fecha: e.target.value }))} /></div>
+              <div><div style={lbl}>Monto (USD)</div><input type="number" style={inp} value={formAbono.montoUsd} onChange={e => setFormAbono(f => ({ ...f, montoUsd: e.target.value }))} placeholder="Ej: 10000" /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={lbl}>Observaciones</div>
+              <input style={inp} value={formAbono.obs} onChange={e => setFormAbono(f => ({ ...f, obs: e.target.value }))} placeholder="Referencia, banco, etc. (opcional)" />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              {errorAbono && <span style={{ color: "#FF6B6B", fontSize: 11, marginRight: "auto" }}>{errorAbono}</span>}
+              {editAbonoId && <button onClick={cancelarEdicionAbono} style={btnSecundario}>Cancelar</button>}
+              <button onClick={registrarAbono} disabled={guardando} style={btnPrimario(false, guardando)}>
+                {guardando ? "Guardando..." : editAbonoId ? "Guardar cambios" : "➕ Registrar abono"}
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)", marginBottom: 8, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>Historial de abonos</div>
+            {pagosDelDex.length === 0 ? (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Sin abonos registrados todavía.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pagosDelDex.map(p => (
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "8px 10px" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{usd(p.montoUsd)} USD</div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>{fmtFechaCorta(p.fecha)}{p.obs ? ` · ${p.obs}` : ""}</div>
+                    </div>
+                    <div style={{ whiteSpace: "nowrap" }}>
+                      <button onClick={() => editarAbono(p)} style={btnTablaEditar}>Editar</button>
+                      <button onClick={() => borrarAbono(p)} style={btnTablaEliminar}>Eliminar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -14,17 +14,32 @@ const rowToDex = (r) => ({
   createdAt:         r.created_at         || "",
 });
 
+const rowToPago = (r) => ({
+  id:        r.id,
+  dexId:     r.dex_id,
+  fecha:     r.fecha || "",
+  montoUsd:  r.monto_usd != null ? Number(r.monto_usd) : 0,
+  obs:       r.obs || "",
+  createdAt: r.created_at || "",
+});
+
 export function useControlExpo() {
   const [registros, setRegistros] = useState([]);
+  const [pagos,     setPagos]     = useState([]);
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchAll() {
-      const { data, error } = await supabase.from("control_expo").select("*").order("numero_expo", { ascending: false });
+      const [{ data, error }, { data: dataPagos, error: errorPagos }] = await Promise.all([
+        supabase.from("control_expo").select("*").order("numero_expo", { ascending: false }),
+        supabase.from("control_expo_pagos").select("*").order("fecha", { ascending: false }),
+      ]);
       if (cancelled) return;
       if (!error) setRegistros((data || []).map(rowToDex));
       if (error) console.error("[control_expo]", error.message);
+      if (!errorPagos) setPagos((dataPagos || []).map(rowToPago));
+      if (errorPagos) console.error("[control_expo_pagos]", errorPagos.message);
       setLoading(false);
     }
     fetchAll();
@@ -36,6 +51,10 @@ export function useControlExpo() {
       .on("postgres_changes", { event: "*", schema: "public", table: "control_expo" }, () => {
         supabase.from("control_expo").select("*").order("numero_expo", { ascending: false })
           .then(({ data }) => data && setRegistros(data.map(rowToDex)));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "control_expo_pagos" }, () => {
+        supabase.from("control_expo_pagos").select("*").order("fecha", { ascending: false })
+          .then(({ data }) => data && setPagos(data.map(rowToPago)));
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -90,5 +109,36 @@ export function useControlExpo() {
     if (error) setRegistros(prev => prev.map(r => r.id === id ? { ...r, verificado: actual.verificado } : r));
   }, [registros]);
 
-  return { registros, loading, guardarDex, eliminarDex, toggleVerificado };
+  const agregarPago = useCallback(async (dexId, { fecha, montoUsd, obs }) => {
+    const row = {
+      id:        Date.now(),
+      dex_id:    dexId,
+      fecha:     fecha || null,
+      monto_usd: Number(montoUsd) || 0,
+      obs:       obs || null,
+    };
+    setPagos(prev => [rowToPago(row), ...prev]);
+    const { error } = await supabase.from("control_expo_pagos").insert(row);
+    if (error) setPagos(prev => prev.filter(p => p.id !== row.id));
+    return !error;
+  }, []);
+
+  const eliminarPago = useCallback(async (id) => {
+    const removed = pagos.find(p => p.id === id);
+    setPagos(prev => prev.filter(p => p.id !== id));
+    const { error } = await supabase.from("control_expo_pagos").delete().eq("id", id);
+    if (error && removed) setPagos(prev => [removed, ...prev]);
+    return !error;
+  }, [pagos]);
+
+  const actualizarPago = useCallback(async (id, { fecha, montoUsd, obs }) => {
+    const previo = pagos.find(p => p.id === id);
+    const row = { fecha: fecha || null, monto_usd: Number(montoUsd) || 0, obs: obs || null };
+    setPagos(prev => prev.map(p => p.id === id ? rowToPago({ ...p, dex_id: p.dexId, ...row, id }) : p));
+    const { error } = await supabase.from("control_expo_pagos").update(row).eq("id", id);
+    if (error && previo) setPagos(prev => prev.map(p => p.id === id ? previo : p));
+    return !error;
+  }, [pagos]);
+
+  return { registros, pagos, loading, guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago };
 }
