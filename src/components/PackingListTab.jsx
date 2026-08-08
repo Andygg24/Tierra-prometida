@@ -332,6 +332,7 @@ function adminDesdeContenedor(cont) {
   if (!cont) return {};
   return {
     container:         cont.numContenedor || "",
+    vessel:            cont.vessel        || "",
     empresaTransporte: cont.transporte    || "",
     placa:             cont.placa         || "",
     trailer:           cont.trailer       || "",
@@ -533,7 +534,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
         if (data.layout_camion?.left?.length) setLayoutCamion(data.layout_camion);
         if (data.layout_cont?.left?.length)   setLayout(data.layout_cont);
         if (data.admin_data)
-          setAdmin(prev => ({ ...prev, ...data.admin_data }));
+          // Si el Packing List se guardó antes de que existiera el precargado
+          // automático del vessel, admin_data.vessel puede venir vacío — en
+          // ese caso no debe pisar el valor real que ya está en el contenedor.
+          setAdmin(prev => ({ ...prev, ...data.admin_data, vessel: data.admin_data.vessel || contenedor.vessel || prev.vessel }));
       }
       setCargando(false);
     });
