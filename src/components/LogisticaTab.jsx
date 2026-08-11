@@ -9,7 +9,7 @@ import {
 } from "../hooks/useLogistica.js";
 
 const ESTADOS_BOOKING       = ["Pendiente", "Confirmado", "Cancelado", "Roll Over", "Finalizado"];
-const ESTADOS_CONTENEDOR    = ["Vacío", "Cargado", "En tránsito", "Puerto", "Embarcado"];
+const ESTADOS_CONTENEDOR    = ["Posicionado", "Lleno", "Embarcado"];
 const ENTIDADES_INSPECCION  = ["PONAL", "DIAN", "ICA"];
 const RESULTADOS_INSPECCION = ["Física", "Documental", "Libre"];
 
@@ -17,7 +17,7 @@ const COLOR_ESTADO_BOOKING = {
   Pendiente: "#F9A826", Confirmado: "#00C9A7", Cancelado: "#FF6B6B", "Roll Over": "#845EF7", Finalizado: "#6366F1",
 };
 const COLOR_ESTADO_CONTENEDOR = {
-  "Vacío": "rgba(255,255,255,0.5)", Cargado: "#00C9A7", "En tránsito": "#0EA5E9", Puerto: "#F9A826", Embarcado: "#845EF7",
+  Posicionado: "#0EA5E9", Lleno: "#00C9A7", Embarcado: "#845EF7",
 };
 
 // Paleta categórica validada (orden fijo — dataviz skill, pasos "dark" contra
@@ -60,11 +60,11 @@ function hoyISO() { return fechaLocalISO(); }
 function bookingVacio() {
   return {
     numeroBooking: "", numeroContenedor: "", numeroExportacion: "", numeroProforma: "", estado: "Pendiente",
-    puertoOrigen: "", puertoDestino: "", naviera: "",
+    puertoOrigen: "", puertoDestino: "", naviera: "", motonave: "",
     consignee: "", numeroCajas: "",
     siCutoffFecha: "", siCutoffHora: "", cyCutoffFecha: "", cyCutoffHora: "",
     documentosCompletos: false, etaActual: "",
-    estadoContenedor: "Vacío", fechaIngresoPuerto: "", fechaAsignacion: "",
+    estadoContenedor: "Posicionado", fechaIngresoPuerto: "", fechaAsignacion: "",
     fechaOrdenRecibida: "", fechaProduccion: "", fechaPackingTerminado: "",
     fechaZarpe: "", fechaLlegadaDestino: "", fechaEntregaFinal: "",
     obs: "",
@@ -290,7 +290,7 @@ export default function LogisticaTab({ mob, logistica }) {
       // esos campos en la base de datos, pero el formulario abierto sigue mostrando
       // lo que se acaba de escribir — hay que reflejar el reseteo aquí también.
       else if (rollOverContenedor) {
-        setForm(f => ({ ...f, estadoContenedor: "Vacío", fechaIngresoPuerto: "", fechaAsignacion: "" }));
+        setForm(f => ({ ...f, estadoContenedor: "Posicionado", fechaIngresoPuerto: "", fechaAsignacion: "" }));
       }
     } else {
       setErrorGuardado("No se pudo guardar la operación. Revisa tu conexión e intenta de nuevo.");
@@ -511,7 +511,7 @@ export default function LogisticaTab({ mob, logistica }) {
                     <thead>
                       <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
                         <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>Estado</th>
-                        <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Estado contenedor</th>
+                        <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Motonave</th><th style={{ padding: "6px" }}>Estado contenedor</th>
                         <th style={{ padding: "6px" }}>Días libres</th><th style={{ padding: "6px" }}>Hitos</th><th style={{ padding: "6px" }}></th>
                       </tr>
                     </thead>
@@ -528,6 +528,7 @@ export default function LogisticaTab({ mob, logistica }) {
                               <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${COLOR_ESTADO_BOOKING[b.estado]}22`, color: COLOR_ESTADO_BOOKING[b.estado] }}>{b.estado}</span>
                             </td>
                             <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
+                            <td style={{ padding: "6px" }}>{b.motonave || "—"}</td>
                             <td style={{ padding: "6px" }}>
                               {b.numeroContenedor
                                 ? <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.08)", color: COLOR_ESTADO_CONTENEDOR[b.estadoContenedor] }}>{b.estadoContenedor}</span>
@@ -582,6 +583,7 @@ export default function LogisticaTab({ mob, logistica }) {
                       {navierasCfg.map(n => <option key={n.id} value={n.nombre}>{n.nombre}</option>)}
                     </CustomSelect>
                   </div>
+                  <div style={campoBox}><div style={lbl}>Motonave</div><input style={inp} value={form.motonave} onChange={e => setCampo("motonave", e.target.value)} placeholder="Ej: MSC SERENA" /></div>
                   <div style={campoBox}><div style={lbl}>Puerto de origen</div>
                     <CustomSelect value={form.puertoOrigen} onChange={e => setCampo("puertoOrigen", e.target.value)} style={inp}>
                       <option value="">Seleccionar...</option>

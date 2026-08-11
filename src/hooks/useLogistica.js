@@ -14,6 +14,7 @@ const rowToBooking = (r) => ({
   puertoOrigen:          r.puerto_origen           || "",
   puertoDestino:         r.puerto_destino          || "",
   naviera:               r.naviera                 || "",
+  motonave:              r.motonave                || "",
   consignee:             r.consignee               || "",
   numeroCajas:           r.numero_cajas != null ? r.numero_cajas : "",
   siCutoffFecha:         r.si_cutoff_fecha         || "",
@@ -24,7 +25,7 @@ const rowToBooking = (r) => ({
   etaActual:             r.eta_actual              || "",
   etaAnterior:           r.eta_anterior            || "",
   etaCambioVisto:        r.eta_cambio_visto !== false,
-  estadoContenedor:      r.estado_contenedor       || "Vacío",
+  estadoContenedor:      r.estado_contenedor       || "Posicionado",
   fechaIngresoPuerto:    r.fecha_ingreso_puerto    || "",
   fechaAsignacion:       r.fecha_asignacion        || "",
   fechaOrdenRecibida:    r.fecha_orden_recibida    || "",
@@ -192,6 +193,7 @@ export function useLogistica() {
       puerto_origen:           form.puertoOrigen             || null,
       puerto_destino:          form.puertoDestino            || null,
       naviera:                 form.naviera                  || null,
+      motonave:                form.motonave                 || null,
       consignee:               form.consignee                || null,
       numero_cajas:            form.numeroCajas !== "" && form.numeroCajas != null ? Number(form.numeroCajas) : null,
       si_cutoff_fecha:         form.siCutoffFecha            || null,
@@ -202,7 +204,7 @@ export function useLogistica() {
       eta_actual:              form.etaActual                || null,
       eta_anterior:            previo?.etaAnterior           || null,
       eta_cambio_visto:        previo ? previo.etaCambioVisto : true,
-      estado_contenedor:       form.estadoContenedor         || "Vacío",
+      estado_contenedor:       form.estadoContenedor         || "Posicionado",
       fecha_ingreso_puerto:    form.fechaIngresoPuerto       || null,
       fecha_asignacion:        form.fechaAsignacion          || null,
       fecha_orden_recibida:    form.fechaOrdenRecibida       || null,
@@ -236,7 +238,7 @@ export function useLogistica() {
         ...(previo.historialContenedores || []),
         { numeroAnterior: previo.numeroContenedor, fecha: new Date().toISOString(), motivo: form.estado },
       ];
-      row.estado_contenedor = "Vacío";
+      row.estado_contenedor = "Posicionado";
       row.fecha_ingreso_puerto = null;
       row.fecha_asignacion = null;
     }
@@ -245,6 +247,7 @@ export function useLogistica() {
       setBookings(prev => prev.map(b => b.id === id ? rowToBooking({ ...row, id }) : b));
       const { error } = await supabase.from("logistica_bookings").update(row).eq("id", id);
       if (error) {
+        console.error("[logistica_bookings.update]", error.message);
         supabase.from("logistica_bookings").select("*").order("created_at", { ascending: false })
           .then(({ data }) => data && setBookings(data.map(rowToBooking)));
       }
@@ -253,7 +256,10 @@ export function useLogistica() {
       row.id = Date.now();
       setBookings(prev => [rowToBooking(row), ...prev]);
       const { error } = await supabase.from("logistica_bookings").insert(row);
-      if (error) setBookings(prev => prev.filter(b => b.id !== row.id));
+      if (error) {
+        console.error("[logistica_bookings.insert]", error.message);
+        setBookings(prev => prev.filter(b => b.id !== row.id));
+      }
       return !error;
     }
   }, [bookings]);

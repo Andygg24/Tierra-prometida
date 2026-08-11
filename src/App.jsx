@@ -5543,6 +5543,7 @@ function DocumentosDemo({ logisticaBookings = [], guardarNumeroProforma }) {
               setForm(p=>({...p,
                 booking:    b.numeroBooking    || p.booking,
                 naviera:    b.naviera          || p.naviera,
+                motonave:   b.motonave         || p.motonave,
                 contenedor: b.numeroContenedor || p.contenedor,
               }));
               if (b.numeroProforma) setFacturaNum(Number(b.numeroProforma));
