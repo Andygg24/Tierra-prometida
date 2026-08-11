@@ -76,6 +76,9 @@ const COL_CAL = {
   230: { bg:"#EF4444", light:"rgba(239,68,68,0.18)",  border:"rgba(239,68,68,0.5)"  },
   250: { bg:"#8B5CF6", light:"rgba(139,92,246,0.18)", border:"rgba(139,92,246,0.5)" },
 };
+// Fallback neutro para pallets sin calibre asignado todavía (no debe
+// verse como si tuvieran un calibre real preseleccionado).
+const COL_CAL_VACIO = { bg:"#94a3b8", light:"rgba(148,163,184,0.12)", border:"rgba(148,163,184,0.35)" };
 
 // ── Guardado por paso — cada paso solo escribe sus propios campos de
 // admin_data, así dos personas en pasos distintos del mismo contenedor
@@ -94,7 +97,7 @@ function initPallets(total) {
   const cpp = Math.floor(total / 20);
   return Array.from({ length: 20 }, (_, i) => ({
     id: i + 1,
-    calibres: [{ size: 200, cajas: cpp, predio: "", ica: "", plu: false }],
+    calibres: [{ size: "", cajas: cpp, predio: "", ica: "", plu: false }],
     listo: false,
   }));
 }
@@ -167,7 +170,7 @@ async function buildTirillaPallet(p, admin, plId) {
 
   const filasCalibres = p.calibres.map(c => `
     <div class="cal-row">
-      <span class="cal-num">${c.plu ? `${c.size}PLU` : c.size}</span>
+      <span class="cal-num">${c.plu ? `${c.size}PLU` : (c.size || "—")}</span>
       <span class="cal-cajas">${Number(c.cajas || 0).toLocaleString("es-CO")}</span>
     </div>`).join("");
 
@@ -624,13 +627,13 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     if (!n || n <= 0) return;
     setTotalCajas(n);
     setCajasInput(String(n));
-    // Solo se redistribuye parejo (20 pallets, calibre 200 por defecto) si
+    // Solo se redistribuye parejo (20 pallets vacíos, sin calibre) si
     // nadie ha tocado todavía ningún pallet. En cuanto se edita un calibre,
     // se mezcla, o se asigna predio/ICA, cambiar el total NO debe borrar
     // ese trabajo — se deja el reparto tal cual y el indicador de cuadre
     // ("Faltan/Sobran X cajas") guía el ajuste manual de la diferencia.
     const sinTocar = pallets.every(p =>
-      p.calibres.length === 1 && Number(p.calibres[0].size) === 200 &&
+      p.calibres.length === 1 && !p.calibres[0].size &&
       !p.calibres[0].predio && !p.calibres[0].ica && !p.calibres[0].plu
     );
     if (sinTocar) setPallets(initPallets(n));
@@ -650,14 +653,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // toda la lógica que hace Number(size) en otros lugares no se rompa.
   const setCalOpcion = (pi, ci, opcion) => {
     const plu  = opcion === "230PLU";
-    const size = plu ? 230 : Number(opcion);
+    const size = plu ? 230 : (opcion === "" ? "" : Number(opcion));
     setPallets(prev => prev.map((p, i) => i !== pi ? p : {
       ...p, calibres: p.calibres.map((c, j) => j !== ci ? c : { ...c, size, plu }),
     }));
   };
   const addCal = (pi) =>
     setPallets(prev => prev.map((p, i) => i !== pi ? p : {
-      ...p, calibres: [...p.calibres, { size:200, cajas:0, predio:"", ica:"", plu:false }],
+      ...p, calibres: [...p.calibres, { size:"", cajas:0, predio:"", ica:"", plu:false }],
     }));
   const removeCal = (pi, ci) =>
     setPallets(prev => prev.map((p, i) => (i !== pi || p.calibres.length <= 1) ? p : {
@@ -777,7 +780,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     }
     const p = palletById(pid); if (!p) return null;
     const isMixed  = p.calibres.length > 1;
-    const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+    const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL_VACIO;
     const isArmado = armadoPid === pid;
     const sum = palletSum(p);
     const ok  = sum === cpp;
@@ -896,7 +899,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
           <div style={{ display:"grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: m ? 8 : 6 }}>
             {pendientes.map(p => {
               const isMixed  = p.calibres.length > 1;
-              const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+              const mainCal  = COL_CAL[p.calibres[0].size] || COL_CAL_VACIO;
               const isArmado = armadoPid === p.id;
               const sum = palletSum(p);
               const ok  = sum === cpp;
@@ -1644,7 +1647,7 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
         const ok    = sum === cpp;
         const chips = p.calibres.map(c => {
           const col = COL_CAL[c.size]?.bg || "#94a3b8";
-          return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size ?? "—")} <b>${c.cajas || 0}cj</b></span>`;
+          return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size || "—")} <b>${c.cajas || 0}cj</b></span>`;
         }).join("");
         const observacion = p.calibres.find(c => c.predio)?.predio;
         // ICA del pallet: el propio de cada calibre si lo tiene, si no cae al
@@ -1917,7 +1920,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
         const ok    = sum === cpp;
         const chips = p.calibres.map(c => {
           const col = COL_CAL[c.size]?.bg || "#94a3b8";
-          return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size ?? "—")} <b>${c.cajas || 0}cj</b></span>`;
+          return `<span class="pchip" style="border-color:${col}66;color:${col}">${c.plu ? `${c.size}PLU` : (c.size || "—")} <b>${c.cajas || 0}cj</b></span>`;
         }).join("");
         return `<div class="tk-pallet ${ok ? "" : "warn"}">
           <div class="tk-pallet-top"><span class="pid">Pallet ${p.id}</span><span class="pflag">${ok ? "✓" : `⚠ ${sum}/${cpp}`}</span></div>
@@ -2431,7 +2434,7 @@ p{text-align:justify;margin-bottom:14px}
               <div style={{ display:"grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: m ? 8 : 6 }}>
                 {pallets.map((p) => {
                   const isMixed = p.calibres.length > 1;
-                  const mainCal = COL_CAL[p.calibres[0].size] || COL_CAL[200];
+                  const mainCal = COL_CAL[p.calibres[0].size] || COL_CAL_VACIO;
                   const isSel   = selPid === p.id;
                   const sum     = palletSum(p);
                   const ok      = sum === cpp;
@@ -2502,6 +2505,7 @@ p{text-align:justify;margin-bottom:14px}
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                           <div><div style={lbl}>Calibre / Size</div>
                             <CustomSelect value={c.plu ? "230PLU" : c.size} onChange={e => setCalOpcion(selPalletIdx, ci, e.target.value)} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
+                              <option value="">— Seleccionar —</option>
                               {CALIBRES.flatMap(cal => cal === 230
                                 ? [<option key={cal} value={cal}>{cal}</option>, <option key="230PLU" value="230PLU">230PLU</option>]
                                 : [<option key={cal} value={cal}>{cal}</option>])}
