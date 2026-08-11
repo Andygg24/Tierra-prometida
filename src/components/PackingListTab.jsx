@@ -358,7 +358,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const m = mob || isMobLocal;
 
   const hoy = new Date().toISOString().split("T")[0];
-  const { cargarPorContenedor, guardar } = usePackingList();
+  const { cargarPorContenedor, guardar, actualizarFase } = usePackingList();
   const { config: cfgSeguridad } = useConfiguracion();
   const claveRequerida = cfgSeguridad?.cfg_claves_acceso?.paso1_packing || "";
   const [paso1Ok,       setPaso1Ok]       = useState(false);
@@ -595,6 +595,19 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     adminKeys: PASO2_ADMIN_KEYS,
     extra: { layout_camion: layoutCamion },
   });
+
+  // "← Volver" es una acción explícita: el usuario decide retroceder de
+  // paso, así que a diferencia de guardarParcial esto sí debe bajar la
+  // fase guardada. Si no se persiste, al reabrir el Packing List (p.ej.
+  // porque se apagó el celular) vuelve a saltar al paso más avanzado que
+  // se haya alcanzado alguna vez, aunque el usuario ya lo haya dejado
+  // atrás a propósito para corregir algo.
+  const volverAPaso = async (nuevaFase) => {
+    setFase(nuevaFase);
+    if (!plIdRef.current) return;
+    const { error } = await actualizarFase(plIdRef.current, nuevaFase);
+    if (error) alert("No se pudo guardar que volviste a un paso anterior. Si se cierra la app antes de reintentar, puede volver a aparecer en el paso más avanzado.");
+  };
 
   // Guarda el acomodo del camión tal cual está (no lo toca) y además trae
   // de la base de datos los calibres/cantidad de cajas más recientes que
@@ -2332,7 +2345,7 @@ p{text-align:justify;margin-bottom:14px}
           return (
             <div key={step.n} style={{ display:"flex", alignItems:"center", flex:"1 1 auto" }}>
               <button
-                onClick={() => done && setFase(step.n)}
+                onClick={() => done && volverAPaso(step.n)}
                 style={{
                   flex:1, display:"flex", alignItems:"center", gap: m ? 6 : 8,
                   background: active ? "rgba(0,201,167,0.12)" : done ? "rgba(0,201,167,0.06)" : "rgba(255,255,255,0.03)",
@@ -2626,7 +2639,12 @@ p{text-align:justify;margin-bottom:14px}
               <SaveIndicator />
               <div style={{ flex:1, display:"flex", gap:8 }}>
                 <NavBtn onClick={() => guardarPaso1(false)}>💾 Guardar</NavBtn>
-                <NavBtn primary onClick={async () => { setSelPid(null); await guardarPaso1(true); setFase(2); }}>
+                <NavBtn primary onClick={async () => {
+                  setSelPid(null);
+                  const ok = await guardarPaso1(true);
+                  if (ok) setFase(2);
+                  else alert("No se pudo guardar el Paso 1. Revisa tu conexión e intenta de nuevo antes de continuar.");
+                }}>
                   Continuar a Carga Camión →
                 </NavBtn>
               </div>
@@ -2718,10 +2736,14 @@ p{text-align:justify;margin-bottom:14px}
           <div style={{ display:"flex", gap:8, paddingTop: m ? 0 : 0, alignItems:"center" }}>
             <SaveIndicator />
             <div style={{ flex:1, display:"flex", gap:8 }}>
-              <NavBtn onClick={() => setFase(1)}>← Volver</NavBtn>
+              <NavBtn onClick={() => volverAPaso(1)}>← Volver</NavBtn>
               <NavBtn onClick={() => guardarPaso2(false)}>💾 Guardar</NavBtn>
-              <NavBtn primary onClick={async () => { await guardarPaso2(true); setFase(3); }}>
-                Continuar a Contenedor →
+              <NavBtn primary onClick={async () => {
+                const ok = await guardarPaso2(true);
+                if (ok) setFase(3);
+                else alert("No se pudo guardar el Paso 2. Revisa tu conexión e intenta de nuevo antes de continuar.");
+              }}>
+                🔓 Autorizar contenedor →
               </NavBtn>
             </div>
           </div>
@@ -2897,7 +2919,7 @@ p{text-align:justify;margin-bottom:14px}
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <SaveIndicator />
             <div style={{ flex:1, display:"flex", gap:8 }}>
-              <NavBtn onClick={() => setFase(2)}>← Volver a Camión</NavBtn>
+              <NavBtn onClick={() => volverAPaso(2)}>← Volver a Camión</NavBtn>
               <NavBtn onClick={() => guardarPaso3()}>💾 Guardar</NavBtn>
             </div>
           </div>

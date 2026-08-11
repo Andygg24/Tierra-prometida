@@ -79,5 +79,19 @@ export function usePackingList() {
     return { data, error };
   }, []);
 
-  return { cargarPorContenedor, cargarTodos, guardar, cargarPorIdConContenedor, actualizarPallets, ultimaActualizacion };
+  // Actualiza solo la columna `fase` — usado al volver manualmente a un
+  // paso anterior. A diferencia de guardarParcial (que nunca retrocede la
+  // fase para no pisar el avance de otra persona), esto sí retrocede a
+  // propósito: es una acción explícita del usuario, no un guardado normal.
+  const actualizarFase = useCallback(async (id, fase) => {
+    const { data, error } = await supabase
+      .from("packing_lists")
+      .update({ fase, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    return { data, error };
+  }, []);
+
+  return { cargarPorContenedor, cargarTodos, guardar, cargarPorIdConContenedor, actualizarPallets, actualizarFase, ultimaActualizacion };
 }
