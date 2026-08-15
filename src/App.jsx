@@ -16,6 +16,7 @@ import { usePackingList } from "./hooks/usePackingList.js";
 import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
 import { fechaLocalISO, diferenciaDiasLocal } from "./utils/dates.js";
 import CustomSelect from "./components/CustomSelect.jsx";
+import SearchableSelect from "./components/SearchableSelect.jsx";
 import LimonLoader from "./components/LimonLoader.jsx";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
@@ -3230,6 +3231,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
 
   const [tabCont, setTabCont]           = useState(0);
   const [plContenedorActivo, setPlContenedorActivo] = useState(null);
+  const [plBusqueda, setPlBusqueda]     = useState("");
   const [plStatuses, setPlStatuses]     = useState({});
   const [confirm, setConfirm]           = useState(null);
   const [toast, setToast]               = useState(null);
@@ -3412,7 +3414,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
                 {logisticaBookings.length > 0 && (
                   <div style={{background:"rgba(14,165,233,0.08)",border:"1px solid rgba(14,165,233,0.25)",borderRadius:8,padding:8}}>
                     <div style={{...lbl,color:"#0EA5E9"}}>🔗 Cargar desde Logística (opcional)</div>
-                    <CustomSelect value={form.logisticaBookingId||""} onChange={e=>{
+                    <SearchableSelect value={form.logisticaBookingId||""} onChange={e=>{
                       const id = e.target.value ? Number(e.target.value) : null;
                       const b = logisticaBookings.find(x=>x.id===id);
                       setForm(p=>({...p, logisticaBookingId:id,
@@ -3421,12 +3423,12 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
                         naviera:       b?.naviera          || p.naviera,
                         destino:       b?.puertoDestino    || p.destino,
                       }));
-                    }} style={inp}>
+                    }} style={inp} placeholder="Buscar contenedor...">
                       <option value="" style={{background:"#1a1a2e"}}>— Elige un booking de Logística —</option>
                       {logisticaBookings.map(b=>(
                         <option key={b.id} value={b.id} style={{background:"#1a1a2e"}}>🚢 {b.numeroContenedor||b.numeroBooking||"(sin número)"} · {b.naviera||"—"} · {b.estado}</option>
                       ))}
-                    </CustomSelect>
+                    </SearchableSelect>
                   </div>
                 )}
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
@@ -4592,9 +4594,26 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                   ← Ir a Contenedores
                 </button>
               </div>
-            ) : (
+            ) : (() => {
+              const q = plBusqueda.trim().toLowerCase();
+              const listaPL = [...procesos]
+                .filter(p => !q || [p.numContenedor, p.proveedor, p.destino, p.transporte, p.placa].some(v => String(v||"").toLowerCase().includes(q)))
+                .sort((a,b) => b.fecha.localeCompare(a.fecha));
+              return (
+              <div>
+                <input
+                  value={plBusqueda}
+                  onChange={e=>setPlBusqueda(e.target.value)}
+                  placeholder="🔍 Buscar contenedor..."
+                  style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 10px",color:"white",fontSize:12,fontFamily:"inherit",width:"100%",boxSizing:"border-box",marginBottom:10}}
+                />
+                {listaPL.length === 0 ? (
+                  <div style={{textAlign:"center",padding:"32px 0",color:"rgba(255,255,255,0.33)",fontSize:12}}>
+                    Sin resultados para "{plBusqueda}"
+                  </div>
+                ) : (
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {[...procesos].sort((a,b) => b.fecha.localeCompare(a.fecha)).map(p => {
+                {listaPL.map(p => {
                   const col   = COL_EST_PL[p.estado] || "#6366F1";
                   const fase  = plStatuses[p.id];
                   return (
@@ -4634,7 +4653,10 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
                   );
                 })}
               </div>
-            )}
+                )}
+              </div>
+              );
+            })()}
           </div>
         );
       })()}
@@ -5063,8 +5085,8 @@ ${calibreSection}
             {/* Selector de contenedor */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)", marginBottom: 4 }}>Seleccionar contenedor</div>
-              <CustomSelect value={selContRend ?? ""} onChange={e => { setSelContRend(e.target.value ? Number(e.target.value) : null); setShowFormRend(false); }}
-                style={{ ...inp, maxWidth: 340 }}>
+              <SearchableSelect value={selContRend ?? ""} onChange={e => { setSelContRend(e.target.value ? Number(e.target.value) : null); setShowFormRend(false); }}
+                style={{ ...inp, maxWidth: 340 }} placeholder="Buscar contenedor...">
                 <option value="">— Elige un contenedor —</option>
                 {procesos.map(p => {
                   const provs = parseProveedores(p.proveedor).join(", ") || "sin proveedor";
@@ -5072,7 +5094,7 @@ ${calibreSection}
                     <option key={p.id} value={p.id}>{p.numContenedor} · {provs} · {p.fecha}</option>
                   );
                 })}
-              </CustomSelect>
+              </SearchableSelect>
             </div>
 
             {!contSelRend && (
@@ -5536,7 +5558,7 @@ function DocumentosDemo({ logisticaBookings = [], guardarNumeroProforma }) {
         {logisticaBookings.length > 0 && (
           <div style={{marginBottom:10}}>
             {lbl("🔗 Cargar desde Logística (opcional)")}
-            <CustomSelect value="" onChange={e=>{
+            <SearchableSelect value="" onChange={e=>{
               const b = logisticaBookings.find(x=>x.id===Number(e.target.value));
               if (!b) return;
               setBookingLogisticaId(b.id);
@@ -5547,12 +5569,12 @@ function DocumentosDemo({ logisticaBookings = [], guardarNumeroProforma }) {
                 contenedor: b.numeroContenedor || p.contenedor,
               }));
               if (b.numeroProforma) setFacturaNum(Number(b.numeroProforma));
-            }} style={inp}>
+            }} style={inp} placeholder="Buscar contenedor...">
               <option value="">— Elige un booking de Logística —</option>
               {logisticaBookings.map(b=>(
                 <option key={b.id} value={b.id}>🚢 {b.numeroContenedor||b.numeroBooking||"(sin número)"} · {b.naviera||"—"} · {b.estado}</option>
               ))}
-            </CustomSelect>
+            </SearchableSelect>
           </div>
         )}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
