@@ -504,6 +504,31 @@ export default function LogisticaTab({ mob, logistica }) {
     return mapa;
   }, [log.costoVenta]);
 
+  // ── "Añadir Costo" — atajo desde la lista para cargar sólo el precio/kg
+  // sin entrar al detalle completo; queda precargado cuando luego se Abre. ──
+  const [modalCostoBookingId, setModalCostoBookingId] = useState(null);
+  const [modalCostoValor, setModalCostoValor]         = useState("");
+  const [guardandoModalCosto, setGuardandoModalCosto] = useState(false);
+
+  const abrirModalCosto = (b) => {
+    const cv = costoVentaPorBooking[b.id];
+    setModalCostoBookingId(b.id);
+    setModalCostoValor(cv?.precioKg ?? "");
+  };
+  const cerrarModalCosto = () => {
+    setModalCostoBookingId(null);
+    setModalCostoValor("");
+  };
+  const guardarModalCosto = async () => {
+    if (!modalCostoBookingId) return;
+    setGuardandoModalCosto(true);
+    const cv = costoVentaPorBooking[modalCostoBookingId];
+    const form = { ...costoVentaVacio(costoVentaCfg), ...(cv || {}), precioKg: modalCostoValor };
+    const ok = await log.guardarCostoVenta(modalCostoBookingId, form);
+    setGuardandoModalCosto(false);
+    if (ok) cerrarModalCosto();
+  };
+
   const costoVentaFiltrados = useMemo(() => {
     const q = busquedaCv.trim().toLowerCase();
     return log.bookings.filter(b => {
@@ -1362,7 +1387,7 @@ ${filas.map(filaDetalle).join("")}
                         <th style={{ padding: "6px" }}>PV (USD/caja)</th>
                         <th style={{ padding: "6px" }}>Venta Total (USD)</th>
                         <th style={{ padding: "6px" }}>Venta Total (COP)</th>
-                        <th style={{ padding: "6px" }}>GOU (COP / USD)</th><th style={{ padding: "6px" }}></th>
+                        <th style={{ padding: "6px" }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1388,15 +1413,8 @@ ${filas.map(filaDetalle).join("")}
                             <td style={{ padding: "6px", color: calc?.ventaCop ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)" }}>
                               {calc?.ventaCop ? `$${Math.round(calc.ventaCop).toLocaleString("es-CO")}` : "—"}
                             </td>
-                            <td style={{ padding: "6px", color: !calc?.costoTotal ? "rgba(255,255,255,0.3)" : calc.ganancia >= 0 ? "#00C9A7" : "#FF6B6B", fontWeight: 700 }}>
-                              {calc?.costoTotal ? (
-                                <>
-                                  ${Math.round(calc.ganancia).toLocaleString("es-CO")}
-                                  <span style={{ fontWeight: 500, opacity: 0.7 }}> · US${Math.round(calc.gananciaUsd).toLocaleString("es-CO")}</span>
-                                </>
-                              ) : "—"}
-                            </td>
                             <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => abrirModalCosto(b)} style={btnTablaEditar}>➕ Añadir Costo</button>
                               <button onClick={() => abrirCostoVenta(b)} style={btnTablaEditar}>Abrir</button>
                             </td>
                           </tr>
@@ -1407,6 +1425,32 @@ ${filas.map(filaDetalle).join("")}
                 </div>
               )}
             </div>
+
+            {modalCostoBookingId && (() => {
+              const bModal = log.bookings.find(b => b.id === modalCostoBookingId);
+              return (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 8888, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={cerrarModalCosto}>
+                  <div style={{ background: "#181a26", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, padding: 24, maxWidth: 320, width: "100%" }} onClick={e => e.stopPropagation()}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "white", marginBottom: 4 }}>➕ Añadir Costo</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>{labelBooking(bModal)}</div>
+                    <div style={lbl}>Valor unitario por Kg (COP)</div>
+                    <input
+                      type="number" autoFocus value={modalCostoValor}
+                      onChange={e => setModalCostoValor(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && guardarModalCosto()}
+                      placeholder="Ej: 3800" style={inp}
+                    />
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
+                      <button onClick={cerrarModalCosto} style={btnSecundario}>Cancelar</button>
+                      <button onClick={guardarModalCosto} disabled={guardandoModalCosto} style={btnPrimario(false, guardandoModalCosto)}>
+                        {guardandoModalCosto ? "Guardando..." : "Guardar"}
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 12 }}>Este valor queda precargado cuando abras el costeo completo de este contenedor.</div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ) : (
           /* ── Detalle del costeo del contenedor ── */
