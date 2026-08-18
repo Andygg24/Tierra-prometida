@@ -6920,6 +6920,11 @@ function ConfigForm({ config, guardar }) {
     tiempoSesion:"8h",
     historial: [], // No hay mecanismo real que registre accesos todavía — no inventar entradas.
   }));
+
+  const [costoVentaCfg, setCostoVentaCfg] = useState(() => load("cfg_costo_venta", {
+    costoTransporte: 6000000, costoPuerto: 6500000, costoAgencia: 1300000, margen: 1.5,
+    tiposCaja: [{ id:1, tipo:"Princesa", precio:6113 }, { id:2, tipo:"Del Monte", precio:7112 }],
+  }));
   const [pw, setPw] = useState({ actual:"", nuevo:"", confirmar:"" });
 
   const ACCIONES_PROTEGIBLES = [
@@ -6946,6 +6951,7 @@ function ConfigForm({ config, guardar }) {
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
     {icon:"🎨",label:"Apariencia"},{icon:"🔒",label:"Seguridad"},{icon:"📋",label:"Fiscal"},
+    {icon:"💵",label:"Costo Venta"},
   ];
   const COLORES_PRESET = ["#00C9A7","#845EF7","#F9A826","#FF6B6B","#0EA5E9","#6366F1","#25D366","#E11D48"];
 
@@ -7589,6 +7595,56 @@ function ConfigForm({ config, guardar }) {
         </div>
       )}
 
+      {tabIdx === 9 && (
+        <div>
+          <div style={secS}>
+            <div style={secH}>💵 Costos por defecto (Costo de Venta)</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.42)", marginBottom:14 }}>Se precargan al abrir un costeo nuevo en Logística → Costo de Venta. Cada contenedor los puede editar sin afectar este valor por defecto.</div>
+            <div style={{ display:"grid", gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:14 }}>
+              <div>
+                <label style={lS}>Transporte (COP)</label>
+                <input type="number" style={iS()} value={costoVentaCfg.costoTransporte} onChange={e=>setCostoVentaCfg(p=>({...p,costoTransporte:Number(e.target.value)||0}))} />
+              </div>
+              <div>
+                <label style={lS}>Puerto (COP)</label>
+                <input type="number" style={iS()} value={costoVentaCfg.costoPuerto} onChange={e=>setCostoVentaCfg(p=>({...p,costoPuerto:Number(e.target.value)||0}))} />
+              </div>
+              <div>
+                <label style={lS}>Agencia (COP)</label>
+                <input type="number" style={iS()} value={costoVentaCfg.costoAgencia} onChange={e=>setCostoVentaCfg(p=>({...p,costoAgencia:Number(e.target.value)||0}))} />
+              </div>
+              <div>
+                <label style={lS}>Margen de venta (%)</label>
+                <input type="number" step="0.1" style={iS()} value={costoVentaCfg.margen} onChange={e=>setCostoVentaCfg(p=>({...p,margen:Number(e.target.value)||0}))} />
+              </div>
+            </div>
+          </div>
+
+          <div style={secS}>
+            <div style={secH}>📦 Tipos de Caja</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.42)", marginBottom:14 }}>El precio se precarga al elegir el tipo de caja en el costeo, pero queda editable ahí mismo.</div>
+            {(costoVentaCfg.tiposCaja||[]).map((t, ti) => (
+              <div key={t.id} style={{ display:"grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr auto", gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={lS}>Tipo</label>
+                  <input style={iS()} value={t.tipo} onChange={e=>setCostoVentaCfg(p=>({...p,tiposCaja:p.tiposCaja.map((x,xi)=>xi===ti?{...x,tipo:e.target.value}:x)}))} placeholder="Ej: Princesa" />
+                </div>
+                <div>
+                  <label style={lS}>Precio unitario (COP)</label>
+                  <input type="number" style={iS()} value={t.precio} onChange={e=>setCostoVentaCfg(p=>({...p,tiposCaja:p.tiposCaja.map((x,xi)=>xi===ti?{...x,precio:Number(e.target.value)||0}:x)}))} />
+                </div>
+                <div style={{ display:"flex", alignItems:"flex-end" }}>
+                  <button onClick={()=>setConfirmDel({action:()=>setCostoVentaCfg(p=>({...p,tiposCaja:p.tiposCaja.filter((_,xi)=>xi!==ti)}))})} style={{ background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B35", borderRadius:7, padding:"9px 11px", color:"#FF6B6B", cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>setCostoVentaCfg(p=>({...p,tiposCaja:[...(p.tiposCaja||[]),{id:Date.now(),tipo:"",precio:0}]}))} style={{ marginTop:4, background:"rgba(132,94,247,0.1)", border:"1px solid #845EF740", borderRadius:8, padding:"8px 16px", color:"#845EF7", cursor:"pointer", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>➕ Agregar tipo de caja</button>
+          </div>
+
+          <SaveBtn onClick={() => save("cfg_costo_venta", costoVentaCfg)} />
+        </div>
+      )}
+
     </div>
   );
 }
@@ -7650,7 +7706,8 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
         input:focus { outline: none; }
         .login-wrap { width: 100%; max-width: 400px; }
         .login-logo { text-align: center; margin-bottom: 36px; }
-        .login-logo-icon { width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg,#845EF7,#6366F1); display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 14px; box-shadow: 0 8px 32px rgba(132,94,247,0.35), 0 0 0 1px rgba(255,255,255,0.06); }
+        .login-logo-icon { width: 72px; height: 72px; border-radius: 20px; background: #ffffff; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px; box-shadow: 0 8px 32px rgba(132,94,247,0.35), 0 0 0 1px rgba(255,255,255,0.06); }
+        .login-logo-icon img { width: 100%; height: 100%; object-fit: cover; }
         .login-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 20px; padding: 28px 28px 24px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 24px 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06); }
         .login-btn { width: 100%; background: linear-gradient(135deg,#845EF7,#6366F1); border: none; border-radius: 12px; padding: 15px; font-size: 15px; color: white; cursor: pointer; font-weight: 700; margin-top: 4px; font-family: inherit; transition: opacity 0.18s, transform 0.18s; box-shadow: 0 8px 24px rgba(132,94,247,0.3); }
         .login-btn:hover { opacity: 0.92; transform: translateY(-1px); }
@@ -7675,7 +7732,7 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
       <div className="login-wrap">
         {/* Logo */}
         <div className="login-logo">
-          <div className="login-logo-icon">🍋</div>
+          <div className="login-logo-icon"><img src="/logo-tp.png" alt="Tierra Prometida" /></div>
           <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:"white", letterSpacing:-0.5, margin:0 }}>Tierra Prometida Trading</h1>
           <p style={{ fontSize:12, color:"rgba(255,255,255,0.48)", marginTop:5, margin:"5px 0 0" }}>Sistema de gestión — JARVIS</p>
         </div>
@@ -8190,7 +8247,7 @@ export default function App() {
         return (
           <div className="tp-header" style={{ position:"relative" }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${colorPrincipal},#845EF7)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0, boxShadow:`0 4px 12px ${colorPrincipal}40` }}>🍋</div>
+              <div style={{ width:34, height:34, borderRadius:10, background:"#ffffff", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0, boxShadow:`0 4px 12px ${colorPrincipal}40` }}><img src="/logo-tp.png" alt="Tierra Prometida" style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
               <div style={{ minWidth:0, flex:1 }}>
                 <div className="tp-header-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, letterSpacing:-0.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                   {isSmall ? "JARVIS 🍋" : "Tierra Prometida Trading"}
