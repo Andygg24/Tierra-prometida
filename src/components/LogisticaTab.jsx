@@ -448,6 +448,7 @@ export default function LogisticaTab({ mob, logistica }) {
   const [guardandoCv, setGuardandoCv]   = useState(false);
   const [guardadoOkCv, setGuardadoOkCv] = useState(false);
   const [busquedaCv, setBusquedaCv]     = useState("");
+  const [cvCajasInput, setCvCajasInput] = useState(""); // N° de Cajas — vive en el booking, editable aquí para no obligar a pasar por Operaciones
   const setCampoCv = (campo, valor) => setCvForm(f => ({ ...f, [campo]: valor }));
 
   // Estadísticas protegidas por clave (Configuración → Seguridad → Claves de Acceso)
@@ -474,11 +475,13 @@ export default function LogisticaTab({ mob, logistica }) {
     setCvBookingSel(b.id);
     const cv = log.costoVenta.find(c => c.bookingId === b.id);
     setCvForm({ ...costoVentaVacio(costoVentaCfg), ...(cv || {}) });
+    setCvCajasInput(b.numeroCajas ?? "");
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const volverListaCv = () => {
     setCvBookingSel(null);
     setCvForm(costoVentaVacio(costoVentaCfg));
+    setCvCajasInput("");
   };
   const elegirTipoCaja = (tipo) => {
     const preset = tiposCajaCfg.find(t => t.tipo === tipo);
@@ -488,14 +491,19 @@ export default function LogisticaTab({ mob, logistica }) {
   const guardarCv = async () => {
     if (!cvBookingSel) return;
     setGuardandoCv(true);
+    // El N° de Cajas es un campo del booking (Operaciones), no del costeo —
+    // si lo cambiaron aquí, hay que guardarlo ahí también antes de calcular.
+    if (cvBooking && Number(cvCajasInput || 0) !== Number(cvBooking.numeroCajas || 0)) {
+      await log.guardarBooking({ ...cvBooking, numeroCajas: cvCajasInput }, cvBookingSel);
+    }
     const ok = await log.guardarCostoVenta(cvBookingSel, cvForm);
     setGuardandoCv(false);
     if (ok) { setGuardadoOkCv(true); setTimeout(() => setGuardadoOkCv(false), 2000); }
   };
 
   const cvCalc = useMemo(
-    () => calcularCostoVenta(Number(cvBooking?.numeroCajas) || 0, cvForm),
-    [cvForm, cvBooking]
+    () => calcularCostoVenta(Number(cvCajasInput) || 0, cvForm),
+    [cvForm, cvCajasInput]
   );
 
   const costoVentaPorBooking = useMemo(() => {
@@ -1463,12 +1471,18 @@ ${filas.map(filaDetalle).join("")}
               <span>🛃 Expo <b style={{ color: "white" }}>{cvBooking?.numeroExportacion || "—"}</b></span>
               <span>· 🧾 Proforma <b style={{ color: "white" }}>{cvBooking?.numeroProforma || "—"}</b></span>
               <span>· 🚢 {cvBooking?.naviera || "—"}</span>
-              <span>· 📦 {cvBooking?.numeroCajas || 0} cajas</span>
               <span>· 📍 {cvBooking?.puertoDestino || "—"}</span>
             </div>
 
+            {!cvCajasInput && (
+              <div style={{ background: "rgba(249,168,38,0.1)", border: "1px solid rgba(249,168,38,0.35)", borderRadius: 8, padding: "10px 12px", marginBottom: 14, fontSize: 11, color: "#F9A826", display: "flex", alignItems: "center", gap: 8 }}>
+                <span>⚠️</span> Sin N° de Cajas, Costo de Cajas, CU, PV y Venta Total quedan en $0. Complétalo abajo.
+              </div>
+            )}
+
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Fruta y cajas</div>
             <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+              <div style={campoBox}><div style={lbl}>N° de Cajas</div><input type="number" style={inp} value={cvCajasInput} onChange={e => setCvCajasInput(e.target.value)} placeholder="Ej: 1400" /></div>
               <div style={campoBox}><div style={lbl}>TRM (tasa de cambio)</div><input type="number" style={inp} value={cvForm.tmr} onChange={e => setCampoCv("tmr", e.target.value)} placeholder="Ej: 3127.51" /></div>
               <div style={campoBox}><div style={lbl}>Kilos del contenedor</div><input type="number" style={inp} value={cvForm.kilos} onChange={e => setCampoCv("kilos", e.target.value)} placeholder="Ej: 23240" /></div>
               <div style={campoBox}><div style={lbl}>Precio por Kg (COP)</div><input type="number" style={inp} value={cvForm.precioKg} onChange={e => setCampoCv("precioKg", e.target.value)} placeholder="Ej: 3800" /></div>
