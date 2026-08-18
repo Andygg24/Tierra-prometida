@@ -6929,8 +6929,12 @@ function ConfigForm({ config, guardar }) {
 
   const ACCIONES_PROTEGIBLES = [
     { id:"paso1_packing", nombre:"Paso 1 — Packing List", desc:"Calibres y checklist de Control de Calidad y Cargue" },
+    { id:"costo_venta_stats", nombre:"Estadísticas — Costo de Venta", desc:"Resumen general, desglose de costos, GOU y ventas por naviera en Logística" },
   ];
-  const [clavesAcceso, setClavesAcceso] = useState(() => load("cfg_claves_acceso", {}));
+  // El default de costo_venta_stats se mezcla por encima de lo ya guardado
+  // (no dentro de load) porque cfg_claves_acceso puede existir en Supabase
+  // sin esa clave todavía — si no, "load" nunca vería el default.
+  const [clavesAcceso, setClavesAcceso] = useState(() => ({ costo_venta_stats:"1002207784", ...load("cfg_claves_acceso", {}) }));
   const [clavesVisibles, setClavesVisibles] = useState({});
 
   const [fiscal, setFiscal] = useState(() => load("cfg_fiscal", {

@@ -36,6 +36,54 @@ const ALERTA_TIPO_META = {
   contrato_vencimiento: { label: "Contrato",             color: "#F9A826" },
 };
 
+// Logo embebido como base64 — así el informe HTML descargado lo muestra
+// aunque se abra después, sin servidor detrás.
+async function cargarLogoBase64() {
+  try {
+    const res  = await fetch("/logo-tp.png");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(blob);
+    });
+  } catch { return ""; }
+}
+
+const PERIODOS_INFORME = [
+  { id: "semanal", label: "Semanal" },
+  { id: "mensual", label: "Mensual" },
+  { id: "anual",   label: "Anual" },
+  { id: "personalizado", label: "Personalizado" },
+];
+
+// Rango [desde, hasta] (ISO) + etiqueta legible para el período elegido.
+function rangoPeriodoInforme(tipo, fechaDesde, fechaHasta) {
+  const hoy = new Date();
+  if (tipo === "semanal") {
+    const dow = hoy.getDay();
+    const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - ((dow + 6) % 7));
+    const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+    return { desde: fechaLocalISO(lunes), hasta: fechaLocalISO(domingo), label: `Semana del ${lunes.toLocaleDateString("es-CO")} al ${domingo.toLocaleDateString("es-CO")}` };
+  }
+  if (tipo === "mensual") {
+    const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const fin    = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    return { desde: fechaLocalISO(inicio), hasta: fechaLocalISO(fin), label: inicio.toLocaleDateString("es-CO", { month: "long", year: "numeric" }) };
+  }
+  if (tipo === "anual") {
+    const inicio = new Date(hoy.getFullYear(), 0, 1);
+    const fin    = new Date(hoy.getFullYear(), 11, 31);
+    return { desde: fechaLocalISO(inicio), hasta: fechaLocalISO(fin), label: `Año ${hoy.getFullYear()}` };
+  }
+  // Personalizado
+  return {
+    desde: fechaDesde || "0000-01-01",
+    hasta: fechaHasta || "9999-12-31",
+    label: fechaDesde && fechaHasta ? `${new Date(fechaDesde+"T00:00:00").toLocaleDateString("es-CO")} al ${new Date(fechaHasta+"T00:00:00").toLocaleDateString("es-CO")}` : "Todo el histórico",
+  };
+}
+
 function BarraLista({ items }) {
   const max = Math.max(1, ...items.map(it => it.value));
   return (
@@ -44,7 +92,7 @@ function BarraLista({ items }) {
         <div key={i}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
             <span style={{ color: "rgba(255,255,255,0.75)" }}>{it.label}</span>
-            <span style={{ color: it.color, fontWeight: 700 }}>{it.value}</span>
+            <span style={{ color: it.color, fontWeight: 700 }}>{it.display ?? it.value}</span>
           </div>
           <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 4, height: 8, overflow: "hidden" }}>
             <div style={{ width: `${(it.value / max) * 100}%`, height: "100%", background: it.color, borderRadius: 4, transition: "width 0.3s" }} />
@@ -127,7 +175,8 @@ function calcularCostoVenta(cajas, form) {
   const pvTotal      = pv * cajas;
   const ventaCop     = pvTotal * tmr;
   const ganancia     = ventaCop - costoTotal;
-  return { cajas, tmr, costoFruta, costoCajas, costoTotal, cu, pv, pvTotal, ventaCop, ganancia };
+  const gananciaUsd  = tmr > 0 ? ganancia / tmr : 0;
+  return { cajas, tmr, costoFruta, costoCajas, costoTotal, cu, pv, pvTotal, ventaCop, ganancia, gananciaUsd };
 }
 
 function labelBooking(b) {
@@ -168,6 +217,10 @@ export default function LogisticaTab({ mob, logistica }) {
   const consigneesCfg      = config.cfg_exportacion?.consignees      || [];
   const costoVentaCfg      = config.cfg_costo_venta || {};
   const tiposCajaCfg       = costoVentaCfg.tiposCaja?.length ? costoVentaCfg.tiposCaja : TIPOS_CAJA_FALLBACK;
+  // ?? (no ||) porque "" guardado explícitamente en Configuración significa
+  // "sin restricción" — sólo cuando la clave nunca se ha configurado (undefined)
+  // cae al valor por defecto.
+  const claveEstadisticasCv = config.cfg_claves_acceso?.costo_venta_stats ?? "1002207784";
 
   const [tabLog, setTabLog] = useState(0);
   const TAB_LOG = ["📋 Operaciones", "💰 Costo de Venta", "🔔 Alertas", "📊 Estadísticas", "📄 Contratos"];
@@ -397,6 +450,21 @@ export default function LogisticaTab({ mob, logistica }) {
   const [busquedaCv, setBusquedaCv]     = useState("");
   const setCampoCv = (campo, valor) => setCvForm(f => ({ ...f, [campo]: valor }));
 
+  // Estadísticas protegidas por clave (Configuración → Seguridad → Claves de Acceso)
+  const [statsCvOk, setStatsCvOk]           = useState(false);
+  const [statsCvPidiendo, setStatsCvPidiendo] = useState(false);
+  const [statsCvInput, setStatsCvInput]     = useState("");
+  const [statsCvError, setStatsCvError]     = useState("");
+  const verificarClaveStatsCv = () => {
+    if (statsCvInput === claveEstadisticasCv) {
+      setStatsCvOk(true);
+      setStatsCvError("");
+      setStatsCvInput("");
+    } else {
+      setStatsCvError("Clave incorrecta");
+    }
+  };
+
   const cvBooking = useMemo(
     () => log.bookings.find(b => b.id === cvBookingSel) || null,
     [log.bookings, cvBookingSel]
@@ -444,6 +512,260 @@ export default function LogisticaTab({ mob, logistica }) {
         .some(v => (v || "").toLowerCase().includes(q));
     });
   }, [log.bookings, busquedaCv]);
+
+  // Resultados agregados de todos los contenedores con costeo cargado —
+  // alimenta la sección "Costo de Venta" de la pestaña Estadísticas.
+  const estadisticasCV = useMemo(() => {
+    const filas = log.bookings
+      .map(b => {
+        const cv = costoVentaPorBooking[b.id];
+        if (!cv) return null;
+        const calc = calcularCostoVenta(Number(b.numeroCajas) || 0, cv);
+        if (!calc.costoTotal) return null; // costeo abierto pero sin datos reales todavía
+        return { booking: b, cv, calc };
+      })
+      .filter(Boolean);
+
+    const suma = (fn) => filas.reduce((a, f) => a + fn(f), 0);
+    const totalCostoTotal   = suma(f => f.calc.costoTotal);
+    const totalVentaCop     = suma(f => f.calc.ventaCop);
+    const totalVentaUsd     = suma(f => f.calc.pvTotal);
+    const totalGananciaCop  = suma(f => f.calc.ganancia);
+    const totalGananciaUsd  = suma(f => f.calc.gananciaUsd);
+    const margenRealizado   = totalCostoTotal ? (totalGananciaCop / totalCostoTotal) * 100 : 0;
+
+    const desgloseCostos = [
+      { label: "Fruta",      value: Math.round(suma(f => f.calc.costoFruta)) },
+      { label: "Cajas",      value: Math.round(suma(f => f.calc.costoCajas)) },
+      { label: "Transporte", value: Math.round(suma(f => Number(f.cv.costoTransporte) || 0)) },
+      { label: "Puerto",     value: Math.round(suma(f => Number(f.cv.costoPuerto) || 0)) },
+      { label: "Agencia",    value: Math.round(suma(f => Number(f.cv.costoAgencia) || 0)) },
+    ].map((it, i) => ({ ...it, color: PALETA_CATEGORICA[i], display: `$${it.value.toLocaleString("es-CO")}` }));
+
+    const gananciaPorNavieraMapa = {};
+    filas.forEach(f => {
+      const key = f.booking.naviera || "Sin naviera";
+      gananciaPorNavieraMapa[key] = (gananciaPorNavieraMapa[key] || 0) + f.calc.ganancia;
+    });
+    const gananciaPorNaviera = Object.entries(gananciaPorNavieraMapa)
+      .sort((a, b) => b[1] - a[1])
+      .map(([naviera, valor]) => ({
+        label: naviera,
+        value: Math.abs(Math.round(valor)),
+        display: `${valor < 0 ? "-" : ""}$${Math.abs(Math.round(valor)).toLocaleString("es-CO")}`,
+        color: valor >= 0 ? "#00C9A7" : "#FF6B6B",
+      }));
+
+    const ventaUsdPorNavieraMapa = {};
+    filas.forEach(f => {
+      const key = f.booking.naviera || "Sin naviera";
+      ventaUsdPorNavieraMapa[key] = (ventaUsdPorNavieraMapa[key] || 0) + f.calc.pvTotal;
+    });
+    const ventaUsdPorNaviera = Object.entries(ventaUsdPorNavieraMapa)
+      .sort((a, b) => b[1] - a[1])
+      .map(([naviera, valor]) => ({
+        label: naviera,
+        value: Math.round(valor),
+        display: `$${Math.round(valor).toLocaleString("es-CO")}`,
+        color: "#845EF7",
+      }));
+
+    const hoy = new Date();
+    const ventaUsdPorMes = Array.from({ length: 6 }, (_, idx) => {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - (5 - idx), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
+      const value = Math.round(suma(f => ((f.booking.fechaZarpe || f.booking.createdAt || "").slice(0, 7)) === key ? f.calc.pvTotal : 0));
+      return { key, label, value };
+    });
+
+    return { filas, totalCostoTotal, totalVentaCop, totalVentaUsd, totalGananciaCop, totalGananciaUsd, margenRealizado, desgloseCostos, gananciaPorNaviera, ventaUsdPorNaviera, ventaUsdPorMes };
+  }, [log.bookings, costoVentaPorBooking]);
+
+  // ══════════════ INFORME DE COSTO DE VENTA (semanal / mensual / anual / personalizado) ══════════════
+  const [periodoInforme, setPeriodoInforme]     = useState("mensual");
+  const [desdeInforme, setDesdeInforme]         = useState("");
+  const [hastaInforme, setHastaInforme]         = useState("");
+  const [generandoInforme, setGenerandoInforme] = useState(false);
+
+  const generarInformeCV = async (modo = "descargar") => {
+    setGenerandoInforme(true);
+    const { desde, hasta, label } = rangoPeriodoInforme(periodoInforme, desdeInforme, hastaInforme);
+
+    const filas = log.bookings
+      .map(b => {
+        const cv = costoVentaPorBooking[b.id];
+        if (!cv) return null;
+        const fecha = (b.fechaZarpe || b.createdAt || "").slice(0, 10);
+        if (fecha && (fecha < desde || fecha > hasta)) return null;
+        const calc = calcularCostoVenta(Number(b.numeroCajas) || 0, cv);
+        if (!calc.costoTotal) return null;
+        return { booking: b, cv, calc, fecha };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
+
+    const logoSrc  = await cargarLogoBase64();
+    const fechaHoy = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
+    const horaHoy  = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+
+    const suma = (fn) => filas.reduce((a, f) => a + fn(f), 0);
+    const totalCostoTotal  = suma(f => f.calc.costoTotal);
+    const totalVentaCop    = suma(f => f.calc.ventaCop);
+    const totalVentaUsd    = suma(f => f.calc.pvTotal);
+    const totalGananciaCop = suma(f => f.calc.ganancia);
+    const totalGananciaUsd = suma(f => f.calc.gananciaUsd);
+    const margenReal       = totalCostoTotal ? (totalGananciaCop / totalCostoTotal) * 100 : 0;
+
+    const desglose = [
+      { label: "Fruta",      value: suma(f => f.calc.costoFruta) },
+      { label: "Cajas",      value: suma(f => f.calc.costoCajas) },
+      { label: "Transporte", value: suma(f => Number(f.cv.costoTransporte) || 0) },
+      { label: "Puerto",     value: suma(f => Number(f.cv.costoPuerto) || 0) },
+      { label: "Agencia",    value: suma(f => Number(f.cv.costoAgencia) || 0) },
+    ];
+
+    const porNavieraMapa = {};
+    filas.forEach(f => {
+      const key = f.booking.naviera || "Sin naviera";
+      if (!porNavieraMapa[key]) porNavieraMapa[key] = { contenedores: 0, ventaUsd: 0, ventaCop: 0, costoTotal: 0, gananciaCop: 0, gananciaUsd: 0 };
+      const n = porNavieraMapa[key];
+      n.contenedores++; n.ventaUsd += f.calc.pvTotal; n.ventaCop += f.calc.ventaCop;
+      n.costoTotal += f.calc.costoTotal; n.gananciaCop += f.calc.ganancia; n.gananciaUsd += f.calc.gananciaUsd;
+    });
+    const porNaviera = Object.entries(porNavieraMapa).sort((a, b) => b[1].gananciaCop - a[1].gananciaCop);
+
+    const cop = (v) => `$${Math.round(v || 0).toLocaleString("es-CO")}`;
+    const usd = (v) => `$${Math.round(v || 0).toLocaleString("es-CO")}`;
+
+    const filaDetalle = (f) => `<tr>
+      <td>${f.fecha || "—"}</td>
+      <td><b>${f.booking.numeroBooking || "—"}</b></td>
+      <td>${f.booking.numeroContenedor || "—"}</td>
+      <td>${f.booking.naviera || "—"}</td>
+      <td style="text-align:right">${f.booking.numeroCajas || 0}</td>
+      <td style="text-align:right">${f.cv.tmr || "—"}</td>
+      <td style="text-align:right">${f.cv.kilos || "—"}</td>
+      <td style="text-align:right">${f.cv.precioKg ? cop(f.cv.precioKg) : "—"}</td>
+      <td style="text-align:right">${cop(f.calc.costoFruta)}</td>
+      <td>${f.cv.tipoCaja || "—"}</td>
+      <td style="text-align:right">${f.cv.precioCaja ? cop(f.cv.precioCaja) : "—"}</td>
+      <td style="text-align:right">${cop(f.calc.costoCajas)}</td>
+      <td style="text-align:right">${cop(Number(f.cv.costoTransporte) || 0)}</td>
+      <td style="text-align:right">${cop(Number(f.cv.costoPuerto) || 0)}</td>
+      <td style="text-align:right">${cop(Number(f.cv.costoAgencia) || 0)}</td>
+      <td style="text-align:right;font-weight:700">${cop(f.calc.costoTotal)}</td>
+      <td style="text-align:right">$${f.calc.cu.toFixed(2)}</td>
+      <td style="text-align:right">${(Number(f.cv.margen) || 0).toFixed(1)}%</td>
+      <td style="text-align:right">$${f.calc.pv.toFixed(1)}</td>
+      <td style="text-align:right">${usd(f.calc.pvTotal)}</td>
+      <td style="text-align:right">${cop(f.calc.ventaCop)}</td>
+      <td style="text-align:right;font-weight:700;color:${f.calc.ganancia >= 0 ? "#16a34a" : "#dc2626"}">${cop(f.calc.ganancia)}</td>
+      <td style="text-align:right;font-weight:700;color:${f.calc.gananciaUsd >= 0 ? "#16a34a" : "#dc2626"}">${usd(f.calc.gananciaUsd)}</td>
+      <td style="font-size:10px;color:#888">${f.cv.obs || "—"}</td>
+    </tr>`;
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Costo de Venta — ${label}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1500px;margin:0 auto;font-size:12px}
+  h1{color:#845EF7;margin-bottom:2px;font-size:22px}
+  h2{color:#845EF7;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #845EF730;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .hdr-row img{width:46px;height:46px;object-fit:contain}
+  .meta{font-size:11px;color:#888;margin-bottom:16px}
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .card{background:#f7f4ff;border:1px solid #d8d0ff;border-radius:10px;padding:14px 18px;min-width:130px;text-align:center}
+  .card-val{font-size:22px;font-weight:800;color:#845EF7;line-height:1}
+  .card-lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
+  .card.ok .card-val{color:#16a34a} .card.danger .card-val{color:#dc2626} .card.warn .card-val{color:#d97706}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px}
+  th{background:#845EF7;color:white;padding:7px 9px;text-align:left;font-size:10px;white-space:nowrap}
+  td{padding:6px 9px;border-bottom:1px solid #f0eeff;vertical-align:middle;white-space:nowrap}
+  tr:nth-child(even) td{background:#faf8ff}
+  .tot-row td{background:#f0ebff!important;font-weight:700;border-top:2px solid #845EF740}
+  .detalle-wrap{overflow-x:auto}
+  .footer{text-align:center;color:#bbb;margin-top:28px;font-size:10px;border-top:1px solid #eee;padding-top:14px}
+  @media print{body{padding:10px}.footer{position:fixed;bottom:0;width:100%}@page{size:landscape}}
+</style></head><body>
+
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>💰 Informe de Costo de Venta — Tierra Prometida Trading</h1></div>
+<div class="meta">Período: <b>${label}</b> &nbsp;·&nbsp; Generado: ${fechaHoy} ${horaHoy} &nbsp;·&nbsp; ${filas.length} contenedor(es) con costeo cargado</div>
+
+<div class="cards">
+  <div class="card"><div class="card-val">${filas.length}</div><div class="card-lbl">Contenedores</div></div>
+  <div class="card"><div class="card-val">${usd(totalVentaUsd)}</div><div class="card-lbl">Venta Total USD</div></div>
+  <div class="card"><div class="card-val">${cop(totalVentaCop)}</div><div class="card-lbl">Venta Total COP</div></div>
+  <div class="card warn"><div class="card-val">${cop(totalCostoTotal)}</div><div class="card-lbl">Costo Total COP</div></div>
+  <div class="card ${totalGananciaCop >= 0 ? "ok" : "danger"}"><div class="card-val">${cop(totalGananciaCop)}</div><div class="card-lbl">GOU COP</div></div>
+  <div class="card ${totalGananciaUsd >= 0 ? "ok" : "danger"}"><div class="card-val">${usd(totalGananciaUsd)}</div><div class="card-lbl">GOU USD</div></div>
+  <div class="card"><div class="card-val">${margenReal.toFixed(1)}%</div><div class="card-lbl">Margen realizado</div></div>
+</div>
+
+${filas.length === 0 ? `<p style="color:#888">Sin costeos registrados en este período.</p>` : `
+<h2>📦 Desglose de costos</h2>
+<table><thead><tr><th>Categoría</th><th style="text-align:right">Monto (COP)</th><th style="text-align:right">% del total</th></tr></thead>
+<tbody>
+${desglose.map(d => `<tr><td>${d.label}</td><td style="text-align:right">${cop(d.value)}</td><td style="text-align:right">${totalCostoTotal ? ((d.value / totalCostoTotal) * 100).toFixed(1) : "0.0"}%</td></tr>`).join("")}
+<tr class="tot-row"><td>Total</td><td style="text-align:right">${cop(totalCostoTotal)}</td><td style="text-align:right">100.0%</td></tr>
+</tbody></table>
+
+<h2>⚓ Resultados por naviera</h2>
+<table><thead><tr><th>Naviera</th><th style="text-align:right">Contenedores</th><th style="text-align:right">Venta USD</th><th style="text-align:right">Venta COP</th><th style="text-align:right">Costo Total COP</th><th style="text-align:right">GOU COP</th><th style="text-align:right">GOU USD</th></tr></thead>
+<tbody>
+${porNaviera.map(([naviera, n]) => `<tr>
+  <td><b>${naviera}</b></td>
+  <td style="text-align:right">${n.contenedores}</td>
+  <td style="text-align:right">${usd(n.ventaUsd)}</td>
+  <td style="text-align:right">${cop(n.ventaCop)}</td>
+  <td style="text-align:right">${cop(n.costoTotal)}</td>
+  <td style="text-align:right;font-weight:700;color:${n.gananciaCop >= 0 ? "#16a34a" : "#dc2626"}">${cop(n.gananciaCop)}</td>
+  <td style="text-align:right;font-weight:700;color:${n.gananciaUsd >= 0 ? "#16a34a" : "#dc2626"}">${usd(n.gananciaUsd)}</td>
+</tr>`).join("")}
+</tbody></table>
+
+<h2>📋 Detalle por contenedor (${filas.length})</h2>
+<div class="detalle-wrap">
+<table><thead><tr>
+  <th>Fecha</th><th>Booking</th><th>Contenedor</th><th>Naviera</th><th style="text-align:right">Cajas</th>
+  <th style="text-align:right">TRM</th><th style="text-align:right">Kilos</th><th style="text-align:right">Precio/Kg</th><th style="text-align:right">Costo Fruta</th>
+  <th>Tipo Caja</th><th style="text-align:right">Precio Caja</th><th style="text-align:right">Costo Cajas</th>
+  <th style="text-align:right">Transporte</th><th style="text-align:right">Puerto</th><th style="text-align:right">Agencia</th>
+  <th style="text-align:right">Costo Total</th><th style="text-align:right">CU (USD)</th><th style="text-align:right">Margen</th>
+  <th style="text-align:right">PV (USD)</th><th style="text-align:right">Venta Total USD</th><th style="text-align:right">Venta Total COP</th>
+  <th style="text-align:right">GOU COP</th><th style="text-align:right">GOU USD</th><th>Obs.</th>
+</tr></thead>
+<tbody>
+${filas.map(filaDetalle).join("")}
+<tr class="tot-row">
+  <td colspan="15">Total</td>
+  <td style="text-align:right">${cop(totalCostoTotal)}</td>
+  <td></td><td></td><td></td>
+  <td style="text-align:right">${usd(totalVentaUsd)}</td>
+  <td style="text-align:right">${cop(totalVentaCop)}</td>
+  <td style="text-align:right">${cop(totalGananciaCop)}</td>
+  <td style="text-align:right">${usd(totalGananciaUsd)}</td>
+  <td></td>
+</tr>
+</tbody></table>
+</div>
+`}
+
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
+</body></html>`;
+
+    const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    if (modo === "previsualizar") {
+      window.open(blobUrl, "_blank");
+    } else {
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `CostoVenta_${periodoInforme}_${fechaLocalISO()}.html`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    }
+    setGenerandoInforme(false);
+  };
 
   // ══════════════ CONTRATOS CON NAVIERAS ══════════════
   const [contratoForm, setContratoForm] = useState(contratoVacio);
@@ -888,52 +1210,203 @@ export default function LogisticaTab({ mob, logistica }) {
       {tabLog === 1 && (
         cvBookingSel === null ? (
           /* ── Lista maestra ── */
-          <div style={cardS}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>💰 Costo de Venta</div>
-            </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-              <input value={busquedaCv} onChange={e => setBusquedaCv(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera, N° expo..." style={{ ...inp, flex: 1, minWidth: 160 }} />
-            </div>
-            {costoVentaFiltrados.length === 0 ? (
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin operaciones registradas todavía. Crea un booking en Operaciones primero.</div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                      <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th>
-                      <th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>Naviera</th>
-                      <th style={{ padding: "6px" }}>Costo Total (COP)</th><th style={{ padding: "6px" }}>Ganancia (COP)</th><th style={{ padding: "6px" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {costoVentaFiltrados.map(b => {
-                      const cv = costoVentaPorBooking[b.id];
-                      const cajas = Number(b.numeroCajas) || 0;
-                      const calc = cv ? calcularCostoVenta(cajas, cv) : null;
-                      return (
-                        <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirCostoVenta(b)}>
-                          <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>
-                          <td style={{ padding: "6px" }}>{b.numeroContenedor || "—"}</td>
-                          <td style={{ padding: "6px" }}>{b.numeroExportacion || "—"}</td>
-                          <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
-                          <td style={{ padding: "6px", color: calc?.costoTotal ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)" }}>
-                            {calc?.costoTotal ? `$${Math.round(calc.costoTotal).toLocaleString("es-CO")}` : "—"}
-                          </td>
-                          <td style={{ padding: "6px", color: !calc?.costoTotal ? "rgba(255,255,255,0.3)" : calc.ganancia >= 0 ? "#00C9A7" : "#FF6B6B", fontWeight: 700 }}>
-                            {calc?.costoTotal ? `$${Math.round(calc.ganancia).toLocaleString("es-CO")}` : "—"}
-                          </td>
-                          <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => abrirCostoVenta(b)} style={btnTablaEditar}>Abrir</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={cardS}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>📊 Resumen general</div>
+                {claveEstadisticasCv && !statsCvOk && !statsCvPidiendo && (
+                  <button onClick={() => setStatsCvPidiendo(true)} style={btnSecundario}>🔒 Ver estadísticas</button>
+                )}
+                {claveEstadisticasCv && statsCvOk && (
+                  <button onClick={() => { setStatsCvOk(false); setStatsCvPidiendo(false); }} style={btnSecundario}>🙈 Ocultar estadísticas</button>
+                )}
               </div>
-            )}
+
+              {claveEstadisticasCv && !statsCvOk ? (
+                statsCvPidiendo ? (
+                  <div style={{ textAlign: "center", maxWidth: 280, margin: "16px auto", padding: "10px 0" }}>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>Ingresa la clave de acceso para ver las estadísticas.</div>
+                    <input
+                      type="password" autoFocus value={statsCvInput}
+                      onChange={e => { setStatsCvInput(e.target.value); setStatsCvError(""); }}
+                      onKeyDown={e => e.key === "Enter" && verificarClaveStatsCv()}
+                      placeholder="Clave" style={{ ...inp, textAlign: "center", fontSize: 16, letterSpacing: 3 }}
+                    />
+                    {statsCvError && <div style={{ color: "#FF6B6B", fontSize: 11, marginTop: 8, fontWeight: 700 }}>{statsCvError}</div>}
+                    <button onClick={verificarClaveStatsCv} style={{ marginTop: 12, width: "100%", ...btnPrimario(false, false) }}>🔓 Desbloquear</button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Estadísticas protegidas — pulsa "Ver estadísticas" para desbloquearlas.</div>
+                )
+              ) : (
+                <>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>{estadisticasCV.filas.length} contenedor(es) con costeo cargado</div>
+              {estadisticasCV.filas.length === 0 ? (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin costeos registrados todavía — abre un contenedor abajo y cárgalo.</div>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10, marginBottom: 18 }}>
+                    {[
+                      { l: "Venta Total (USD)", v: `$${Math.round(estadisticasCV.totalVentaUsd).toLocaleString("es-CO")}`, c: "#845EF7" },
+                      { l: "Venta Total (COP)", v: `$${Math.round(estadisticasCV.totalVentaCop).toLocaleString("es-CO")}`, c: "#845EF7" },
+                      { l: "Costo Total (COP)", v: `$${Math.round(estadisticasCV.totalCostoTotal).toLocaleString("es-CO")}`, c: "#F9A826" },
+                      { l: "Margen realizado",  v: `${estadisticasCV.margenRealizado.toFixed(1)}%`, c: "#0EA5E9" },
+                      { l: "GOU (COP)",         v: `$${Math.round(estadisticasCV.totalGananciaCop).toLocaleString("es-CO")}`, c: estadisticasCV.totalGananciaCop >= 0 ? "#00C9A7" : "#FF6B6B" },
+                      { l: "GOU (USD)",         v: `$${Math.round(estadisticasCV.totalGananciaUsd).toLocaleString("es-CO")}`, c: estadisticasCV.totalGananciaUsd >= 0 ? "#00C9A7" : "#FF6B6B" },
+                    ].map((s, i) => (
+                      <div key={i} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 10, textAlign: "center" }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: s.c }}>{s.v}</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>{s.l}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "repeat(3,1fr)", gap: 16, marginBottom: 18 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 10 }}>Desglose de costos</div>
+                      <BarraLista items={estadisticasCV.desgloseCostos} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 10 }}>GOU por naviera</div>
+                      <BarraLista items={estadisticasCV.gananciaPorNaviera} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 10 }}>Venta Total USD por naviera</div>
+                      <BarraLista items={estadisticasCV.ventaUsdPorNaviera} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 12 }}>Venta Total (USD) por mes</div>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
+                      {estadisticasCV.ventaUsdPorMes.map((mes, i) => {
+                        const max = Math.max(1, ...estadisticasCV.ventaUsdPorMes.map(x => x.value));
+                        const barH = mes.value ? Math.max(6, (mes.value / max) * 90) : 2;
+                        const esActual = i === estadisticasCV.ventaUsdPorMes.length - 1;
+                        const color = esActual ? "#845EF7" : "rgba(132,94,247,0.35)";
+                        return (
+                          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 6, height: "100%" }}>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", minHeight: 14, textAlign: "center" }}>
+                              {mes.value ? `$${mes.value.toLocaleString("es-CO")}` : ""}
+                            </div>
+                            <div style={{ width: "60%", height: barH, background: color, borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>{mes.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+                </>
+              )}
+            </div>
+
+            <div style={cardS}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>📄 Informe detallado</div>
+                {claveEstadisticasCv && !statsCvOk && !statsCvPidiendo && (
+                  <button onClick={() => setStatsCvPidiendo(true)} style={btnSecundario}>🔒 Ver informe</button>
+                )}
+                {claveEstadisticasCv && statsCvOk && (
+                  <button onClick={() => { setStatsCvOk(false); setStatsCvPidiendo(false); }} style={btnSecundario}>🙈 Ocultar informe</button>
+                )}
+              </div>
+
+              {claveEstadisticasCv && !statsCvOk ? (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Informe protegido — pulsa "Ver informe" para desbloquearlo (misma clave que las estadísticas).</div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    <div style={{ minWidth: 140 }}>
+                      <div style={lbl}>Período</div>
+                      <CustomSelect value={periodoInforme} onChange={e => setPeriodoInforme(e.target.value)} style={inp}>
+                        {PERIODOS_INFORME.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                      </CustomSelect>
+                    </div>
+                    {periodoInforme === "personalizado" && (
+                      <>
+                        <div><div style={lbl}>Desde</div><input type="date" style={inp} value={desdeInforme} onChange={e => setDesdeInforme(e.target.value)} /></div>
+                        <div><div style={lbl}>Hasta</div><input type="date" style={inp} value={hastaInforme} onChange={e => setHastaInforme(e.target.value)} /></div>
+                      </>
+                    )}
+                    <button onClick={() => generarInformeCV("previsualizar")} disabled={generandoInforme} style={btnSecundario}>
+                      👁 Vista previa
+                    </button>
+                    <button onClick={() => generarInformeCV("descargar")} disabled={generandoInforme} style={btnPrimario(false, generandoInforme)}>
+                      {generandoInforme ? "Generando..." : "📥 Descargar informe"}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 10 }}>Incluye resumen, desglose de costos, resultados por naviera y el detalle completo (fruta, cajas, transporte, puerto, agencia, CU, PV, GOU...) de cada contenedor costeado en el período elegido — según la fecha de zarpe, o la fecha de creación del booking si aún no ha zarpado.</div>
+                </>
+              )}
+            </div>
+
+            <div style={cardS}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>💰 Costo de Venta por contenedor</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                <input value={busquedaCv} onChange={e => setBusquedaCv(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera, N° expo..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+              </div>
+              {costoVentaFiltrados.length === 0 ? (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin operaciones registradas todavía. Crea un booking en Operaciones primero.</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                        <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th>
+                        <th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>Naviera</th>
+                        <th style={{ padding: "6px" }}>Costo Total (COP)</th>
+                        <th style={{ padding: "6px" }}>PV (USD/caja)</th>
+                        <th style={{ padding: "6px" }}>Venta Total (USD)</th>
+                        <th style={{ padding: "6px" }}>Venta Total (COP)</th>
+                        <th style={{ padding: "6px" }}>GOU (COP / USD)</th><th style={{ padding: "6px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {costoVentaFiltrados.map(b => {
+                        const cv = costoVentaPorBooking[b.id];
+                        const cajas = Number(b.numeroCajas) || 0;
+                        const calc = cv ? calcularCostoVenta(cajas, cv) : null;
+                        return (
+                          <tr key={b.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirCostoVenta(b)}>
+                            <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{b.numeroBooking || "—"}</td>
+                            <td style={{ padding: "6px" }}>{b.numeroContenedor || "—"}</td>
+                            <td style={{ padding: "6px" }}>{b.numeroExportacion || "—"}</td>
+                            <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
+                            <td style={{ padding: "6px", color: calc?.costoTotal ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)" }}>
+                              {calc?.costoTotal ? `$${Math.round(calc.costoTotal).toLocaleString("es-CO")}` : "—"}
+                            </td>
+                            <td style={{ padding: "6px", color: calc?.pv ? "#0EA5E9" : "rgba(255,255,255,0.3)" }}>
+                              {calc?.pv ? `$${calc.pv.toFixed(1)}` : "—"}
+                            </td>
+                            <td style={{ padding: "6px", color: calc?.pvTotal ? "#845EF7" : "rgba(255,255,255,0.3)", fontWeight: 600 }}>
+                              {calc?.pvTotal ? `$${Math.round(calc.pvTotal).toLocaleString("es-CO")}` : "—"}
+                            </td>
+                            <td style={{ padding: "6px", color: calc?.ventaCop ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)" }}>
+                              {calc?.ventaCop ? `$${Math.round(calc.ventaCop).toLocaleString("es-CO")}` : "—"}
+                            </td>
+                            <td style={{ padding: "6px", color: !calc?.costoTotal ? "rgba(255,255,255,0.3)" : calc.ganancia >= 0 ? "#00C9A7" : "#FF6B6B", fontWeight: 700 }}>
+                              {calc?.costoTotal ? (
+                                <>
+                                  ${Math.round(calc.ganancia).toLocaleString("es-CO")}
+                                  <span style={{ fontWeight: 500, opacity: 0.7 }}> · US${Math.round(calc.gananciaUsd).toLocaleString("es-CO")}</span>
+                                </>
+                              ) : "—"}
+                            </td>
+                            <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => abrirCostoVenta(b)} style={btnTablaEditar}>Abrir</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           /* ── Detalle del costeo del contenedor ── */
@@ -982,7 +1455,8 @@ export default function LogisticaTab({ mob, logistica }) {
                 { l: "Precio Venta (USD/caja)", v: cvCalc.pv ? `$${cvCalc.pv.toFixed(1)}` : "—", c: "#845EF7" },
                 { l: "Venta Total (USD)",  v: cvCalc.pvTotal ? `$${cvCalc.pvTotal.toLocaleString("es-CO")}` : "—", c: "#845EF7" },
                 { l: "Venta Total (COP)",  v: cvCalc.ventaCop ? `$${Math.round(cvCalc.ventaCop).toLocaleString("es-CO")}` : "—", c: "#845EF7" },
-                { l: "Ganancia (COP)",     v: cvCalc.costoTotal ? `$${Math.round(cvCalc.ganancia).toLocaleString("es-CO")}` : "—", c: cvCalc.ganancia >= 0 ? "#00C9A7" : "#FF6B6B" },
+                { l: "GOU — Ganancia (COP)", v: cvCalc.costoTotal ? `$${Math.round(cvCalc.ganancia).toLocaleString("es-CO")}` : "—", c: cvCalc.ganancia >= 0 ? "#00C9A7" : "#FF6B6B" },
+                { l: "GOU — Ganancia (USD)", v: cvCalc.costoTotal ? `$${Math.round(cvCalc.gananciaUsd).toLocaleString("es-CO")}` : "—", c: cvCalc.gananciaUsd >= 0 ? "#00C9A7" : "#FF6B6B" },
               ].map((s, i) => (
                 <div key={i} style={{ ...campoBox, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 10, textAlign: "center" }}>
                   <div style={{ fontSize: 14, fontWeight: 800, color: s.c }}>{s.v}</div>
