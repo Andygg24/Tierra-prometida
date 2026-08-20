@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import QRCode from "qrcode";
 import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
@@ -18,6 +19,50 @@ async function cargarLogoBase64() {
     });
   } catch { return ""; }
 }
+
+// Mismos helpers de cámara que usa Verificación de Pallets — se duplican
+// aquí (son pequeños y sin dependencias) en vez de exportarlos, para no
+// acoplar este módulo al de Packing List.
+function mensajeErrorCamara(err) {
+  if (!window.isSecureContext) {
+    return "El navegador solo permite usar la cámara en sitios seguros (https://). Esta página se está abriendo sin HTTPS.";
+  }
+  const nombre = err?.name || "";
+  if (nombre === "NotAllowedError" || nombre === "PermissionDeniedError") {
+    return "El navegador bloqueó el permiso de cámara. Revisa los permisos del sitio (ícono de candado o ajustes del navegador) y vuelve a intentar.";
+  }
+  if (nombre === "NotFoundError" || nombre === "OverconstrainedError") {
+    return "No se encontró una cámara trasera en este dispositivo.";
+  }
+  if (nombre === "NotReadableError" || nombre === "TrackStartError") {
+    return "La cámara está siendo usada por otra app o pestaña. Ciérrala e intenta de nuevo.";
+  }
+  return "No se pudo acceder a la cámara.";
+}
+
+function playBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+    osc.onended = () => ctx.close();
+  } catch { /* beep opcional — si el navegador bloquea audio, seguimos sin sonido */ }
+}
+
+const nombreUsuarioSesion = () => {
+  try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
+};
 
 const TIPOS = [
   { value: "entrada", label: "Entrada de fruta" },
@@ -65,7 +110,15 @@ function nuevaEstiba(numero) {
     estibaPlastica: "no",
     canastillas: [nuevaTipoCanastilla()],
     pesoEstiba: "",
+    usada: false, usadaPor: "", usadaEn: "",
   };
+}
+
+// Prefijo propio del QR de la tirilla de estiba (distinto al "TPQR" de las
+// tirillas de pallet), para que el escáner sepa a qué se está leyendo.
+const QR_ESTIBA_PREFIX = "TPRE";
+function textoQrEstiba(recepcionId, numeroEstiba) {
+  return `${QR_ESTIBA_PREFIX}|${recepcionId}|${numeroEstiba}`;
 }
 
 function formVacio() {
@@ -381,7 +434,154 @@ tfoot td{background:${t.totalboxBg};font-weight:800;border-top:2px solid ${t.mid
   return html;
 }
 
-export default function RecepcionesTab({ mob }) {
+// Datos comunes a las dos versiones de tirilla (Rollo y Word) — el QR
+// necesita el id ya guardado en Supabase, sin él no se podría buscar después.
+async function datosTirillaEstiba(form, e, recepcionId) {
+  const logoSrc = await cargarLogoBase64();
+  const cantCanastillas = canastillasDeEstiba(e).reduce((s, c) => s + num(c.cantidad), 0);
+  const qrTexto   = textoQrEstiba(recepcionId, e.numero);
+  const qrDataUrl = await QRCode.toDataURL(qrTexto, { errorCorrectionLevel: "M", margin: 1, width: 320 });
+  const fechaFmt  = form.fecha ? new Date(form.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"2-digit", year:"numeric" }) : "—";
+  const filas = [
+    ["Fecha de ingreso", fechaFmt],
+    ["Hora", form.horaInicio || "—"],
+    ["Remisión N°", form.remision || "—"],
+    ["N° de Estiba", e.numero],
+    ["N° de Canastillas", cantCanastillas.toLocaleString("es-CO")],
+    ["Proveedor", form.proveedor || "—"],
+    ["Peso Neto", `${kg(pesoNetoEstiba(e))} kg`],
+  ];
+  return { logoSrc, qrDataUrl, filas };
+}
+
+// Tirilla para impresora de rollo (Rollo) — formato angosto tipo térmica
+// (100x50mm), idénticas medidas a las que ya usamos en el QR de pallets.
+async function buildTirillaEstibaRollo(form, e, recepcionId) {
+  const { logoSrc, qrDataUrl, filas } = await datosTirillaEstiba(form, e, recepcionId);
+  const filasHtml = filas.map(([l, v]) => `<div class="frow"><span class="flbl">${esc(l)}</span><span class="fval">${esc(v)}</span></div>`).join("");
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Tirilla Estiba ${recepcionId}-${e.numero}</title>
+<style>
+  *{box-sizing:border-box}
+  @page{size:100mm 50mm;margin:0}
+  html,body{margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#111;width:100mm;height:50mm}
+  .box{width:100mm;height:50mm;padding:1.8mm;display:flex;gap:2.5mm;overflow:hidden}
+  .left{flex:1;min-width:0;display:flex;flex-direction:column}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:0.5mm solid #111;padding-bottom:0.4mm;margin-bottom:1mm}
+  .brand{display:flex;align-items:center;gap:1.3mm;min-width:0}
+  .brand img{width:6.5mm;height:6.5mm;object-fit:contain;flex-shrink:0}
+  .brand .nom{font-size:2.8mm;font-weight:800;line-height:1.15}
+  .brand .sub{font-size:2mm;color:#555;font-weight:600}
+  .estiba-no{text-align:right;flex-shrink:0}
+  .estiba-no .lbl{font-size:2mm;color:#555;font-weight:800;letter-spacing:0.3mm}
+  .estiba-no .num{font-size:8mm;font-weight:900;line-height:0.85}
+  .frow{display:flex;justify-content:space-between;align-items:baseline;padding:0.5mm 0;border-bottom:0.25mm solid #ddd}
+  .flbl{font-size:2.4mm;color:#555;font-weight:700}
+  .fval{font-size:2.9mm;font-weight:800;color:#111;text-align:right}
+  .right{width:30mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1mm}
+  .right img{width:28mm;height:28mm}
+  .qr-lbl{font-size:1.9mm;color:#777;text-align:center;line-height:1.2;font-weight:600}
+  @media print{ body{padding:0} }
+</style></head>
+<body>
+  <div class="box">
+    <div class="left">
+      <div class="top">
+        <div class="brand">
+          ${logoSrc ? `<img src="${logoSrc}"/>` : ""}
+          <div>
+            <div class="nom">TIERRA PROMETIDA</div>
+            <div class="sub">Recepción de fruta</div>
+          </div>
+        </div>
+        <div class="estiba-no">
+          <div class="lbl">ESTIBA</div>
+          <div class="num">${e.numero}</div>
+        </div>
+      </div>
+      ${filasHtml}
+    </div>
+
+    <div class="right">
+      <img src="${qrDataUrl}" alt="QR estiba ${e.numero}" />
+      <div class="qr-lbl">Escanear al usar la estiba</div>
+    </div>
+  </div>
+</body></html>`;
+}
+
+// Tirilla para impresora normal (Word) — hoja carta con la etiqueta
+// ocupando 1/6 de página (2 columnas x 3 filas), el resto de la hoja queda
+// en blanco. Pensada para imprimirse desde cualquier impresora de oficina.
+async function buildTirillaEstibaWord(form, e, recepcionId) {
+  const { logoSrc, qrDataUrl, filas } = await datosTirillaEstiba(form, e, recepcionId);
+  const filasHtml = filas.map(([l, v]) => `<div class="frow"><span class="flbl">${esc(l)}</span><span class="fval">${esc(v)}</span></div>`).join("");
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Tirilla Estiba ${recepcionId}-${e.numero} (hoja carta)</title>
+<style>
+  *{box-sizing:border-box}
+  @page{size:letter;margin:0}
+  html,body{margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#111}
+  .page{width:8.5in;height:11in;display:grid;grid-template-columns:repeat(2,4.25in);grid-template-rows:repeat(3,3.6667in)}
+  .cell{padding:0.2in;overflow:hidden}
+  .label{width:100%;height:100%;border:1px solid #ccc;border-radius:0.08in;padding:0.18in;display:flex;flex-direction:column}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #111;padding-bottom:0.06in;margin-bottom:0.1in}
+  .brand{display:flex;align-items:center;gap:0.08in;min-width:0}
+  .brand img{width:0.35in;height:0.35in;object-fit:contain;flex-shrink:0}
+  .brand .nom{font-size:13px;font-weight:800;line-height:1.15}
+  .brand .sub{font-size:10px;color:#555;font-weight:600}
+  .estiba-no{text-align:right;flex-shrink:0}
+  .estiba-no .lbl{font-size:9px;color:#555;font-weight:800;letter-spacing:0.5px}
+  .estiba-no .num{font-size:30px;font-weight:900;line-height:0.85}
+  .body-row{flex:1;display:flex;gap:0.14in}
+  .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+  .frow{display:flex;justify-content:space-between;align-items:baseline;padding:0.04in 0;border-bottom:1px solid #ddd}
+  .flbl{font-size:10px;color:#555;font-weight:700}
+  .fval{font-size:12px;font-weight:800;color:#111;text-align:right}
+  .qrbox{width:1.5in;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.06in}
+  .qrbox img{width:1.4in;height:1.4in}
+  .qr-lbl{font-size:8px;color:#777;text-align:center;line-height:1.2;font-weight:600}
+  @media print{ body{padding:0} }
+</style></head>
+<body>
+  <div class="page">
+    <div class="cell">
+      <div class="label">
+        <div class="top">
+          <div class="brand">
+            ${logoSrc ? `<img src="${logoSrc}"/>` : ""}
+            <div>
+              <div class="nom">TIERRA PROMETIDA</div>
+              <div class="sub">Recepción de fruta</div>
+            </div>
+          </div>
+          <div class="estiba-no">
+            <div class="lbl">ESTIBA</div>
+            <div class="num">${e.numero}</div>
+          </div>
+        </div>
+        <div class="body-row">
+          <div class="info">${filasHtml}</div>
+          <div class="qrbox">
+            <img src="${qrDataUrl}" alt="QR estiba ${e.numero}" />
+            <div class="qr-lbl">Escanear al usar la estiba</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cell"></div><div class="cell"></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+  </div>
+</body></html>`;
+}
+
+export default function RecepcionesTab({ mob, logisticaBookings }) {
+  const bookingsLog = logisticaBookings || [];
+  const labelBookingLog = (b) => b ? (b.numeroBooking || b.numeroContenedor || `#${b.id}`) : "—";
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
@@ -404,7 +604,7 @@ export default function RecepcionesTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { recepciones, loading, guardarRecepcion, eliminarRecepcion } = useRecepciones();
+  const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, guardarAsignacion, eliminarAsignacion } = useRecepciones();
 
   const [form,       setForm]       = useState(formVacio);
   const [editId,     setEditId]     = useState(null);
@@ -415,6 +615,7 @@ export default function RecepcionesTab({ mob }) {
   const [filtroHasta, setFiltroHasta] = useState("");
   const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
   const [seccion,     setSeccion]     = useState("form"); // "stats" muestra las tarjetas KPI, ocultas por defecto; formulario e historial siempre visibles
+  const [tabRec,      setTabRec]      = useState(0); // 0 = Recepciones, 1 = Verificación de Estibas
 
   // ── Estilos ───────────────────────────────────────────────────
   const inp = {
@@ -523,6 +724,7 @@ export default function RecepcionesTab({ mob }) {
         ? r.estibas.map(e => ({
             numero: e.numero, pesoBruto: e.pesoBruto, estibaPlastica: e.estibaPlastica,
             pesoEstiba: e.pesoEstiba, canastillas: canastillasDeEstiba(e),
+            usada: !!e.usada, usadaPor: e.usadaPor || "", usadaEn: e.usadaEn || "",
           }))
         : [nuevaEstiba(1)],
     });
@@ -551,6 +753,21 @@ export default function RecepcionesTab({ mob }) {
     const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : "todas";
     const nombreTipo = tipoTab === "salida" ? "Salidas" : "Entradas";
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Informe_General_${nombreTipo}_${sufijo}.html` }; });
+  };
+
+  // Solo disponible reabriendo (Editar) una recepción ya guardada — el QR
+  // necesita el id real en Supabase para poder buscarla después al escanear.
+  // formato: "rollo" (100x50mm térmica) | "word" (hoja carta, 1/6 página).
+  const imprimirTirillaEstiba = async (e, formato) => {
+    if (!editId) return;
+    const html = formato === "word"
+      ? await buildTirillaEstibaWord(form, e, editId)
+      : await buildTirillaEstibaRollo(form, e, editId);
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    setPreview(prev => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return { url, filename: `Tirilla-Estiba-${editId}-${e.numero}-${formato}.html`, titulo: `Tirilla — Estiba #${e.numero} (${formato === "word" ? "hoja carta" : "rollo"})` };
+    });
   };
 
   const descargarInforme = () => {
@@ -584,10 +801,166 @@ export default function RecepcionesTab({ mob }) {
     }
   };
 
+  // ══════════════ VERIFICACIÓN DE ESTIBAS (se escanea la tirilla al usarla) ══════════════
+  // Las tirillas se pegan a la estiba física; cuando el operario la usa, la
+  // quita y la echa al buzón. Al final del proceso se recogen y se escanean
+  // una por una para marcar cada estiba como "usada" — así se concilia cuáles
+  // de las registradas realmente se usaron.
+  const [camActiva, setCamActiva]         = useState(false);
+  const [camError, setCamError]           = useState("");
+  const [resultadoEstiba, setResultadoEstiba] = useState(null); // null | {estado:"no-encontrado"|"ok", recepcion, estiba}
+  const [marcandoUsada, setMarcandoUsada] = useState(false);
+  const html5QrRef    = useRef(null);
+  const procesandoRef = useRef(false);
+  const ignoradoRef   = useRef(null);
+  const READER_ID_ESTIBA = "qr-reader-estiba-verification";
+
+  const detenerCamaraEstiba = async () => {
+    try { await html5QrRef.current?.stop(); html5QrRef.current?.clear(); } catch { /* ya se había detenido */ }
+    html5QrRef.current = null;
+    setCamActiva(false);
+  };
+  useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => { /* ya se había detenido */ }); }, []);
+
+  const buscarEstibaPorQr = (recepcionIdRaw, numeroRaw) => {
+    const recepcion = recepciones.find(r => r.id === Number(recepcionIdRaw));
+    const estiba = recepcion?.estibas?.find(e => e.numero === Number(numeroRaw));
+    setResultadoEstiba(recepcion && estiba ? { estado: "ok", recepcion, estiba } : { estado: "no-encontrado" });
+  };
+
+  const onScanEstiba = async (decodedText) => {
+    if (procesandoRef.current) return;
+    const primeraLinea = (decodedText || "").split("\n")[0].trim();
+    const partes = primeraLinea.split("|");
+    if (partes[0] !== QR_ESTIBA_PREFIX || partes.length < 3) {
+      ignoradoRef.current = primeraLinea;
+      return;
+    }
+    ignoradoRef.current = null;
+    procesandoRef.current = true;
+    playBeep();
+    await detenerCamaraEstiba();
+    buscarEstibaPorQr(partes[1], partes[2]);
+    procesandoRef.current = false;
+  };
+
+  const iniciarCamaraEstiba = async () => {
+    setCamError("");
+    setResultadoEstiba(null);
+    ignoradoRef.current = null;
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const inst = new Html5Qrcode(READER_ID_ESTIBA);
+      html5QrRef.current = inst;
+      await inst.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 240 },
+        (decoded) => onScanEstiba(decoded),
+        () => {}
+      );
+      setCamActiva(true);
+    } catch (err) {
+      setCamError(mensajeErrorCamara(err));
+    }
+  };
+
+  const marcarEstibaUsada = async () => {
+    if (resultadoEstiba?.estado !== "ok") return;
+    setMarcandoUsada(true);
+    const { recepcion, estiba } = resultadoEstiba;
+    const nuevasEstibas = recepcion.estibas.map(e => e.numero !== estiba.numero ? e : {
+      ...e, usada: true, usadaPor: nombreUsuarioSesion() || "Sin nombre", usadaEn: new Date().toISOString(),
+    });
+    const ok = await actualizarEstibas(recepcion.id, nuevasEstibas);
+    setMarcandoUsada(false);
+    if (ok) {
+      setResultadoEstiba({ estado: "ok", recepcion: { ...recepcion, estibas: nuevasEstibas }, estiba: nuevasEstibas.find(e => e.numero === estiba.numero) });
+    }
+  };
+
+  const escanearOtraEstiba = () => { setResultadoEstiba(null); iniciarCamaraEstiba(); };
+
+  // ══════════════ ASOCIAR CONTENEDOR (canastillas de una estiba → contenedor) ══════════════
+  // Una estiba puede repartirse entre varios contenedores (sobra fruta y se
+  // usa en otro) — por eso se asigna por cantidad de canastillas, no la
+  // estiba completa. "Revisión de Canastillas" concilia, por contenedor,
+  // qué remisiones/estibas se usaron y cuántas canastillas de cada una.
+  const [subVistaAsoc, setSubVistaAsoc]     = useState("asignar"); // "asignar" | "revision"
+  const [busquedaAsoc, setBusquedaAsoc]     = useState("");
+  const [recepcionAsocSel, setRecepcionAsocSel] = useState(null); // id de recepción elegida para asignar
+  const [asigContenedorId, setAsigContenedorId] = useState({}); // { [numeroEstiba]: contenedorId }
+  const [asigCantidad, setAsigCantidad]     = useState({});     // { [numeroEstiba]: cantidad }
+  const [guardandoAsig, setGuardandoAsig]   = useState({});     // { [numeroEstiba]: bool }
+  const [errorAsig, setErrorAsig]           = useState({});     // { [numeroEstiba]: mensaje }
+  const [contenedorRevisionId, setContenedorRevisionId] = useState("");
+
+  const asignacionesPorEstiba = (recepcionId, numeroEstiba) =>
+    asignaciones.filter(a => a.recepcionId === recepcionId && a.numeroEstiba === numeroEstiba);
+  const cantidadAsignadaEstiba = (recepcionId, numeroEstiba) =>
+    asignacionesPorEstiba(recepcionId, numeroEstiba).reduce((s, a) => s + (Number(a.cantidadCanastillas) || 0), 0);
+
+  const recepcionesAsocFiltradas = useMemo(() => {
+    const q = busquedaAsoc.trim().toLowerCase();
+    if (!q) return recepciones;
+    return recepciones.filter(r => [r.remision, r.proveedor, r.placa].some(v => (v || "").toLowerCase().includes(q)));
+  }, [recepciones, busquedaAsoc]);
+
+  const recepcionAsoc = recepcionAsocSel ? recepciones.find(r => r.id === recepcionAsocSel) : null;
+
+  const asignarCanastillas = async (numeroEstiba, disponibles) => {
+    const contenedorId = asigContenedorId[numeroEstiba];
+    const cantidad = Number(asigCantidad[numeroEstiba]);
+    setErrorAsig(p => ({ ...p, [numeroEstiba]: "" }));
+    if (!contenedorId) { setErrorAsig(p => ({ ...p, [numeroEstiba]: "Elige un contenedor." })); return; }
+    if (!cantidad || cantidad <= 0) { setErrorAsig(p => ({ ...p, [numeroEstiba]: "Falta la cantidad de canastillas." })); return; }
+    if (cantidad > disponibles) { setErrorAsig(p => ({ ...p, [numeroEstiba]: `Solo quedan ${disponibles} canastillas disponibles de esta estiba.` })); return; }
+    setGuardandoAsig(p => ({ ...p, [numeroEstiba]: true }));
+    const ok = await guardarAsignacion({
+      recepcionId: recepcionAsocSel, numeroEstiba, contenedorId: Number(contenedorId),
+      cantidadCanastillas: cantidad, registradoPor: nombreUsuarioSesion(),
+    });
+    setGuardandoAsig(p => ({ ...p, [numeroEstiba]: false }));
+    if (ok) {
+      setAsigContenedorId(p => ({ ...p, [numeroEstiba]: "" }));
+      setAsigCantidad(p => ({ ...p, [numeroEstiba]: "" }));
+    } else {
+      setErrorAsig(p => ({ ...p, [numeroEstiba]: "No se pudo guardar la asignación. Intenta de nuevo." }));
+    }
+  };
+
+  const asignacionesDelContenedor = useMemo(() => {
+    if (!contenedorRevisionId) return [];
+    return asignaciones
+      .filter(a => a.contenedorId === Number(contenedorRevisionId))
+      .map(a => ({ ...a, recepcion: recepciones.find(r => r.id === a.recepcionId) || null }))
+      .sort((a, b) => (a.recepcion?.fecha || "").localeCompare(b.recepcion?.fecha || ""));
+  }, [asignaciones, recepciones, contenedorRevisionId]);
+
+  const totalCanastillasContenedor = useMemo(
+    () => asignacionesDelContenedor.reduce((s, a) => s + (Number(a.cantidadCanastillas) || 0), 0),
+    [asignacionesDelContenedor]
+  );
+
   if (loading) return <LimonLoader texto="Cargando recepciones" />;
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+      {/* ── Tab strip ── */}
+      <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:2 }}>
+        {["📋 Recepciones", "🔎 Verificación de Estibas", "📦 Asociar Contenedor"].map((t, i) => (
+          <button key={i} onClick={() => { setTabRec(i); if (i !== 1) detenerCamaraEstiba(); }} style={{
+            background: tabRec === i ? "rgba(132,94,247,0.15)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${tabRec === i ? "#845EF790" : "rgba(255,255,255,0.07)"}`,
+            borderTop: `2px solid ${tabRec === i ? "#845EF7" : "transparent"}`,
+            borderRadius:8, padding:"8px 13px", cursor:"pointer",
+            color: tabRec === i ? "#a78bfa" : "rgba(255,255,255,0.42)",
+            fontWeight:700, fontSize:12, whiteSpace:"nowrap", flexShrink:0, fontFamily:"inherit",
+          }}>{t}</button>
+        ))}
+      </div>
+
+      {tabRec === 0 && (<>
 
       {/* ── Botón discreto para revelar estadísticas — ocultas por defecto,
           el operario las abre solo si las necesita ── */}
@@ -699,14 +1072,23 @@ export default function RecepcionesTab({ mob }) {
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             {form.estibas.map((e, idx) => (
               <div key={idx} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:10 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:6 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:"#845EF7" }}>
                     Estiba #{e.numero}
                     {canastillasDeEstiba(e).length > 1 && (
                       <span style={{ marginLeft:8, fontSize:9, fontWeight:700, color:"#F9A826", background:"rgba(249,168,38,0.14)", borderRadius:20, padding:"2px 8px" }}>MIXTA</span>
                     )}
+                    {editId && (
+                      <span style={{ marginLeft:8, fontSize:9, fontWeight:700, color: e.usada ? "#00C9A7" : "rgba(255,255,255,0.35)", background: e.usada ? "rgba(0,201,167,0.14)" : "rgba(255,255,255,0.06)", borderRadius:20, padding:"2px 8px" }}>
+                        {e.usada ? "✓ USADA" : "SIN USAR"}
+                      </span>
+                    )}
                   </div>
-                  <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {editId && <button onClick={()=>imprimirTirillaEstiba(e,"rollo")} style={btnTablaEditar}>🖨 Rollo</button>}
+                    {editId && <button onClick={()=>imprimirTirillaEstiba(e,"word")} style={btnTablaEditar}>📝 Word</button>}
+                    <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
+                  </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <div><div style={lbl}>Peso bruto</div><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></div>
@@ -768,6 +1150,7 @@ export default function RecepcionesTab({ mob }) {
                   <th style={{ padding:"4px 6px" }}>Peso estiba</th>
                   <th style={{ padding:"4px 6px" }}>Descuento estiba</th>
                   <th style={{ padding:"4px 6px" }}>Peso neto</th>
+                  {editId && <th style={{ padding:"4px 6px" }}>Usada</th>}
                   <th style={{ padding:"4px 6px" }}></th>
                 </tr>
               </thead>
@@ -808,7 +1191,16 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px" }}><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></td>
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
                     <td style={{ padding:"6px", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700 }}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</td>
-                    <td style={{ padding:"6px" }}>
+                    {editId && (
+                      <td style={{ padding:"6px" }}>
+                        <span style={{ fontSize:9, fontWeight:700, color: e.usada ? "#00C9A7" : "rgba(255,255,255,0.35)", background: e.usada ? "rgba(0,201,167,0.14)" : "rgba(255,255,255,0.06)", borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>
+                          {e.usada ? "✓ Usada" : "Sin usar"}
+                        </span>
+                      </td>
+                    )}
+                    <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
+                      {editId && <button onClick={()=>imprimirTirillaEstiba(e,"rollo")} style={btnTablaEditar} title="Tirilla — impresora Rollo">🖨</button>}
+                      {editId && <button onClick={()=>imprimirTirillaEstiba(e,"word")} style={btnTablaEditar} title="Tirilla — hoja carta (Word)">📝</button>}
                       <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>✕</button>
                     </td>
                   </tr>
@@ -917,7 +1309,9 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px" }}>{r.placa || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.supervisor || "—"}</td>
-                    <td style={{ padding:"6px", textAlign:"center" }}>{r.estibas.length}</td>
+                    <td style={{ padding:"6px", textAlign:"center" }}>
+                      {r.estibas.filter(e => e.usada).length}/{r.estibas.length}
+                    </td>
                     <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})} kg</td>
                     <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
                       <button onClick={()=>verInforme(r)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, color:"#00C9A7", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>📄 Informe</button>
@@ -932,11 +1326,262 @@ export default function RecepcionesTab({ mob }) {
         )}
       </div>
 
+      </>)}
+
+      {/* ═══ TAB 1 — VERIFICACIÓN DE ESTIBAS ═══ */}
+      {tabRec === 1 && (
+        <div style={{ maxWidth:460, margin:"0 auto" }}>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:16, lineHeight:1.5 }}>
+            🧱 Escanea el QR de la tirilla de una estiba (la que quitaste al usarla) para marcarla como usada.
+          </div>
+
+          {!resultadoEstiba && (
+            <div style={cardS}>
+              {!camActiva && (
+                <button onClick={iniciarCamaraEstiba} style={{ ...btnPrimario(false,false), width:"100%", padding: m ? "14px" : "10px", fontSize: m ? 14 : 12 }}>
+                  ▶️ Iniciar cámara
+                </button>
+              )}
+              {camActiva && (
+                <button onClick={detenerCamaraEstiba} style={{ ...btnSecundario, width:"100%", padding: m ? "14px" : "10px", fontSize: m ? 14 : 12 }}>
+                  ⏹ Detener cámara
+                </button>
+              )}
+              {camError && (
+                <div style={{ marginTop:10, fontSize:11, color:"#fca5a5", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:10 }}>
+                  {camError}
+                </div>
+              )}
+              <div id={READER_ID_ESTIBA} style={{ marginTop:10, borderRadius:10, overflow:"hidden", background: camActiva ? "black" : "transparent" }} />
+            </div>
+          )}
+
+          {resultadoEstiba?.estado === "no-encontrado" && (
+            <div style={{ ...cardS, textAlign:"center" }}>
+              <div style={{ fontSize:30, marginBottom:8 }}>❓</div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#F9A826", marginBottom:4 }}>Estiba no encontrada</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginBottom:16 }}>
+                El QR no corresponde a ninguna recepción/estiba guardada en el sistema.
+              </div>
+              <button onClick={escanearOtraEstiba} style={{ ...btnPrimario(false,false), width:"100%" }}>🔄 Escanear otra</button>
+            </div>
+          )}
+
+          {resultadoEstiba?.estado === "ok" && (() => {
+            const { recepcion, estiba } = resultadoEstiba;
+            return (
+              <div style={cardS}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                  <div>
+                    <div style={lbl}>REMISIÓN</div>
+                    <div style={{ fontSize:16, color:"white", fontWeight:700 }}>{recepcion.remision || "—"}</div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={lbl}>ESTIBA</div>
+                    <div style={{ fontSize:30, fontWeight:900, color:"#a5b4fc", lineHeight:1 }}>{estiba.numero}</div>
+                  </div>
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+                  <div><div style={lbl}>Fecha de ingreso</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.fecha}</div></div>
+                  <div><div style={lbl}>Hora</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.horaInicio || "—"}</div></div>
+                  <div><div style={lbl}>Proveedor</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.proveedor || "—"}</div></div>
+                  <div><div style={lbl}>N° de Canastillas</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{canastillasDeEstiba(estiba).reduce((s,c)=>s+num(c.cantidad),0)}</div></div>
+                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso Neto</div><div style={{ fontSize:14, color:"#00C9A7", fontWeight:800 }}>{kg(pesoNetoEstiba(estiba))} kg</div></div>
+                </div>
+
+                {estiba.usada ? (
+                  <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:9, padding:"10px 12px", marginBottom:10 }}>
+                    <div style={{ fontSize:12, fontWeight:800, color:"#00C9A7", marginBottom:2 }}>✓ Usada</div>
+                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>
+                      {estiba.usadaPor ? `Por ${estiba.usadaPor} · ` : ""}{estiba.usadaEn ? new Date(estiba.usadaEn).toLocaleString("es-CO",{dateStyle:"short",timeStyle:"short"}) : ""}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={marcarEstibaUsada}
+                    disabled={marcandoUsada}
+                    style={{ width:"100%", background:"linear-gradient(135deg,#0f766e,#14b8a6)", border:"none", borderRadius:9, padding: m ? "14px" : "11px", fontSize: m ? 14 : 12, color:"white", cursor: marcandoUsada ? "wait" : "pointer", fontWeight:700, opacity: marcandoUsada ? 0.7 : 1, marginBottom:10, fontFamily:"inherit" }}
+                  >
+                    {marcandoUsada ? "Guardando..." : "✓ Marcar como Usada"}
+                  </button>
+                )}
+
+                <button onClick={escanearOtraEstiba} style={{ ...btnSecundario, width:"100%" }}>🔄 Escanear otra estiba</button>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ═══ TAB 2 — ASOCIAR CONTENEDOR ═══ */}
+      {tabRec === 2 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {[["asignar","➕ Asignar Canastillas"],["revision","📊 Revisión por Contenedor"]].map(([id,label]) => (
+              <button key={id} onClick={()=>setSubVistaAsoc(id)} style={{
+                background: subVistaAsoc===id ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${subVistaAsoc===id ? "#00C9A790" : "rgba(255,255,255,0.1)"}`,
+                borderRadius:8, padding:"7px 14px", cursor:"pointer",
+                color: subVistaAsoc===id ? "#00C9A7" : "rgba(255,255,255,0.45)",
+                fontWeight:700, fontSize:12, fontFamily:"inherit",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {subVistaAsoc === "asignar" && (
+            recepcionAsocSel === null ? (
+              <div style={cardS}>
+                <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📦 Elige una remisión para asignar sus estibas a un contenedor</div>
+                <input value={busquedaAsoc} onChange={e=>setBusquedaAsoc(e.target.value)} placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, marginBottom:10 }} />
+                {recepcionesAsocFiltradas.length === 0 ? (
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sin recepciones registradas.</div>
+                ) : (
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                      <thead>
+                        <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                          <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
+                          <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estibas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recepcionesAsocFiltradas.map(r => (
+                          <tr key={r.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)", cursor:"pointer" }} onClick={()=>setRecepcionAsocSel(r.id)}>
+                            <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{r.remision || "—"}</td>
+                            <td style={{ padding:"6px" }}>{r.fecha}</td>
+                            <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
+                            <td style={{ padding:"6px" }}>{r.estibas.length}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : !recepcionAsoc ? null : (
+              <div style={cardS}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"white" }}>📦 {recepcionAsoc.remision || `#${recepcionAsoc.id}`} — {recepcionAsoc.proveedor || "—"}</div>
+                  <button onClick={()=>setRecepcionAsocSel(null)} style={btnSecundario}>← Volver</button>
+                </div>
+
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {recepcionAsoc.estibas.map(e => {
+                    const total       = canastillasDeEstiba(e).reduce((s,c)=>s+num(c.cantidad),0);
+                    const asignadas   = cantidadAsignadaEstiba(recepcionAsoc.id, e.numero);
+                    const disponibles = total - asignadas;
+                    const asigsEstiba = asignacionesPorEstiba(recepcionAsoc.id, e.numero);
+                    return (
+                      <div key={e.numero} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:10 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:6 }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:"#845EF7" }}>Estiba #{e.numero}</div>
+                          <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.5)" }}>
+                            Total <b style={{ color:"white" }}>{total}</b> · Asignadas <b style={{ color:"#F9A826" }}>{asignadas}</b> · Disponibles <b style={{ color: disponibles>0 ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>{disponibles}</b>
+                          </div>
+                        </div>
+
+                        {asigsEstiba.length > 0 && (
+                          <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
+                            {asigsEstiba.map(a => (
+                              <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"5px 8px" }}>
+                                <span style={{ color:"rgba(255,255,255,0.7)" }}>🚢 {labelBookingLog(bookingsLog.find(b=>b.id===a.contenedorId))} — <b style={{ color:"white" }}>{a.cantidadCanastillas}</b> canastillas{a.registradoPor ? ` · ${a.registradoPor}` : ""}</span>
+                                <button onClick={()=>eliminarAsignacion(a.id)} style={{ background:"none", border:"none", color:"#FF6B6B", cursor:"pointer", fontSize:11, padding:0, fontFamily:"inherit" }}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {disponibles > 0 && (
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"flex-end" }}>
+                            <div style={{ flex:"1 1 160px", minWidth:0 }}>
+                              <div style={lbl}>Contenedor</div>
+                              <CustomSelect value={asigContenedorId[e.numero]||""} onChange={ev=>setAsigContenedorId(p=>({...p,[e.numero]:ev.target.value}))} style={inp}>
+                                <option value="">Selecciona...</option>
+                                {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                              </CustomSelect>
+                            </div>
+                            <div style={{ width:110 }}>
+                              <div style={lbl}>Canastillas</div>
+                              <input type="number" min="0" max={disponibles} style={inp} value={asigCantidad[e.numero]||""} onChange={ev=>setAsigCantidad(p=>({...p,[e.numero]:ev.target.value}))} placeholder={`Máx ${disponibles}`} />
+                            </div>
+                            <button onClick={()=>asignarCanastillas(e.numero, disponibles)} disabled={guardandoAsig[e.numero]} style={btnPrimario(false, guardandoAsig[e.numero])}>
+                              {guardandoAsig[e.numero] ? "Guardando..." : "Asignar"}
+                            </button>
+                          </div>
+                        )}
+                        {errorAsig[e.numero] && (
+                          <div style={{ color:"#FF6B6B", fontSize:11, marginTop:6, fontWeight:600 }}>⚠️ {errorAsig[e.numero]}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          )}
+
+          {subVistaAsoc === "revision" && (
+            <div style={cardS}>
+              <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📊 Revisión de Canastillas por Contenedor</div>
+              <div style={{ marginBottom:14, maxWidth:320 }}>
+                <div style={lbl}>Contenedor</div>
+                <CustomSelect value={contenedorRevisionId} onChange={e=>setContenedorRevisionId(e.target.value)} style={inp}>
+                  <option value="">Selecciona un contenedor...</option>
+                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                </CustomSelect>
+              </div>
+
+              {!contenedorRevisionId ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Elige un contenedor para ver sus asignaciones.</div>
+              ) : asignacionesDelContenedor.length === 0 ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Todavía no hay canastillas asignadas a este contenedor.</div>
+              ) : (
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                    <thead>
+                      <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                        <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
+                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estiba</th>
+                        <th style={{ padding:"6px" }}>Canastillas</th><th style={{ padding:"6px" }}>Registrado por</th>
+                        <th style={{ padding:"6px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {asignacionesDelContenedor.map(a => (
+                        <tr key={a.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                          <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{a.recepcion?.remision || "—"}</td>
+                          <td style={{ padding:"6px" }}>{a.recepcion?.fecha || "—"}</td>
+                          <td style={{ padding:"6px" }}>{a.recepcion?.proveedor || "—"}</td>
+                          <td style={{ padding:"6px" }}>#{a.numeroEstiba}</td>
+                          <td style={{ padding:"6px", fontWeight:700, color:"#00C9A7" }}>{a.cantidadCanastillas}</td>
+                          <td style={{ padding:"6px" }}>{a.registradoPor || "—"}</td>
+                          <td style={{ padding:"6px" }}>
+                            <button onClick={()=>eliminarAsignacion(a.id)} style={btnTablaEliminar}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop:"2px solid rgba(255,255,255,0.12)" }}>
+                        <td colSpan={4} style={{ padding:"8px 6px", fontWeight:700, color:"rgba(255,255,255,0.6)" }}>Total canastillas</td>
+                        <td style={{ padding:"8px 6px", fontWeight:800, color:"#00C9A7" }}>{totalCanastillasContenedor}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Modal vista previa del informe ── */}
       {preview && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", flexDirection:"column", padding: m ? 8 : 24 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <div style={{ color:"white", fontSize:13, fontWeight:700 }}>📄 Vista previa — Informe de Recepción</div>
+            <div style={{ color:"white", fontSize:13, fontWeight:700 }}>📄 {preview.titulo || "Vista previa — Informe de Recepción"}</div>
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={descargarInforme} style={{ background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, color:"white", padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
                 ⬇ Descargar

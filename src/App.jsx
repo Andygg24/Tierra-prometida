@@ -7929,7 +7929,7 @@ export default function App() {
     if (demo.type === "inventario_live")  return <InventarioDemo />;
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo logisticaBookings={logisticaApp.bookings} />;
-    if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
+    if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} logisticaBookings={logisticaApp.bookings} />;
     if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
     if (demo.type === "control_expo_live") return <ControlExpoTab mob={isMobile} />;
     if (demo.type === "caja_menor_live")   return <CajaMenorTab mob={isMobile} />;
