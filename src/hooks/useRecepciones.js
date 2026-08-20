@@ -137,7 +137,7 @@ export function useRecepciones() {
       id:                   Date.now(),
       recepcion_id:         form.recepcionId,
       numero_estiba:        Number(form.numeroEstiba),
-      contenedor_id:        form.contenedorId,
+      contenedor_id:        form.contenedorId != null && form.contenedorId !== "" ? Number(form.contenedorId) : null, // null = reserva, sin contenedor todavía
       cantidad_canastillas: Number(form.cantidadCanastillas) || 0,
       obs:                  form.obs || null,
       registrado_por:       form.registradoPor || null,

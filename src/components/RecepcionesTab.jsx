@@ -581,7 +581,9 @@ async function buildTirillaEstibaWord(form, e, recepcionId) {
 
 export default function RecepcionesTab({ mob, logisticaBookings }) {
   const bookingsLog = logisticaBookings || [];
-  const labelBookingLog = (b) => b ? (b.numeroBooking || b.numeroContenedor || `#${b.id}`) : "—";
+  const labelBookingLog = (b) => b ? (b.numeroContenedor || b.numeroBooking || `#${b.id}`) : "—";
+  // contenedorId null = reserva (canastillas apartadas sin contenedor todavía).
+  const labelAsignacionDestino = (a) => a.contenedorId == null ? "🗄 Reserva" : `🚢 ${labelBookingLog(bookingsLog.find(b=>b.id===a.contenedorId))}`;
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
@@ -887,6 +889,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   // qué remisiones/estibas se usaron y cuántas canastillas de cada una.
   const [subVistaAsoc, setSubVistaAsoc]     = useState("asignar"); // "asignar" | "revision"
   const [busquedaAsoc, setBusquedaAsoc]     = useState("");
+  const [filtroDesdeAsoc, setFiltroDesdeAsoc] = useState("");
+  const [filtroHastaAsoc, setFiltroHastaAsoc] = useState("");
   const [recepcionAsocSel, setRecepcionAsocSel] = useState(null); // id de recepción elegida para asignar
   const [asigContenedorId, setAsigContenedorId] = useState({}); // { [numeroEstiba]: contenedorId }
   const [asigCantidad, setAsigCantidad]     = useState({});     // { [numeroEstiba]: cantidad }
@@ -901,9 +905,13 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
 
   const recepcionesAsocFiltradas = useMemo(() => {
     const q = busquedaAsoc.trim().toLowerCase();
-    if (!q) return recepciones;
-    return recepciones.filter(r => [r.remision, r.proveedor, r.placa].some(v => (v || "").toLowerCase().includes(q)));
-  }, [recepciones, busquedaAsoc]);
+    return recepciones.filter(r => {
+      if (filtroDesdeAsoc && r.fecha < filtroDesdeAsoc) return false;
+      if (filtroHastaAsoc && r.fecha > filtroHastaAsoc) return false;
+      if (!q) return true;
+      return [r.remision, r.proveedor, r.placa].some(v => (v || "").toLowerCase().includes(q));
+    });
+  }, [recepciones, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
 
   const recepcionAsoc = recepcionAsocSel ? recepciones.find(r => r.id === recepcionAsocSel) : null;
 
@@ -930,8 +938,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
 
   const asignacionesDelContenedor = useMemo(() => {
     if (!contenedorRevisionId) return [];
+    const match = contenedorRevisionId === "reserva"
+      ? (a) => a.contenedorId == null
+      : (a) => a.contenedorId === Number(contenedorRevisionId);
     return asignaciones
-      .filter(a => a.contenedorId === Number(contenedorRevisionId))
+      .filter(match)
       .map(a => ({ ...a, recepcion: recepciones.find(r => r.id === a.recepcionId) || null }))
       .sort((a, b) => (a.recepcion?.fecha || "").localeCompare(b.recepcion?.fecha || ""));
   }, [asignaciones, recepciones, contenedorRevisionId]);
@@ -940,6 +951,34 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     () => asignacionesDelContenedor.reduce((s, a) => s + (Number(a.cantidadCanastillas) || 0), 0),
     [asignacionesDelContenedor]
   );
+
+  // ── Excedente al validar uso (Verificación de Estibas) ──────────────────
+  // Al confirmar que una estiba se usó, si no todas sus canastillas quedaron
+  // asignadas a un contenedor, se pregunta qué hacer con las que sobran:
+  // asignarlas a otro contenedor ahí mismo, o dejarlas en reserva.
+  const [modoSobranteEstiba, setModoSobranteEstiba] = useState(null); // null | "elegir"
+  const [contenedorSobranteId, setContenedorSobranteId] = useState("");
+  const [guardandoSobrante, setGuardandoSobrante]       = useState(false);
+
+  const dejarSobranteComoReserva = async (recepcionId, numeroEstiba, cantidad) => {
+    setGuardandoSobrante(true);
+    await guardarAsignacion({
+      recepcionId, numeroEstiba, contenedorId: null, cantidadCanastillas: cantidad,
+      registradoPor: nombreUsuarioSesion(), obs: "Reserva (excedente al validar uso)",
+    });
+    setGuardandoSobrante(false);
+  };
+
+  const asignarSobranteAContenedor = async (recepcionId, numeroEstiba, cantidad) => {
+    if (!contenedorSobranteId) return;
+    setGuardandoSobrante(true);
+    const ok = await guardarAsignacion({
+      recepcionId, numeroEstiba, contenedorId: contenedorSobranteId, cantidadCanastillas: cantidad,
+      registradoPor: nombreUsuarioSesion(),
+    });
+    setGuardandoSobrante(false);
+    if (ok) { setModoSobranteEstiba(null); setContenedorSobranteId(""); }
+  };
 
   if (loading) return <LimonLoader texto="Cargando recepciones" />;
 
@@ -1391,12 +1430,55 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 </div>
 
                 {estiba.usada ? (
-                  <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:9, padding:"10px 12px", marginBottom:10 }}>
-                    <div style={{ fontSize:12, fontWeight:800, color:"#00C9A7", marginBottom:2 }}>✓ Usada</div>
-                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>
-                      {estiba.usadaPor ? `Por ${estiba.usadaPor} · ` : ""}{estiba.usadaEn ? new Date(estiba.usadaEn).toLocaleString("es-CO",{dateStyle:"short",timeStyle:"short"}) : ""}
+                  <>
+                    <div style={{ background:"rgba(0,201,167,0.1)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:9, padding:"10px 12px", marginBottom:10 }}>
+                      <div style={{ fontSize:12, fontWeight:800, color:"#00C9A7", marginBottom:2 }}>✓ Usada</div>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>
+                        {estiba.usadaPor ? `Por ${estiba.usadaPor} · ` : ""}{estiba.usadaEn ? new Date(estiba.usadaEn).toLocaleString("es-CO",{dateStyle:"short",timeStyle:"short"}) : ""}
+                      </div>
                     </div>
-                  </div>
+
+                    {(() => {
+                      const totalCant    = canastillasDeEstiba(estiba).reduce((s,c)=>s+num(c.cantidad),0);
+                      const asignadoCant = cantidadAsignadaEstiba(recepcion.id, estiba.numero);
+                      const sobrante     = totalCant - asignadoCant;
+                      if (sobrante <= 0) {
+                        return (
+                          <div style={{ background:"rgba(0,201,167,0.08)", border:"1px solid rgba(0,201,167,0.25)", borderRadius:9, padding:"9px 12px", marginBottom:10, fontSize:11.5, color:"#00C9A7" }}>
+                            ✓ Las {totalCant} canastillas de esta estiba ya están asignadas a contenedor.
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.35)", borderRadius:9, padding:"10px 12px", marginBottom:10 }}>
+                          <div style={{ fontSize:12, fontWeight:800, color:"#F9A826", marginBottom:6 }}>
+                            ⚠️ Sobran {sobrante} canastillas de esta estiba (de {totalCant} totales) sin asignar a un contenedor.
+                          </div>
+                          {modoSobranteEstiba !== "elegir" ? (
+                            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                              <button onClick={()=>setModoSobranteEstiba("elegir")} style={btnPrimario(false,false)}>Asignar a otro contenedor</button>
+                              <button onClick={()=>dejarSobranteComoReserva(recepcion.id, estiba.numero, sobrante)} disabled={guardandoSobrante} style={btnSecundario}>
+                                {guardandoSobrante ? "Guardando..." : "🗄 Dejar como reserva"}
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-end" }}>
+                              <div style={{ flex:"1 1 160px", minWidth:0 }}>
+                                <CustomSelect value={contenedorSobranteId} onChange={ev=>setContenedorSobranteId(ev.target.value)} style={inp}>
+                                  <option value="">Selecciona un contenedor...</option>
+                                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                                </CustomSelect>
+                              </div>
+                              <button onClick={()=>asignarSobranteAContenedor(recepcion.id, estiba.numero, sobrante)} disabled={guardandoSobrante} style={btnPrimario(false,guardandoSobrante)}>
+                                {guardandoSobrante ? "Guardando..." : "Confirmar"}
+                              </button>
+                              <button onClick={()=>{ setModoSobranteEstiba(null); setContenedorSobranteId(""); }} style={btnSecundario}>Cancelar</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </>
                 ) : (
                   <button
                     onClick={marcarEstibaUsada}
@@ -1433,7 +1515,20 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             recepcionAsocSel === null ? (
               <div style={cardS}>
                 <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📦 Elige una remisión para asignar sus estibas a un contenedor</div>
-                <input value={busquedaAsoc} onChange={e=>setBusquedaAsoc(e.target.value)} placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, marginBottom:10 }} />
+                <div style={{ display:"flex", flexWrap:"wrap", gap:8, alignItems:"flex-end", marginBottom:10 }}>
+                  <input value={busquedaAsoc} onChange={e=>setBusquedaAsoc(e.target.value)} placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, flex:"1 1 200px" }} />
+                  <div style={{ flex:"0 1 150px" }}>
+                    <div style={lbl}>Desde</div>
+                    <input type="date" style={inp} value={filtroDesdeAsoc} onChange={e=>setFiltroDesdeAsoc(e.target.value)} />
+                  </div>
+                  <div style={{ flex:"0 1 150px" }}>
+                    <div style={lbl}>Hasta</div>
+                    <input type="date" style={inp} value={filtroHastaAsoc} onChange={e=>setFiltroHastaAsoc(e.target.value)} />
+                  </div>
+                  {(filtroDesdeAsoc || filtroHastaAsoc) && (
+                    <button onClick={()=>{setFiltroDesdeAsoc("");setFiltroHastaAsoc("");}} style={btnSecundario}>✕ Limpiar</button>
+                  )}
+                </div>
                 {recepcionesAsocFiltradas.length === 0 ? (
                   <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sin recepciones registradas.</div>
                 ) : (
@@ -1485,7 +1580,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                           <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
                             {asigsEstiba.map(a => (
                               <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"5px 8px" }}>
-                                <span style={{ color:"rgba(255,255,255,0.7)" }}>🚢 {labelBookingLog(bookingsLog.find(b=>b.id===a.contenedorId))} — <b style={{ color:"white" }}>{a.cantidadCanastillas}</b> canastillas{a.registradoPor ? ` · ${a.registradoPor}` : ""}</span>
+                                <span style={{ color:"rgba(255,255,255,0.7)" }}>{labelAsignacionDestino(a)} — <b style={{ color:"white" }}>{a.cantidadCanastillas}</b> canastillas{a.registradoPor ? ` · ${a.registradoPor}` : ""}</span>
                                 <button onClick={()=>eliminarAsignacion(a.id)} style={{ background:"none", border:"none", color:"#FF6B6B", cursor:"pointer", fontSize:11, padding:0, fontFamily:"inherit" }}>✕</button>
                               </div>
                             ))}
@@ -1528,6 +1623,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 <div style={lbl}>Contenedor</div>
                 <CustomSelect value={contenedorRevisionId} onChange={e=>setContenedorRevisionId(e.target.value)} style={inp}>
                   <option value="">Selecciona un contenedor...</option>
+                  <option value="reserva">🗄 Reserva (sin contenedor)</option>
                   {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
                 </CustomSelect>
               </div>
