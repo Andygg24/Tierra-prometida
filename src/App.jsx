@@ -7768,9 +7768,8 @@ function LoginScreen({ onLogin, usuarios = USUARIOS }) {
                   value={cedula}
                   onChange={e => { setCedula(e.target.value); setError(""); }}
                   onKeyDown={e => e.key === "Enter" && intentarLogin()}
-                  placeholder="Tu número de cédula"
+                  placeholder="Tu contraseña"
                   autoComplete="current-password"
-                  inputMode="numeric"
                   style={{ ...inp, paddingRight: 46 }}
                 />
                 <button
