@@ -975,6 +975,21 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setContenedorAsocSel("");
   };
 
+  // Quita todas las asignaciones (a cualquier contenedor, o en reserva) de
+  // las remisiones seleccionadas — para deshacer asociaciones de prueba o
+  // corregir un error, sin tener que borrar fila por fila en Revisión.
+  const desasociarRemisionesSeleccionadas = async () => {
+    if (seleccionAsoc.length === 0) return;
+    if (!window.confirm(`¿Quitar toda la asociación a contenedor de ${seleccionAsoc.length} remisión(es) seleccionada(s)? Esta acción no se puede deshacer.`)) return;
+    setGuardandoAsociacion(true);
+    const idsAEliminar = asignaciones.filter(a => seleccionAsoc.includes(a.recepcionId)).map(a => a.id);
+    for (const id of idsAEliminar) {
+      await eliminarAsignacion(id);
+    }
+    setGuardandoAsociacion(false);
+    setSeleccionAsoc([]);
+  };
+
   const asignacionesDelContenedor = useMemo(() => {
     if (!contenedorRevisionId) return [];
     const match = contenedorRevisionId === "reserva"
@@ -1649,7 +1664,10 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   </CustomSelect>
                 </div>
                 <button onClick={asociarRemisionesSeleccionadas} disabled={!contenedorAsocSel || seleccionAsoc.length===0 || guardandoAsociacion} style={btnPrimario(false, guardandoAsociacion)}>
-                  {guardandoAsociacion ? "Asociando..." : `Asociar ${seleccionAsoc.length || ""} remisión(es)`}
+                  {guardandoAsociacion ? "Guardando..." : `Asociar ${seleccionAsoc.length || ""} remisión(es)`}
+                </button>
+                <button onClick={desasociarRemisionesSeleccionadas} disabled={seleccionAsoc.length===0 || guardandoAsociacion} style={btnTablaEliminar}>
+                  ✕ Desasociar {seleccionAsoc.length || ""} remisión(es)
                 </button>
               </div>
             </div>
