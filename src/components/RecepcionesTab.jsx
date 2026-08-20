@@ -940,10 +940,12 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   }, [recepciones, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
 
   const estadoAsociacionRecepcion = (r) => {
-    if (!r.estibas.length) return "sin-estibas";
-    const asociadas = r.estibas.filter(e => asignacionesPorEstiba(r.id, e.numero).length > 0).length;
+    // Las estibas sin canastillas cargadas no cuentan: no hay nada que asociar.
+    const estibasConCarga = r.estibas.filter(e => canastillasDeEstiba(e).reduce((s, c) => s + num(c.cantidad), 0) > 0);
+    if (!estibasConCarga.length) return "sin-estibas";
+    const asociadas = estibasConCarga.filter(e => asignacionesPorEstiba(r.id, e.numero).length > 0).length;
     if (asociadas === 0) return "sin-asociar";
-    return asociadas === r.estibas.length ? "asociada" : "parcial";
+    return asociadas === estibasConCarga.length ? "asociada" : "parcial";
   };
 
   const toggleSeleccionAsoc = (id) => {
