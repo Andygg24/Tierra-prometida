@@ -6,19 +6,6 @@ import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./
 import { useCajaMenor } from "../hooks/useCajaMenor.js";
 import { fechaLocalISO } from "../utils/dates.js";
 
-// Logo embebido como base64 — para la etiqueta QR imprimible.
-async function cargarLogoBase64() {
-  try {
-    const res  = await fetch("/logo-tp.png");
-    const blob = await res.blob();
-    return await new Promise(resolve => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.readAsDataURL(blob);
-    });
-  } catch { return ""; }
-}
-
 // Prefijo propio (distinto al "TPQR" de las tirillas de pallet) para que el
 // escáner sepa a qué módulo pertenece el código leído.
 export const QR_FACTURA_PREFIX = "TPCM";
@@ -140,6 +127,10 @@ export default function CajaMenorTab({ mob }) {
   const campoBox = { minWidth: 0 };
   const camposCols = m ? "1fr 1fr" : "repeat(4,1fr)";
 
+  // Ver foto en grande (lightbox) — desde la lista, el formulario o un escaneo.
+  const [imagenAmpliada, setImagenAmpliada] = useState(null);
+  const verImagen = (url) => { if (url) setImagenAmpliada(url); };
+
   // ══════════════ FACTURAS: lista / detalle ══════════════
   const [facturaSel, setFacturaSel] = useState(null); // null = lista | "new" | id
   const [form, setForm]             = useState(facturaVacia);
@@ -216,32 +207,6 @@ export default function CajaMenorTab({ mob }) {
       setErrorGuardado("No se pudo procesar la foto — intenta con otra imagen.");
     }
     setSubiendoFoto(false);
-  };
-
-  const imprimirEtiqueta = async () => {
-    if (!facturaSel || facturaSel === "new" || !qrDataUrl) return;
-    const logoSrc = await cargarLogoBase64();
-    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>QR Factura #${facturaSel}</title>
-<style>
-  @page { size: 70mm 40mm; margin: 0; }
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
-  body { width: 70mm; height: 40mm; padding: 3mm; display: flex; align-items: center; gap: 3mm; }
-  .qr { width: 32mm; height: 32mm; flex-shrink: 0; }
-  .info { flex: 1; font-size: 9px; color: #111; line-height: 1.45; overflow: hidden; }
-  .info b { font-size: 11px; display: block; margin-bottom: 2px; }
-  .info img { width: 14px; height: 14px; object-fit: contain; margin-bottom: 2px; }
-</style></head><body>
-  <img class="qr" src="${qrDataUrl}" />
-  <div class="info">
-    ${logoSrc ? `<img src="${logoSrc}" />` : ""}
-    <b>Caja Menor #${facturaSel}</b>
-    ${form.nombre ? `${form.nombre}<br/>` : ""}
-    ${form.fecha ? `Fecha: ${fmtFechaCorta(form.fecha)}<br/>` : ""}
-    ${form.monto ? `${fmtCOP(form.monto)}<br/>` : ""}
-  </div>
-</body></html>`;
-    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    window.open(url, "_blank");
   };
 
   const facturasFiltradas = useMemo(() => {
@@ -445,6 +410,7 @@ export default function CajaMenorTab({ mob }) {
                         <td style={{ padding: "6px", fontWeight: 700, color: "#F9A826" }}>{fmtCOP(f.monto)}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
                           <button onClick={() => abrirFactura(f)} style={btnTablaEditar}>Ver</button>
+                          {f.foto && <button onClick={() => verImagen(f.foto)} style={btnTablaEditar}>👁 Imagen</button>}
                           <button onClick={() => eliminar(f)} style={btnTablaEliminar}>Eliminar</button>
                         </td>
                       </tr>
@@ -493,13 +459,16 @@ export default function CajaMenorTab({ mob }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Foto de la factura</div>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14, flexWrap: "wrap" }}>
               {form.foto && (
-                <img src={form.foto} alt="Factura" style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)" }} />
+                <img src={form.foto} alt="Factura" onClick={() => verImagen(form.foto)} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer" }} />
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
                   {subiendoFoto ? "Procesando..." : form.foto ? "📷 Cambiar foto" : "📷 Tomar / subir foto"}
                   <input type="file" accept="image/*" capture="environment" onChange={onFotoSeleccionada} disabled={subiendoFoto} style={{ display: "none" }} />
                 </label>
+                {form.foto && (
+                  <button onClick={() => verImagen(form.foto)} style={btnSecundario}>👁 Ver imagen</button>
+                )}
                 {form.foto && (
                   <button onClick={() => setCampo("foto", "")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: 0, fontFamily: "inherit", textAlign: "left" }}>
                     Quitar foto
@@ -513,8 +482,7 @@ export default function CajaMenorTab({ mob }) {
                 <img src={qrDataUrl} alt="QR de la factura" style={{ width: 90, height: 90, background: "white", borderRadius: 6, padding: 4 }} />
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 4 }}>QR de consulta</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 10 }}>Escanéalo en "📷 Escanear QR" para ver esta factura y su foto al instante.</div>
-                  <button onClick={imprimirEtiqueta} style={btnSecundario}>🖨 Imprimir / Descargar etiqueta</button>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>Escanéalo desde "📷 Escanear QR" (en este PC o en otro celular) para ver esta factura y su foto al instante.</div>
                 </div>
               </div>
             )}
@@ -670,7 +638,7 @@ export default function CajaMenorTab({ mob }) {
             return (
               <div style={cardS}>
                 {f.foto && (
-                  <img src={f.foto} alt="Factura" style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 8, marginBottom: 14, background: "black" }} />
+                  <img src={f.foto} alt="Factura" onClick={() => verImagen(f.foto)} style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 8, marginBottom: 14, background: "black", cursor: "pointer" }} />
                 )}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                   <div><div style={lbl}>Fecha</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{fmtFechaCorta(f.fecha)}</div></div>
@@ -695,6 +663,14 @@ export default function CajaMenorTab({ mob }) {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* ── Visor de imagen ampliada ── */}
+      {imagenAmpliada && (
+        <div onClick={() => setImagenAmpliada(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, cursor: "zoom-out" }}>
+          <img src={imagenAmpliada} alt="Factura ampliada" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8, boxShadow: "0 12px 40px rgba(0,0,0,0.6)" }} />
+          <button onClick={() => setImagenAmpliada(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 8, color: "white", fontSize: 20, width: 36, height: 36, cursor: "pointer" }}>✕</button>
         </div>
       )}
     </div>
