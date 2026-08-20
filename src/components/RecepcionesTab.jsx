@@ -915,7 +915,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   // con su cantidad total de canastillas. Si al validar el uso (Verificación
   // de Estibas) resulta que no se usó todo, ahí se ajusta y aparece el
   // sobrante para reasignar a otro contenedor o dejar en reserva.
-  const [subVistaAsoc, setSubVistaAsoc]     = useState("asociar"); // "asociar" | "revision"
+  const [subVistaVerif, setSubVistaVerif]   = useState("escanear"); // "escanear" | "revision" — dentro de Verificación de Estibas
   const [busquedaAsoc, setBusquedaAsoc]     = useState("");
   const [filtroDesdeAsoc, setFiltroDesdeAsoc] = useState("");
   const [filtroHastaAsoc, setFiltroHastaAsoc] = useState("");
@@ -997,7 +997,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       : (a) => a.contenedorId === Number(contenedorRevisionId);
     return asignaciones
       .filter(match)
-      .map(a => ({ ...a, recepcion: recepciones.find(r => r.id === a.recepcionId) || null }))
+      .map(a => {
+        const recepcion = recepciones.find(r => r.id === a.recepcionId) || null;
+        const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba) || null;
+        return { ...a, recepcion, estiba };
+      })
       .sort((a, b) => (a.recepcion?.fecha || "").localeCompare(b.recepcion?.fecha || ""));
   }, [asignaciones, recepciones, contenedorRevisionId]);
 
@@ -1423,6 +1427,81 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
 
       {/* ═══ TAB 2 — VERIFICACIÓN DE ESTIBAS ═══ */}
       {tabRec === 2 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {[["escanear","📷 Escanear"],["revision","📊 Revisión por Contenedor"]].map(([id,label]) => (
+              <button key={id} onClick={()=>setSubVistaVerif(id)} style={{
+                background: subVistaVerif===id ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${subVistaVerif===id ? "#00C9A790" : "rgba(255,255,255,0.1)"}`,
+                borderRadius:8, padding:"7px 14px", cursor:"pointer",
+                color: subVistaVerif===id ? "#00C9A7" : "rgba(255,255,255,0.45)",
+                fontWeight:700, fontSize:12, fontFamily:"inherit",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {subVistaVerif === "revision" && (
+            <div style={cardS}>
+              <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📊 Revisión de Canastillas por Contenedor</div>
+              <div style={{ marginBottom:14, maxWidth:320 }}>
+                <div style={lbl}>Contenedor</div>
+                <CustomSelect value={contenedorRevisionId} onChange={e=>setContenedorRevisionId(e.target.value)} style={inp}>
+                  <option value="">Selecciona un contenedor...</option>
+                  <option value="reserva">🗄 Reserva (sin contenedor)</option>
+                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                </CustomSelect>
+              </div>
+
+              {!contenedorRevisionId ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Elige un contenedor para ver sus asignaciones y cuáles ya se validaron como usadas.</div>
+              ) : asignacionesDelContenedor.length === 0 ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Todavía no hay canastillas asignadas a este contenedor.</div>
+              ) : (
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                    <thead>
+                      <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                        <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
+                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estiba</th>
+                        <th style={{ padding:"6px" }}>Canastillas</th><th style={{ padding:"6px" }}>Usada</th>
+                        <th style={{ padding:"6px" }}>Registrado por</th>
+                        <th style={{ padding:"6px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {asignacionesDelContenedor.map(a => (
+                        <tr key={a.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                          <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{a.recepcion?.remision || "—"}</td>
+                          <td style={{ padding:"6px" }}>{a.recepcion?.fecha || "—"}</td>
+                          <td style={{ padding:"6px" }}>{a.recepcion?.proveedor || "—"}</td>
+                          <td style={{ padding:"6px" }}>#{a.numeroEstiba}</td>
+                          <td style={{ padding:"6px", fontWeight:700, color:"#00C9A7" }}>{a.cantidadCanastillas}</td>
+                          <td style={{ padding:"6px" }}>
+                            <span style={{ padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:700, background: a.estiba?.usada ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.06)", color: a.estiba?.usada ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>
+                              {a.estiba?.usada ? "✓ Usada" : "Pendiente"}
+                            </span>
+                          </td>
+                          <td style={{ padding:"6px" }}>{a.registradoPor || "—"}</td>
+                          <td style={{ padding:"6px" }}>
+                            <button onClick={()=>eliminarAsignacion(a.id)} style={btnTablaEliminar}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop:"2px solid rgba(255,255,255,0.12)" }}>
+                        <td colSpan={4} style={{ padding:"8px 6px", fontWeight:700, color:"rgba(255,255,255,0.6)" }}>Total canastillas</td>
+                        <td style={{ padding:"8px 6px", fontWeight:800, color:"#00C9A7" }}>{totalCanastillasContenedor}</td>
+                        <td colSpan={3}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {subVistaVerif === "escanear" && (
         <div style={{ maxWidth:460, margin:"0 auto" }}>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:16, lineHeight:1.5 }}>
             🧱 Escanea el QR de la tirilla de una estiba (la que quitaste al usarla) para marcarla como usada.
@@ -1578,25 +1657,15 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             );
           })()}
         </div>
+          )}
+        </div>
       )}
 
       {/* ═══ TAB 1 — ASOCIAR CONTENEDOR ═══ */}
       {tabRec === 1 && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {[["asociar","🔗 Asociar Remisiones"],["revision","📊 Revisión por Contenedor"]].map(([id,label]) => (
-              <button key={id} onClick={()=>setSubVistaAsoc(id)} style={{
-                background: subVistaAsoc===id ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${subVistaAsoc===id ? "#00C9A790" : "rgba(255,255,255,0.1)"}`,
-                borderRadius:8, padding:"7px 14px", cursor:"pointer",
-                color: subVistaAsoc===id ? "#00C9A7" : "rgba(255,255,255,0.45)",
-                fontWeight:700, fontSize:12, fontFamily:"inherit",
-              }}>{label}</button>
-            ))}
-          </div>
 
-          {subVistaAsoc === "asociar" && (
-            <div style={cardS}>
+          <div style={cardS}>
               <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:4 }}>🔗 Asociar remisiones a un contenedor</div>
               <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:10 }}>Selecciona una o varias remisiones — toda su fruta (todas sus estibas, completas) quedará asociada al contenedor que elijas. Si al final no se usó todo, se ajusta después en "Verificación de Estibas".</div>
 
@@ -1671,62 +1740,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 </button>
               </div>
             </div>
-          )}
-
-          {subVistaAsoc === "revision" && (
-            <div style={cardS}>
-              <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📊 Revisión de Canastillas por Contenedor</div>
-              <div style={{ marginBottom:14, maxWidth:320 }}>
-                <div style={lbl}>Contenedor</div>
-                <CustomSelect value={contenedorRevisionId} onChange={e=>setContenedorRevisionId(e.target.value)} style={inp}>
-                  <option value="">Selecciona un contenedor...</option>
-                  <option value="reserva">🗄 Reserva (sin contenedor)</option>
-                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
-                </CustomSelect>
-              </div>
-
-              {!contenedorRevisionId ? (
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Elige un contenedor para ver sus asignaciones.</div>
-              ) : asignacionesDelContenedor.length === 0 ? (
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Todavía no hay canastillas asignadas a este contenedor.</div>
-              ) : (
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                    <thead>
-                      <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
-                        <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
-                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estiba</th>
-                        <th style={{ padding:"6px" }}>Canastillas</th><th style={{ padding:"6px" }}>Registrado por</th>
-                        <th style={{ padding:"6px" }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {asignacionesDelContenedor.map(a => (
-                        <tr key={a.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                          <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{a.recepcion?.remision || "—"}</td>
-                          <td style={{ padding:"6px" }}>{a.recepcion?.fecha || "—"}</td>
-                          <td style={{ padding:"6px" }}>{a.recepcion?.proveedor || "—"}</td>
-                          <td style={{ padding:"6px" }}>#{a.numeroEstiba}</td>
-                          <td style={{ padding:"6px", fontWeight:700, color:"#00C9A7" }}>{a.cantidadCanastillas}</td>
-                          <td style={{ padding:"6px" }}>{a.registradoPor || "—"}</td>
-                          <td style={{ padding:"6px" }}>
-                            <button onClick={()=>eliminarAsignacion(a.id)} style={btnTablaEliminar}>✕</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ borderTop:"2px solid rgba(255,255,255,0.12)" }}>
-                        <td colSpan={4} style={{ padding:"8px 6px", fontWeight:700, color:"rgba(255,255,255,0.6)" }}>Total canastillas</td>
-                        <td style={{ padding:"8px 6px", fontWeight:800, color:"#00C9A7" }}>{totalCanastillasContenedor}</td>
-                        <td colSpan={2}></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
