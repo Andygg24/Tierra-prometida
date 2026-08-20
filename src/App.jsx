@@ -10,6 +10,7 @@ import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
 import ControlExpoTab from "./components/ControlExpoTab.jsx";
+import CajaMenorTab from "./components/CajaMenorTab.jsx";
 import CanastillasTab from "./components/CanastillasTab.jsx";
 import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
@@ -6950,7 +6951,7 @@ function ConfigForm({ config, guardar }) {
   const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
-  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Logística","Control Expo","Configuración"];
+  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Logística","Control Expo","Caja Menor","Configuración"];
   const TABS = [
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
@@ -7667,6 +7668,7 @@ const MODULES = [
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
   { id:"control_expo",  icon:"🛃", title:"Control Expo",  color:"#059669", demo:{ type:"control_expo_live" },  capabilities:["Seguimiento de documentos DEX","Estado Pendiente/Radicado/Cancelado","Verificación con un clic","Filtro y orden por fecha","Valor del DEX en USD","Informe descargable"] },
+  { id:"caja_menor",    icon:"🧾", title:"Caja Menor",    color:"#F9A826", demo:{ type:"caja_menor_live" },    capabilities:["Registro de facturas con foto","QR de consulta por factura","Escáner de QR con cámara","Etiqueta QR imprimible","Búsqueda por concepto o proveedor","Total acumulado en vivo"] },
   { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Seguridad y backup"] },
 ];
 
@@ -7931,6 +7933,7 @@ export default function App() {
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
     if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
     if (demo.type === "control_expo_live") return <ControlExpoTab mob={isMobile} />;
+    if (demo.type === "caja_menor_live")   return <CajaMenorTab mob={isMobile} />;
     if (demo.type === "documentos_live")  return <DocumentosDemo logisticaBookings={logisticaApp.bookings} guardarNumeroProforma={logisticaApp.guardarNumeroProforma} />;
     if (demo.type === "estadisticas_live") return <EstadisticasDemo />;
     if (demo.type === "bars") return (
