@@ -582,8 +582,6 @@ async function buildTirillaEstibaWord(form, e, recepcionId) {
 export default function RecepcionesTab({ mob, logisticaBookings }) {
   const bookingsLog = logisticaBookings || [];
   const labelBookingLog = (b) => b ? (b.numeroContenedor || b.numeroBooking || `#${b.id}`) : "—";
-  // contenedorId null = reserva (canastillas apartadas sin contenedor todavía).
-  const labelAsignacionDestino = (a) => a.contenedorId == null ? "🗄 Reserva" : `🚢 ${labelBookingLog(bookingsLog.find(b=>b.id===a.contenedorId))}`;
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
@@ -812,6 +810,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [camError, setCamError]           = useState("");
   const [resultadoEstiba, setResultadoEstiba] = useState(null); // null | {estado:"no-encontrado"|"ok", recepcion, estiba}
   const [marcandoUsada, setMarcandoUsada] = useState(false);
+  const [modoCantidadUsada, setModoCantidadUsada] = useState(null); // null | "parcial"
+  const [cantidadRealUsada, setCantidadRealUsada] = useState("");
   const html5QrRef    = useRef(null);
   const procesandoRef = useRef(false);
   const ignoradoRef   = useRef(null);
@@ -866,10 +866,31 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     }
   };
 
-  const marcarEstibaUsada = async () => {
+  // Si se usaron menos canastillas de las que ya tenía asignadas a un
+  // contenedor, hay que reducir esa asignación a lo realmente usado — si no,
+  // quedaría contado de más y el sobrante no se detectaría después. Solo se
+  // ajusta automáticamente el caso normal (una sola asignación existente);
+  // si hay varias (repartida a mano entre contenedores) no se toca, y el
+  // sobrante que sí se detecte se resuelve con el aviso de siempre.
+  const ajustarAsignacionAUsoReal = async (recepcionId, numeroEstiba, cantidadReal) => {
+    const existentes = asignacionesPorEstiba(recepcionId, numeroEstiba);
+    if (existentes.length === 1) {
+      const asig = existentes[0];
+      await eliminarAsignacion(asig.id);
+      await guardarAsignacion({
+        recepcionId, numeroEstiba, contenedorId: asig.contenedorId,
+        cantidadCanastillas: cantidadReal, registradoPor: nombreUsuarioSesion(),
+      });
+    }
+  };
+
+  const marcarEstibaUsada = async (cantidadRealUsadaVal = null) => {
     if (resultadoEstiba?.estado !== "ok") return;
     setMarcandoUsada(true);
     const { recepcion, estiba } = resultadoEstiba;
+    if (cantidadRealUsadaVal != null) {
+      await ajustarAsignacionAUsoReal(recepcion.id, estiba.numero, cantidadRealUsadaVal);
+    }
     const nuevasEstibas = recepcion.estibas.map(e => e.numero !== estiba.numero ? e : {
       ...e, usada: true, usadaPor: nombreUsuarioSesion() || "Sin nombre", usadaEn: new Date().toISOString(),
     });
@@ -877,25 +898,30 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setMarcandoUsada(false);
     if (ok) {
       setResultadoEstiba({ estado: "ok", recepcion: { ...recepcion, estibas: nuevasEstibas }, estiba: nuevasEstibas.find(e => e.numero === estiba.numero) });
+      setModoCantidadUsada(null);
+      setCantidadRealUsada("");
     }
   };
 
-  const escanearOtraEstiba = () => { setResultadoEstiba(null); iniciarCamaraEstiba(); };
+  const escanearOtraEstiba = () => {
+    setResultadoEstiba(null);
+    setModoCantidadUsada(null);
+    setCantidadRealUsada("");
+    iniciarCamaraEstiba();
+  };
 
-  // ══════════════ ASOCIAR CONTENEDOR (canastillas de una estiba → contenedor) ══════════════
-  // Una estiba puede repartirse entre varios contenedores (sobra fruta y se
-  // usa en otro) — por eso se asigna por cantidad de canastillas, no la
-  // estiba completa. "Revisión de Canastillas" concilia, por contenedor,
-  // qué remisiones/estibas se usaron y cuántas canastillas de cada una.
-  const [subVistaAsoc, setSubVistaAsoc]     = useState("asignar"); // "asignar" | "revision"
+  // ══════════════ ASOCIAR CONTENEDOR (remisión completa → contenedor) ══════════════
+  // Se asocia la remisión completa: cada estiba queda asignada al contenedor
+  // con su cantidad total de canastillas. Si al validar el uso (Verificación
+  // de Estibas) resulta que no se usó todo, ahí se ajusta y aparece el
+  // sobrante para reasignar a otro contenedor o dejar en reserva.
+  const [subVistaAsoc, setSubVistaAsoc]     = useState("asociar"); // "asociar" | "revision"
   const [busquedaAsoc, setBusquedaAsoc]     = useState("");
   const [filtroDesdeAsoc, setFiltroDesdeAsoc] = useState("");
   const [filtroHastaAsoc, setFiltroHastaAsoc] = useState("");
-  const [recepcionAsocSel, setRecepcionAsocSel] = useState(null); // id de recepción elegida para asignar
-  const [asigContenedorId, setAsigContenedorId] = useState({}); // { [numeroEstiba]: contenedorId }
-  const [asigCantidad, setAsigCantidad]     = useState({});     // { [numeroEstiba]: cantidad }
-  const [guardandoAsig, setGuardandoAsig]   = useState({});     // { [numeroEstiba]: bool }
-  const [errorAsig, setErrorAsig]           = useState({});     // { [numeroEstiba]: mensaje }
+  const [seleccionAsoc, setSeleccionAsoc]   = useState([]); // ids de recepciones elegidas
+  const [contenedorAsocSel, setContenedorAsocSel] = useState("");
+  const [guardandoAsociacion, setGuardandoAsociacion] = useState(false);
   const [contenedorRevisionId, setContenedorRevisionId] = useState("");
 
   const asignacionesPorEstiba = (recepcionId, numeroEstiba) =>
@@ -913,27 +939,40 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     });
   }, [recepciones, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
 
-  const recepcionAsoc = recepcionAsocSel ? recepciones.find(r => r.id === recepcionAsocSel) : null;
+  const estadoAsociacionRecepcion = (r) => {
+    if (!r.estibas.length) return "sin-estibas";
+    const asociadas = r.estibas.filter(e => asignacionesPorEstiba(r.id, e.numero).length > 0).length;
+    if (asociadas === 0) return "sin-asociar";
+    return asociadas === r.estibas.length ? "asociada" : "parcial";
+  };
 
-  const asignarCanastillas = async (numeroEstiba, disponibles) => {
-    const contenedorId = asigContenedorId[numeroEstiba];
-    const cantidad = Number(asigCantidad[numeroEstiba]);
-    setErrorAsig(p => ({ ...p, [numeroEstiba]: "" }));
-    if (!contenedorId) { setErrorAsig(p => ({ ...p, [numeroEstiba]: "Elige un contenedor." })); return; }
-    if (!cantidad || cantidad <= 0) { setErrorAsig(p => ({ ...p, [numeroEstiba]: "Falta la cantidad de canastillas." })); return; }
-    if (cantidad > disponibles) { setErrorAsig(p => ({ ...p, [numeroEstiba]: `Solo quedan ${disponibles} canastillas disponibles de esta estiba.` })); return; }
-    setGuardandoAsig(p => ({ ...p, [numeroEstiba]: true }));
-    const ok = await guardarAsignacion({
-      recepcionId: recepcionAsocSel, numeroEstiba, contenedorId: Number(contenedorId),
-      cantidadCanastillas: cantidad, registradoPor: nombreUsuarioSesion(),
-    });
-    setGuardandoAsig(p => ({ ...p, [numeroEstiba]: false }));
-    if (ok) {
-      setAsigContenedorId(p => ({ ...p, [numeroEstiba]: "" }));
-      setAsigCantidad(p => ({ ...p, [numeroEstiba]: "" }));
-    } else {
-      setErrorAsig(p => ({ ...p, [numeroEstiba]: "No se pudo guardar la asignación. Intenta de nuevo." }));
+  const toggleSeleccionAsoc = (id) => {
+    setSeleccionAsoc(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  // Asocia cada remisión elegida por completo: por cada estiba que aún no
+  // tenga ninguna asignación, crea una con su cantidad total de canastillas
+  // hacia el contenedor elegido. Las estibas que ya tienen asignación se
+  // saltan (no se duplican).
+  const asociarRemisionesSeleccionadas = async () => {
+    if (!contenedorAsocSel || seleccionAsoc.length === 0) return;
+    setGuardandoAsociacion(true);
+    for (const recepcionId of seleccionAsoc) {
+      const rec = recepciones.find(r => r.id === recepcionId);
+      if (!rec) continue;
+      for (const e of rec.estibas) {
+        if (asignacionesPorEstiba(recepcionId, e.numero).length > 0) continue;
+        const total = canastillasDeEstiba(e).reduce((s, c) => s + num(c.cantidad), 0);
+        if (total <= 0) continue;
+        await guardarAsignacion({
+          recepcionId, numeroEstiba: e.numero, contenedorId: contenedorAsocSel,
+          cantidadCanastillas: total, registradoPor: nombreUsuarioSesion(),
+        });
+      }
     }
+    setGuardandoAsociacion(false);
+    setSeleccionAsoc([]);
+    setContenedorAsocSel("");
   };
 
   const asignacionesDelContenedor = useMemo(() => {
@@ -987,8 +1026,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
 
       {/* ── Tab strip ── */}
       <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:2 }}>
-        {["📋 Recepciones", "🔎 Verificación de Estibas", "📦 Asociar Contenedor"].map((t, i) => (
-          <button key={i} onClick={() => { setTabRec(i); if (i !== 1) detenerCamaraEstiba(); }} style={{
+        {["📋 Recepciones", "📦 Asociar Contenedor", "🔎 Verificación de Estibas"].map((t, i) => (
+          <button key={i} onClick={() => { setTabRec(i); if (i !== 2) detenerCamaraEstiba(); }} style={{
             background: tabRec === i ? "rgba(132,94,247,0.15)" : "rgba(255,255,255,0.04)",
             border: `1px solid ${tabRec === i ? "#845EF790" : "rgba(255,255,255,0.07)"}`,
             borderTop: `2px solid ${tabRec === i ? "#845EF7" : "transparent"}`,
@@ -1367,8 +1406,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
 
       </>)}
 
-      {/* ═══ TAB 1 — VERIFICACIÓN DE ESTIBAS ═══ */}
-      {tabRec === 1 && (
+      {/* ═══ TAB 2 — VERIFICACIÓN DE ESTIBAS ═══ */}
+      {tabRec === 2 && (
         <div style={{ maxWidth:460, margin:"0 auto" }}>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:16, lineHeight:1.5 }}>
             🧱 Escanea el QR de la tirilla de una estiba (la que quitaste al usarla) para marcarla como usada.
@@ -1480,13 +1519,43 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     })()}
                   </>
                 ) : (
-                  <button
-                    onClick={marcarEstibaUsada}
-                    disabled={marcandoUsada}
-                    style={{ width:"100%", background:"linear-gradient(135deg,#0f766e,#14b8a6)", border:"none", borderRadius:9, padding: m ? "14px" : "11px", fontSize: m ? 14 : 12, color:"white", cursor: marcandoUsada ? "wait" : "pointer", fontWeight:700, opacity: marcandoUsada ? 0.7 : 1, marginBottom:10, fontFamily:"inherit" }}
-                  >
-                    {marcandoUsada ? "Guardando..." : "✓ Marcar como Usada"}
-                  </button>
+                  <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:9, padding:"10px 12px", marginBottom:10 }}>
+                    {(() => {
+                      const totalCant   = canastillasDeEstiba(estiba).reduce((s,c)=>s+num(c.cantidad),0);
+                      const asigsEstiba = asignacionesPorEstiba(recepcion.id, estiba.numero);
+                      const contenedorAsig = asigsEstiba.length === 1 ? bookingsLog.find(b=>b.id===asigsEstiba[0].contenedorId) : null;
+                      return (
+                        <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.6)", marginBottom:8 }}>
+                          {asigsEstiba.length === 0 && "⚠️ Esta estiba todavía no está asociada a ningún contenedor."}
+                          {asigsEstiba.length === 1 && <>Asociada a <b style={{ color:"white" }}>{labelBookingLog(contenedorAsig)}</b> — <b style={{ color:"white" }}>{totalCant}</b> canastillas.</>}
+                          {asigsEstiba.length > 1 && "Esta estiba está repartida en varios contenedores."}
+                        </div>
+                      );
+                    })()}
+
+                    {modoCantidadUsada !== "parcial" ? (
+                      <>
+                        <div style={{ fontSize:12, fontWeight:700, color:"white", marginBottom:8 }}>¿Se usaron las canastillas completas de esta estiba?</div>
+                        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                          <button onClick={()=>marcarEstibaUsada(null)} disabled={marcandoUsada} style={btnPrimario(false, marcandoUsada)}>
+                            {marcandoUsada ? "Guardando..." : "✓ Sí, completas"}
+                          </button>
+                          <button onClick={()=>setModoCantidadUsada("parcial")} style={btnSecundario}>No, se usó menos</button>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-end" }}>
+                        <div style={{ width:130 }}>
+                          <div style={lbl}>Canastillas usadas</div>
+                          <input type="number" min="0" autoFocus style={inp} value={cantidadRealUsada} onChange={e=>setCantidadRealUsada(e.target.value)} placeholder="Ej: 20" />
+                        </div>
+                        <button onClick={()=>marcarEstibaUsada(Number(cantidadRealUsada)||0)} disabled={marcandoUsada || !cantidadRealUsada} style={btnPrimario(false, marcandoUsada)}>
+                          {marcandoUsada ? "Guardando..." : "Confirmar"}
+                        </button>
+                        <button onClick={()=>{ setModoCantidadUsada(null); setCantidadRealUsada(""); }} style={btnSecundario}>Cancelar</button>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 <button onClick={escanearOtraEstiba} style={{ ...btnSecundario, width:"100%" }}>🔄 Escanear otra estiba</button>
@@ -1496,11 +1565,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
         </div>
       )}
 
-      {/* ═══ TAB 2 — ASOCIAR CONTENEDOR ═══ */}
-      {tabRec === 2 && (
+      {/* ═══ TAB 1 — ASOCIAR CONTENEDOR ═══ */}
+      {tabRec === 1 && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {[["asignar","➕ Asignar Canastillas"],["revision","📊 Revisión por Contenedor"]].map(([id,label]) => (
+            {[["asociar","🔗 Asociar Remisiones"],["revision","📊 Revisión por Contenedor"]].map(([id,label]) => (
               <button key={id} onClick={()=>setSubVistaAsoc(id)} style={{
                 background: subVistaAsoc===id ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${subVistaAsoc===id ? "#00C9A790" : "rgba(255,255,255,0.1)"}`,
@@ -1511,109 +1580,79 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             ))}
           </div>
 
-          {subVistaAsoc === "asignar" && (
-            recepcionAsocSel === null ? (
-              <div style={cardS}>
-                <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📦 Elige una remisión para asignar sus estibas a un contenedor</div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:8, alignItems:"flex-end", marginBottom:10 }}>
-                  <input value={busquedaAsoc} onChange={e=>setBusquedaAsoc(e.target.value)} placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, flex:"1 1 200px" }} />
-                  <div style={{ flex:"0 1 150px" }}>
-                    <div style={lbl}>Desde</div>
-                    <input type="date" style={inp} value={filtroDesdeAsoc} onChange={e=>setFiltroDesdeAsoc(e.target.value)} />
-                  </div>
-                  <div style={{ flex:"0 1 150px" }}>
-                    <div style={lbl}>Hasta</div>
-                    <input type="date" style={inp} value={filtroHastaAsoc} onChange={e=>setFiltroHastaAsoc(e.target.value)} />
-                  </div>
-                  {(filtroDesdeAsoc || filtroHastaAsoc) && (
-                    <button onClick={()=>{setFiltroDesdeAsoc("");setFiltroHastaAsoc("");}} style={btnSecundario}>✕ Limpiar</button>
-                  )}
+          {subVistaAsoc === "asociar" && (
+            <div style={cardS}>
+              <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:4 }}>🔗 Asociar remisiones a un contenedor</div>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:10 }}>Selecciona una o varias remisiones — toda su fruta (todas sus estibas, completas) quedará asociada al contenedor que elijas. Si al final no se usó todo, se ajusta después en "Verificación de Estibas".</div>
+
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8, alignItems:"flex-end", marginBottom:10 }}>
+                <input value={busquedaAsoc} onChange={e=>setBusquedaAsoc(e.target.value)} placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, flex:"1 1 200px" }} />
+                <div style={{ flex:"0 1 150px" }}>
+                  <div style={lbl}>Desde</div>
+                  <input type="date" style={inp} value={filtroDesdeAsoc} onChange={e=>setFiltroDesdeAsoc(e.target.value)} />
                 </div>
-                {recepcionesAsocFiltradas.length === 0 ? (
-                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sin recepciones registradas.</div>
-                ) : (
-                  <div style={{ overflowX:"auto" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                      <thead>
-                        <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
-                          <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
-                          <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estibas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recepcionesAsocFiltradas.map(r => (
-                          <tr key={r.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)", cursor:"pointer" }} onClick={()=>setRecepcionAsocSel(r.id)}>
+                <div style={{ flex:"0 1 150px" }}>
+                  <div style={lbl}>Hasta</div>
+                  <input type="date" style={inp} value={filtroHastaAsoc} onChange={e=>setFiltroHastaAsoc(e.target.value)} />
+                </div>
+                {(filtroDesdeAsoc || filtroHastaAsoc) && (
+                  <button onClick={()=>{setFiltroDesdeAsoc("");setFiltroHastaAsoc("");}} style={btnSecundario}>✕ Limpiar</button>
+                )}
+              </div>
+
+              {recepcionesAsocFiltradas.length === 0 ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sin recepciones registradas.</div>
+              ) : (
+                <div style={{ overflowX:"auto", marginBottom:14 }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                    <thead>
+                      <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                        <th style={{ padding:"6px" }}></th>
+                        <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
+                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estibas</th>
+                        <th style={{ padding:"6px" }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recepcionesAsocFiltradas.map(r => {
+                        const estado = estadoAsociacionRecepcion(r);
+                        const estadoMeta = {
+                          "asociada":    { txt:"✓ Asociada",  col:"#00C9A7" },
+                          "parcial":     { txt:"Parcial",     col:"#F9A826" },
+                          "sin-asociar": { txt:"Sin asociar", col:"rgba(255,255,255,0.4)" },
+                          "sin-estibas": { txt:"Sin estibas", col:"rgba(255,255,255,0.3)" },
+                        }[estado];
+                        return (
+                          <tr key={r.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)", cursor:"pointer" }} onClick={()=>toggleSeleccionAsoc(r.id)}>
+                            <td style={{ padding:"6px" }} onClick={e=>e.stopPropagation()}>
+                              <input type="checkbox" checked={seleccionAsoc.includes(r.id)} onChange={()=>toggleSeleccionAsoc(r.id)} style={{ width:16, height:16 }} />
+                            </td>
                             <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{r.remision || "—"}</td>
                             <td style={{ padding:"6px" }}>{r.fecha}</td>
                             <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
                             <td style={{ padding:"6px" }}>{r.estibas.length}</td>
+                            <td style={{ padding:"6px", color:estadoMeta.col, fontWeight:700 }}>{estadoMeta.txt}</td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            ) : !recepcionAsoc ? null : (
-              <div style={cardS}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:"white" }}>📦 {recepcionAsoc.remision || `#${recepcionAsoc.id}`} — {recepcionAsoc.proveedor || "—"}</div>
-                  <button onClick={()=>setRecepcionAsocSel(null)} style={btnSecundario}>← Volver</button>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
+              )}
 
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {recepcionAsoc.estibas.map(e => {
-                    const total       = canastillasDeEstiba(e).reduce((s,c)=>s+num(c.cantidad),0);
-                    const asignadas   = cantidadAsignadaEstiba(recepcionAsoc.id, e.numero);
-                    const disponibles = total - asignadas;
-                    const asigsEstiba = asignacionesPorEstiba(recepcionAsoc.id, e.numero);
-                    return (
-                      <div key={e.numero} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:10 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:6 }}>
-                          <div style={{ fontSize:12, fontWeight:700, color:"#845EF7" }}>Estiba #{e.numero}</div>
-                          <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.5)" }}>
-                            Total <b style={{ color:"white" }}>{total}</b> · Asignadas <b style={{ color:"#F9A826" }}>{asignadas}</b> · Disponibles <b style={{ color: disponibles>0 ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>{disponibles}</b>
-                          </div>
-                        </div>
-
-                        {asigsEstiba.length > 0 && (
-                          <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
-                            {asigsEstiba.map(a => (
-                              <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"5px 8px" }}>
-                                <span style={{ color:"rgba(255,255,255,0.7)" }}>{labelAsignacionDestino(a)} — <b style={{ color:"white" }}>{a.cantidadCanastillas}</b> canastillas{a.registradoPor ? ` · ${a.registradoPor}` : ""}</span>
-                                <button onClick={()=>eliminarAsignacion(a.id)} style={{ background:"none", border:"none", color:"#FF6B6B", cursor:"pointer", fontSize:11, padding:0, fontFamily:"inherit" }}>✕</button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {disponibles > 0 && (
-                          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"flex-end" }}>
-                            <div style={{ flex:"1 1 160px", minWidth:0 }}>
-                              <div style={lbl}>Contenedor</div>
-                              <CustomSelect value={asigContenedorId[e.numero]||""} onChange={ev=>setAsigContenedorId(p=>({...p,[e.numero]:ev.target.value}))} style={inp}>
-                                <option value="">Selecciona...</option>
-                                {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
-                              </CustomSelect>
-                            </div>
-                            <div style={{ width:110 }}>
-                              <div style={lbl}>Canastillas</div>
-                              <input type="number" min="0" max={disponibles} style={inp} value={asigCantidad[e.numero]||""} onChange={ev=>setAsigCantidad(p=>({...p,[e.numero]:ev.target.value}))} placeholder={`Máx ${disponibles}`} />
-                            </div>
-                            <button onClick={()=>asignarCanastillas(e.numero, disponibles)} disabled={guardandoAsig[e.numero]} style={btnPrimario(false, guardandoAsig[e.numero])}>
-                              {guardandoAsig[e.numero] ? "Guardando..." : "Asignar"}
-                            </button>
-                          </div>
-                        )}
-                        {errorAsig[e.numero] && (
-                          <div style={{ color:"#FF6B6B", fontSize:11, marginTop:6, fontWeight:600 }}>⚠️ {errorAsig[e.numero]}</div>
-                        )}
-                      </div>
-                    );
-                  })}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-end", paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+                <div style={{ flex:"1 1 200px", minWidth:0 }}>
+                  <div style={lbl}>Contenedor</div>
+                  <CustomSelect value={contenedorAsocSel} onChange={e=>setContenedorAsocSel(e.target.value)} style={inp}>
+                    <option value="">Selecciona...</option>
+                    {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                  </CustomSelect>
                 </div>
+                <button onClick={asociarRemisionesSeleccionadas} disabled={!contenedorAsocSel || seleccionAsoc.length===0 || guardandoAsociacion} style={btnPrimario(false, guardandoAsociacion)}>
+                  {guardandoAsociacion ? "Asociando..." : `Asociar ${seleccionAsoc.length || ""} remisión(es)`}
+                </button>
               </div>
-            )
+            </div>
           )}
 
           {subVistaAsoc === "revision" && (
