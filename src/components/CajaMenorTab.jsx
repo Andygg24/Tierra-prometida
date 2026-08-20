@@ -1,15 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import QRCode from "qrcode";
+import { useState, useEffect, useMemo } from "react";
 import LimonLoader from "./LimonLoader.jsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useCajaMenor } from "../hooks/useCajaMenor.js";
 import { fechaLocalISO } from "../utils/dates.js";
-
-// Prefijo propio (distinto al "TPQR" de las tirillas de pallet) para que el
-// escáner sepa a qué módulo pertenece el código leído.
-export const QR_FACTURA_PREFIX = "TPCM";
-function textoQrFactura(id) { return `${QR_FACTURA_PREFIX}|${id}`; }
 
 const TIPOS_DOCUMENTO = ["Factura", "Cuenta de cobro", "N/A"];
 
@@ -29,46 +23,16 @@ function fmtFechaCorta(f) {
   return f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 }
 
-function mensajeErrorCamara(err) {
-  if (!window.isSecureContext) {
-    return "El navegador solo permite usar la cámara en sitios seguros (https://). Esta página se está abriendo sin HTTPS.";
-  }
-  const nombre = err?.name || "";
-  if (nombre === "NotAllowedError" || nombre === "PermissionDeniedError") {
-    return "El navegador bloqueó el permiso de cámara. Revisa los permisos del sitio (ícono de candado o ajustes del navegador) y vuelve a intentar.";
-  }
-  if (nombre === "NotFoundError" || nombre === "OverconstrainedError") {
-    return "No se encontró una cámara trasera en este dispositivo.";
-  }
-  if (nombre === "NotReadableError" || nombre === "TrackStartError") {
-    return "La cámara está siendo usada por otra app o pestaña. Ciérrala e intenta de nuevo.";
-  }
-  return "No se pudo acceder a la cámara.";
-}
-
-function playBeep() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.2);
-    osc.onended = () => ctx.close();
-  } catch { /* beep opcional — si el navegador bloquea audio, seguimos sin sonido */ }
-}
-
 const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
+
+// Ordena por fecha descendente (más reciente primero) — no basta con el
+// orden de Supabase porque las ediciones/creaciones locales se agregan al
+// principio del array del hook sin resortear.
+function ordenarPorFechaDesc(lista) {
+  return [...lista].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "") || b.id - a.id);
+}
 
 // Redimensiona/comprime la foto antes de guardarla como base64 — una foto de
 // cámara sin comprimir puede pesar varios MB, esto la deja liviana (~200KB).
@@ -113,8 +77,7 @@ export default function CajaMenorTab({ mob }) {
   const { facturas, abonos, loading, guardarFactura, eliminarFactura, guardarAbono, eliminarAbono } = useCajaMenor();
 
   const [tabCM, setTabCM] = useState(0);
-  const TAB_CM = ["📋 Facturas", "💵 Abonos", "📷 Escanear QR"];
-  const TAB_ESCANEAR_IDX = 2;
+  const TAB_CM = ["📋 Facturas", "💵 Abonos"];
 
   const inp = {
     background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
@@ -139,33 +102,44 @@ export default function CajaMenorTab({ mob }) {
   const [errorGuardado, setErrorGuardado] = useState("");
   const [busqueda, setBusqueda]     = useState("");
   const [subiendoFoto, setSubiendoFoto] = useState(false);
-  const [qrDataUrl, setQrDataUrl]   = useState("");
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
 
-  const generarQr = async (id) => {
-    try {
-      const url = await QRCode.toDataURL(textoQrFactura(id), { errorCorrectionLevel: "M", margin: 1, width: 220 });
-      setQrDataUrl(url);
-    } catch { setQrDataUrl(""); }
+  // Proveedores ya usados en facturas anteriores — para autocompletar Nombre
+  // y NIT (compras repetidas al mismo proveedor) sin tener que digitarlos de nuevo.
+  const proveedoresPorNombre = useMemo(() => {
+    const mapa = new Map();
+    facturas.forEach(f => { if (f.nombre && !mapa.has(f.nombre)) mapa.set(f.nombre, f.nit || ""); });
+    return mapa;
+  }, [facturas]);
+  const proveedoresPorNit = useMemo(() => {
+    const mapa = new Map();
+    facturas.forEach(f => { if (f.nit && !mapa.has(f.nit)) mapa.set(f.nit, f.nombre || ""); });
+    return mapa;
+  }, [facturas]);
+
+  const onNombreChange = (v) => {
+    const nitConocido = proveedoresPorNombre.get(v.trim());
+    setForm(f => ({ ...f, nombre: v, nit: (!f.nit && nitConocido) ? nitConocido : f.nit }));
+  };
+  const onNitChange = (v) => {
+    const nombreConocido = proveedoresPorNit.get(v.trim());
+    setForm(f => ({ ...f, nit: v, nombre: (!f.nombre && nombreConocido) ? nombreConocido : f.nombre }));
   };
 
   const nuevaFactura = () => {
     setForm(facturaVacia());
     setFacturaSel("new");
-    setQrDataUrl("");
     setErrorGuardado("");
   };
   const abrirFactura = (f) => {
     setForm({ ...facturaVacia(), ...f });
     setFacturaSel(f.id);
     setErrorGuardado("");
-    generarQr(f.id);
   };
   const volverLista = () => {
     setFacturaSel(null);
     setForm(facturaVacia());
-    setQrDataUrl("");
   };
 
   const guardar = async () => {
@@ -182,7 +156,7 @@ export default function CajaMenorTab({ mob }) {
     if (ok) {
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2000);
-      if (esNueva && id) { setFacturaSel(id); generarQr(id); }
+      if (esNueva && id) setFacturaSel(id);
     } else {
       setErrorGuardado("No se pudo guardar la factura. Revisa tu conexión e intenta de nuevo.");
     }
@@ -211,10 +185,11 @@ export default function CajaMenorTab({ mob }) {
 
   const facturasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return facturas.filter(f => {
+    const filtradas = facturas.filter(f => {
       if (!q) return true;
       return [f.concepto, f.nombre, f.nit, f.numeroDocumento].some(v => (v || "").toLowerCase().includes(q));
     });
+    return ordenarPorFechaDesc(filtradas);
   }, [facturas, busqueda]);
 
   const totalFacturasFiltradas = useMemo(
@@ -283,62 +258,9 @@ export default function CajaMenorTab({ mob }) {
 
   const abonosFiltrados = useMemo(() => {
     const q = busquedaAbono.trim().toLowerCase();
-    return abonos.filter(a => !q || (a.concepto || "").toLowerCase().includes(q));
+    const filtrados = abonos.filter(a => !q || (a.concepto || "").toLowerCase().includes(q));
+    return ordenarPorFechaDesc(filtrados);
   }, [abonos, busquedaAbono]);
-
-  // ══════════════ ESCANEAR QR ══════════════
-  const [camActiva, setCamActiva] = useState(false);
-  const [camError, setCamError]   = useState("");
-  const [resultadoScan, setResultadoScan] = useState(null); // null | {estado:"no-encontrado"|"ok", factura}
-  const html5QrRef    = useRef(null);
-  const procesandoRef = useRef(false);
-  const ignoradoRef   = useRef(null);
-  const READER_ID = "qr-reader-caja-menor";
-
-  const detenerCamara = async () => {
-    try { await html5QrRef.current?.stop(); html5QrRef.current?.clear(); } catch { /* ya se había detenido */ }
-    html5QrRef.current = null;
-    setCamActiva(false);
-  };
-  useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => { /* ya se había detenido */ }); }, []);
-
-  const onScan = async (decodedText) => {
-    if (procesandoRef.current) return;
-    const primeraLinea = (decodedText || "").split("\n")[0].trim();
-    const partes = primeraLinea.split("|");
-    if (partes[0] !== QR_FACTURA_PREFIX || partes.length < 2) {
-      ignoradoRef.current = primeraLinea;
-      return;
-    }
-    ignoradoRef.current = null;
-    procesandoRef.current = true;
-    playBeep();
-    await detenerCamara();
-    const factura = facturas.find(f => f.id === Number(partes[1]));
-    setResultadoScan(factura ? { estado: "ok", factura } : { estado: "no-encontrado" });
-    procesandoRef.current = false;
-  };
-
-  const iniciarCamara = async () => {
-    setCamError("");
-    setResultadoScan(null);
-    ignoradoRef.current = null;
-    try {
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const inst = new Html5Qrcode(READER_ID);
-      html5QrRef.current = inst;
-      await inst.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 240 },
-        (decoded) => onScan(decoded),
-        () => {}
-      );
-      setCamActiva(true);
-    } catch (err) {
-      setCamError(mensajeErrorCamara(err));
-    }
-  };
-  const escanearOtra = () => { setResultadoScan(null); iniciarCamara(); };
 
   if (loading) return <LimonLoader texto="Cargando Caja Menor" />;
 
@@ -363,7 +285,7 @@ export default function CajaMenorTab({ mob }) {
       {/* ── Tab strip ── */}
       <div style={{ display: "flex", gap: 4, overflowX: "auto", marginBottom: 16, paddingBottom: 2 }}>
         {TAB_CM.map((t, i) => (
-          <button key={i} onClick={() => { setTabCM(i); if (i !== TAB_ESCANEAR_IDX) detenerCamara(); }} style={{
+          <button key={i} onClick={() => setTabCM(i)} style={{
             background: tabCM === i ? "rgba(249,168,38,0.15)" : "rgba(255,255,255,0.04)",
             border: `1px solid ${tabCM === i ? "#F9A82690" : "rgba(255,255,255,0.07)"}`,
             borderTop: `2px solid ${tabCM === i ? "#F9A826" : "transparent"}`,
@@ -394,8 +316,8 @@ export default function CajaMenorTab({ mob }) {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
                     <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
-                      <th style={{ padding: "6px" }}>Fecha</th><th style={{ padding: "6px" }}>Concepto</th>
-                      <th style={{ padding: "6px" }}>Nombre</th>
+                      <th style={{ padding: "6px" }}>Fecha</th><th style={{ padding: "6px" }}>Nombre</th>
+                      <th style={{ padding: "6px" }}>Concepto</th>
                       <th style={{ padding: "6px" }}>Foto</th>
                       <th style={{ padding: "6px" }}>Valor</th><th style={{ padding: "6px" }}></th>
                     </tr>
@@ -404,12 +326,12 @@ export default function CajaMenorTab({ mob }) {
                     {facturasFiltradas.map(f => (
                       <tr key={f.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }} onClick={() => abrirFactura(f)}>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }}>{fmtFechaCorta(f.fecha)}</td>
-                        <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{f.concepto || "—"}</td>
-                        <td style={{ padding: "6px" }}>{f.nombre || "—"}</td>
+                        <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{f.nombre || "—"}</td>
+                        <td style={{ padding: "6px" }}>{f.concepto || "—"}</td>
                         <td style={{ padding: "6px", textAlign: "center" }}>{f.foto ? "📷" : "—"}</td>
                         <td style={{ padding: "6px", fontWeight: 700, color: "#F9A826" }}>{fmtCOP(f.monto)}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                          <button onClick={() => abrirFactura(f)} style={btnTablaEditar}>Ver</button>
+                          <button onClick={() => abrirFactura(f)} style={btnTablaEditar}>Editar</button>
                           {f.foto && <button onClick={() => verImagen(f.foto)} style={btnTablaEditar}>👁 Imagen</button>}
                           <button onClick={() => eliminar(f)} style={btnTablaEliminar}>Eliminar</button>
                         </td>
@@ -437,6 +359,13 @@ export default function CajaMenorTab({ mob }) {
               <button onClick={volverLista} style={btnSecundario}>← Volver a la lista</button>
             </div>
 
+            <datalist id="cm-nombres">
+              {[...proveedoresPorNombre.keys()].map(n => <option key={n} value={n} />)}
+            </datalist>
+            <datalist id="cm-nits">
+              {[...proveedoresPorNit.keys()].map(n => <option key={n} value={n} />)}
+            </datalist>
+
             <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
               <div style={campoBox}><div style={lbl}>Fecha</div><input type="date" style={inp} value={form.fecha} onChange={e => setCampo("fecha", e.target.value)} /></div>
               <div style={campoBox}><div style={lbl}>Tipo de documento</div>
@@ -445,8 +374,8 @@ export default function CajaMenorTab({ mob }) {
                 </CustomSelect>
               </div>
               <div style={campoBox}><div style={lbl}>N° de documento</div><input style={inp} value={form.numeroDocumento} onChange={e => setCampo("numeroDocumento", e.target.value)} placeholder="Ej: 4521" /></div>
-              <div style={campoBox}><div style={lbl}>NIT o Cédula</div><input style={inp} value={form.nit} onChange={e => setCampo("nit", e.target.value)} placeholder="Ej: 900123456-1" /></div>
-              <div style={campoBox}><div style={lbl}>Nombre</div><input style={inp} value={form.nombre} onChange={e => setCampo("nombre", e.target.value)} placeholder="Nombre o razón social" /></div>
+              <div style={campoBox}><div style={lbl}>NIT o Cédula</div><input list="cm-nits" style={inp} value={form.nit} onChange={e => onNitChange(e.target.value)} placeholder="Ej: 900123456-1" /></div>
+              <div style={campoBox}><div style={lbl}>Nombre</div><input list="cm-nombres" style={inp} value={form.nombre} onChange={e => onNombreChange(e.target.value)} placeholder="Nombre o razón social" /></div>
               <div style={campoBox}><div style={lbl}>Concepto</div><input style={inp} value={form.concepto} onChange={e => setCampo("concepto", e.target.value)} placeholder="Ej: Almuerzo, repuestos..." /></div>
               <div style={campoBox}><div style={lbl}>Valor total (COP)</div><input type="number" style={inp} value={form.monto} onChange={e => setCampo("monto", e.target.value)} placeholder="0" /></div>
             </div>
@@ -463,8 +392,12 @@ export default function CajaMenorTab({ mob }) {
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
-                  {subiendoFoto ? "Procesando..." : form.foto ? "📷 Cambiar foto" : "📷 Tomar / subir foto"}
+                  {subiendoFoto ? "Procesando..." : "📷 Tomar foto"}
                   <input type="file" accept="image/*" capture="environment" onChange={onFotoSeleccionada} disabled={subiendoFoto} style={{ display: "none" }} />
+                </label>
+                <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
+                  {subiendoFoto ? "Procesando..." : "📁 Subir imagen"}
+                  <input type="file" accept="image/*" onChange={onFotoSeleccionada} disabled={subiendoFoto} style={{ display: "none" }} />
                 </label>
                 {form.foto && (
                   <button onClick={() => verImagen(form.foto)} style={btnSecundario}>👁 Ver imagen</button>
@@ -476,16 +409,6 @@ export default function CajaMenorTab({ mob }) {
                 )}
               </div>
             </div>
-
-            {facturaSel !== "new" && qrDataUrl && (
-              <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 14, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: 12, flexWrap: "wrap" }}>
-                <img src={qrDataUrl} alt="QR de la factura" style={{ width: 90, height: 90, background: "white", borderRadius: 6, padding: 4 }} />
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "white", marginBottom: 4 }}>QR de consulta</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>Escanéalo desde "📷 Escanear QR" (en este PC o en otro celular) para ver esta factura y su foto al instante.</div>
-                </div>
-              </div>
-            )}
 
             {errorGuardado && (
               <div style={{ background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 8, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#FF6B6B" }}>
@@ -538,7 +461,7 @@ export default function CajaMenorTab({ mob }) {
                         <td style={{ padding: "6px" }}>{a.registradoPor || "—"}</td>
                         <td style={{ padding: "6px", fontWeight: 700, color: "#00C9A7" }}>{fmtCOP(a.monto)}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                          <button onClick={() => abrirAbono(a)} style={btnTablaEditar}>Ver</button>
+                          <button onClick={() => abrirAbono(a)} style={btnTablaEditar}>Editar</button>
                           <button onClick={() => eliminarAbonoForm(a)} style={btnTablaEliminar}>Eliminar</button>
                         </td>
                       </tr>
@@ -592,78 +515,6 @@ export default function CajaMenorTab({ mob }) {
             </div>
           </div>
         )
-      )}
-
-      {/* ═══ TAB 2 — ESCANEAR QR ═══ */}
-      {tabCM === TAB_ESCANEAR_IDX && (
-        <div style={{ maxWidth: 460, margin: "0 auto" }}>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 16, lineHeight: 1.5 }}>
-            🧾 Escanea el QR de una factura de Caja Menor para ver sus datos y la foto al instante.
-          </div>
-
-          {!resultadoScan && (
-            <div style={cardS}>
-              {!camActiva && (
-                <button onClick={iniciarCamara} style={{ ...btnPrimario(false, false), width: "100%", padding: m ? "14px" : "10px", fontSize: m ? 14 : 12 }}>
-                  ▶️ Iniciar cámara
-                </button>
-              )}
-              {camActiva && (
-                <button onClick={detenerCamara} style={{ ...btnSecundario, width: "100%", padding: m ? "14px" : "10px", fontSize: m ? 14 : 12 }}>
-                  ⏹ Detener cámara
-                </button>
-              )}
-              {camError && (
-                <div style={{ marginTop: 10, fontSize: 11, color: "#fca5a5", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: 10 }}>
-                  {camError}
-                </div>
-              )}
-              <div id={READER_ID} style={{ marginTop: 10, borderRadius: 10, overflow: "hidden", background: camActiva ? "black" : "transparent" }} />
-            </div>
-          )}
-
-          {resultadoScan?.estado === "no-encontrado" && (
-            <div style={{ ...cardS, textAlign: "center" }}>
-              <div style={{ fontSize: 30, marginBottom: 8 }}>❓</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#F9A826", marginBottom: 4 }}>Factura no encontrada</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>
-                El QR no corresponde a ninguna factura guardada en el sistema.
-              </div>
-              <button onClick={escanearOtra} style={{ ...btnPrimario(false, false), width: "100%" }}>🔄 Escanear otra</button>
-            </div>
-          )}
-
-          {resultadoScan?.estado === "ok" && (() => {
-            const f = resultadoScan.factura;
-            return (
-              <div style={cardS}>
-                {f.foto && (
-                  <img src={f.foto} alt="Factura" onClick={() => verImagen(f.foto)} style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 8, marginBottom: 14, background: "black", cursor: "pointer" }} />
-                )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                  <div><div style={lbl}>Fecha</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{fmtFechaCorta(f.fecha)}</div></div>
-                  <div><div style={lbl}>Valor total</div><div style={{ fontSize: 13, color: "#F9A826", fontWeight: 800 }}>{fmtCOP(f.monto)}</div></div>
-                  <div><div style={lbl}>Nombre</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{f.nombre || "—"}</div></div>
-                  <div><div style={lbl}>NIT o Cédula</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{f.nit || "—"}</div></div>
-                  <div><div style={lbl}>Tipo de documento</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{f.tipoDocumento || "—"}</div></div>
-                  <div><div style={lbl}>N° de documento</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{f.numeroDocumento || "—"}</div></div>
-                  <div><div style={lbl}>Registrado por</div><div style={{ fontSize: 13, color: "white", fontWeight: 700 }}>{f.registradoPor || "—"}</div></div>
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={lbl}>Concepto</div>
-                  <div style={{ fontSize: 13, color: "white" }}>{f.concepto || "—"}</div>
-                </div>
-                {f.obs && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={lbl}>Observaciones</div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{f.obs}</div>
-                  </div>
-                )}
-                <button onClick={escanearOtra} style={{ ...btnSecundario, width: "100%" }}>🔄 Escanear otra factura</button>
-              </div>
-            );
-          })()}
-        </div>
       )}
 
       {/* ── Visor de imagen ampliada ── */}
