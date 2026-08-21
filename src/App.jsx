@@ -3312,7 +3312,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const KG_DEL_MONTE = 16.8;
   const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
-  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosIngresados: "", kilosNoProcesados: "", kilosProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
   const calFormDef   = { nombre: "", tipo: "cajas", cantidad: "", marca: "Del Monte" };
   const parseProveedores = (str) => {
     if (!str) return [];
@@ -4686,6 +4686,8 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
         const totales = rendsDelCont.reduce((acc, r) => {
           const c = calcRend(r);
           return {
+            kilosIngresados:   acc.kilosIngresados   + (r.kilosIngresados || 0),
+            kilosNoProcesados: acc.kilosNoProcesados + (r.kilosNoProcesados || 0),
             kilosProcesados: acc.kilosProcesados + r.kilosProcesados,
             kilosDevueltos:  acc.kilosDevueltos  + r.kilosDevueltos,
             kilosPrimeraDevueltos: acc.kilosPrimeraDevueltos + (r.kilosPrimeraDevueltos || 0),
@@ -4693,7 +4695,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
             cajasDelMonte:   acc.cajasDelMonte   + r.cajasDelMonte,
             cajasPrincess:   acc.cajasPrincess   + r.cajasPrincess,
           };
-        }, { kilosProcesados: 0, kilosDevueltos: 0, kilosPrimeraDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
+        }, { kilosIngresados: 0, kilosNoProcesados: 0, kilosProcesados: 0, kilosDevueltos: 0, kilosPrimeraDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
 
         const rendGeneralTotal = totales.kilosProcesados > 0
           ? (totales.kgEmp / totales.kilosProcesados) * 100 : 0;
@@ -4865,7 +4867,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   <td class="num-cell">${i+1}</td>
   <td>${r.fecha}</td>
   <td>${r.proveedor ? `<span class="pv-badge">${r.proveedor}</span>` : `<span class="dim">—</span>`}</td>
-  <td>${r.kilosProcesados.toLocaleString("es-CO")} kg</td>
+  <td>${r.kilosProcesados.toLocaleString("es-CO")} kg${r.kilosIngresados > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">${r.kilosIngresados.toLocaleString("es-CO")} ingr. − ${(r.kilosNoProcesados || 0).toLocaleString("es-CO")} no proc.</div>` : ""}</td>
   <td style="color:#b45309;">${r.kilosDevueltos.toLocaleString("es-CO")} kg${r.kilosPrimeraDevueltos > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">de primera: ${r.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg</div>` : ""}</td>
   <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
   <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
@@ -4973,7 +4975,9 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
   </div>
   <div class="cards">
     <div class="card" style="border-left-color:#6366f1;"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princesses` : ""].filter(Boolean).join(" · ")}</div></div>
-    <div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">kg entrada</div></div>
+    ${totales.kilosIngresados > 0 ? `<div class="card" style="border-left-color:#64748b;"><div class="lbl">Kg ingresados total</div><div class="val">${totales.kilosIngresados.toLocaleString("es-CO")}</div><div class="sub2">total del camión</div></div>` : ""}
+    ${totales.kilosNoProcesados > 0 ? `<div class="card" style="border-left-color:#64748b;"><div class="lbl">Kg no procesados total</div><div class="val">${totales.kilosNoProcesados.toLocaleString("es-CO")}</div><div class="sub2">no entró a la máquina</div></div>` : ""}
+    <div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">ingresados − no procesados</div></div>
     <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card" style="border-left-color:#b45309;"><div class="lbl">Devolución del proceso</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">informativo, no afecta el rendimiento</div></div>
     ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kilos de limón de primera devueltos</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
@@ -5041,7 +5045,7 @@ ${calibreSection}
 
         const abrirFormRend = (r = null) => {
           if (r) {
-            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosIngresados: r.kilosIngresados || "", kilosNoProcesados: r.kilosNoProcesados || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
             setEditRendId(r.id);
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
@@ -5052,10 +5056,13 @@ ${calibreSection}
         };
 
         const guardarRend = async () => {
-          if (!formRend.kilosProcesados) return;
-          let formAGuardar = formRend;
+          if (!formRend.kilosIngresados) return;
+          const ingresados  = Number(formRend.kilosIngresados)   || 0;
+          const noProcesados = Number(formRend.kilosNoProcesados) || 0;
+          const procesados  = Math.max(ingresados - noProcesados, 0);
+          let formAGuardar = { ...formRend, kilosProcesados: procesados };
           if (calForm.nombre.trim() && calForm.cantidad) {
-            formAGuardar = { ...formRend, calibres: [...formRend.calibres, { ...calForm, cantidad: Number(calForm.cantidad) }] };
+            formAGuardar = { ...formAGuardar, calibres: [...formRend.calibres, { ...calForm, cantidad: Number(calForm.cantidad) }] };
           }
           const ok = await guardarRendimientoSB(formAGuardar, editRendId);
           if (ok) {
@@ -5137,7 +5144,9 @@ ${calibreSection}
                 {/* Tarjetas resumen (solo si hay registros) */}
                 {rendsDelCont.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: 8, marginBottom: 14 }}>
-                    {card("Kg procesados", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`)}
+                    {totales.kilosIngresados > 0 && card("Kg ingresados", `${totales.kilosIngresados.toLocaleString("es-CO")} kg`)}
+                    {totales.kilosNoProcesados > 0 && card("Kg no procesados", `${totales.kilosNoProcesados.toLocaleString("es-CO")} kg`, "white", "no entró a la máquina")}
+                    {card("Kg procesados", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`, "white", totales.kilosIngresados > 0 ? "ingresados − no procesados" : null)}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
                     {card("Devolución del proceso", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "informativo, no afecta el rendimiento")}
                     {totales.kilosPrimeraDevueltos > 0 && card("Kilos de limón de primera devueltos", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
@@ -5188,18 +5197,30 @@ ${calibreSection}
                         </div>
                       </div>
                     )}
-                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
                         <div style={lbl}>Fecha del camión</div>
                         <input type="date" value={formRend.fecha} onChange={e => setFormRend(f => ({ ...f, fecha: e.target.value }))} style={inp} />
                       </div>
                       <div>
-                        <div style={lbl}>Kilos procesados (del camión)</div>
-                        <input type="number" min="0" step="0.1" value={formRend.kilosProcesados} onChange={e => setFormRend(f => ({ ...f, kilosProcesados: e.target.value }))} placeholder="ej. 24000" style={inp} />
-                      </div>
-                      <div>
                         <div style={lbl}>Devolución del proceso <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(informativo)</span></div>
                         <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={inp} />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                      <div>
+                        <div style={lbl}>Kilos ingresados <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(total del camión)</span></div>
+                        <input type="number" min="0" step="0.1" value={formRend.kilosIngresados} onChange={e => setFormRend(f => ({ ...f, kilosIngresados: e.target.value }))} placeholder="ej. 25000" style={inp} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Kilos no procesados <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(no entró a la máquina)</span></div>
+                        <input type="number" min="0" step="0.1" value={formRend.kilosNoProcesados} onChange={e => setFormRend(f => ({ ...f, kilosNoProcesados: e.target.value }))} placeholder="ej. 1000" style={inp} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Kilos procesados <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(calculado)</span></div>
+                        <div style={{ ...inp, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.7)", background: "rgba(255,255,255,0.03)" }}>
+                          {Math.max((Number(formRend.kilosIngresados) || 0) - (Number(formRend.kilosNoProcesados) || 0), 0).toLocaleString("es-CO")} kg
+                        </div>
                       </div>
                     </div>
                     <div style={{ marginBottom: 8 }}>
@@ -5222,7 +5243,7 @@ ${calibreSection}
                       const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
                       const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
                       const kgEmp = kgDM + kgPri;
-                      const proc  = Number(formRend.kilosProcesados) || 0;
+                      const proc  = Math.max((Number(formRend.kilosIngresados) || 0) - (Number(formRend.kilosNoProcesados) || 0), 0);
                       const hayKgEmp = kgEmp > 0;
                       const hayProc  = proc > 0 && hayKgEmp;
                       const rg   = hayProc ? ((kgEmp / proc) * 100).toFixed(1) : null;
@@ -5417,6 +5438,7 @@ ${calibreSection}
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg procesados</div>
                           <div style={{ fontSize: 12, fontWeight: 700 }}>{r.kilosProcesados.toLocaleString("es-CO")} kg</div>
+                          {r.kilosIngresados > 0 && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)", marginTop: 1 }}>{r.kilosIngresados.toLocaleString("es-CO")} ingr. − {(r.kilosNoProcesados || 0).toLocaleString("es-CO")} no proc.</div>}
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg empacados</div>
