@@ -6546,6 +6546,30 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   };
   const w = wDesc(clima?.weather_code);
 
+  // Widget "Actividad de usuarios" — compacto (junto a hora/clima en
+  // desktop) o completo (bloque propio, usado en móvil).
+  const widgetActividad = (compacto) => (
+    <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius: compacto ? 14 : 12, padding:"12px 14px", marginBottom: compacto ? 0 : 14, display:"flex", flexDirection:"column" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: compacto ? 8 : 10 }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.52)" }}>👤 Actividad de usuarios</div>
+        <span onClick={()=>onNavigate("configuracion")} style={{ fontSize:9, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>Ver todo →</span>
+      </div>
+      {actividadUsuarios.length === 0 ? (
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)", textAlign:"center", padding:"10px 0" }}>Sin actividad registrada todavía</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:1, overflowY: compacto ? "auto" : "visible", maxHeight: compacto ? 128 : undefined }}>
+          {actividadUsuarios.slice(0, compacto ? 6 : 8).map(a => (
+            <div key={a.id} style={{ display:"flex", gap:8, alignItems:"center", padding: compacto ? "3px 0" : "6px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+              <span style={{ fontSize: compacto ? 11 : 13, flexShrink:0 }}>{ICONO_ACCION_LOG[a.accion] || "📝"}</span>
+              <span style={{ flex:1, fontSize: compacto ? 9.5 : 10, color:"rgba(255,255,255,0.68)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.detalle}</span>
+              {!compacto && <span style={{ fontSize:8, color:"rgba(255,255,255,0.33)", flexShrink:0 }}>{a.createdAt ? new Date(a.createdAt).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" }) : ""}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const quickMods = [
     { icon:"👥", label:"Personal",     color:"#00C9A7", id:"personal"     },
     { icon:"💰", label:"Nómina",       color:"#F9A826", id:"nomina"       },
@@ -6579,8 +6603,8 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
         </div>
       )}
 
-      {/* ── HEADER: Fecha/Hora + Clima ── */}
-      <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr auto", gap:10, marginBottom:14 }}>
+      {/* ── HEADER: Fecha/Hora + Clima + Actividad de usuarios ── */}
+      <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr auto minmax(240px,1fr)", gap:10, marginBottom:14 }}>
         <div style={{ background:"linear-gradient(135deg,rgba(0,201,167,0.07),rgba(132,94,247,0.07))", border:"1px solid rgba(255,255,255,0.10)", borderRadius:14, padding: mob ? "10px 14px" : "14px 18px" }}>
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:2, textTransform:"capitalize" }}>
             {mob
@@ -6613,6 +6637,9 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
             <div style={{ fontSize:9, color:"rgba(56,189,248,0.4)" }}>Conectando…</div>
           )}
         </div>}
+
+        {/* Actividad de usuarios — oculto en móvil, va en su bloque propio más abajo */}
+        {!mob && widgetActividad(true)}
       </div>
 
       {/* ── KPIs — 3 col desktop / 2 col móvil / 1 col < 480px ── */}
@@ -6747,26 +6774,8 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
         </div>
       </div>
 
-      {/* ── ACTIVIDAD DE USUARIOS (Inventario, Recepción, Packing List) ── */}
-      <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.52)" }}>👤 Actividad de usuarios</div>
-          <span onClick={()=>onNavigate("configuracion")} style={{ fontSize:9, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>Ver todo →</span>
-        </div>
-        {actividadUsuarios.length === 0 ? (
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)", textAlign:"center", padding:"10px 0" }}>Sin actividad registrada todavía</div>
-        ) : (
-          <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
-            {actividadUsuarios.slice(0,8).map(a => (
-              <div key={a.id} style={{ display:"flex", gap:8, alignItems:"center", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-                <span style={{ fontSize:13, flexShrink:0 }}>{ICONO_ACCION_LOG[a.accion] || "📝"}</span>
-                <span style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.68)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.detalle}</span>
-                <span style={{ fontSize:8, color:"rgba(255,255,255,0.33)", flexShrink:0 }}>{a.createdAt ? new Date(a.createdAt).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" }) : ""}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* En desktop ya va arriba, junto a hora/clima — en móvil (donde no hay espacio ahí) se muestra completo aquí */}
+      {mob && widgetActividad(false)}
 
       {/* ── GRÁFICA TENDENCIA ASISTENCIA 7 DÍAS ── */}
       {hayTendencia && (
