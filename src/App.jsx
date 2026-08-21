@@ -14,6 +14,9 @@ import CajaMenorTab from "./components/CajaMenorTab.jsx";
 import CanastillasTab from "./components/CanastillasTab.jsx";
 import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
+import {
+  generarInformePlantaHtml, generarInformeCargueHtml, generarInformeRendimientoHtml,
+} from "./reportes/informesProceso.js";
 import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
 import { fechaLocalISO, diferenciaDiasLocal } from "./utils/dates.js";
 import CustomSelect from "./components/CustomSelect.jsx";
@@ -3239,8 +3242,14 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const pedir = (msg, fn) => setConfirm({ msg, fn });
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
 
-  // Vista previa de informes (Rendimientos, etc.)
+  // Vista previa de informes (Rendimientos, Informe General, etc.)
   const [previewRend, setPreviewRend] = useState(null); // { url, filename }
+
+  // ── Informe General de Proceso — combina Planta + Cargue + Rendimiento
+  // de un mismo contenedor en un solo HTML descargable ──
+  const [selContInforme, setSelContInforme] = useState(null);
+  const [generandoInformeGeneral, setGenerandoInformeGeneral] = useState(false);
+  const [plInfoInforme, setPlInfoInforme] = useState(null); // fila de packing_lists del contenedor elegido (o null si no tiene)
   useEffect(() => () => { if (previewRend?.url) URL.revokeObjectURL(previewRend.url); }, [previewRend]);
   const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"7px 10px", color:"white", fontSize:11, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
   const lbl = { fontSize:9, color:"rgba(255,255,255,0.48)", marginBottom:3 };
@@ -3259,7 +3268,15 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
     guardarRendimiento: guardarRendimientoSB,
     eliminarRendimiento: eliminarRendimientoSB,
   } = useContenedores();
-  const { cargarTodos: cargarPLTodos } = usePackingList();
+  const { cargarTodos: cargarPLTodos, cargarPorContenedor: cargarPLPorContenedor } = usePackingList();
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      const data = selContInforme != null ? (await cargarPLPorContenedor(selContInforme)).data : null;
+      if (!cancelado) setPlInfoInforme(data || null);
+    })();
+    return () => { cancelado = true; };
+  }, [selContInforme]);
   const { items: invItems, ajustarLotes } = useInventario();
   const invActual = invItems.length > 0 ? invItems : INVENTARIO_BASE;
   const { empleados: empleadosCont } = usePersonal();
@@ -3306,7 +3323,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   );
   const stats = { total:procesos.length, comp:procesos.filter(p=>p.estado==="Completado").length, enProc:procesos.filter(p=>p.estado==="En proceso").length, cajas:procesos.reduce((s,p)=>s+Number(p.cajasSalida||0),0) };
   const COL_EST = { "En proceso":"#F9A826","Completado":"#00C9A7","Pausado":"#845EF7","Cancelado":"#FF6B6B" };
-  const TAB_CONT = ["🚢 Contenedores","👥 Grupos / Turnos","💰 Nómina","🗺 Trazabilidad","📦 Centro de Costos","📊 Rendimientos","📋 Packing List","🔎 Verificación"];
+  const TAB_CONT = ["🚢 Contenedores","👥 Grupos / Turnos","💰 Nómina","🗺 Trazabilidad","📦 Centro de Costos","📊 Rendimientos","📋 Packing List","🔎 Verificación","📑 Informe General"];
 
   // ── Tab 5: Rendimientos ──
   const KG_DEL_MONTE = 16.8;
@@ -4665,6 +4682,182 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
       {/* ═══ TAB 7: VERIFICACIÓN ═══ */}
       {tabCont === 7 && <PalletVerificationTab mob={mob} />}
 
+      {/* ═══ TAB 8: INFORME GENERAL DE PROCESO ═══ */}
+      {tabCont === 8 && (() => {
+        const contInfo  = selContInforme !== null ? procesos.find(p => p.id === selContInforme) : null;
+        const rendsInfo = selContInforme !== null ? rendimientos.filter(r => r.contId === selContInforme) : [];
+        const hayPlanta = !!plInfoInforme?.pallets?.length;
+        const hayCargue = !!plInfoInforme?.layout_camion?.left?.some(Boolean) || !!plInfoInforme?.layout_camion?.right?.some(Boolean);
+        const hayRend   = rendsInfo.length > 0;
+
+        const estadoFuente = (ok, label) => (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "9px 12px" }}>
+            <span style={{ fontSize: 14 }}>{ok ? "✅" : "⚪"}</span>
+            <span style={{ fontSize: 11.5, color: ok ? "white" : "rgba(255,255,255,0.4)", fontWeight: ok ? 700 : 400 }}>{label}</span>
+            {!ok && <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.32)", marginLeft: "auto" }}>sin datos</span>}
+          </div>
+        );
+
+        const generarInformeGeneral = async (modo = "descargar") => {
+          if (!contInfo) return;
+          setGenerandoInformeGeneral(true);
+          try {
+            const admin        = plInfoInforme?.admin_data || {};
+            const pallets      = plInfoInforme?.pallets || [];
+            const totalCajas   = plInfoInforme?.total_cajas || 0;
+            const layoutCamion = plInfoInforme?.layout_camion || { left: [], right: [] };
+
+            const [htmlPlanta, htmlCargue, htmlRend] = await Promise.all([
+              pallets.length ? generarInformePlantaHtml({ pallets, admin, contenedor: contInfo, totalCajas }) : Promise.resolve(null),
+              pallets.length ? generarInformeCargueHtml({ pallets, admin, contenedor: contInfo, totalCajas, layoutCamion }) : Promise.resolve(null),
+              rendsInfo.length ? generarInformeRendimientoHtml({ cont: contInfo, rendsDelCont: rendsInfo }) : Promise.resolve(null),
+            ]);
+
+            const TITULOS     = ["📦 Informe de Planta", "🚛 Informe de Cargue", "📊 Informe de Rendimiento"];
+            const disponibles = [htmlPlanta, htmlCargue, htmlRend];
+            const secciones   = TITULOS.map((titulo, i) => ({ titulo, html: disponibles[i] })).filter(s => s.html);
+            const faltantes   = TITULOS.filter((_, i) => !disponibles[i]);
+
+            if (!secciones.length) {
+              showToast("Este contenedor no tiene Packing List ni Rendimientos registrados todavía", false);
+              return;
+            }
+
+            // JSON.stringify escapa comillas/backslashes de forma segura; solo
+            // hay que neutralizar "</script" para que no cierre el <script> del
+            // documento contenedor si algún informe trajera ese texto literal.
+            const escapeParaScript = (s) => JSON.stringify(s).replace(/</g, "\\u003c");
+            const fechaHoy = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
+
+            const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Informe General de Proceso — ${contInfo.numContenedor}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",Arial,sans-serif;margin:0;background:#eef2f1;color:#111}
+  .cover{background:linear-gradient(120deg,#173d1a,#2d7a2d 60%,#3fa142);color:#fff;padding:50px 40px 60px;text-align:center}
+  .cover h1{font-size:28px;font-weight:900;margin-bottom:8px}
+  .cover .sub{font-size:12.5px;opacity:.85}
+  .toc{max-width:640px;margin:-34px auto 0;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:10px 24px;position:relative}
+  .toc a{display:block;padding:12px 6px;color:#173d1a;text-decoration:none;font-weight:700;font-size:13px;border-bottom:1px solid #eef2ee}
+  .toc a:last-child{border-bottom:none}
+  .toc .falta{padding:12px 6px;color:#94a3b8;font-style:italic;font-size:12px;border-bottom:1px solid #eef2ee}
+  .toc .falta:last-child{border-bottom:none}
+  .seccion{max-width:960px;margin:40px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,0.08)}
+  .seccion-hdr{padding:14px 24px;background:#0f1522;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px}
+  iframe{width:100%;height:600px;border:none;display:block}
+  .footer{max-width:960px;margin:0 auto 40px;text-align:center;color:#94a3b8;font-size:10.5px}
+  @media print{
+    body{background:#fff}
+    .seccion{page-break-before:always;box-shadow:none;margin:0;border-radius:0;max-width:100%}
+    .seccion:first-of-type{page-break-before:auto}
+  }
+</style></head><body>
+
+<div class="cover">
+  <h1>📑 Informe General de Proceso</h1>
+  <div class="sub">Contenedor ${contInfo.numContenedor} &nbsp;·&nbsp; Generado el ${fechaHoy}</div>
+</div>
+<div class="toc">
+  ${secciones.map((s, i) => `<a href="#sec-${i}">${s.titulo}</a>`).join("")}
+  ${faltantes.map(t => `<div class="falta">${t} — sin datos, no incluido</div>`).join("")}
+</div>
+
+${secciones.map((s, i) => `
+<div class="seccion" id="sec-${i}">
+  <div class="seccion-hdr">${s.titulo}</div>
+  <iframe id="frame-${i}"></iframe>
+</div>`).join("")}
+
+<div class="footer">🍋 Tierra Prometida Trading · JARVIS · Informe generado el ${fechaHoy}</div>
+
+<script>
+${secciones.map((s, i) => `document.getElementById("frame-${i}").srcdoc = ${escapeParaScript(s.html)};`).join("\n")}
+document.querySelectorAll("iframe").forEach(f => {
+  f.addEventListener("load", () => {
+    try { f.style.height = (f.contentWindow.document.documentElement.scrollHeight + 24) + "px"; } catch (e) {}
+  });
+});
+</script>
+</body></html>`;
+
+            if (modo === "html") return html;
+
+            const blob     = new Blob([html], { type: "text/html;charset=utf-8" });
+            const url      = URL.createObjectURL(blob);
+            const filename = `Informe-General-${contInfo.numContenedor}-${new Date().toISOString().split("T")[0]}.html`;
+
+            if (modo === "previsualizar") {
+              setPreviewRend({ url, filename });
+              return;
+            }
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          } finally {
+            setGenerandoInformeGeneral(false);
+          }
+        };
+
+        return (
+          <div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: mob ? 15 : 13, fontWeight: 800, color: "white" }}>📑 Informe General de Proceso</div>
+              <div style={{ fontSize: mob ? 11 : 9, color: "rgba(255,255,255,0.42)", marginTop: 2 }}>
+                Une el Packing List de planta, el Informe de Cargue y el Informe de Rendimiento de un mismo contenedor en un solo documento
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)", marginBottom: 4 }}>Seleccionar contenedor</div>
+              <SearchableSelect value={selContInforme ?? ""} onChange={e => setSelContInforme(e.target.value ? Number(e.target.value) : null)}
+                style={{ ...inp, maxWidth: 340 }} placeholder="Buscar contenedor...">
+                <option value="">— Elige un contenedor —</option>
+                {procesos.map(p => {
+                  const provs = parseProveedores(p.proveedor).join(", ") || "sin proveedor";
+                  return <option key={p.id} value={p.id}>{p.numContenedor} · {provs} · {p.fecha}</option>;
+                })}
+              </SearchableSelect>
+            </div>
+
+            {!contInfo && (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.33)", fontSize: 13 }}>
+                Selecciona un contenedor para generar su informe unificado
+              </div>
+            )}
+
+            {contInfo && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+                  {estadoFuente(hayPlanta, "📦 Informe de Planta")}
+                  {estadoFuente(hayCargue, "🚛 Informe de Cargue")}
+                  {estadoFuente(hayRend,   "📊 Informe de Rendimiento")}
+                </div>
+
+                {!hayPlanta && !hayCargue && !hayRend ? (
+                  <div style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.33)", fontSize: 12 }}>
+                    Este contenedor todavía no tiene Packing List ni Rendimientos registrados.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={() => generarInformeGeneral("previsualizar")} disabled={generandoInformeGeneral}
+                      style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 8, padding: "9px 16px", fontSize: 12, color: "#a5b4fc", cursor: generandoInformeGeneral ? "wait" : "pointer", fontWeight: 700 }}>
+                      👁 Previsualizar
+                    </button>
+                    <button onClick={() => generarInformeGeneral("descargar")} disabled={generandoInformeGeneral}
+                      style={{ background: "linear-gradient(135deg,#845EF7,#6366F1)", border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 12, color: "white", cursor: generandoInformeGeneral ? "wait" : "pointer", fontWeight: 700 }}>
+                      {generandoInformeGeneral ? "⏳ Generando..." : "📥 Descargar Informe General"}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ═══ TAB 5: RENDIMIENTOS ═══ */}
       {tabCont === 5 && (() => {
         const contSelRend = selContRend !== null ? procesos.find(p => p.id === selContRend) : null;
@@ -4701,8 +4894,6 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           };
         }, { kilosIngresados: 0, kilosNoProcesados: 0, kilosProcesados: 0, kilosDevueltos: 0, kilosPrimeraDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
 
-        const rendGeneralTotal = totales.kilosProcesados > 0
-          ? (totales.kgEmp / totales.kilosProcesados) * 100 : 0;
         const rendDMTotal  = totales.kilosProcesados > 0
           ? ((totales.cajasDelMonte * KG_DEL_MONTE) / totales.kilosProcesados) * 100 : 0;
         const rendPriTotal = totales.kilosProcesados > 0
@@ -4731,312 +4922,10 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
         });
 
         const generarInforme = async (modo = "descargar") => {
-          const logoSrc = await cargarLogoBase64();
           const cont = contSelRend;
-          const pvsTexto = proveedoresCont.join(", ") || "—";
-          const fechaHoy = new Date().toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
+          const html = await generarInformeRendimientoHtml({ cont, rendsDelCont });
 
-          // ── Colores por rendimiento ────────────────────────────────
-          const gColor = rendGeneralTotal >= 80 ? "#16a34a" : rendGeneralTotal >= 60 ? "#ca8a04" : "#dc2626";
-          const gLabel = rendGeneralTotal >= 80 ? "Excelente" : rendGeneralTotal >= 60 ? "Regular" : "Bajo";
-
-          // ── Medidor CSS (sin SVG) ──────────────────────────────────
-          const gaugeBox = `
-<div style="text-align:center;padding:22px 16px 18px;">
-  <div style="font-size:9px;color:#6b7280;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">Rendimiento General</div>
-  <div style="font-size:60px;font-weight:900;color:${gColor};line-height:1;margin-bottom:6px;font-family:'Segoe UI',Arial,sans-serif;">${rendGeneralTotal.toFixed(1)}<span style="font-size:30px;font-weight:700;">%</span></div>
-  <div style="margin-bottom:20px;"></div>
-  <div style="background:#f0f0f0;border-radius:999px;height:18px;margin:0 6px 5px;overflow:hidden;">
-    <div style="height:100%;width:${Math.min(rendGeneralTotal,100).toFixed(2)}%;background:linear-gradient(90deg,#fbbf24 0%,#22c55e 65%,#16a34a 100%);border-radius:999px;"></div>
-  </div>
-  <div style="display:flex;justify-content:space-between;padding:0 6px;font-size:8px;color:#d1d5db;margin-bottom:16px;font-family:'Segoe UI',Arial,sans-serif;">
-    <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
-  </div>
-  <div style="display:inline-block;padding:5px 20px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px;background:${gColor}15;color:${gColor};border:1.5px solid ${gColor}60;font-family:'Segoe UI',Arial,sans-serif;">${gLabel}</div>
-</div>`;
-
-          // ── Mini barra para DM/Princesses ────────────────────────────
-          const miniGauge = (pct, color, label) => `
-<div style="padding:4px 0;">
-  <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">${label}</div>
-  <div style="font-size:20px;font-weight:800;color:${color};margin-bottom:6px;font-family:'Segoe UI',Arial,sans-serif;">${pct.toFixed(1)}%</div>
-  <div style="background:#f0f0f0;border-radius:999px;height:8px;overflow:hidden;">
-    <div style="height:100%;width:${Math.min(pct,100).toFixed(2)}%;background:${color};border-radius:999px;"></div>
-  </div>
-</div>`;
-
-          // ── Info extra del contenedor ────────────────────────────────
-          const infoItems = [
-            cont.booking    ? `<span><b>Booking:</b> ${cont.booking}</span>`       : "",
-            cont.naviera    ? `<span><b>Naviera:</b> ${cont.naviera}</span>`       : "",
-            cont.destino    ? `<span><b>Destino:</b> ${cont.destino}</span>`       : "",
-            cont.transporte ? `<span><b>Transporte:</b> ${cont.transporte}</span>` : "",
-            cont.placa      ? `<span><b>Placa:</b> ${cont.placa}</span>`           : "",
-            cont.turno      ? `<span><b>Turno:</b> ${cont.turno}</span>`           : "",
-          ].filter(Boolean).join('<span style="color:#cbd5e1;margin:0 6px;">·</span>');
-
-          // ── Split bar DM vs Princesses ─────────────────────────────────
-          const totalCajas = totales.cajasDelMonte + totales.cajasPrincess;
-          const pctDMc  = totalCajas > 0 ? (totales.cajasDelMonte / totalCajas * 100) : 50;
-          const pctPric = 100 - pctDMc;
-
-          // ── Tabla por proveedor ──────────────────────────────────────
-          const providerSection = proveedoresCont.length > 1 ? `
-<h2>🚚 Rendimiento por proveedor</h2>
-<table>
-  <thead><tr><th>Proveedor</th><th>Contenedores</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th><th>Merma</th></tr></thead>
-  <tbody>
-  ${statsPorProveedor.map(s => {
-    const sc = s.rdto >= 80 ? "#15803d" : s.rdto >= 60 ? "#b45309" : "#b91c1c";
-    const mc = s.merma <= 20 ? "#15803d" : s.merma <= 40 ? "#b45309" : "#b91c1c";
-    return `<tr>
-      <td><span class="pv-badge">${s.pv}</span></td>
-      <td>${s.camiones}</td>
-      <td>${s.kgProc.toLocaleString("es-CO")} kg</td>
-      <td style="color:#b45309;">${s.kgDev.toLocaleString("es-CO")} kg</td>
-      <td style="color:#15803d;font-weight:600;">${s.kgEmp.toFixed(1)} kg</td>
-      <td>${s.cajDM + s.cajPri} <span class="dim">(${s.cajDM} DM · ${s.cajPri} PRI)</span></td>
-      <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(s.rdto,100).toFixed(1)}%;background:${sc};"></div></div><span style="font-weight:700;color:${sc};">${s.rdto.toFixed(1)}%</span></div></td>
-      <td style="font-weight:700;color:${mc};">${s.merma.toFixed(1)}%</td>
-    </tr>`;
-  }).join("")}
-  </tbody>
-</table>` : "";
-
-          // ── Gráfico de barras por camión ─────────────────────────────
-          const truckBars = rendsDelCont.map((r, i) => {
-            const c = calcRend(r);
-            const rc = c.rendGen >= 80 ? "#15803d" : c.rendGen >= 60 ? "#b45309" : "#b91c1c";
-            return `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #f8fafc;">
-  <div>
-    <span style="font-size:11px;font-weight:600;color:#374151;">Contenedor ${i+1}</span>
-    ${r.proveedor ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:4px;">${r.proveedor}</span>` : ""}
-    <div style="font-size:9px;color:#94a3b8;">${r.fecha}</div>
-  </div>
-  <div style="background:#f1f5f9;border-radius:5px;height:16px;overflow:hidden;position:relative;">
-    <div style="background:${rc};width:${Math.min(c.rendGen,100).toFixed(1)}%;height:100%;border-radius:5px;opacity:0.85;"></div>
-  </div>
-  <div style="text-align:right;">
-    <span style="font-size:10px;color:#64748b;">${r.kilosProcesados.toLocaleString("es-CO")} kg &nbsp;</span>
-    <span style="font-size:13px;font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span>
-  </div>
-</div>`;
-          }).join("");
-
-          // ── Calibres agregados (todos los camiones) ──────────────────
-          const calibreAgg = {};
-          rendsDelCont.forEach(r => {
-            (r.calibres || []).forEach(cal => {
-              const calKg = cal.tipo === "cajas"
-                ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS)
-                : Number(cal.cantidad);
-              if (!calibreAgg[cal.nombre]) calibreAgg[cal.nombre] = 0;
-              calibreAgg[cal.nombre] += calKg;
-            });
-          });
-          const calibreEntries = Object.entries(calibreAgg).sort(([a],[b]) => a.localeCompare(b));
-
-          const calibreSection = calibreEntries.length > 0 ? `
-<h2>🎨 Desglose por calibre</h2>
-<div class="chart-wrap">
-  <div class="calibre-note">ℹ️ Los dos porcentajes usan bases distintas: <b>% procesado</b> es sobre el total de kg procesados; <b>% empacado</b> es sobre el total de kg que <b>quedaron en caja</b>.</div>
-  <div class="calibre-grid">
-    ${calibreEntries.map(([nombre, kg]) => {
-      const pctPro = totales.kilosProcesados > 0 ? (kg / totales.kilosProcesados) * 100 : 0;
-      const pctEmp = totales.kgEmp > 0 ? (kg / totales.kgEmp) * 100 : 0;
-      const cc = pctPro >= 80 ? "#15803d" : pctPro >= 60 ? "#b45309" : "#374151";
-      return `
-    <div class="calibre-card">
-      <div class="calibre-head">
-        <span class="calibre-name">${nombre}</span>
-        <span class="calibre-kg">${kg.toFixed(1)} kg</span>
-      </div>
-      <div class="bar-cell">
-        <div class="bar-bg" style="flex:1;width:auto;height:14px;" title="% sobre el total procesado"><div class="bar-fill" style="width:${Math.min(pctPro,100).toFixed(1)}%;background:${cc};"></div></div>
-        <span style="font-weight:800;color:${cc};min-width:46px;text-align:right;flex-shrink:0;" title="% sobre el total procesado">${pctPro.toFixed(1)}%</span>
-      </div>
-      <div class="calibre-sub"><span title="% sobre el total de kg que entraron">% del total procesado (kg crudo)</span> &nbsp;·&nbsp; <b style="color:#6366f1;" title="% sobre el total de kg que quedaron empacados">${pctEmp.toFixed(1)}%</b> del total empacado (kg en caja)</div>
-    </div>`;
-    }).join("")}
-  </div>
-</div>` : "";
-
-          // ── Tabla detalle con observaciones ─────────────────────────
-          const truckRows = rendsDelCont.map((r, i) => {
-            const c = calcRend(r);
-            const rc = c.rendGen >= 80 ? "#15803d" : c.rendGen >= 60 ? "#b45309" : "#b91c1c";
-            const obsChips = (r.observaciones || []).map(o => `<span class="obs-chip">${o}</span>`).join(" ");
-            const obsDetalle = r.obsDetalle ? `<div style="margin-top:3px;font-style:italic;color:#64748b;font-size:10px;">${r.obsDetalle}</div>` : "";
-            const obsCell = (obsChips || obsDetalle) ? `${obsChips}${obsDetalle}` : `<span class="dim">—</span>`;
-            const calChips = (r.calibres || []).map(cal => {
-              const calKg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
-              const pct = r.kilosProcesados > 0 ? (calKg / r.kilosProcesados * 100).toFixed(1) : "0.0";
-              return `<span style="background:#ede9fe;color:#4c1d95;border-radius:4px;padding:1px 7px;font-size:9px;font-weight:700;margin-right:3px;display:inline-block;">${cal.nombre}: ${pct}%</span>`;
-            }).join("");
-            const mc = c.merma <= 20 ? "#15803d" : c.merma <= 40 ? "#b45309" : "#b91c1c";
-            return `<tr>
-  <td class="num-cell">${i+1}</td>
-  <td>${r.fecha}</td>
-  <td>${r.proveedor ? `<span class="pv-badge">${r.proveedor}</span>` : `<span class="dim">—</span>`}</td>
-  <td>${r.kilosProcesados.toLocaleString("es-CO")} kg${r.kilosIngresados > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">${r.kilosIngresados.toLocaleString("es-CO")} ingr. − ${(r.kilosNoProcesados || 0).toLocaleString("es-CO")} no proc.</div>` : ""}</td>
-  <td style="color:#b45309;">${r.kilosDevueltos.toLocaleString("es-CO")} kg${r.kilosPrimeraDevueltos > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">de primera: ${r.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg</div>` : ""}</td>
-  <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
-  <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
-  <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
-  <td style="font-weight:700;color:${mc};">${c.merma.toFixed(1)}%</td>
-  <td>${calChips || `<span class="dim">—</span>`}</td>
-  <td>${obsCell}</td>
-</tr>`;
-          }).join("");
-
-          // ── HTML completo ────────────────────────────────────────────
-          const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Informe de Rendimiento — ${cont.numContenedor}</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; font-size:13px; }
-  .hdr { background:linear-gradient(120deg,#173d1a,#2d7a2d 60%,#3fa142); color:#fff; padding:30px 36px 26px; position:relative; overflow:hidden; }
-  .hdr::after { content:"📊"; position:absolute; right:-10px; top:-22px; font-size:130px; opacity:0.12; transform:rotate(12deg); }
-  .hdr h1 { font-size:26px; font-weight:800; letter-spacing:-.3px; margin-bottom:4px; position:relative; }
-  .hdr .sub { font-size:11px; color:rgba(255,255,255,0.75); margin-top:4px; position:relative; }
-  .hdr .badge { display:inline-block; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.28); border-radius:20px; padding:3px 14px; font-size:10px; font-weight:700; letter-spacing:.5px; margin-bottom:10px; }
-  .hdr-top { display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
-  .hdr-logo { width:112px; height:112px; object-fit:contain; background:#fff; border-radius:12px; padding:6px; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
-  .hdr .pv-tag { display:inline-block; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.28); border-radius:20px; padding:3px 11px; font-size:10px; font-weight:600; margin-right:4px; position:relative; }
-  .infobar { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:11px 36px; font-size:11.5px; color:#475569; }
-  .body { padding:32px 40px; }
-  h2 { font-size:14px; font-weight:700; color:#14532d; margin:34px 0 16px; padding-bottom:8px; border-bottom:2px solid #bbf7d0; text-transform:uppercase; letter-spacing:.5px; }
-  h2:first-of-type { margin-top:0; }
-  .summary-row { display:grid; grid-template-columns:260px 1fr; gap:28px; margin-bottom:30px; align-items:start; }
-  .gauge-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:22px 18px 16px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
-  .gauge-sub { font-size:10px; color:#64748b; margin-top:6px; }
-  .gauge-types { display:flex; justify-content:center; gap:20px; margin-top:12px; }
-  .cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  .card { border:1px solid #e2e8f0; border-left:3px solid #cbd5e1; border-radius:12px; padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
-  .card .lbl { font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-  .card .val { font-size:23px; font-weight:800; color:#1e1b4b; }
-  .card .sub2 { font-size:10px; color:#94a3b8; margin-top:4px; }
-  .split-wrap { margin-bottom:30px; }
-  .split-bar { display:flex; gap:2px; height:16px; border-radius:7px; overflow:hidden; margin-top:9px; background:#fff; }
-  .split-bar > div { border-radius:3px; }
-  .split-legend { display:flex; gap:20px; font-size:11.5px; }
-  .split-dot { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:middle; }
-  table { width:100%; border-collapse:collapse; margin-bottom:8px; }
-  th { background:#f1f5f9; text-align:left; padding:10px 14px; font-size:10px; color:#475569; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
-  td { padding:11px 14px; border-bottom:1px solid #f8fafc; font-size:12px; vertical-align:top; }
-  tbody tr:nth-child(even) td { background:#fafbfc; }
-  tr:hover td { background:#f0fdf4; }
-  .num-cell { color:#94a3b8; font-size:11px; font-weight:600; }
-  .pv-badge { background:#f0fdf4; color:#15803d; border-radius:10px; padding:2px 8px; font-size:10px; font-weight:700; white-space:nowrap; border:1px solid #bbf7d0; }
-  .tag-dm  { background:#dcfce7; color:#15803d; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; margin-right:3px; display:inline-block; }
-  .tag-pri { background:#fef9c3; color:#854d0e; border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; display:inline-block; }
-  .obs-chip { background:#fef3c7; color:#92400e; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:600; margin-right:3px; display:inline-block; margin-bottom:2px; }
-  .dim { color:#cbd5e1; }
-  .bar-cell { display:flex; align-items:center; gap:10px; }
-  .bar-bg { background:#f1f5f9; border-radius:4px; height:10px; width:70px; overflow:hidden; flex-shrink:0; }
-  .bar-fill { height:100%; border-radius:4px; }
-  .chart-wrap { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; margin-bottom:26px; }
-  .calibre-note { font-size:10.5px; color:#64748b; background:#eef2f7; border:1px solid #dbe3ec; border-radius:8px; padding:9px 12px; margin-bottom:16px; line-height:1.5; }
-  .calibre-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
-  .calibre-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
-  .calibre-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
-  .calibre-name { font-size:16px; font-weight:800; color:#1e1b4b; }
-  .calibre-kg { font-size:12px; font-weight:600; color:#15803d; }
-  .calibre-sub { font-size:10px; color:#94a3b8; margin-top:8px; }
-  .footer { margin-top:36px; padding:18px 36px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; background:#f8fafc; }
-  @media print {
-    .hdr { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    body { font-size:11.5px; }
-    .body { padding:20px 28px; }
-    .calibre-grid { grid-template-columns:1fr 1fr; }
-  }
-</style>
-</head>
-<body>
-
-<div class="hdr">
-  <div class="hdr-top">
-    <div class="badge">📊 INFORME DE RENDIMIENTO</div>
-    ${logoSrc ? `<img class="hdr-logo" src="${logoSrc}"/>` : ""}
-  </div>
-  <h1>${cont.numContenedor}</h1>
-  <div style="margin-top:8px;">
-    ${proveedoresCont.map(p => `<span class="pv-tag">${p}</span>`).join("")}
-    ${cont.producto ? `<span class="pv-tag">${cont.producto}</span>` : ""}
-    ${cont.estado   ? `<span class="pv-tag">${cont.estado}</span>`   : ""}
-  </div>
-  <div class="sub">Fecha contenedor: ${cont.fecha} &nbsp;·&nbsp; Generado: ${fechaHoy} &nbsp;·&nbsp; ${rendsDelCont.length} contenedor${rendsDelCont.length !== 1 ? "es" : ""} registrado${rendsDelCont.length !== 1 ? "s" : ""}</div>
-</div>
-
-${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
-
-<div class="body">
-
-<h2>📊 Resumen general</h2>
-<div class="summary-row">
-  <div class="gauge-box">
-    ${gaugeBox}
-    ${(totales.cajasDelMonte > 0 || totales.cajasPrincess > 0) ? `
-    <div style="border-top:1px solid #f0f0f0;padding:14px 16px 6px;display:grid;grid-template-columns:${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? "1fr 1fr" : "1fr"};gap:16px;">
-      ${totales.cajasDelMonte > 0 ? miniGauge(rendDMTotal,  "#16a34a", "Del Monte") : ""}
-      ${totales.cajasPrincess > 0 ? miniGauge(rendPriTotal, "#ca8a04", "Princesses") : ""}
-    </div>` : ""}
-  </div>
-  <div class="cards">
-    <div class="card" style="border-left-color:#6366f1;"><div class="lbl">Total cajas</div><div class="val">${totales.cajasDelMonte + totales.cajasPrincess}</div><div class="sub2">${[totales.cajasDelMonte > 0 ? `${totales.cajasDelMonte} Del Monte` : "", totales.cajasPrincess > 0 ? `${totales.cajasPrincess} Princesses` : ""].filter(Boolean).join(" · ")}</div></div>
-    ${totales.kilosIngresados > 0 ? `<div class="card" style="border-left-color:#64748b;"><div class="lbl">Kg ingresados total</div><div class="val">${totales.kilosIngresados.toLocaleString("es-CO")}</div><div class="sub2">total del camión</div></div>` : ""}
-    ${totales.kilosNoProcesados > 0 ? `<div class="card" style="border-left-color:#64748b;"><div class="lbl">Kg no procesados total</div><div class="val">${totales.kilosNoProcesados.toLocaleString("es-CO")}</div><div class="sub2">no entró a la máquina</div></div>` : ""}
-    <div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">ingresados − no procesados</div></div>
-    <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
-    <div class="card" style="border-left-color:#b45309;"><div class="lbl">Devolución del proceso</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">informativo, no afecta el rendimiento</div></div>
-    <div class="card" style="border-left-color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};"><div class="lbl">Merma</div><div class="val" style="color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};">${mermaTotal.toFixed(1)}%</div><div class="sub2">procesado − empacado − devuelto</div></div>
-    ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kilos de limón de primera devueltos</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
-  </div>
-</div>
-
-${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? `
-<div class="split-wrap">
-  <div class="split-legend">
-    <span><span class="split-dot" style="background:#6366f1;"></span>Del Monte: <b>${totales.cajasDelMonte} cajas</b> (${pctDMc.toFixed(1)}%)</span>
-    <span><span class="split-dot" style="background:#a855f7;"></span>Princesses: <b>${totales.cajasPrincess} cajas</b> (${pctPric.toFixed(1)}%)</span>
-  </div>
-  <div class="split-bar">
-    <div style="background:#6366f1;width:${pctDMc.toFixed(1)}%;"></div>
-    <div style="background:#a855f7;width:${pctPric.toFixed(1)}%;"></div>
-  </div>
-</div>` : ""}
-
-${providerSection}
-
-${calibreSection}
-
-<h2>📈 Rendimiento del proceso</h2>
-<div class="chart-wrap">
-  ${truckBars}
-</div>
-
-<h2>📋 Detalle del contenedor</h2>
-<table>
-  <thead>
-    <tr>
-      <th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg proc.</th><th>Devueltos</th>
-      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Merma</th><th>Calibres</th><th>Observaciones</th>
-    </tr>
-  </thead>
-  <tbody>${truckRows}</tbody>
-</table>
-
-</div>
-
-<div class="footer">
-  <span>🍋 Tierra Prometida Trading · JARVIS</span>
-  <span>Informe generado el ${fechaHoy}</span>
-</div>
-
-</body></html>`;
+          if (modo === "html") return html;
 
           const blob     = new Blob([html], { type: "text/html;charset=utf-8" });
           const url      = URL.createObjectURL(blob);
