@@ -4876,8 +4876,9 @@ document.querySelectorAll("iframe").forEach(f => {
           const rendGen = proc > 0 ? (kgEmp / proc) * 100 : 0;
           const rendDM  = proc > 0 ? (kgDM  / proc) * 100 : 0;
           const rendPri = proc > 0 ? (kgPri / proc) * 100 : 0;
-          const merma   = proc > 0 ? ((proc - kgEmp - r.kilosDevueltos) / proc) * 100 : 0;
-          return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri, merma };
+          const mermaKg = proc - kgEmp - r.kilosDevueltos;
+          const merma   = proc > 0 ? (mermaKg / proc) * 100 : 0;
+          return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri, merma, mermaKg };
         };
 
         const totales = rendsDelCont.reduce((acc, r) => {
@@ -4898,8 +4899,9 @@ document.querySelectorAll("iframe").forEach(f => {
           ? ((totales.cajasDelMonte * KG_DEL_MONTE) / totales.kilosProcesados) * 100 : 0;
         const rendPriTotal = totales.kilosProcesados > 0
           ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesados) * 100 : 0;
+        const mermaKgTotal = totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos;
         const mermaTotal = totales.kilosProcesados > 0
-          ? ((totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos) / totales.kilosProcesados) * 100 : 0;
+          ? (mermaKgTotal / totales.kilosProcesados) * 100 : 0;
 
         const colorRend  = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
         const colorMerma = (pct) => pct <= 20 ? "#00C9A7" : pct <= 40 ? "#F9A826" : "#FF6B6B";
@@ -4914,11 +4916,12 @@ document.querySelectorAll("iframe").forEach(f => {
           const kgDM   = recs.reduce((s,r) => s + r.cajasDelMonte * KG_DEL_MONTE, 0);
           const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * KG_PRINCESS,  0);
           const kgEmp  = kgDM + kgPri;
-          const rdto   = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
-          const merma  = kgProc > 0 ? ((kgProc - kgEmp - kgDev) / kgProc) * 100 : 0;
+          const rdto    = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
+          const mermaKg = kgProc - kgEmp - kgDev;
+          const merma   = kgProc > 0 ? (mermaKg / kgProc) * 100 : 0;
           const cajDM  = recs.reduce((s,r) => s + r.cajasDelMonte, 0);
           const cajPri = recs.reduce((s,r) => s + r.cajasPrincess, 0);
-          return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, merma, cajDM, cajPri };
+          return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, merma, mermaKg, cajDM, cajPri };
         });
 
         const generarInforme = async (modo = "descargar") => {
@@ -5050,8 +5053,8 @@ document.querySelectorAll("iframe").forEach(f => {
                     {totales.kilosNoProcesados > 0 && card("Kg no procesados", `${totales.kilosNoProcesados.toLocaleString("es-CO")} kg`, "white", "no entró a la máquina")}
                     {card("Kg procesados", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`, "white", totales.kilosIngresados > 0 ? "ingresados − no procesados" : null)}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
-                    {card("Devolución del proceso", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "informativo, no afecta el rendimiento")}
-                    {card("Merma", `${mermaTotal.toFixed(1)}%`, colorMerma(mermaTotal), "procesado − empacado − devuelto")}
+                    {card("Devolución del proceso", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "Limón devuelto al camión")}
+                    {card("Merma", `${mermaTotal.toFixed(1)}%`, colorMerma(mermaTotal), `${mermaKgTotal.toLocaleString("es-CO", { maximumFractionDigits: 1 })} kg · procesado − empacado − devuelto`)}
                     {totales.kilosPrimeraDevueltos > 0 && card("Kilos de limón de primera devueltos", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
                       `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
@@ -5075,7 +5078,7 @@ document.querySelectorAll("iframe").forEach(f => {
                           <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg empacados</div><div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{s.kgEmp.toFixed(0)}</div></div>
                           <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Cajas</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.cajDM + s.cajPri}</div></div>
                           <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Rendimiento</div><div style={{ fontSize: 14, fontWeight: 700, color: colorRend(s.rdto) }}>{s.rdto.toFixed(1)}%</div></div>
-                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Merma</div><div style={{ fontSize: 14, fontWeight: 700, color: colorMerma(s.merma) }}>{s.merma.toFixed(1)}%</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Merma</div><div style={{ fontSize: 14, fontWeight: 700, color: colorMerma(s.merma) }}>{s.merma.toFixed(1)}%</div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>{s.mermaKg.toLocaleString("es-CO", { maximumFractionDigits: 1 })} kg</div></div>
                         </div>
                       ))}
                     </div>
@@ -5153,8 +5156,9 @@ document.querySelectorAll("iframe").forEach(f => {
                       const rg   = hayProc ? ((kgEmp / proc) * 100).toFixed(1) : null;
                       const rdm  = hayProc ? ((kgDM  / proc) * 100).toFixed(1) : null;
                       const rpri = hayProc ? ((kgPri / proc) * 100).toFixed(1) : null;
-                      const kgDev = Number(formRend.kilosDevueltos) || 0;
-                      const merma = hayProc ? (((proc - kgEmp - kgDev) / proc) * 100).toFixed(1) : null;
+                      const kgDev   = Number(formRend.kilosDevueltos) || 0;
+                      const mermaKg = proc - kgEmp - kgDev;
+                      const merma   = hayProc ? ((mermaKg / proc) * 100).toFixed(1) : null;
                       if (!hayKgEmp) return null;
                       return (
                         <>
@@ -5181,6 +5185,7 @@ document.querySelectorAll("iframe").forEach(f => {
                                 <div style={{ background: `rgba(${Number(merma) <= 20 ? "0,201,167" : Number(merma) <= 40 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(merma) <= 20 ? "0,201,167" : Number(merma) <= 40 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px" }}>
                                   <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Merma</div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: colorMerma(Number(merma)) }}>{merma}%</div>
+                                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>{mermaKg.toLocaleString("es-CO", { maximumFractionDigits: 1 })} kg</div>
                                 </div>
                               </>
                             )}
@@ -5371,6 +5376,7 @@ document.querySelectorAll("iframe").forEach(f => {
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Merma</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: colorMerma(c.merma) }}>{c.merma.toFixed(1)}%</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)", marginTop: 1 }}>{c.mermaKg.toLocaleString("es-CO", { maximumFractionDigits: 1 })} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Del Monte ({r.cajasDelMonte} cajas)</div>

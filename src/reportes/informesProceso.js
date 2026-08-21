@@ -589,8 +589,9 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     const rendGen = proc > 0 ? (kgEmp / proc) * 100 : 0;
     const rendDM  = proc > 0 ? (kgDM  / proc) * 100 : 0;
     const rendPri = proc > 0 ? (kgPri / proc) * 100 : 0;
-    const merma   = proc > 0 ? ((proc - kgEmp - r.kilosDevueltos) / proc) * 100 : 0;
-    return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri, merma };
+    const mermaKg = proc - kgEmp - r.kilosDevueltos;
+    const merma   = proc > 0 ? (mermaKg / proc) * 100 : 0;
+    return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri, merma, mermaKg };
   };
 
   const totales = rendsDelCont.reduce((acc, r) => {
@@ -613,8 +614,9 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     ? ((totales.cajasDelMonte * KG_DEL_MONTE) / totales.kilosProcesados) * 100 : 0;
   const rendPriTotal = totales.kilosProcesados > 0
     ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesados) * 100 : 0;
+  const mermaKgTotal = totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos;
   const mermaTotal = totales.kilosProcesados > 0
-    ? ((totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos) / totales.kilosProcesados) * 100 : 0;
+    ? (mermaKgTotal / totales.kilosProcesados) * 100 : 0;
 
   const proveedoresCont = parseProveedoresRend(cont?.proveedor);
 
@@ -625,11 +627,12 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     const kgDM   = recs.reduce((s,r) => s + r.cajasDelMonte * KG_DEL_MONTE, 0);
     const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * KG_PRINCESS,  0);
     const kgEmp  = kgDM + kgPri;
-    const rdto   = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
-    const merma  = kgProc > 0 ? ((kgProc - kgEmp - kgDev) / kgProc) * 100 : 0;
+    const rdto    = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
+    const mermaKg = kgProc - kgEmp - kgDev;
+    const merma   = kgProc > 0 ? (mermaKg / kgProc) * 100 : 0;
     const cajDM  = recs.reduce((s,r) => s + r.cajasDelMonte, 0);
     const cajPri = recs.reduce((s,r) => s + r.cajasPrincess, 0);
-    return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, merma, cajDM, cajPri };
+    return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, merma, mermaKg, cajDM, cajPri };
   });
 
   const logoSrc = await cargarLogoBase64();
@@ -696,7 +699,7 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
       <td style="color:#15803d;font-weight:600;">${s.kgEmp.toFixed(1)} kg</td>
       <td>${s.cajDM + s.cajPri} <span class="dim">(${s.cajDM} DM · ${s.cajPri} PRI)</span></td>
       <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(s.rdto,100).toFixed(1)}%;background:${sc};"></div></div><span style="font-weight:700;color:${sc};">${s.rdto.toFixed(1)}%</span></div></td>
-      <td style="font-weight:700;color:${mc};">${s.merma.toFixed(1)}%</td>
+      <td style="font-weight:700;color:${mc};">${s.merma.toFixed(1)}%<span class="dim" style="font-weight:400;"> (${s.mermaKg.toLocaleString("es-CO",{maximumFractionDigits:1})} kg)</span></td>
     </tr>`;
   }).join("")}
   </tbody>
@@ -782,7 +785,7 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
   <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
   <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
-  <td style="font-weight:700;color:${mc};">${c.merma.toFixed(1)}%</td>
+  <td style="font-weight:700;color:${mc};">${c.merma.toFixed(1)}%<div style="font-size:9px;color:#94a3b8;font-weight:400;">${c.mermaKg.toLocaleString("es-CO",{maximumFractionDigits:1})} kg</div></td>
   <td>${calChips || `<span class="dim">—</span>`}</td>
   <td>${obsCell}</td>
 </tr>`;
@@ -890,8 +893,8 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     ${totales.kilosNoProcesados > 0 ? `<div class="card" style="border-left-color:#64748b;"><div class="lbl">Kg no procesados total</div><div class="val">${totales.kilosNoProcesados.toLocaleString("es-CO")}</div><div class="sub2">no entró a la máquina</div></div>` : ""}
     <div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">ingresados − no procesados</div></div>
     <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
-    <div class="card" style="border-left-color:#b45309;"><div class="lbl">Devolución del proceso</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">informativo, no afecta el rendimiento</div></div>
-    <div class="card" style="border-left-color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};"><div class="lbl">Merma</div><div class="val" style="color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};">${mermaTotal.toFixed(1)}%</div><div class="sub2">procesado − empacado − devuelto</div></div>
+    <div class="card" style="border-left-color:#b45309;"><div class="lbl">Devolución del proceso</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">Limón devuelto al camión</div></div>
+    <div class="card" style="border-left-color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};"><div class="lbl">Merma</div><div class="val" style="color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};">${mermaTotal.toFixed(1)}%</div><div class="sub2">${mermaKgTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg · procesado − empacado − devuelto</div></div>
     ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kilos de limón de primera devueltos</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
   </div>
 </div>
