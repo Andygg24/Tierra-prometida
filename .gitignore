@@ -31,3 +31,6 @@ dist-ssr
 # Python
 __pycache__/
 *.pyc
+
+# Datos personales — repo es público, no debe subirse
+Moldes/TH-F-002 BASE DE DATOS PERSONAL TEMPORAL.xlsx
