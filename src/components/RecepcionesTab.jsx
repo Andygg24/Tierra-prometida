@@ -712,6 +712,27 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     });
   };
 
+  // Al desasociar una remisión de su contenedor la estiba puede quedar
+  // marcada "usada" sin ninguna asignación real (la tirilla física ya se
+  // botó, así que no se puede re-escanear para arreglarlo) — esto permite
+  // desmarcarla a mano para poder usarla en otra cosa.
+  const [desmarcandoUsada, setDesmarcandoUsada] = useState(null); // idx de la estiba en proceso
+
+  const desmarcarEstibaUsada = async (idx) => {
+    if (!editId) return;
+    const e = form.estibas[idx];
+    if (!e?.usada) return;
+    if (!window.confirm(`¿Desmarcar la estiba #${e.numero} como usada? Quedará disponible para usarla o asociarla a otro contenedor.`)) return;
+    setDesmarcandoUsada(idx);
+    const recepcion = recepciones.find(r => r.id === editId);
+    if (recepcion) {
+      const nuevasEstibas = recepcion.estibas.map(re => re.numero !== e.numero ? re : { ...re, usada: false, usadaPor: "", usadaEn: "" });
+      await actualizarEstibas(editId, nuevasEstibas);
+    }
+    setForm(f => ({ ...f, estibas: f.estibas.map((it, i) => i !== idx ? it : { ...it, usada: false, usadaPor: "", usadaEn: "" }) }));
+    setDesmarcandoUsada(null);
+  };
+
   const cancelarEdicion = () => { setForm(formVacio()); setEditId(null); };
 
   const editarRecepcion = (r) => {
@@ -1292,9 +1313,16 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     <td style={{ padding:"6px", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700 }}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</td>
                     {editId && (
                       <td style={{ padding:"6px" }}>
-                        <span style={{ fontSize:9, fontWeight:700, color: e.usada ? "#00C9A7" : "rgba(255,255,255,0.35)", background: e.usada ? "rgba(0,201,167,0.14)" : "rgba(255,255,255,0.06)", borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>
-                          {e.usada ? "✓ Usada" : "Sin usar"}
-                        </span>
+                        <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                          <span style={{ fontSize:9, fontWeight:700, color: e.usada ? "#00C9A7" : "rgba(255,255,255,0.35)", background: e.usada ? "rgba(0,201,167,0.14)" : "rgba(255,255,255,0.06)", borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>
+                            {e.usada ? "✓ Usada" : "Sin usar"}
+                          </span>
+                          {e.usada && (
+                            <button onClick={()=>desmarcarEstibaUsada(idx)} disabled={desmarcandoUsada===idx} style={{ ...btnTablaEliminar, fontSize:9, padding:"2px 7px" }} title="Desmarcar como usada">
+                              {desmarcandoUsada===idx ? "..." : "Desmarcar"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                     <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
