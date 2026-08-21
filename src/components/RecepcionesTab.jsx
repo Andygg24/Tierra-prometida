@@ -4,6 +4,7 @@ import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
+import { registrarActividad } from "../hooks/useActividad.js";
 import { fechaLocalISO } from "../utils/dates.js";
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
@@ -812,12 +813,21 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       return;
     }
     setGuardando(true);
+    const esNueva = !editId;
     const estibasCalc = form.estibas.map(e => ({ ...e, descuentoEstiba: descuentoEstiba(e), pesoNeto: pesoNetoEstiba(e) }));
     const ok = await guardarRecepcion({ ...form, estibas: estibasCalc, total: totalNeto }, editId);
     setGuardando(false);
     if (ok) {
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2000);
+      const usuario = nombreUsuarioSesion();
+      registrarActividad({
+        usuario,
+        modulo: "Recepción",
+        accion: esNueva ? "nueva_recepcion" : "editar_recepcion",
+        detalle: `${usuario || "Alguien"} ${esNueva ? "registró" : "editó"} la recepción${form.remision ? ` de la remisión ${form.remision}` : ""}${form.proveedor ? ` (${form.proveedor})` : ""} — ${kg(totalNeto)} kg netos`,
+        referencia: form.remision || "",
+      });
       cancelarEdicion();
     }
   };

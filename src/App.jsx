@@ -7,6 +7,7 @@ import { useInventario } from "./hooks/useInventario.js";
 import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
 import { useInformes } from "./hooks/useInformes.js";
+import { useActividad, registrarActividad } from "./hooks/useActividad.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
@@ -35,6 +36,13 @@ const fmtCOP = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
 
 const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
+};
+
+const ICONO_ACCION_LOG = {
+  entrada: "📥", salida: "📤",
+  nueva_recepcion: "🍋", editar_recepcion: "✏️",
+  guardar_paso1: "📦", guardar_paso2: "🚛",
+  informe_planta: "📦", informe_cargue: "🚛",
 };
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
@@ -2066,6 +2074,14 @@ function InventarioDemo() {
     const tipo = movModal.tipo;
     const despues = tipo === "entrada" ? item.cant + cant : Math.max(0, item.cant - cant);
     registrarMovimiento(item.id, item.nombre, tipo, cant, movObs, item.cant, despues);
+    const usuario = nombreUsuarioSesion();
+    registrarActividad({
+      usuario,
+      modulo: "Inventario",
+      accion: tipo,
+      detalle: `${usuario || "Alguien"} ${tipo === "entrada" ? "ingresó" : "sacó"} ${cant.toLocaleString("es-CO")} ${(item.unidad || "unidades").toLowerCase()} de ${item.nombre}`,
+      referencia: item.nombre,
+    });
     setMovModal(null); setMovCant(""); setMovObs("");
   };
 
@@ -6448,6 +6464,7 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const { items: invInicio, loading: loadingInvInicio } = useInventario();
   const { registros: asistRegs, loading: loadingAsistInicio } = useAsistencia();
   const { empleados: empleadosInicio, loading: loadingPersonalInicio } = usePersonal();
+  const { actividad: actividadUsuarios } = useActividad();
   const empleadosReal = empleadosInicio.length > 0 ? empleadosInicio : EMPLEADOS_DB;
 
   useEffect(() => {
@@ -6730,6 +6747,27 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
         </div>
       </div>
 
+      {/* ── ACTIVIDAD DE USUARIOS (Inventario, Recepción, Packing List) ── */}
+      <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.52)" }}>👤 Actividad de usuarios</div>
+          <span onClick={()=>onNavigate("configuracion")} style={{ fontSize:9, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>Ver todo →</span>
+        </div>
+        {actividadUsuarios.length === 0 ? (
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.33)", textAlign:"center", padding:"10px 0" }}>Sin actividad registrada todavía</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
+            {actividadUsuarios.slice(0,8).map(a => (
+              <div key={a.id} style={{ display:"flex", gap:8, alignItems:"center", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+                <span style={{ fontSize:13, flexShrink:0 }}>{ICONO_ACCION_LOG[a.accion] || "📝"}</span>
+                <span style={{ flex:1, fontSize:10, color:"rgba(255,255,255,0.68)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.detalle}</span>
+                <span style={{ fontSize:8, color:"rgba(255,255,255,0.33)", flexShrink:0 }}>{a.createdAt ? new Date(a.createdAt).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" }) : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ── GRÁFICA TENDENCIA ASISTENCIA 7 DÍAS ── */}
       {hayTendencia && (
         <div style={{ background:"rgba(78,205,196,0.04)", border:"1px solid rgba(78,205,196,0.12)", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
@@ -6933,7 +6971,7 @@ function ConfigForm({ config, guardar }) {
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
     {icon:"🎨",label:"Apariencia"},{icon:"🔒",label:"Seguridad"},{icon:"📋",label:"Fiscal"},
-    {icon:"💵",label:"Costo Venta"},
+    {icon:"💵",label:"Costo Venta"},{icon:"📜",label:"Actividad"},
   ];
   const COLORES_PRESET = ["#00C9A7","#845EF7","#F9A826","#FF6B6B","#0EA5E9","#6366F1","#25D366","#E11D48"];
 
@@ -7627,6 +7665,66 @@ function ConfigForm({ config, guardar }) {
         </div>
       )}
 
+      {tabIdx === 10 && <ActividadTab mob={mob} secS={secS} secH={secH} iS={iS} />}
+
+    </div>
+  );
+}
+
+// Bitácora de actividad — Inventario (entradas/salidas), Recepción (nuevas
+// recepciones) y Packing List (guardar Paso 1/2 y sus informes). Es un
+// registro real (tabla actividad_log en Supabase, alimentada desde esos
+// módulos) — no inventa entradas si todavía no hay actividad.
+function ActividadTab({ mob, secS, secH, iS }) {
+  const { actividad, loading } = useActividad();
+  const [filtroModulo, setFiltroModulo] = useState("Todos");
+  const [busqueda, setBusqueda] = useState("");
+
+  const modulos = ["Todos", ...Array.from(new Set(actividad.map(a => a.modulo))).sort()];
+  const filtrada = actividad.filter(a => {
+    const mc = filtroModulo === "Todos" || a.modulo === filtroModulo;
+    const q = busqueda.trim().toLowerCase();
+    const mb = !q || a.detalle.toLowerCase().includes(q) || (a.usuario || "").toLowerCase().includes(q);
+    return mc && mb;
+  });
+
+  return (
+    <div>
+      <div style={secS}>
+        <div style={secH}>📜 Bitácora de actividad</div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.42)", marginBottom:14 }}>
+          Quién hizo qué y cuándo — entradas/salidas de Inventario, recepciones nuevas, y guardado/descarga de informes en Packing List.
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "200px 1fr", gap:10, marginBottom:14 }}>
+          <CustomSelect value={filtroModulo} onChange={e=>setFiltroModulo(e.target.value)} style={iS()}>
+            {modulos.map(m => <option key={m} value={m}>{m}</option>)}
+          </CustomSelect>
+          <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="🔍 Buscar por usuario o texto..." style={iS()} />
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Cargando...</div>
+        ) : filtrada.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>
+            {actividad.length === 0 ? "Todavía no hay actividad registrada." : "Sin resultados para ese filtro."}
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:520, overflowY:"auto" }}>
+            {filtrada.map(a => (
+              <div key={a.id} style={{ display:"flex", gap:10, alignItems:"flex-start", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:9, padding:"9px 12px" }}>
+                <span style={{ fontSize:16, flexShrink:0 }}>{ICONO_ACCION_LOG[a.accion] || "📝"}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.85)" }}>{a.detalle}</div>
+                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", marginTop:2 }}>
+                    <span style={{ background:"rgba(132,94,247,0.15)", color:"#a78bfa", borderRadius:6, padding:"1px 6px", fontWeight:700, marginRight:6 }}>{a.modulo}</span>
+                    {a.createdAt ? new Date(a.createdAt).toLocaleString("es-CO", { dateStyle:"medium", timeStyle:"short" }) : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -7646,7 +7744,7 @@ const MODULES = [
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
   { id:"control_expo",  icon:"🛃", title:"Control Expo",  color:"#059669", demo:{ type:"control_expo_live" },  capabilities:["Seguimiento de documentos DEX","Estado Pendiente/Radicado/Cancelado","Verificación con un clic","Filtro y orden por fecha","Valor del DEX en USD","Informe descargable"] },
   { id:"caja_menor",    icon:"🧾", title:"Caja Menor",    color:"#F9A826", demo:{ type:"caja_menor_live" },    capabilities:["Registro de facturas con foto","QR de consulta por factura","Escáner de QR con cámara","Etiqueta QR imprimible","Búsqueda por concepto o proveedor","Total acumulado en vivo"] },
-  { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Seguridad y backup"] },
+  { id:"configuracion", icon:"⚙️", title:"Config.",      color:"#64748B", demo:{ type:"configuracion_live" }, capabilities:["Datos empresa y logo","Usuarios y permisos","Correos por documento","Clientes y navieras","Parámetros de nómina","Bitácora de actividad"] },
 ];
 
 // ─── USUARIOS ─────────────────────────────────────────────────

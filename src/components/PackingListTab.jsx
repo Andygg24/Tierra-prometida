@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { usePackingList } from "../hooks/usePackingList.js";
 import { useConfiguracion } from "../hooks/useConfiguracion.js";
+import { registrarActividad } from "../hooks/useActividad.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml,
   CALIBRES, COL_CAL, CHECKLIST_CALIDAD_CARGUE, CHEQUEO_TOTAL_ITEMS,
@@ -61,6 +62,10 @@ function fmtDate(d) {
   const [y, mo, dd] = d.split("-");
   return `${mo}-${dd}-${y}`;
 }
+
+const nombreUsuarioSesion = () => {
+  try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
+};
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
 // descargados muestran el logo aunque se abran después, sin servidor.
@@ -507,7 +512,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // avanzó más lejos, guardar un paso anterior no lo hace retroceder.
   const [infoActualizada, setInfoActualizada] = useState(false);
 
-  const guardarParcial = async ({ faseFinal, adminKeys, extra }) => {
+  const guardarParcial = async ({ faseFinal, adminKeys, extra, paso }) => {
     if (!contenedor?.id) return false;
     setGuardando(true);
     const { data: fresh, error: errorFresh } = await cargarPorContenedor(contenedor.id);
@@ -531,6 +536,16 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     if (!error) {
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2500);
+      if (paso) {
+        const usuario = nombreUsuarioSesion();
+        registrarActividad({
+          usuario,
+          modulo: "Packing List",
+          accion: `guardar_${paso.accion}`,
+          detalle: `${usuario || "Alguien"} guardó el ${paso.label} del contenedor ${admin.container || contenedor?.numContenedor || "—"}`,
+          referencia: admin.container || contenedor?.numContenedor || "",
+        });
+      }
     }
     return !error;
   };
@@ -539,12 +554,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     faseFinal: avanzar ? 2 : fase,
     adminKeys: PASO1_ADMIN_KEYS,
     extra: { total_cajas: totalCajas, cajas_input: cajasInput, pallets },
+    paso: { label: "Paso 1 (Planta)", accion: "paso1" },
   });
 
   const guardarPaso2 = (avanzar) => guardarParcial({
     faseFinal: avanzar ? 3 : 2,
     adminKeys: PASO2_ADMIN_KEYS,
     extra: { layout_camion: layoutCamion },
+    paso: { label: "Paso 2 (Cargue)", accion: "paso2" },
   });
 
   // "← Volver" es una acción explícita: el usuario decide retroceder de
@@ -1558,6 +1575,15 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
 
       if (modo === "html") return html;
 
+      const usuario = nombreUsuarioSesion();
+      registrarActividad({
+        usuario,
+        modulo: "Packing List",
+        accion: "informe_planta",
+        detalle: `${usuario || "Alguien"} descargó el Informe de Planta del contenedor ${admin.container || contenedor?.numContenedor || "—"}`,
+        referencia: admin.container || contenedor?.numContenedor || "",
+      });
+
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const u = URL.createObjectURL(blob);
       const filename = `Informe-Planta-${admin.container || contenedor?.numContenedor || "packing"}.html`;
@@ -1585,6 +1611,15 @@ body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff;padd
       const html = await generarInformeCargueHtml({ pallets, admin, contenedor, totalCajas, layoutCamion });
 
       if (modo === "html") return html;
+
+      const usuario = nombreUsuarioSesion();
+      registrarActividad({
+        usuario,
+        modulo: "Packing List",
+        accion: "informe_cargue",
+        detalle: `${usuario || "Alguien"} descargó el Informe de Cargue del contenedor ${admin.container || contenedor?.numContenedor || "—"}`,
+        referencia: admin.container || contenedor?.numContenedor || "",
+      });
 
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const u = URL.createObjectURL(blob);
