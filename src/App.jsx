@@ -6,6 +6,7 @@ import { useContenedores } from "./hooks/useContenedores.js";
 import { useInventario } from "./hooks/useInventario.js";
 import { useLiquidaciones } from "./hooks/useLiquidaciones.js";
 import { useConfiguracion } from "./hooks/useConfiguracion.js";
+import { useInformes } from "./hooks/useInformes.js";
 import PackingListTab from "./components/PackingListTab.jsx";
 import RecepcionesTab from "./components/RecepcionesTab.jsx";
 import LogisticaTab from "./components/LogisticaTab.jsx";
@@ -31,6 +32,10 @@ const useS = () => useContext(SmallCtx);
 
 // ─── UTILIDADES ──────────────────────────────────────────────
 const fmtCOP = (v) => `$ ${Math.round(v).toLocaleString("es-CO")}`;
+
+const nombreUsuarioSesion = () => {
+  try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
+};
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
 // descargados muestran el logo aunque se abran después, sin servidor.
@@ -1806,18 +1811,14 @@ ${tabNomina}${tabCont}
 }
 
 // ─── MÓDULO INFORMES ──────────────────────────────────────────
-function InformesDemo() {
-  const [archivo, setArchivo] = useState(null);
-  const [error, setError] = useState("");
-  const [historial, setHistorial] = useState([]);
-  const fileRef = useRef(null);
+const MAX_ARCHIVO_MB = 15;
 
-  const leerComoTexto = (file) => new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = e => resolve(e.target.result);
-    r.onerror = () => reject(new Error("Error leyendo archivo"));
-    r.readAsText(file);
-  });
+function InformesDemo() {
+  const { archivos, loading, guardar, eliminar, descargar } = useInformes();
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState("");
+  const [descargandoId, setDescargandoId] = useState(null);
+  const fileRef = useRef(null);
 
   const leerComoDataURL = (file) => new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -1826,53 +1827,80 @@ function InformesDemo() {
     r.readAsDataURL(file);
   });
 
-  // .docx es un .zip con XML adentro — mammoth le saca el texto plano. El
-  // formato viejo .doc (binario, pre-2007) no lo soporta ninguna librería de
-  // navegador; para ese caso solo queda avisar en vez de mandar basura a la IA.
-  const leerWord = async (file) => {
-    if (/\.doc$/i.test(file.name)) {
-      throw new Error("El formato .doc (Word 97-2003) no se puede leer desde el navegador — guarda el archivo como .docx y vuelve a intentar.");
-    }
-    const { default: mammoth } = await import("mammoth/mammoth.browser.js");
-    const arrayBuffer = await file.arrayBuffer();
-    const { value } = await mammoth.extractRawText({ arrayBuffer });
-    return value;
-  };
-
-  const leerArchivo = (file) => {
-    const nombre = file.name.toLowerCase();
-    if (nombre.endsWith(".docx") || nombre.endsWith(".doc")) return leerWord(file);
-    if (nombre.endsWith(".csv") || nombre.endsWith(".txt") || nombre.endsWith(".html") || nombre.endsWith(".htm")) return leerComoTexto(file);
-    return leerComoDataURL(file); // PDF e imágenes van al modelo como base64
-  };
-
   const handleFile = async (file) => {
     if (!file) return;
     setError("");
-    try {
-      await leerArchivo(file); // solo para validar que el archivo se puede leer
-      setArchivo(file);
-      setHistorial(prev => [{ nombre: file.name, fecha: new Date().toLocaleDateString("es-CO") }, ...prev.slice(0, 4)]);
-    } catch (e) {
-      setArchivo(null);
-      setError(e.message || "Error leyendo el archivo.");
+    if (file.size > MAX_ARCHIVO_MB * 1024 * 1024) {
+      setError(`El archivo pesa más de ${MAX_ARCHIVO_MB} MB — no se puede guardar.`);
+      return;
     }
+    setSubiendo(true);
+    try {
+      const contenido = await leerComoDataURL(file);
+      const ok = await guardar({
+        nombre: file.name,
+        tipo: file.type,
+        tamanoKb: file.size / 1024,
+        contenido,
+        subidoPor: nombreUsuarioSesion(),
+      });
+      if (!ok) setError("No se pudo guardar el archivo — intenta de nuevo.");
+    } catch (e) {
+      setError(e.message || "Error leyendo el archivo.");
+    } finally {
+      setSubiendo(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const abrirArchivo = async (a) => {
+    setDescargandoId(a.id);
+    const contenido = await descargar(a.id);
+    setDescargandoId(null);
+    if (!contenido) { setError("No se pudo abrir ese archivo."); return; }
+    const link = document.createElement("a");
+    link.href = contenido;
+    link.download = a.nombre;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   return (
     <div>
-      <div onClick={() => fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} style={{ border:`2px dashed ${archivo?"#FF6B6B":"rgba(255,107,107,0.3)"}`, borderRadius:12, padding:16, textAlign:"center", cursor:"pointer", background:archivo?"rgba(255,107,107,0.06)":"rgba(255,255,255,0.02)", marginBottom:10 }}>
-        <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,.png,.jpg,.jpeg,.doc,.docx,.html,.htm" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} />
-        {archivo ? <div><div style={{fontSize:20,marginBottom:4}}>📄</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>{archivo.name}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>{(archivo.size/1024).toFixed(1)} KB · Listo</div></div>
-        : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.58)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>Word, PDF, HTML, CSV, imágenes</div></div>}
+      <div onClick={() => !subiendo && fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); if (!subiendo) handleFile(e.dataTransfer.files[0]);}} style={{ border:`2px dashed rgba(255,107,107,0.3)`, borderRadius:12, padding:16, textAlign:"center", cursor: subiendo ? "wait" : "pointer", background:"rgba(255,255,255,0.02)", marginBottom:10 }}>
+        <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,.png,.jpg,.jpeg,.doc,.docx,.html,.htm" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} disabled={subiendo} />
+        {subiendo ? <div><div style={{fontSize:20,marginBottom:4}}>⏳</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>Guardando...</div></div>
+        : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.58)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>Word, PDF, HTML, CSV, imágenes · máx. {MAX_ARCHIVO_MB} MB</div></div>}
       </div>
       {error && (
         <div style={{ background:"rgba(255,107,107,0.08)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:10, padding:10, marginBottom:10, fontSize:11, color:"#fca5a5" }}>❌ {error}</div>
       )}
-      {archivo && (
-        <button onClick={() => { setArchivo(null); setError(""); }} style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:11, color:"rgba(255,255,255,0.58)", cursor:"pointer", marginBottom:10 }}>🔄 Subir otro archivo</button>
+
+      <div style={{fontSize:11,color:"rgba(255,255,255,0.38)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Archivos guardados</div>
+      {loading ? (
+        <div style={{ textAlign:"center", padding:"20px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Cargando...</div>
+      ) : archivos.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"20px 0", color:"rgba(255,255,255,0.33)", fontSize:12 }}>Todavía no se ha subido ningún archivo.</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {archivos.map(a => (
+            <div key={a.id} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:9, padding:"8px 10px" }}>
+              <div style={{ fontSize:16 }}>📄</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.85)", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.nombre}</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>
+                  {a.tamanoKb ? `${a.tamanoKb.toFixed(0)} KB · ` : ""}{a.subidoPor ? `${a.subidoPor} · ` : ""}{a.createdAt ? new Date(a.createdAt).toLocaleString("es-CO", { dateStyle:"short", timeStyle:"short" }) : ""}
+                </div>
+              </div>
+              <button onClick={() => abrirArchivo(a)} disabled={descargandoId === a.id} style={{ background:"rgba(255,107,107,0.12)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#FF6B6B", cursor: descargandoId === a.id ? "wait" : "pointer" }}>
+                {descargandoId === a.id ? "..." : "⬇"}
+              </button>
+              <button onClick={() => { if (window.confirm(`¿Eliminar "${a.nombre}"?`)) eliminar(a.id); }} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#fca5a5", cursor:"pointer" }}>
+                🗑
+              </button>
+            </div>
+          ))}
+        </div>
       )}
-      {historial.length > 0 && <div><div style={{fontSize:11,color:"rgba(255,255,255,0.38)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Recientes</div>{historial.map((h,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.68)"}}>📄 {h.nombre}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)"}}>{h.fecha}</div></div>)}</div>}
     </div>
   );
 }
@@ -7612,7 +7640,7 @@ const MODULES = [
   { id:"recepciones",   icon:"🍋", title:"Recepción",     color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
-  { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Word, PDF, HTML o CSV","Para operarios y supervisores","Validación del archivo al subirlo","Historial de archivos recientes"] },
+  { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Word, PDF, HTML o CSV","Guardado permanente en la nube","Para operarios y supervisores","Descargar o eliminar cualquier archivo"] },
   { id:"asistencia",    icon:"📅", title:"Asistencia",    color:"#4ECDC4", demo:{ type:"asistencia_live" },   capabilities:["Registro diario de asistencia","✅ Presente · ❌ Ausente · ⏰ Tardanza","📋 Licencias y permisos · 🎉 Festivos","Marcar todos en un click","Filtro por nombre y área","Informe mensual descargable"] },
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
