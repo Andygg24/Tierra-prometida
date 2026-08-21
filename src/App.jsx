@@ -1808,9 +1808,7 @@ ${tabNomina}${tabCont}
 // ─── MÓDULO INFORMES ──────────────────────────────────────────
 function InformesDemo() {
   const [archivo, setArchivo] = useState(null);
-  const [analisis, setAnalisis] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [archivoTexto, setArchivoTexto] = useState("");
+  const [error, setError] = useState("");
   const [historial, setHistorial] = useState([]);
   const fileRef = useRef(null);
 
@@ -1850,36 +1848,15 @@ function InformesDemo() {
 
   const handleFile = async (file) => {
     if (!file) return;
-    setArchivo(file); setAnalisis("");
-    try { const c = await leerArchivo(file); setArchivoTexto(c); }
-    catch (e) { setArchivo(null); setAnalisis(`❌ ${e.message || "Error leyendo el archivo."}`); }
-  };
-
-  const analizar = async () => {
-    if (!archivo) return;
-    setLoading(true); setAnalisis("");
+    setError("");
     try {
-      const esPDF = archivo.type==="application/pdf";
-      const esImg = archivo.type.startsWith("image/");
-      let messages;
-      if (esPDF) {
-        messages = [{ role:"user", content:[{ type:"document", source:{ type:"base64", media_type:"application/pdf", data:(archivoTexto.includes(",")?archivoTexto.split(",")[1]:archivoTexto) }},{ type:"text", text:"Analiza este documento como JARVIS de Tierra Prometida Trading 🍋. Genera un informe ejecutivo con resumen, hallazgos y recomendaciones para los socios." }]}];
-      } else if (esImg) {
-        messages = [{ role:"user", content:[{ type:"image", source:{ type:"base64", media_type:archivo.type, data:(archivoTexto.includes(",")?archivoTexto.split(",")[1]:archivoTexto) }},{ type:"text", text:"Analiza esta imagen como JARVIS de Tierra Prometida Trading 🍋. Genera un informe ejecutivo." }]}];
-      } else {
-        messages = [{ role:"user", content:`Analiza este archivo como JARVIS de Tierra Prometida Trading 🍋. Genera informe ejecutivo con resumen, hallazgos y recomendaciones.\n\nContenido:\n${archivoTexto.slice(0,8000)}` }];
-      }
-      const res = await fetch("/api/informe-analisis", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body:JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:2000, system:"Eres JARVIS, asistente de Tierra Prometida Trading 🍋, empresa colombiana de procesamiento y exportación de frutas en Lebrija y Girón, Santander. Generas informes ejecutivos claros, profesionales y en español. Incluye resumen ejecutivo, hallazgos clave, métricas importantes y recomendaciones accionables para los socios.", messages }) });
-      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message||`Error ${res.status}`); }
-      const data = await res.json();
-      const result = data.content?.map(b=>b.text||"").join("")||"No se pudo analizar.";
-      setAnalisis(result);
-      setHistorial(prev => [{ nombre:archivo.name, fecha:new Date().toLocaleDateString("es-CO") }, ...prev.slice(0,4)]);
-    } catch { setAnalisis("❌ Error al analizar."); }
-    setLoading(false);
+      await leerArchivo(file); // solo para validar que el archivo se puede leer
+      setArchivo(file);
+      setHistorial(prev => [{ nombre: file.name, fecha: new Date().toLocaleDateString("es-CO") }, ...prev.slice(0, 4)]);
+    } catch (e) {
+      setArchivo(null);
+      setError(e.message || "Error leyendo el archivo.");
+    }
   };
 
   return (
@@ -1889,13 +1866,11 @@ function InformesDemo() {
         {archivo ? <div><div style={{fontSize:20,marginBottom:4}}>📄</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>{archivo.name}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>{(archivo.size/1024).toFixed(1)} KB · Listo</div></div>
         : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.58)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>Word, PDF, HTML, CSV, imágenes</div></div>}
       </div>
-      {archivo && !analisis && <button onClick={analizar} disabled={loading} style={{ width:"100%", background:loading?"rgba(255,107,107,0.2)":"linear-gradient(135deg,#FF6B6B,#845EF7)", border:"none", borderRadius:10, padding:10, fontSize:13, color:"white", cursor:loading?"default":"pointer", fontWeight:700, marginBottom:10 }}>{loading?"🤖 Analizando...":"🔍 Analizar con JARVIS"}</button>}
-      {analisis && (
-        <div style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,107,107,0.2)", borderRadius:10, padding:12, marginBottom:10 }}>
-          <div style={{ fontSize:11, color:"#FF6B6B", fontWeight:700, marginBottom:8 }}>📋 Informe JARVIS</div>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.88)", lineHeight:1.6, maxHeight:140, overflowY:"auto", whiteSpace:"pre-wrap" }}>{analisis}</div>
-          <button onClick={() => { setArchivo(null); setAnalisis(""); setArchivoTexto(""); }} style={{ marginTop:10, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"6px 12px", fontSize:11, color:"rgba(255,255,255,0.48)", cursor:"pointer" }}>🔄 Nuevo análisis</button>
-        </div>
+      {error && (
+        <div style={{ background:"rgba(255,107,107,0.08)", border:"1px solid rgba(255,107,107,0.25)", borderRadius:10, padding:10, marginBottom:10, fontSize:11, color:"#fca5a5" }}>❌ {error}</div>
+      )}
+      {archivo && (
+        <button onClick={() => { setArchivo(null); setError(""); }} style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", borderRadius:8, padding:"8px 12px", fontSize:11, color:"rgba(255,255,255,0.58)", cursor:"pointer", marginBottom:10 }}>🔄 Subir otro archivo</button>
       )}
       {historial.length > 0 && <div><div style={{fontSize:11,color:"rgba(255,255,255,0.38)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Recientes</div>{historial.map((h,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.68)"}}>📄 {h.nombre}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)"}}>{h.fecha}</div></div>)}</div>}
     </div>
@@ -7637,7 +7612,7 @@ const MODULES = [
   { id:"recepciones",   icon:"🍋", title:"Recepción",     color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
-  { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Word, PDF, HTML o CSV","JARVIS analiza con IA real","Informe ejecutivo para socios","Historial de análisis","Comparativos con IA","Resumen ejecutivo en segundos"] },
+  { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Word, PDF, HTML o CSV","Para operarios y supervisores","Validación del archivo al subirlo","Historial de archivos recientes"] },
   { id:"asistencia",    icon:"📅", title:"Asistencia",    color:"#4ECDC4", demo:{ type:"asistencia_live" },   capabilities:["Registro diario de asistencia","✅ Presente · ❌ Ausente · ⏰ Tardanza","📋 Licencias y permisos · 🎉 Festivos","Marcar todos en un click","Filtro por nombre y área","Informe mensual descargable"] },
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
