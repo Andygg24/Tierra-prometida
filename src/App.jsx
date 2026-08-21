@@ -38,6 +38,11 @@ const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
 
+// La bitácora de actividad es solo para roles de Administrador para arriba —
+// "Administración" es el mismo rol con el nombre viejo (ver ROL_COLORS).
+const ROLES_VEN_ACTIVIDAD = ["Owner", "Administrador", "Administración"];
+const puedeVerActividad = (rol) => ROLES_VEN_ACTIVIDAD.includes(rol);
+
 const ICONO_ACCION_LOG = {
   entrada: "📥", salida: "📤",
   nueva_recepcion: "🍋", editar_recepcion: "✏️",
@@ -6604,7 +6609,7 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
       )}
 
       {/* ── HEADER: Fecha/Hora + Clima + Actividad de usuarios ── */}
-      <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "1fr auto minmax(240px,1fr)", gap:10, marginBottom:14 }}>
+      <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : (puedeVerActividad(usuario?.rol) ? "1fr auto minmax(240px,1fr)" : "1fr auto"), gap:10, marginBottom:14 }}>
         <div style={{ background:"linear-gradient(135deg,rgba(0,201,167,0.07),rgba(132,94,247,0.07))", border:"1px solid rgba(255,255,255,0.10)", borderRadius:14, padding: mob ? "10px 14px" : "14px 18px" }}>
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.48)", marginBottom:2, textTransform:"capitalize" }}>
             {mob
@@ -6639,7 +6644,7 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
         </div>}
 
         {/* Actividad de usuarios — oculto en móvil, va en su bloque propio más abajo */}
-        {!mob && widgetActividad(true)}
+        {!mob && puedeVerActividad(usuario?.rol) && widgetActividad(true)}
       </div>
 
       {/* ── KPIs — 3 col desktop / 2 col móvil / 1 col < 480px ── */}
@@ -6775,7 +6780,7 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
       </div>
 
       {/* En desktop ya va arriba, junto a hora/clima — en móvil (donde no hay espacio ahí) se muestra completo aquí */}
-      {mob && widgetActividad(false)}
+      {mob && puedeVerActividad(usuario?.rol) && widgetActividad(false)}
 
       {/* ── GRÁFICA TENDENCIA ASISTENCIA 7 DÍAS ── */}
       {hayTendencia && (
@@ -6873,13 +6878,13 @@ function Toggle({ value, onChange, label }) {
 }
 
 // ─── MÓDULO CONFIGURACIÓN ─────────────────────────────────────
-function ConfiguracionDemo() {
+function ConfiguracionDemo({ usuario }) {
   const { config, loading, guardar } = useConfiguracion();
   if (loading) return <div style={{ textAlign:"center", padding:40, color:"rgba(255,255,255,0.38)", fontSize:13 }}>Cargando configuración...</div>;
-  return <ConfigForm config={config} guardar={guardar} />;
+  return <ConfigForm config={config} guardar={guardar} usuario={usuario} />;
 }
 
-function ConfigForm({ config, guardar }) {
+function ConfigForm({ config, guardar, usuario }) {
   const mob = useM();
   const [tabIdx,     setTabIdx]     = useState(0);
   const [toast,      setToast]      = useState(null);
@@ -6976,11 +6981,14 @@ function ConfigForm({ config, guardar }) {
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
   const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Logística","Control Expo","Caja Menor","Configuración"];
+  // "Actividad" solo se agrega al final si el rol es Administrador o superior
+  // — así los índices 0-9 del resto de pestañas nunca se mueven.
   const TABS = [
     {icon:"🏢",label:"Empresa"},{icon:"👤",label:"Usuarios"},{icon:"📧",label:"Correos"},
     {icon:"🚢",label:"Exportación"},{icon:"💰",label:"Nómina"},{icon:"🔔",label:"Notific."},
     {icon:"🎨",label:"Apariencia"},{icon:"🔒",label:"Seguridad"},{icon:"📋",label:"Fiscal"},
-    {icon:"💵",label:"Costo Venta"},{icon:"📜",label:"Actividad"},
+    {icon:"💵",label:"Costo Venta"},
+    ...(puedeVerActividad(usuario?.rol) ? [{icon:"📜",label:"Actividad"}] : []),
   ];
   const COLORES_PRESET = ["#00C9A7","#845EF7","#F9A826","#FF6B6B","#0EA5E9","#6366F1","#25D366","#E11D48"];
 
@@ -7674,7 +7682,7 @@ function ConfigForm({ config, guardar }) {
         </div>
       )}
 
-      {tabIdx === 10 && <ActividadTab mob={mob} secS={secS} secH={secH} iS={iS} />}
+      {tabIdx === 10 && puedeVerActividad(usuario?.rol) && <ActividadTab mob={mob} secS={secS} secH={secH} iS={iS} />}
 
     </div>
   );
@@ -8005,7 +8013,7 @@ export default function App() {
   const mod = MODULES[activeModule];
 
   const renderDemo = (demo) => {
-    if (demo.type === "configuracion_live") return <ConfiguracionDemo />;
+    if (demo.type === "configuracion_live") return <ConfiguracionDemo usuario={usuario} />;
     if (demo.type === "inicio_live")      return <InicioDemo usuario={usuario} onNavigate={navigateToModule} puedeAcceder={(id) => { const m = MODULES.find(x=>x.id===id); return m ? tieneAcceso(m) : true; }} />;
     if (demo.type === "personal_live")    return <PersonalDemo />;
     if (demo.type === "nomina_live")      return <NominaDemo />;
