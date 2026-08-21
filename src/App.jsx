@@ -1814,14 +1814,46 @@ function InformesDemo() {
   const [historial, setHistorial] = useState([]);
   const fileRef = useRef(null);
 
-  const leerArchivo = (file) => new Promise((resolve, reject) => {
+  const leerComoTexto = (file) => new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = e => resolve(e.target.result);
     r.onerror = () => reject(new Error("Error leyendo archivo"));
-    file.name.endsWith(".csv")||file.name.endsWith(".txt") ? r.readAsText(file) : r.readAsDataURL(file);
+    r.readAsText(file);
   });
 
-  const handleFile = async (file) => { if (!file) return; setArchivo(file); setAnalisis(""); try { const c = await leerArchivo(file); setArchivoTexto(c); } catch { setAnalisis("❌ Error leyendo el archivo."); } };
+  const leerComoDataURL = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = () => reject(new Error("Error leyendo archivo"));
+    r.readAsDataURL(file);
+  });
+
+  // .docx es un .zip con XML adentro — mammoth le saca el texto plano. El
+  // formato viejo .doc (binario, pre-2007) no lo soporta ninguna librería de
+  // navegador; para ese caso solo queda avisar en vez de mandar basura a la IA.
+  const leerWord = async (file) => {
+    if (/\.doc$/i.test(file.name)) {
+      throw new Error("El formato .doc (Word 97-2003) no se puede leer desde el navegador — guarda el archivo como .docx y vuelve a intentar.");
+    }
+    const { default: mammoth } = await import("mammoth/mammoth.browser.js");
+    const arrayBuffer = await file.arrayBuffer();
+    const { value } = await mammoth.extractRawText({ arrayBuffer });
+    return value;
+  };
+
+  const leerArchivo = (file) => {
+    const nombre = file.name.toLowerCase();
+    if (nombre.endsWith(".docx") || nombre.endsWith(".doc")) return leerWord(file);
+    if (nombre.endsWith(".csv") || nombre.endsWith(".txt") || nombre.endsWith(".html") || nombre.endsWith(".htm")) return leerComoTexto(file);
+    return leerComoDataURL(file); // PDF e imágenes van al modelo como base64
+  };
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setArchivo(file); setAnalisis("");
+    try { const c = await leerArchivo(file); setArchivoTexto(c); }
+    catch (e) { setArchivo(null); setAnalisis(`❌ ${e.message || "Error leyendo el archivo."}`); }
+  };
 
   const analizar = async () => {
     if (!archivo) return;
@@ -1853,9 +1885,9 @@ function InformesDemo() {
   return (
     <div>
       <div onClick={() => fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}} style={{ border:`2px dashed ${archivo?"#FF6B6B":"rgba(255,107,107,0.3)"}`, borderRadius:12, padding:16, textAlign:"center", cursor:"pointer", background:archivo?"rgba(255,107,107,0.06)":"rgba(255,255,255,0.02)", marginBottom:10 }}>
-        <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,.png,.jpg,.jpeg" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} />
+        <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,.png,.jpg,.jpeg,.doc,.docx,.html,.htm" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} />
         {archivo ? <div><div style={{fontSize:20,marginBottom:4}}>📄</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>{archivo.name}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.48)"}}>{(archivo.size/1024).toFixed(1)} KB · Listo</div></div>
-        : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.58)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>Excel, CSV, PDF, imágenes</div></div>}
+        : <div><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,color:"rgba(255,255,255,0.58)",fontWeight:600}}>Toca para subir archivo</div><div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>Word, PDF, HTML, CSV, imágenes</div></div>}
       </div>
       {archivo && !analisis && <button onClick={analizar} disabled={loading} style={{ width:"100%", background:loading?"rgba(255,107,107,0.2)":"linear-gradient(135deg,#FF6B6B,#845EF7)", border:"none", borderRadius:10, padding:10, fontSize:13, color:"white", cursor:loading?"default":"pointer", fontWeight:700, marginBottom:10 }}>{loading?"🤖 Analizando...":"🔍 Analizar con JARVIS"}</button>}
       {analisis && (
@@ -7605,7 +7637,7 @@ const MODULES = [
   { id:"recepciones",   icon:"🍋", title:"Recepción",     color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
-  { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Excel, PDF o CSV","JARVIS analiza con IA real","Informe ejecutivo para socios","Historial de análisis","Comparativos con IA","Resumen ejecutivo en segundos"] },
+  { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Word, PDF, HTML o CSV","JARVIS analiza con IA real","Informe ejecutivo para socios","Historial de análisis","Comparativos con IA","Resumen ejecutivo en segundos"] },
   { id:"asistencia",    icon:"📅", title:"Asistencia",    color:"#4ECDC4", demo:{ type:"asistencia_live" },   capabilities:["Registro diario de asistencia","✅ Presente · ❌ Ausente · ⏰ Tardanza","📋 Licencias y permisos · 🎉 Festivos","Marcar todos en un click","Filtro por nombre y área","Informe mensual descargable"] },
   { id:"documentos",    icon:"🚢", title:"Exportación",   color:"#0EA5E9", demo:{ type:"documentos_live" },   capabilities:["Carta de Temperatura oficial","Factura Proforma consecutiva","ISF Template 10+2 para USA","Datos pre-llenados automáticamente","Princesses Kingdom Corp pre-configurado","HTML listo para imprimir o PDF"] },
   { id:"estadisticas",  icon:"📈", title:"Estadísticas",  color:"#FF6B6B", demo:{ type:"estadisticas_live" }, capabilities:["KPIs en tiempo real","Distribución de documentos","Empleados por área","Gastos operativos","Nómina base estimada","Observaciones y alertas"] },
