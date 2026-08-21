@@ -4672,6 +4672,9 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 
         // Simple por ahora: rendimiento = kg empacados / kg procesados.
         // La devolución del proceso se muestra aparte, informativa.
+        // Merma = (kilos procesados − kg empacados − kg devueltos) / kilos procesados.
+        // Es la porción del kg procesado que no terminó ni en caja ni en la
+        // devolución registrada — lo que se perdió en el proceso.
         const calcRend = (r) => {
           const kgDM  = r.cajasDelMonte * KG_DEL_MONTE;
           const kgPri = r.cajasPrincess * KG_PRINCESS;
@@ -4680,7 +4683,8 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const rendGen = proc > 0 ? (kgEmp / proc) * 100 : 0;
           const rendDM  = proc > 0 ? (kgDM  / proc) * 100 : 0;
           const rendPri = proc > 0 ? (kgPri / proc) * 100 : 0;
-          return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri };
+          const merma   = proc > 0 ? ((proc - kgEmp - r.kilosDevueltos) / proc) * 100 : 0;
+          return { kgDM, kgPri, kgEmp, rendGen, rendDM, rendPri, merma };
         };
 
         const totales = rendsDelCont.reduce((acc, r) => {
@@ -4703,8 +4707,11 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           ? ((totales.cajasDelMonte * KG_DEL_MONTE) / totales.kilosProcesados) * 100 : 0;
         const rendPriTotal = totales.kilosProcesados > 0
           ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesados) * 100 : 0;
+        const mermaTotal = totales.kilosProcesados > 0
+          ? ((totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos) / totales.kilosProcesados) * 100 : 0;
 
-        const colorRend = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
+        const colorRend  = (pct) => pct >= 80 ? "#00C9A7" : pct >= 60 ? "#F9A826" : "#FF6B6B";
+        const colorMerma = (pct) => pct <= 20 ? "#00C9A7" : pct <= 40 ? "#F9A826" : "#FF6B6B";
 
         const proveedoresCont = parseProveedores(contSelRend?.proveedor);
 
@@ -4717,9 +4724,10 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * KG_PRINCESS,  0);
           const kgEmp  = kgDM + kgPri;
           const rdto   = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
+          const merma  = kgProc > 0 ? ((kgProc - kgEmp - kgDev) / kgProc) * 100 : 0;
           const cajDM  = recs.reduce((s,r) => s + r.cajasDelMonte, 0);
           const cajPri = recs.reduce((s,r) => s + r.cajasPrincess, 0);
-          return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, cajDM, cajPri };
+          return { pv, camiones: recs.length, kgProc, kgDev, kgEmp, rdto, merma, cajDM, cajPri };
         });
 
         const generarInforme = async (modo = "descargar") => {
@@ -4776,10 +4784,11 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
           const providerSection = proveedoresCont.length > 1 ? `
 <h2>🚚 Rendimiento por proveedor</h2>
 <table>
-  <thead><tr><th>Proveedor</th><th>Contenedores</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th></tr></thead>
+  <thead><tr><th>Proveedor</th><th>Contenedores</th><th>Kg procesados</th><th>Kg devueltos</th><th>Kg empacados</th><th>Cajas</th><th>Rendimiento</th><th>Merma</th></tr></thead>
   <tbody>
   ${statsPorProveedor.map(s => {
     const sc = s.rdto >= 80 ? "#15803d" : s.rdto >= 60 ? "#b45309" : "#b91c1c";
+    const mc = s.merma <= 20 ? "#15803d" : s.merma <= 40 ? "#b45309" : "#b91c1c";
     return `<tr>
       <td><span class="pv-badge">${s.pv}</span></td>
       <td>${s.camiones}</td>
@@ -4788,6 +4797,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
       <td style="color:#15803d;font-weight:600;">${s.kgEmp.toFixed(1)} kg</td>
       <td>${s.cajDM + s.cajPri} <span class="dim">(${s.cajDM} DM · ${s.cajPri} PRI)</span></td>
       <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(s.rdto,100).toFixed(1)}%;background:${sc};"></div></div><span style="font-weight:700;color:${sc};">${s.rdto.toFixed(1)}%</span></div></td>
+      <td style="font-weight:700;color:${mc};">${s.merma.toFixed(1)}%</td>
     </tr>`;
   }).join("")}
   </tbody>
@@ -4863,6 +4873,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
               const pct = r.kilosProcesados > 0 ? (calKg / r.kilosProcesados * 100).toFixed(1) : "0.0";
               return `<span style="background:#ede9fe;color:#4c1d95;border-radius:4px;padding:1px 7px;font-size:9px;font-weight:700;margin-right:3px;display:inline-block;">${cal.nombre}: ${pct}%</span>`;
             }).join("");
+            const mc = c.merma <= 20 ? "#15803d" : c.merma <= 40 ? "#b45309" : "#b91c1c";
             return `<tr>
   <td class="num-cell">${i+1}</td>
   <td>${r.fecha}</td>
@@ -4872,6 +4883,7 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
   <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
   <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
+  <td style="font-weight:700;color:${mc};">${c.merma.toFixed(1)}%</td>
   <td>${calChips || `<span class="dim">—</span>`}</td>
   <td>${obsCell}</td>
 </tr>`;
@@ -4980,6 +4992,7 @@ ${infoItems ? `<div class="infobar">${infoItems}</div>` : ""}
     <div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kg procesados total</div><div class="val">${totales.kilosProcesados.toLocaleString("es-CO")}</div><div class="sub2">ingresados − no procesados</div></div>
     <div class="card" style="border-left-color:#15803d;"><div class="lbl">Kg empacados total</div><div class="val" style="color:#15803d;">${totales.kgEmp.toFixed(1)}</div><div class="sub2">kg salida</div></div>
     <div class="card" style="border-left-color:#b45309;"><div class="lbl">Devolución del proceso</div><div class="val" style="color:#b45309;">${totales.kilosDevueltos.toLocaleString("es-CO")}</div><div class="sub2">informativo, no afecta el rendimiento</div></div>
+    <div class="card" style="border-left-color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};"><div class="lbl">Merma</div><div class="val" style="color:${mermaTotal <= 20 ? "#15803d" : mermaTotal <= 40 ? "#ca8a04" : "#dc2626"};">${mermaTotal.toFixed(1)}%</div><div class="sub2">procesado − empacado − devuelto</div></div>
     ${totales.kilosPrimeraDevueltos > 0 ? `<div class="card" style="border-left-color:#94a3b8;"><div class="lbl">Kilos de limón de primera devueltos</div><div class="val">${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")}</div><div class="sub2">procesados y aptos, devueltos por espacio</div></div>` : ""}
   </div>
 </div>
@@ -5010,7 +5023,7 @@ ${calibreSection}
   <thead>
     <tr>
       <th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg proc.</th><th>Devueltos</th>
-      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Calibres</th><th>Observaciones</th>
+      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Merma</th><th>Calibres</th><th>Observaciones</th>
     </tr>
   </thead>
   <tbody>${truckRows}</tbody>
@@ -5149,6 +5162,7 @@ ${calibreSection}
                     {card("Kg procesados", `${totales.kilosProcesados.toLocaleString("es-CO")} kg`, "white", totales.kilosIngresados > 0 ? "ingresados − no procesados" : null)}
                     {card("Kg empacados", `${totales.kgEmp.toFixed(1)} kg`, "#00C9A7")}
                     {card("Devolución del proceso", `${totales.kilosDevueltos.toLocaleString("es-CO")} kg`, "#F9A826", "informativo, no afecta el rendimiento")}
+                    {card("Merma", `${mermaTotal.toFixed(1)}%`, colorMerma(mermaTotal), "procesado − empacado − devuelto")}
                     {totales.kilosPrimeraDevueltos > 0 && card("Kilos de limón de primera devueltos", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
                       `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
@@ -5163,7 +5177,7 @@ ${calibreSection}
                     <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.48)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Rendimiento por proveedor</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {statsPorProveedor.map(s => (
-                        <div key={s.pv} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: "10px 12px", display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "2fr 1fr 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
+                        <div key={s.pv} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: "10px 12px", display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "2fr 1fr 1fr 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
                           <div>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "#e2e8f0" }}>{s.pv}</div>
                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginTop: 1 }}>{s.camiones} camión{s.camiones !== 1 ? "es" : ""}</div>
@@ -5172,6 +5186,7 @@ ${calibreSection}
                           <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Kg empacados</div><div style={{ fontSize: 12, fontWeight: 700, color: "#00C9A7" }}>{s.kgEmp.toFixed(0)}</div></div>
                           <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Cajas</div><div style={{ fontSize: 12, fontWeight: 700 }}>{s.cajDM + s.cajPri}</div></div>
                           <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Rendimiento</div><div style={{ fontSize: 14, fontWeight: 700, color: colorRend(s.rdto) }}>{s.rdto.toFixed(1)}%</div></div>
+                          <div><div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Merma</div><div style={{ fontSize: 14, fontWeight: 700, color: colorMerma(s.merma) }}>{s.merma.toFixed(1)}%</div></div>
                         </div>
                       ))}
                     </div>
@@ -5249,10 +5264,12 @@ ${calibreSection}
                       const rg   = hayProc ? ((kgEmp / proc) * 100).toFixed(1) : null;
                       const rdm  = hayProc ? ((kgDM  / proc) * 100).toFixed(1) : null;
                       const rpri = hayProc ? ((kgPri / proc) * 100).toFixed(1) : null;
+                      const kgDev = Number(formRend.kilosDevueltos) || 0;
+                      const merma = hayProc ? (((proc - kgEmp - kgDev) / proc) * 100).toFixed(1) : null;
                       if (!hayKgEmp) return null;
                       return (
                         <>
-                          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : hayProc ? "1fr 1fr 1fr 1fr" : "1fr", gap: 8, marginBottom: 8 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : hayProc ? "1fr 1fr 1fr 1fr 1fr" : "1fr", gap: 8, marginBottom: 8 }}>
                             <div style={{ background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.2)", borderRadius: 8, padding: "7px 10px" }}>
                               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Kg empacados</div>
                               <div style={{ fontSize: 15, fontWeight: 700, color: "#00C9A7" }}>{kgEmp.toFixed(1)} kg</div>
@@ -5271,6 +5288,10 @@ ${calibreSection}
                                 <div style={{ background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.2)", borderRadius: 8, padding: "7px 10px" }}>
                                   <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Rdto. Princesses</div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>{rpri}%</div>
+                                </div>
+                                <div style={{ background: `rgba(${Number(merma) <= 20 ? "0,201,167" : Number(merma) <= 40 ? "249,168,38" : "255,107,107"},0.08)`, border: `1px solid rgba(${Number(merma) <= 20 ? "0,201,167" : Number(merma) <= 40 ? "249,168,38" : "255,107,107"},0.2)`, borderRadius: 8, padding: "7px 10px" }}>
+                                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.48)" }}>Merma</div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: colorMerma(Number(merma)) }}>{merma}%</div>
                                 </div>
                               </>
                             )}
@@ -5457,6 +5478,10 @@ ${calibreSection}
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Rdto. general</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: colorRend(c.rendGen) }}>{c.rendGen.toFixed(1)}%</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Merma</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: colorMerma(c.merma) }}>{c.merma.toFixed(1)}%</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Del Monte ({r.cajasDelMonte} cajas)</div>
