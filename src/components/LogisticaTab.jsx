@@ -431,12 +431,16 @@ export default function LogisticaTab({ mob, logistica }) {
 
       // Colores de las gráficas en el informe (documento claro/imprimible,
       // a diferencia del dashboard oscuro) — mismas funciones de src/components/LogisticaTab.jsx.
-      const chartColorFor = { puertos: "#F97316", destinos: "#0EA5E9", navieras: "#845EF7", transportadores: "#F9A826", inspecciones: "#0EA5E9" };
+      // Un solo color de acento para los 5 rankings — cada uno es una sola
+      // serie (magnitud por categoría), no varias series a comparar entre
+      // sí, así que un color consistente se ve más cuidado que un color
+      // distinto por gráfica sin motivo real.
+      const chartColorFor = { puertos: "#B45309", destinos: "#B45309", navieras: "#B45309", transportadores: "#B45309", inspecciones: "#B45309" };
 
       const tablaRanking = (titulo, icono, ranking, colHead, colorKey) => `
 <h2>${icono} ${titulo}</h2>
 ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>` : `
-${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: chartColorFor[colorKey], textColor: "#333", trackColor: "#f1ece5" })}
+${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: chartColorFor[colorKey], textColor: "var(--ink)", trackColor: "var(--accent-soft)" })}
 <table><thead><tr><th>#</th><th>${colHead}</th><th style="text-align:right">Operaciones</th><th style="text-align:right">% Participación</th></tr></thead>
 <tbody>${ranking.map(filaRanking).join("")}</tbody></table>`}`;
 
@@ -451,43 +455,56 @@ ${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad,
         { label: "Llenadas",   value: statsOp.llenadas,   color: "#16a34a" },
         { label: "Canceladas", value: statsOp.canceladas, color: "#dc2626" },
         { label: "En proceso", value: statsOp.enProceso,  color: "#94a3b8" },
-      ], { size: 140, holeColor: "#fff7f0", textColor: "#222", centerLabel: String(statsOp.totalReservas), centerSub: "reservas" });
+      ], { size: 150, holeColor: "#fff", textColor: "#2A2420", centerLabel: String(statsOp.totalReservas), centerSub: "reservas" });
 
       const evolucionFilas = statsOp.inspecciones.evolucion
         .map(mes => `<tr><td style="text-transform:capitalize">${mes.label} ${anioOp}</td><td style="text-align:right">${mes.cantidad}</td></tr>`)
         .join("");
-      const evolucionSvg = svgLinea(statsOp.inspecciones.evolucion.map(mes => ({ label: mes.label, cantidad: mes.cantidad })), { width: 300, height: 130, color: "#0EA5E9", textColor: "#333", gridColor: "#eee" });
+      const evolucionSvg = svgLinea(statsOp.inspecciones.evolucion.map(mes => ({ label: mes.label, cantidad: mes.cantidad })), { width: 300, height: 130, color: "#0369A1", textColor: "var(--ink)", gridColor: "var(--line)" });
 
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Operativo — ${rangoOp.label}</title>
 <style>
+  :root{
+    --accent:#B45309; --accent-soft:#FDF1E1; --accent-border:#EFD5AC; --accent-strong:#92400E;
+    --ink:#2A2420; --ink-soft:#8A7C6F; --line:#EDE6DC;
+  }
   *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1100px;margin:0 auto;font-size:12px}
-  h1{color:#F97316;margin-bottom:2px;font-size:22px}
-  h2{color:#F97316;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #F9731630;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
-  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
-  .hdr-row img{width:46px;height:46px;object-fit:contain}
-  .meta{font-size:11px;color:#888;margin-bottom:16px}
-  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
-  .card{background:#fff7f0;border:1px solid #ffd9b3;border-radius:10px;padding:14px 18px;min-width:160px;text-align:center}
-  .card-val{font-size:20px;font-weight:800;color:#F97316;line-height:1}
-  .card-lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
-  .card.ok .card-val{color:#16a34a} .card.danger .card-val{color:#dc2626}
-  .donut-row{display:flex;align-items:center;gap:24px;margin-bottom:20px;flex-wrap:wrap}
-  .donut-legend{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#333}
-  .donut-legend .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
-  .principales{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
-  .principal{background:#faf9f7;border:1px solid #eee;border-radius:8px;padding:10px}
-  .principal .l{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px}
-  .principal .v{font-size:13px;font-weight:700;color:#222}
-  .principal .s{font-size:10px;color:#F97316;margin-top:2px}
-  table{width:100%;border-collapse:collapse;margin-bottom:4px}
-  th{background:#F97316;color:white;padding:7px 9px;text-align:left;font-size:10px;white-space:nowrap}
-  td{padding:6px 9px;border-bottom:1px solid #fdf0e5;vertical-align:middle}
-  tr:nth-child(even) td{background:#fffaf5}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:6px}
-  .footer{text-align:center;color:#bbb;margin-top:28px;font-size:10px;border-top:1px solid #eee;padding-top:14px}
-  @media print{body{padding:10px}.footer{position:fixed;bottom:0;width:100%}}
+  body{font-family:Arial,sans-serif;line-height:1.55;padding:0;color:var(--ink);background:#F4F1EC;font-size:13px}
+  .sheet{max-width:1080px;margin:0 auto;background:#fff;padding:44px 52px 36px}
+  h1{color:var(--accent-strong);margin:0 0 6px;font-size:23px;letter-spacing:-0.2px}
+  h2{color:var(--accent-strong);font-size:13.5px;font-weight:800;margin:40px 0 18px;padding-bottom:9px;border-bottom:2px solid var(--accent-border);text-transform:uppercase;letter-spacing:0.6px}
+  h2:first-of-type{margin-top:8px}
+  .hdr-row{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+  .hdr-row img{width:50px;height:50px;object-fit:contain;flex-shrink:0}
+  .meta{font-size:11.5px;color:var(--ink-soft);margin-bottom:8px}
+  .cards{display:flex;gap:16px;flex-wrap:wrap;margin:28px 0 8px}
+  .card{background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:12px;padding:18px 22px;min-width:170px;flex:1;text-align:center}
+  .card-val{font-size:21px;font-weight:800;color:var(--accent);line-height:1.2}
+  .card-lbl{font-size:10px;color:var(--ink-soft);margin-top:6px;text-transform:uppercase;letter-spacing:0.5px}
+  .card.ok .card-val{color:#15803d} .card.danger .card-val{color:#b91c1c}
+  .donut-row{display:flex;align-items:center;gap:36px;margin-bottom:8px;flex-wrap:wrap;padding:20px 4px}
+  .donut-legend{display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--ink)}
+  .donut-legend .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
+  .principales{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .principal{background:#FAF8F5;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .principal .l{font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+  .principal .v{font-size:13.5px;font-weight:700;color:var(--ink)}
+  .principal .s{font-size:10.5px;color:var(--accent);margin-top:3px;font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:14px 0 6px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  th{background:var(--accent);color:#fff;padding:10px 14px;text-align:left;font-size:10.5px;font-weight:700;white-space:nowrap;letter-spacing:0.3px}
+  td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:12px}
+  tbody tr:last-child td{border-bottom:none}
+  tr:nth-child(even) td{background:#FBF8F4}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:12px}
+  .grid2 h2{margin-top:8px}
+  .footer{text-align:center;color:#B9AFA3;margin-top:48px;font-size:10px;border-top:1px solid var(--line);padding-top:18px}
+  @media print{
+    body{background:#fff}
+    .sheet{max-width:100%;padding:14px 6px}
+    .footer{position:fixed;bottom:0;width:100%}
+  }
 </style></head><body>
+<div class="sheet">
 
 <div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>📊 Informe de Indicadores Operativos — Tierra Prometida Trading</h1></div>
 <div class="meta">Período: <b style="text-transform:capitalize">${rangoOp.label}</b> &nbsp;·&nbsp; Generado: ${fechaHoy} ${horaHoy}</div>
@@ -540,6 +557,7 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
 </div>`}
 
 <div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
+</div>
 </body></html>`;
 
       const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
