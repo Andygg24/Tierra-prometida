@@ -448,9 +448,18 @@ export default function LogisticaTab({ mob, logistica }) {
         return `
 <h2 style="color:${c.main};border-bottom-color:${c.main}">${icono} ${titulo}</h2>
 ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>` : `
-${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: c.main, textColor: "var(--ink)", trackColor: c.soft })}
 <table><thead><tr><th style="background:${c.main}">#</th><th style="background:${c.main}">${colHead}</th><th style="background:${c.main};text-align:right">Operaciones</th><th style="background:${c.main};text-align:right">% Participación</th></tr></thead>
 <tbody>${ranking.map(filaRanking).join("")}</tbody></table>`}`;
+      };
+
+      // Gráficas de barras agrupadas al final del informe (separadas de sus
+      // tablas de ranking) para que el cuerpo del informe se vea menos denso.
+      const graficaBarra = (titulo, icono, ranking, colorKey) => {
+        const c = PALETA[colorKey] || { main: "var(--accent)", soft: "var(--accent-soft)" };
+        if (!ranking.length) return "";
+        return `
+<div class="grafica-titulo" style="color:${c.main}">${icono} ${titulo}</div>
+${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: c.main, textColor: "var(--ink)", trackColor: c.soft })}`;
       };
 
       const tarjetaPrincipal = (l, r, color) => `
@@ -506,6 +515,8 @@ ${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad,
   tr:nth-child(even) td{background:#FBF8F4}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:12px}
   .grid2 h2{margin-top:8px}
+  .grafica-item{background:#FAF8F5;border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .grafica-titulo{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px}
   .footer{text-align:center;color:#B5AFC7;margin-top:48px;font-size:10px;border-top:1px solid var(--line);padding-top:18px}
   @media print{
     body{background:#fff}
@@ -558,10 +569,26 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
 <div class="grid2">
   <div>${tablaRanking("Por puerto", "📍", statsOp.inspecciones.porPuerto, "Puerto", "inspecciones")}</div>
   <div>
-    <h2>📈 Evolución en el período</h2>
+    <h2 style="color:${PALETA.inspecciones.main};border-bottom-color:${PALETA.inspecciones.main}">📈 Evolución en el período</h2>
     ${statsOp.inspecciones.total === 0
       ? `<p style="color:#888">Sin inspecciones en este período.</p>`
-      : `${evolucionSvg}<table><thead><tr><th>Mes</th><th style="text-align:right">Inspecciones</th></tr></thead><tbody>${evolucionFilas}</tbody></table>`}
+      : `<table><thead><tr><th style="background:${PALETA.inspecciones.main}">Mes</th><th style="background:${PALETA.inspecciones.main};text-align:right">Inspecciones</th></tr></thead><tbody>${evolucionFilas}</tbody></table>`}
+  </div>
+</div>
+
+<h2>📊 Gráficas del período</h2>
+<div class="grid2">
+  <div class="grafica-item">${graficaBarra("Puertos utilizados", "⚓", statsOp.puertos, "puertos")}</div>
+  <div class="grafica-item">${graficaBarra("Destinos de exportación", "🌎", statsOp.destinos, "destinos")}</div>
+</div>
+<div class="grid2">
+  <div class="grafica-item">${graficaBarra("Navieras", "🚢", statsOp.navieras, "navieras")}</div>
+  <div class="grafica-item">${graficaBarra("Transportadores", "🚛", statsOp.transportadores, "transportadores")}</div>
+</div>
+<div class="grid2">
+  <div class="grafica-item">${graficaBarra("Inspecciones por puerto", "📍", statsOp.inspecciones.porPuerto, "inspecciones")}</div>
+  <div class="grafica-item">
+    ${statsOp.inspecciones.total === 0 ? "" : `<div class="grafica-titulo" style="color:${PALETA.inspecciones.main}">📈 Evolución en el período</div>${evolucionSvg}`}
   </div>
 </div>`}
 
