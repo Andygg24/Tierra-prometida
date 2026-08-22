@@ -324,6 +324,127 @@ export default function LogisticaTab({ mob, logistica }) {
     color: PALETA_CATEGORICA[i % PALETA_CATEGORICA.length],
   }));
 
+  // ══════════════ INFORME DE INDICADORES OPERATIVOS (a petición, por el período elegido arriba) ══════════════
+  const [generandoInformeOp, setGenerandoInformeOp] = useState(false);
+
+  const generarInformeOperativo = async (modo = "descargar") => {
+    setGenerandoInformeOp(true);
+    try {
+      const logoSrc  = await cargarLogoBase64();
+      const fechaHoy = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
+      const horaHoy  = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+
+      const filaRanking = (r, i) => `<tr>
+        <td style="text-align:right;color:#999">${i + 1}</td>
+        <td><b>${r.nombre}</b></td>
+        <td style="text-align:right">${r.cantidad}</td>
+        <td style="text-align:right">${r.pct}%</td>
+      </tr>`;
+
+      const tablaRanking = (titulo, icono, ranking, colHead) => `
+<h2>${icono} ${titulo}</h2>
+${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>` : `
+<table><thead><tr><th>#</th><th>${colHead}</th><th style="text-align:right">Operaciones</th><th style="text-align:right">% Participación</th></tr></thead>
+<tbody>${ranking.map(filaRanking).join("")}</tbody></table>`}`;
+
+      const tarjetaPrincipal = (l, r) => `
+<div class="principal">
+  <div class="l">${l}</div>
+  <div class="v">${r?.nombre || "—"}</div>
+  ${r ? `<div class="s">${r.cantidad} ops · ${r.pct}%</div>` : ""}
+</div>`;
+
+      const evolucionFilas = statsOp.inspecciones.evolucion
+        .map(mes => `<tr><td style="text-transform:capitalize">${mes.label} ${anioOp}</td><td style="text-align:right">${mes.cantidad}</td></tr>`)
+        .join("");
+
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Operativo — ${rangoOp.label}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:28px;color:#222;max-width:1100px;margin:0 auto;font-size:12px}
+  h1{color:#F97316;margin-bottom:2px;font-size:22px}
+  h2{color:#F97316;font-size:13px;font-weight:800;margin:22px 0 6px;border-bottom:2px solid #F9731630;padding-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .hdr-row img{width:46px;height:46px;object-fit:contain}
+  .meta{font-size:11px;color:#888;margin-bottom:16px}
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .card{background:#fff7f0;border:1px solid #ffd9b3;border-radius:10px;padding:14px 18px;min-width:160px;text-align:center}
+  .card-val{font-size:20px;font-weight:800;color:#F97316;line-height:1}
+  .card-lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
+  .card.ok .card-val{color:#16a34a} .card.danger .card-val{color:#dc2626}
+  .principales{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+  .principal{background:#faf9f7;border:1px solid #eee;border-radius:8px;padding:10px}
+  .principal .l{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px}
+  .principal .v{font-size:13px;font-weight:700;color:#222}
+  .principal .s{font-size:10px;color:#F97316;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px}
+  th{background:#F97316;color:white;padding:7px 9px;text-align:left;font-size:10px;white-space:nowrap}
+  td{padding:6px 9px;border-bottom:1px solid #fdf0e5;vertical-align:middle}
+  tr:nth-child(even) td{background:#fffaf5}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:6px}
+  .footer{text-align:center;color:#bbb;margin-top:28px;font-size:10px;border-top:1px solid #eee;padding-top:14px}
+  @media print{body{padding:10px}.footer{position:fixed;bottom:0;width:100%}}
+</style></head><body>
+
+<div class="hdr-row">${logoSrc ? `<img src="${logoSrc}"/>` : ""}<h1>📊 Informe de Indicadores Operativos — Tierra Prometida Trading</h1></div>
+<div class="meta">Período: <b style="text-transform:capitalize">${rangoOp.label}</b> &nbsp;·&nbsp; Generado: ${fechaHoy} ${horaHoy}</div>
+
+<div class="cards">
+  <div class="card"><div class="card-val">${statsOp.totalReservas}</div><div class="card-lbl">Total reservas gestionadas</div></div>
+  <div class="card ok"><div class="card-val">${statsOp.llenadas} (${statsOp.pctLlenadas}%)</div><div class="card-lbl">Reservas llenadas</div></div>
+  <div class="card danger"><div class="card-val">${statsOp.canceladas} (${statsOp.pctCanceladas}%)</div><div class="card-lbl">Reservas canceladas</div></div>
+  <div class="card"><div class="card-val">${statsOp.inspecciones.contenedoresInspeccionados}</div><div class="card-lbl">Contenedores inspeccionados</div></div>
+</div>
+
+${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registradas en este período.</p>` : `
+<h2>🏆 Principales del período</h2>
+<div class="principales">
+  ${tarjetaPrincipal("Puerto principal", statsOp.puertos[0])}
+  ${tarjetaPrincipal("Naviera principal", statsOp.navieras[0])}
+  ${tarjetaPrincipal("Transportador principal", statsOp.transportadores[0])}
+  ${tarjetaPrincipal("Destino principal", statsOp.destinos[0])}
+</div>
+
+<div class="grid2">
+  <div>${tablaRanking("Puertos utilizados", "⚓", statsOp.puertos, "Puerto de origen")}</div>
+  <div>${tablaRanking("Destinos de exportación", "🌎", statsOp.destinos, "Destino")}</div>
+</div>
+<div class="grid2">
+  <div>${tablaRanking("Navieras", "🚢", statsOp.navieras, "Naviera")}</div>
+  <div>${tablaRanking("Transportadores", "🚛", statsOp.transportadores, "Transportador")}</div>
+</div>
+
+<h2>🔍 Inspecciones de contenedores en puerto</h2>
+<div class="meta">${statsOp.inspecciones.contenedoresInspeccionados} contenedor(es) inspeccionado(s) · ${statsOp.inspecciones.total} inspección(es) en total</div>
+<div class="grid2">
+  <div>${tablaRanking("Por puerto", "📍", statsOp.inspecciones.porPuerto, "Puerto")}</div>
+  <div>
+    <h2>📈 Evolución en el período</h2>
+    ${statsOp.inspecciones.total === 0
+      ? `<p style="color:#888">Sin inspecciones en este período.</p>`
+      : `<table><thead><tr><th>Mes</th><th style="text-align:right">Inspecciones</th></tr></thead><tbody>${evolucionFilas}</tbody></table>`}
+  </div>
+</div>`}
+
+<div class="footer">Tierra Prometida Trading 🍋 · JARVIS · ${fechaHoy} — Documento de uso interno.</div>
+</body></html>`;
+
+      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+      if (modo === "previsualizar") {
+        window.open(blobUrl, "_blank");
+      } else {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        const subPeriodoParte = tipoPeriodoOp !== "año" ? `-${subPeriodoOp}` : "";
+        a.download = `Informe-Operativo-${tipoPeriodoOp}-${anioOp}${subPeriodoParte}.html`;
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+      }
+    } finally {
+      setGenerandoInformeOp(false);
+    }
+  };
+
   // ── Estilos (mismo patrón que RecepcionesTab) ──
   const inp = {
     background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
@@ -1659,7 +1780,17 @@ ${filas.map(filaDetalle).join("")}
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "#fb923c", fontWeight: 700, marginTop: 10, textTransform: "capitalize" }}>📍 {rangoOp.label}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: "#fb923c", fontWeight: 700, textTransform: "capitalize" }}>📍 {rangoOp.label}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => generarInformeOperativo("previsualizar")} disabled={generandoInformeOp} style={btnSecundario}>
+                  👁 Previsualizar informe
+                </button>
+                <button onClick={() => generarInformeOperativo("descargar")} disabled={generandoInformeOp} style={btnPrimario(false, generandoInformeOp)}>
+                  {generandoInformeOp ? "Generando..." : "📥 Descargar informe"}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* ── Consolidado general del período ── */}
