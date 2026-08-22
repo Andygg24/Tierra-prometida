@@ -649,3 +649,107 @@ export function calcularAlertasLogistica(bookings = [], transporte = [], naviera
 
   return alertas;
 }
+
+// ── Estadísticas operativas por período (Mes/Trimestre/Semestre/Año) ──────
+// Pedido del jefe: reservas/exportaciones, puertos, transportadores,
+// inspecciones, navieras y destinos, consultables por período.
+//
+// El "período" de una reserva siempre se define por la fecha en que se creó
+// el booking (createdAt) — es la única fecha que existe siempre, incluso en
+// una reserva cancelada el mismo día que se creó. Cualquier otra fecha
+// (zarpe, confirmación) falta en las canceladas/pendientes y dejaría mal
+// el conteo de "total gestionadas" vs "canceladas" que pide el punto 1.
+
+// Calendario: mes 0-indexado (0=enero). Devuelve el rango [desde,hasta] en
+// milisegundos (hora local) más una etiqueta legible para mostrar.
+export function rangoPeriodoOperativo(tipo, anio, sub) {
+  let mesDesde, mesHasta;
+  if (tipo === "año") { mesDesde = 0; mesHasta = 11; }
+  else if (tipo === "semestre") { mesDesde = (sub - 1) * 6; mesHasta = mesDesde + 5; }
+  else if (tipo === "trimestre") { mesDesde = (sub - 1) * 3; mesHasta = mesDesde + 2; }
+  else { mesDesde = sub - 1; mesHasta = sub - 1; } // mes
+
+  const desde = new Date(anio, mesDesde, 1, 0, 0, 0, 0);
+  const hasta = new Date(anio, mesHasta + 1, 0, 23, 59, 59, 999);
+  const fmtMes = (m) => new Date(anio, m, 1).toLocaleDateString("es-CO", { month: "long" });
+
+  let label;
+  if (tipo === "año")        label = `Año ${anio}`;
+  else if (tipo === "semestre")  label = `Semestre ${sub} de ${anio} (${fmtMes(mesDesde)} – ${fmtMes(mesHasta)})`;
+  else if (tipo === "trimestre") label = `Trimestre ${sub} de ${anio} (${fmtMes(mesDesde)} – ${fmtMes(mesHasta)})`;
+  else label = `${fmtMes(mesDesde)[0].toUpperCase()}${fmtMes(mesDesde).slice(1)} de ${anio}`;
+
+  return { desdeMs: desde.getTime(), hastaMs: hasta.getTime(), mesDesde, mesHasta, label };
+}
+
+function enRango(fechaISO, desdeMs, hastaMs) {
+  if (!fechaISO) return false;
+  const t = new Date(fechaISO).getTime();
+  return !Number.isNaN(t) && t >= desdeMs && t <= hastaMs;
+}
+
+// items: array de strings (pueden venir vacíos) ya recortado al período.
+// totalRef: denominador para el % de participación (se pasa explícito
+// porque a veces es el total de reservas del período y otras el total de
+// registros de otra tabla, p.ej. transporte o inspecciones).
+function rankearPorValor(items, totalRef) {
+  const counts = {};
+  items.forEach(v => { if (v) counts[v] = (counts[v] || 0) + 1; });
+  return Object.entries(counts)
+    .map(([nombre, cantidad]) => ({
+      nombre, cantidad,
+      pct: totalRef > 0 ? Math.round((cantidad / totalRef) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.cantidad - a.cantidad);
+}
+
+export function calcularEstadisticasPeriodo(bookings, transporte, inspecciones, { desdeMs, hastaMs, mesDesde, mesHasta }, anio) {
+  const bkPeriodo = bookings.filter(b => enRango(b.createdAt, desdeMs, hastaMs));
+  const idsPeriodo = new Set(bkPeriodo.map(b => b.id));
+  const totalReservas = bkPeriodo.length;
+
+  const llenadas   = bkPeriodo.filter(b => b.estadoContenedor === "Lleno" || b.estadoContenedor === "Embarcado").length;
+  const canceladas = bkPeriodo.filter(b => b.estado === "Cancelado").length;
+
+  const puertos   = rankearPorValor(bkPeriodo.map(b => b.puertoOrigen), totalReservas);
+  const destinos  = rankearPorValor(bkPeriodo.map(b => b.puertoDestino), totalReservas);
+  const navieras  = rankearPorValor(bkPeriodo.map(b => b.naviera), totalReservas);
+
+  const transportePeriodo = transporte.filter(t => idsPeriodo.has(t.bookingId));
+  const transportadores = rankearPorValor(transportePeriodo.map(t => t.transportadora), transportePeriodo.length);
+
+  const inspeccionesPeriodo = inspecciones.filter(i => idsPeriodo.has(i.bookingId));
+  const bookingPorId = new Map(bkPeriodo.map(b => [b.id, b]));
+  const contenedoresInspeccionados = new Set(inspeccionesPeriodo.map(i => i.bookingId)).size;
+  const inspeccionesPorPuerto = rankearPorValor(
+    inspeccionesPeriodo.map(i => bookingPorId.get(i.bookingId)?.puertoOrigen),
+    inspeccionesPeriodo.length
+  );
+
+  // Evolución mensual de inspecciones dentro del rango elegido (según la
+  // fecha propia de cada inspección, no la del booking).
+  const evolucionInspecciones = [];
+  for (let m = mesDesde; m <= mesHasta; m++) {
+    const key = `${anio}-${String(m + 1).padStart(2, "0")}`;
+    const label = new Date(anio, m, 1).toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
+    evolucionInspecciones.push({
+      key, label,
+      cantidad: inspeccionesPeriodo.filter(i => (i.fecha || "").slice(0, 7) === key).length,
+    });
+  }
+
+  return {
+    totalReservas, llenadas, canceladas,
+    pctLlenadas:   totalReservas ? Math.round((llenadas   / totalReservas) * 1000) / 10 : 0,
+    pctCanceladas: totalReservas ? Math.round((canceladas / totalReservas) * 1000) / 10 : 0,
+    puertos, destinos, navieras, transportadores,
+    inspecciones: {
+      total: inspeccionesPeriodo.length,
+      contenedoresInspeccionados,
+      porPuerto: inspeccionesPorPuerto,
+      evolucion: evolucionInspecciones,
+    },
+    // Para las secciones que siguen usando el formato {label,value,color} (BarraLista)
+    bkPeriodo,
+  };
+}

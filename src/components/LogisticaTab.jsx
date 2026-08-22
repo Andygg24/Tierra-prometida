@@ -6,6 +6,7 @@ import { useConfiguracion } from "../hooks/useConfiguracion.js";
 import { fechaLocalISO } from "../utils/dates.js";
 import {
   calcularHitos, calcularAlertasLogistica, diasLibresRestantes, buscarNaviera, diferenciaDias,
+  rangoPeriodoOperativo, calcularEstadisticasPeriodo,
 } from "../hooks/useLogistica.js";
 
 const ESTADOS_BOOKING       = ["Pendiente", "Confirmado", "Cancelado", "Roll Over", "Finalizado"];
@@ -246,15 +247,6 @@ export default function LogisticaTab({ mob, logistica }) {
       label: e, value: bookings.filter(b => b.numeroContenedor && b.estadoContenedor === e).length, color: COLOR_ESTADO_CONTENEDOR[e],
     }));
 
-    // Color por naviera asignado en orden alfabético estable (identidad fija),
-    // luego se ordena por cantidad solo para la presentación.
-    const navierasCount = {};
-    bookings.forEach(b => { if (b.naviera) navierasCount[b.naviera] = (navierasCount[b.naviera] || 0) + 1; });
-    const porNaviera = Object.keys(navierasCount).sort()
-      .map((n, i) => ({ label: n, value: navierasCount[n], color: PALETA_CATEGORICA[i % PALETA_CATEGORICA.length] }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-
     const porResultadoInspeccion = RESULTADOS_INSPECCION.map(r => ({
       label: r, value: log.inspecciones.filter(i => i.resultado === r).length,
       color: r === "Libre" ? "#00C9A7" : r === "Física" ? "#FF6B6B" : "#F9A826",
@@ -287,8 +279,50 @@ export default function LogisticaTab({ mob, logistica }) {
       return { key, label, value: bookings.filter(b => (b.createdAt || "").slice(0, 7) === key).length };
     });
 
-    return { porEstado, porEstadoContenedor, porNaviera, porResultadoInspeccion, porAlerta, promedioDiasPuerto, pctDocsCompletos, porMes };
+    return { porEstado, porEstadoContenedor, porResultadoInspeccion, porAlerta, promedioDiasPuerto, pctDocsCompletos, porMes };
   }, [log.bookings, log.inspecciones, alertas]);
+
+  // ══════════════ INDICADORES OPERATIVOS POR PERÍODO (pedido del jefe) ══════════
+  // Trimestre / Semestre / Año / Mes — reservas, puertos, transportadores,
+  // inspecciones, navieras y destinos, todo recortado al período elegido.
+  const aniosConDatos = useMemo(() => {
+    const anioActual = new Date().getFullYear();
+    const set = new Set([anioActual]);
+    log.bookings.forEach(b => { if (b.createdAt) set.add(new Date(b.createdAt).getFullYear()); });
+    return Array.from(set).sort((a, b) => b - a);
+  }, [log.bookings]);
+
+  const [tipoPeriodoOp, setTipoPeriodoOp] = useState("trimestre"); // "mes" | "trimestre" | "semestre" | "año"
+  const [anioOp,        setAnioOp]        = useState(() => new Date().getFullYear());
+  const [subPeriodoOp,  setSubPeriodoOp]  = useState(() => Math.floor(new Date().getMonth() / 3) + 1);
+
+  // Al cambiar de tipo de período, el sub-período (mes/trimestre/semestre)
+  // puede quedar fuera de rango (ej. trimestre 4 no existe para "semestre")
+  // — se recalcula al valor correspondiente a hoy para ese tipo.
+  const cambiarTipoPeriodoOp = (tipo) => {
+    setTipoPeriodoOp(tipo);
+    const mesActual = new Date().getMonth();
+    if (tipo === "mes") setSubPeriodoOp(mesActual + 1);
+    else if (tipo === "trimestre") setSubPeriodoOp(Math.floor(mesActual / 3) + 1);
+    else if (tipo === "semestre") setSubPeriodoOp(Math.floor(mesActual / 6) + 1);
+  };
+
+  const rangoOp = useMemo(
+    () => rangoPeriodoOperativo(tipoPeriodoOp, anioOp, subPeriodoOp),
+    [tipoPeriodoOp, anioOp, subPeriodoOp]
+  );
+
+  const statsOp = useMemo(
+    () => calcularEstadisticasPeriodo(log.bookings, log.transporte, log.inspecciones, rangoOp, anioOp),
+    [log.bookings, log.transporte, log.inspecciones, rangoOp, anioOp]
+  );
+
+  // Adapta un ranking {nombre,cantidad,pct} al formato {label,value,display,color}
+  // que ya entiende BarraLista, para no duplicar el componente de barras.
+  const aBarraLista = (ranking, limite = 8) => ranking.slice(0, limite).map((r, i) => ({
+    label: r.nombre, value: r.cantidad, display: `${r.cantidad} (${r.pct}%)`,
+    color: PALETA_CATEGORICA[i % PALETA_CATEGORICA.length],
+  }));
 
   // ── Estilos (mismo patrón que RecepcionesTab) ──
   const inp = {
@@ -1588,6 +1622,160 @@ ${filas.map(filaDetalle).join("")}
       {/* ═══ TAB 3 — ESTADÍSTICAS ═══ */}
       {tabLog === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+          {/* ── Selector de período ── */}
+          <div style={cardS}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 10 }}>📆 Período a consultar</div>
+            <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : tipoPeriodoOp === "año" ? "1fr 1fr" : "1fr 1fr 1fr", gap: 10 }}>
+              <div>
+                <div style={lbl}>Tipo de período</div>
+                <CustomSelect value={tipoPeriodoOp} onChange={e => cambiarTipoPeriodoOp(e.target.value)} style={inp}>
+                  <option value="mes">Mes</option>
+                  <option value="trimestre">Trimestre</option>
+                  <option value="semestre">Semestre</option>
+                  <option value="año">Año</option>
+                </CustomSelect>
+              </div>
+              <div>
+                <div style={lbl}>Año</div>
+                <CustomSelect value={anioOp} onChange={e => setAnioOp(Number(e.target.value))} style={inp}>
+                  {aniosConDatos.map(a => <option key={a} value={a}>{a}</option>)}
+                </CustomSelect>
+              </div>
+              {tipoPeriodoOp !== "año" && (
+                <div>
+                  <div style={lbl}>{tipoPeriodoOp === "mes" ? "Mes" : tipoPeriodoOp === "trimestre" ? "Trimestre" : "Semestre"}</div>
+                  <CustomSelect value={subPeriodoOp} onChange={e => setSubPeriodoOp(Number(e.target.value))} style={inp}>
+                    {tipoPeriodoOp === "mes" && Array.from({ length: 12 }, (_, i) => (
+                      <option key={i} value={i + 1}>{new Date(anioOp, i, 1).toLocaleDateString("es-CO", { month: "long" })}</option>
+                    ))}
+                    {tipoPeriodoOp === "trimestre" && [1, 2, 3, 4].map(t => (
+                      <option key={t} value={t}>Trimestre {t} ({new Date(anioOp, (t - 1) * 3, 1).toLocaleDateString("es-CO", { month: "short" })}–{new Date(anioOp, (t - 1) * 3 + 2, 1).toLocaleDateString("es-CO", { month: "short" })})</option>
+                    ))}
+                    {tipoPeriodoOp === "semestre" && [1, 2].map(s => (
+                      <option key={s} value={s}>Semestre {s} ({new Date(anioOp, (s - 1) * 6, 1).toLocaleDateString("es-CO", { month: "short" })}–{new Date(anioOp, (s - 1) * 6 + 5, 1).toLocaleDateString("es-CO", { month: "short" })})</option>
+                    ))}
+                  </CustomSelect>
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "#fb923c", fontWeight: 700, marginTop: 10, textTransform: "capitalize" }}>📍 {rangoOp.label}</div>
+          </div>
+
+          {/* ── Consolidado general del período ── */}
+          <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+            {[
+              { l: "Total reservas gestionadas", v: statsOp.totalReservas, c: "#F97316", i: "📋" },
+              { l: "Reservas llenadas",   v: `${statsOp.llenadas} (${statsOp.pctLlenadas}%)`, c: "#00C9A7", i: "✅" },
+              { l: "Reservas canceladas", v: `${statsOp.canceladas} (${statsOp.pctCanceladas}%)`, c: "#FF6B6B", i: "❌" },
+              { l: "Contenedores inspeccionados", v: statsOp.inspecciones.contenedoresInspeccionados, c: "#0EA5E9", i: "🔍" },
+            ].map((s, i) => (
+              <div key={i} style={{ ...cardS, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 20 }}>{s.i}</div>
+                <div>
+                  <div style={{ fontSize: m ? 16 : 18, fontWeight: 800, color: s.c }}>{s.v}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>{s.l}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {statsOp.totalReservas === 0 ? (
+            <div style={{ ...cardS, textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+              No hay reservas registradas en este período.
+            </div>
+          ) : (
+            <>
+              {/* ── Resumen: principales de cada categoría ── */}
+              <div style={cardS}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 10 }}>🏆 Principales del período</div>
+                <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+                  {[
+                    { l: "Puerto principal",         r: statsOp.puertos[0] },
+                    { l: "Naviera principal",        r: statsOp.navieras[0] },
+                    { l: "Transportador principal",  r: statsOp.transportadores[0] },
+                    { l: "Destino principal",        r: statsOp.destinos[0] },
+                  ].map((x, i) => (
+                    <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 10 }}>
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>{x.l}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>{x.r?.nombre || "—"}</div>
+                      {x.r && <div style={{ fontSize: 10, color: "#fb923c" }}>{x.r.cantidad} ops · {x.r.pct}%</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Rankings: puertos / destinos / navieras / transportadores ── */}
+              <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap: 16 }}>
+                <div style={cardS}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>⚓ Puertos utilizados</div>
+                  {statsOp.puertos.length === 0
+                    ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin puerto de origen registrado en este período.</div>
+                    : <BarraLista items={aBarraLista(statsOp.puertos)} />}
+                </div>
+                <div style={cardS}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🌎 Destinos de exportación</div>
+                  {statsOp.destinos.length === 0
+                    ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin puerto de destino registrado en este período.</div>
+                    : <BarraLista items={aBarraLista(statsOp.destinos)} />}
+                </div>
+                <div style={cardS}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🚢 Navieras</div>
+                  {statsOp.navieras.length === 0
+                    ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin naviera registrada en este período.</div>
+                    : <BarraLista items={aBarraLista(statsOp.navieras)} />}
+                </div>
+                <div style={cardS}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🚛 Transportadores</div>
+                  {statsOp.transportadores.length === 0
+                    ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin transporte registrado en este período.</div>
+                    : <BarraLista items={aBarraLista(statsOp.transportadores)} />}
+                </div>
+              </div>
+
+              {/* ── Inspecciones de contenedores en puerto ── */}
+              <div style={cardS}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🔍 Inspecciones de contenedores en puerto</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+                    <b style={{ color: "#0EA5E9" }}>{statsOp.inspecciones.contenedoresInspeccionados}</b> contenedores · <b style={{ color: "#0EA5E9" }}>{statsOp.inspecciones.total}</b> inspecciones
+                  </div>
+                </div>
+                {statsOp.inspecciones.total === 0 ? (
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin inspecciones registradas en este período.</div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>Por puerto</div>
+                      <BarraLista items={aBarraLista(statsOp.inspecciones.porPuerto)} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>Evolución en el período</div>
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
+                        {statsOp.inspecciones.evolucion.map((mes, i) => {
+                          const max = Math.max(1, ...statsOp.inspecciones.evolucion.map(x => x.cantidad));
+                          const barH = mes.cantidad ? Math.max(6, (mes.cantidad / max) * 80) : 2;
+                          return (
+                            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 6, height: "100%" }}>
+                              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", minHeight: 14 }}>{mes.cantidad || ""}</div>
+                              <div style={{ width: "60%", height: barH, background: "#0EA5E9", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>{mes.label}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── Información adicional — histórico completo, no depende del período elegido arriba ── */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.6, marginTop: 6 }}>
+            Información adicional (histórico completo)
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
             {[
               { l: "Operaciones totales",    v: log.bookings.length, c: "#F97316", i: "📋" },
@@ -1615,21 +1803,21 @@ ${filas.map(filaDetalle).join("")}
               <BarraLista items={estadisticas.porEstadoContenedor} />
             </div>
             <div style={cardS}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>⚓ Operaciones por naviera</div>
-              {estadisticas.porNaviera.length === 0
-                ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin datos todavía.</div>
-                : <BarraLista items={estadisticas.porNaviera} />}
-            </div>
-            <div style={cardS}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔍 Inspecciones por resultado</div>
               {log.inspecciones.length === 0
                 ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin inspecciones registradas.</div>
                 : <BarraLista items={estadisticas.porResultadoInspeccion} />}
             </div>
+            {estadisticas.porAlerta.length > 0 && (
+              <div style={cardS}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔔 Alertas activas por tipo</div>
+                <BarraLista items={estadisticas.porAlerta} />
+              </div>
+            )}
           </div>
 
           <div style={cardS}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📈 Operaciones creadas por mes</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>📈 Operaciones creadas por mes (últimos 6 meses)</div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
               {estadisticas.porMes.map((mes, i) => {
                 const max = Math.max(1, ...estadisticas.porMes.map(x => x.value));
@@ -1645,13 +1833,6 @@ ${filas.map(filaDetalle).join("")}
               })}
             </div>
           </div>
-
-          {estadisticas.porAlerta.length > 0 && (
-            <div style={cardS}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🔔 Alertas activas por tipo</div>
-              <BarraLista items={estadisticas.porAlerta} />
-            </div>
-          )}
         </div>
       )}
 
