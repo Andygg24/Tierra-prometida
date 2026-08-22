@@ -5801,13 +5801,28 @@ function TasaCambioWidget() {
     try {
       let tasa = null;
 
-      // API 1: open.er-api.com — muy confiable, sin clave, CORS abierto
+      // API 1: TRM oficial de Colombia (Banco de la República vía datos.gov.co)
+      // — es la tasa que de verdad usa el país para operaciones comerciales,
+      // y puede diferir bastante del promedio de mercado global que dan las
+      // APIs genéricas de abajo (esas quedan solo como respaldo si esta falla).
       try {
-        const r = await fetch("https://open.er-api.com/v6/latest/USD", { cache:"no-store" });
-        if (r.ok) { const d = await r.json(); if (d.result === "success") tasa = Math.round(d.rates.COP); }
+        const r = await fetch("https://www.datos.gov.co/resource/mcec-87by.json?$order=vigenciadesde%20DESC&$limit=1", { cache:"no-store" });
+        if (r.ok) {
+          const d = await r.json();
+          const v = Number(d?.[0]?.valor);
+          if (v > 500) tasa = Math.round(v);
+        }
       } catch { /* ignore */ }
 
-      // API 2: fawazahmed0 CDN (fallback)
+      // API 2: open.er-api.com (fallback — tasa de mercado global, no la TRM)
+      if (!tasa) {
+        try {
+          const r = await fetch("https://open.er-api.com/v6/latest/USD", { cache:"no-store" });
+          if (r.ok) { const d = await r.json(); if (d.result === "success") tasa = Math.round(d.rates.COP); }
+        } catch { /* ignore */ }
+      }
+
+      // API 3: fawazahmed0 CDN (fallback)
       if (!tasa) {
         try {
           const r = await fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", { cache:"no-store" });
@@ -5815,7 +5830,7 @@ function TasaCambioWidget() {
         } catch { /* ignore */ }
       }
 
-      // API 3: pages.dev (segundo fallback)
+      // API 4: pages.dev (tercer fallback)
       if (!tasa) {
         try {
           const r = await fetch("https://latest.currency-api.pages.dev/v1/currencies/usd.json", { cache:"no-store" });
@@ -5890,7 +5905,7 @@ function TasaCambioWidget() {
     <div style={{ background:"rgba(56,189,248,0.05)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:12, padding:"10px 10px 8px", marginTop:6 }}>
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:7 }}>
-        <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:1 }}>💵 USD / COP</div>
+        <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", textTransform:"uppercase", letterSpacing:1 }}>💵 TRM (USD/COP)</div>
         <button onClick={fetchTasa} disabled={cargando} title="Actualizar tasa"
           style={{ background:cargando?"rgba(56,189,248,0.12)":"rgba(56,189,248,0.07)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:6, cursor:cargando?"default":"pointer", fontSize:11, color:exito?"#00C9A7":errorApi?"#FF6B6B":"rgba(56,189,248,0.8)", padding:"3px 7px", display:"flex", alignItems:"center", gap:4, fontWeight:700, transition:"color 0.3s" }}>
           <span style={{ display:"inline-block", animation:cargando?"spin 0.7s linear infinite":"none" }}>🔄</span>
