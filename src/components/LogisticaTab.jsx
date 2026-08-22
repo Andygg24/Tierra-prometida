@@ -431,24 +431,33 @@ export default function LogisticaTab({ mob, logistica }) {
 
       // Colores de las gráficas en el informe (documento claro/imprimible,
       // a diferencia del dashboard oscuro) — mismas funciones de src/components/LogisticaTab.jsx.
-      // Un solo color de acento para los 5 rankings — cada uno es una sola
-      // serie (magnitud por categoría), no varias series a comparar entre
-      // sí, así que un color consistente se ve más cuidado que un color
-      // distinto por gráfica sin motivo real.
-      const chartColorFor = { puertos: "#6D4FC7", destinos: "#6D4FC7", navieras: "#6D4FC7", transportadores: "#6D4FC7", inspecciones: "#6D4FC7" };
+      // Un color distinto por sección para que el informe se vea variado
+      // (cada sección es una categoría propia: puertos, destinos, navieras,
+      // transportadores, inspecciones), manteniendo un solo color dentro de
+      // cada gráfica individual (correcto para magnitud por categoría).
+      const PALETA = {
+        puertos:         { main: "#2563EB", soft: "#EAF1FE", border: "#BFD7FB" }, // azul
+        destinos:        { main: "#16A34A", soft: "#E9F8EF", border: "#BEEACE" }, // verde
+        navieras:        { main: "#6D4FC7", soft: "#F2EEFC", border: "#DCD0F5" }, // morado
+        transportadores: { main: "#CA8A04", soft: "#FDF6E3", border: "#F3DFA0" }, // amarillo
+        inspecciones:    { main: "#DC2626", soft: "#FDEDED", border: "#F5C6C6" }, // rojo
+      };
 
-      const tablaRanking = (titulo, icono, ranking, colHead, colorKey) => `
-<h2>${icono} ${titulo}</h2>
+      const tablaRanking = (titulo, icono, ranking, colHead, colorKey) => {
+        const c = PALETA[colorKey] || { main: "var(--accent)", soft: "var(--accent-soft)" };
+        return `
+<h2 style="color:${c.main};border-bottom-color:${c.main}">${icono} ${titulo}</h2>
 ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>` : `
-${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: chartColorFor[colorKey], textColor: "var(--ink)", trackColor: "var(--accent-soft)" })}
-<table><thead><tr><th>#</th><th>${colHead}</th><th style="text-align:right">Operaciones</th><th style="text-align:right">% Participación</th></tr></thead>
+${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: c.main, textColor: "var(--ink)", trackColor: c.soft })}
+<table><thead><tr><th style="background:${c.main}">#</th><th style="background:${c.main}">${colHead}</th><th style="background:${c.main};text-align:right">Operaciones</th><th style="background:${c.main};text-align:right">% Participación</th></tr></thead>
 <tbody>${ranking.map(filaRanking).join("")}</tbody></table>`}`;
+      };
 
-      const tarjetaPrincipal = (l, r) => `
-<div class="principal">
+      const tarjetaPrincipal = (l, r, color) => `
+<div class="principal" style="border-top:3px solid ${color}">
   <div class="l">${l}</div>
   <div class="v">${r?.nombre || "—"}</div>
-  ${r ? `<div class="s">${r.cantidad} ops · ${r.pct}%</div>` : ""}
+  ${r ? `<div class="s" style="color:${color}">${r.cantidad} ops · ${r.pct}%</div>` : ""}
 </div>`;
 
       const donutHtml = svgDonut([
@@ -510,10 +519,10 @@ ${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad,
 <div class="meta">Período: <b style="text-transform:capitalize">${rangoOp.label}</b> &nbsp;·&nbsp; Generado: ${fechaHoy} ${horaHoy}</div>
 
 <div class="cards">
-  <div class="card"><div class="card-val">${statsOp.totalReservas}</div><div class="card-lbl">Total reservas gestionadas</div></div>
+  <div class="card" style="background:${PALETA.navieras.soft};border-color:${PALETA.navieras.border}"><div class="card-val" style="color:${PALETA.navieras.main}">${statsOp.totalReservas}</div><div class="card-lbl">Total reservas gestionadas</div></div>
   <div class="card ok"><div class="card-val">${statsOp.llenadas} (${statsOp.pctLlenadas}%)</div><div class="card-lbl">Reservas llenadas</div></div>
   <div class="card danger"><div class="card-val">${statsOp.canceladas} (${statsOp.pctCanceladas}%)</div><div class="card-lbl">Reservas canceladas</div></div>
-  <div class="card"><div class="card-val">${statsOp.inspecciones.contenedoresInspeccionados}</div><div class="card-lbl">Contenedores inspeccionados (Física)</div></div>
+  <div class="card" style="background:${PALETA.puertos.soft};border-color:${PALETA.puertos.border}"><div class="card-val" style="color:${PALETA.puertos.main}">${statsOp.inspecciones.contenedoresInspeccionados}</div><div class="card-lbl">Contenedores inspeccionados (Física)</div></div>
 </div>
 
 ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registradas en este período.</p>` : `
@@ -529,10 +538,10 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
 
 <h2>🏆 Principales del período</h2>
 <div class="principales">
-  ${tarjetaPrincipal("Puerto principal", statsOp.puertos[0])}
-  ${tarjetaPrincipal("Naviera principal", statsOp.navieras[0])}
-  ${tarjetaPrincipal("Transportador principal", statsOp.transportadores[0])}
-  ${tarjetaPrincipal("Destino principal", statsOp.destinos[0])}
+  ${tarjetaPrincipal("Puerto principal", statsOp.puertos[0], PALETA.puertos.main)}
+  ${tarjetaPrincipal("Naviera principal", statsOp.navieras[0], PALETA.navieras.main)}
+  ${tarjetaPrincipal("Transportador principal", statsOp.transportadores[0], PALETA.transportadores.main)}
+  ${tarjetaPrincipal("Destino principal", statsOp.destinos[0], PALETA.destinos.main)}
 </div>
 
 <div class="grid2">
@@ -544,7 +553,7 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
   <div>${tablaRanking("Transportadores", "🚛", statsOp.transportadores, "Transportador", "transportadores")}</div>
 </div>
 
-<h2>🔍 Inspecciones de contenedores en puerto (solo Física)</h2>
+<h2 style="color:${PALETA.inspecciones.main};border-bottom-color:${PALETA.inspecciones.main}">🔍 Inspecciones de contenedores en puerto (solo Física)</h2>
 <div class="meta">${statsOp.inspecciones.contenedoresInspeccionados} contenedor(es) inspeccionado(s) · ${statsOp.inspecciones.total} inspección(es) en total</div>
 <div class="grid2">
   <div>${tablaRanking("Por puerto", "📍", statsOp.inspecciones.porPuerto, "Puerto", "inspecciones")}</div>
