@@ -435,7 +435,7 @@ export default function LogisticaTab({ mob, logistica }) {
       // serie (magnitud por categoría), no varias series a comparar entre
       // sí, así que un color consistente se ve más cuidado que un color
       // distinto por gráfica sin motivo real.
-      const chartColorFor = { puertos: "#B45309", destinos: "#B45309", navieras: "#B45309", transportadores: "#B45309", inspecciones: "#B45309" };
+      const chartColorFor = { puertos: "#6D4FC7", destinos: "#6D4FC7", navieras: "#6D4FC7", transportadores: "#6D4FC7", inspecciones: "#6D4FC7" };
 
       const tablaRanking = (titulo, icono, ranking, colHead, colorKey) => `
 <h2>${icono} ${titulo}</h2>
@@ -455,7 +455,7 @@ ${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad,
         { label: "Llenadas",   value: statsOp.llenadas,   color: "#16a34a" },
         { label: "Canceladas", value: statsOp.canceladas, color: "#dc2626" },
         { label: "En proceso", value: statsOp.enProceso,  color: "#94a3b8" },
-      ], { size: 150, holeColor: "#fff", textColor: "#2A2420", centerLabel: String(statsOp.totalReservas), centerSub: "reservas" });
+      ], { size: 150, holeColor: "#fff", textColor: "#2A2733", centerLabel: String(statsOp.totalReservas), centerSub: "reservas" });
 
       const evolucionFilas = statsOp.inspecciones.evolucion
         .map(mes => `<tr><td style="text-transform:capitalize">${mes.label} ${anioOp}</td><td style="text-align:right">${mes.cantidad}</td></tr>`)
@@ -465,11 +465,11 @@ ${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad,
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Operativo — ${rangoOp.label}</title>
 <style>
   :root{
-    --accent:#B45309; --accent-soft:#FDF1E1; --accent-border:#EFD5AC; --accent-strong:#92400E;
-    --ink:#2A2420; --ink-soft:#8A7C6F; --line:#EDE6DC;
+    --accent:#6D4FC7; --accent-soft:#F2EEFC; --accent-border:#DCD0F5; --accent-strong:#4C3494;
+    --ink:#2A2733; --ink-soft:#847E99; --line:#E9E5F2;
   }
   *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;line-height:1.55;padding:0;color:var(--ink);background:#F4F1EC;font-size:13px}
+  body{font-family:Arial,sans-serif;line-height:1.55;padding:0;color:var(--ink);background:#F5F3FA;font-size:13px}
   .sheet{max-width:1080px;margin:0 auto;background:#fff;padding:44px 52px 36px}
   h1{color:var(--accent-strong);margin:0 0 6px;font-size:23px;letter-spacing:-0.2px}
   h2{color:var(--accent-strong);font-size:13.5px;font-weight:800;margin:40px 0 18px;padding-bottom:9px;border-bottom:2px solid var(--accent-border);text-transform:uppercase;letter-spacing:0.6px}
@@ -497,7 +497,7 @@ ${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad,
   tr:nth-child(even) td{background:#FBF8F4}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:12px}
   .grid2 h2{margin-top:8px}
-  .footer{text-align:center;color:#B9AFA3;margin-top:48px;font-size:10px;border-top:1px solid var(--line);padding-top:18px}
+  .footer{text-align:center;color:#B5AFC7;margin-top:48px;font-size:10px;border-top:1px solid var(--line);padding-top:18px}
   @media print{
     body{background:#fff}
     .sheet{max-width:100%;padding:14px 6px}
