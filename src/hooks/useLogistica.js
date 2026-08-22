@@ -708,8 +708,12 @@ export function calcularEstadisticasPeriodo(bookings, transporte, inspecciones, 
   const idsPeriodo = new Set(bkPeriodo.map(b => b.id));
   const totalReservas = bkPeriodo.length;
 
-  const llenadas   = bkPeriodo.filter(b => b.estadoContenedor === "Lleno" || b.estadoContenedor === "Embarcado").length;
+  // Cancelada tiene prioridad sobre llenada (si se canceló, no cuenta como
+  // llenada aunque el contenedor haya alcanzado a marcarse Lleno) — así los
+  // 3 segmentos del donut de composición siempre suman el total exacto.
   const canceladas = bkPeriodo.filter(b => b.estado === "Cancelado").length;
+  const llenadas   = bkPeriodo.filter(b => b.estado !== "Cancelado" && (b.estadoContenedor === "Lleno" || b.estadoContenedor === "Embarcado")).length;
+  const enProceso  = totalReservas - llenadas - canceladas;
 
   const puertos   = rankearPorValor(bkPeriodo.map(b => b.puertoOrigen), totalReservas);
   const destinos  = rankearPorValor(bkPeriodo.map(b => b.puertoDestino), totalReservas);
@@ -741,9 +745,10 @@ export function calcularEstadisticasPeriodo(bookings, transporte, inspecciones, 
   }
 
   return {
-    totalReservas, llenadas, canceladas,
+    totalReservas, llenadas, canceladas, enProceso,
     pctLlenadas:   totalReservas ? Math.round((llenadas   / totalReservas) * 1000) / 10 : 0,
     pctCanceladas: totalReservas ? Math.round((canceladas / totalReservas) * 1000) / 10 : 0,
+    pctEnProceso:  totalReservas ? Math.round((enProceso  / totalReservas) * 1000) / 10 : 0,
     puertos, destinos, navieras, transportadores,
     inspecciones: {
       total: inspeccionesPeriodo.length,

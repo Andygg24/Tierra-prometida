@@ -89,6 +89,101 @@ function rangoPeriodoInforme(tipo, fechaDesde, fechaHasta) {
   };
 }
 
+// ══════════════ GRÁFICAS EN SVG PURO (sin librerías) ══════════════
+// Se usan tal cual tanto en el dashboard en vivo (embebidas con
+// dangerouslySetInnerHTML) como en el informe descargable (interpoladas
+// directamente en el HTML) — una sola implementación, un solo resultado
+// visual en los dos lugares. Reciben colores explícitos porque el
+// dashboard es oscuro y el informe es claro.
+function escSvg(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function truncar(s, n) {
+  const str = String(s ?? "");
+  return str.length > n ? `${str.slice(0, n - 1)}…` : str;
+}
+
+// Donut de composición (2-4 categorías con color propio, no paleta cíclica)
+// — pensado para "reservas llenadas / canceladas / en proceso".
+function svgDonut(segmentos, { size = 150, holeColor, textColor, centerLabel = "", centerSub = "" } = {}) {
+  const R = size / 2, r = R * 0.6, cx = R, cy = R;
+  const total = segmentos.reduce((a, s) => a + s.value, 0);
+  let acc = 0;
+  const arcos = segmentos.filter(s => s.value > 0).map(s => {
+    const f0 = total ? acc / total : 0;
+    acc += s.value;
+    const f1 = total ? acc / total : 0;
+    if (f1 - f0 >= 0.9999) {
+      // Un solo segmento con el 100% — un arco completo degenera (mismo
+      // punto inicio/fin), así que se dibuja como círculo entero.
+      return `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${s.color}" stroke-width="${R - r}"><title>${escSvg(s.label)}: ${s.value} (100%)</title></circle>`;
+    }
+    const a0 = f0 * 2 * Math.PI - Math.PI / 2, a1 = f1 * 2 * Math.PI - Math.PI / 2;
+    const x0o = cx + R * Math.cos(a0), y0o = cy + R * Math.sin(a0);
+    const x1o = cx + R * Math.cos(a1), y1o = cy + R * Math.sin(a1);
+    const x0i = cx + r * Math.cos(a1), y0i = cy + r * Math.sin(a1);
+    const x1i = cx + r * Math.cos(a0), y1i = cy + r * Math.sin(a0);
+    const large = (f1 - f0) > 0.5 ? 1 : 0;
+    const pct = total ? Math.round(((f1 - f0)) * 1000) / 10 : 0;
+    const d = `M ${x0o} ${y0o} A ${R} ${R} 0 ${large} 1 ${x1o} ${y1o} L ${x0i} ${y0i} A ${r} ${r} 0 ${large} 0 ${x1i} ${y1i} Z`;
+    return `<path d="${d}" fill="${s.color}" stroke="${holeColor}" stroke-width="1.5"><title>${escSvg(s.label)}: ${s.value} (${pct}%)</title></path>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+    ${arcos}
+    <circle cx="${cx}" cy="${cy}" r="${r - 2}" fill="${holeColor}" />
+    <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="${Math.round(size * 0.19)}" font-weight="800" fill="${textColor}" font-family="Arial,sans-serif">${escSvg(centerLabel)}</text>
+    <text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="${Math.round(size * 0.075)}" fill="${textColor}" opacity="0.55" font-family="Arial,sans-serif">${escSvg(centerSub)}</text>
+  </svg>`;
+}
+
+// Barras horizontales con pista de referencia (eje al 100% del máximo) —
+// para los rankings de puertos/destinos/navieras/transportadores.
+function svgBarrasH(datos, { width = 360, barH = 20, gap = 9, color, textColor, trackColor } = {}) {
+  if (!datos.length) return "";
+  const max = Math.max(1, ...datos.map(d => d.value));
+  const labelW = 118, valW = 76;
+  const areaW = Math.max(40, width - labelW - valW);
+  const height = datos.length * (barH + gap) - gap;
+  const filas = datos.map((d, i) => {
+    const y = i * (barH + gap);
+    const w = max ? Math.max((d.value / max) * areaW, d.value > 0 ? 3 : 0) : 0;
+    const c = d.color || color;
+    return `<g>
+      <text x="0" y="${y + barH / 2 + 4}" font-size="11" fill="${textColor}" font-family="Arial,sans-serif">${escSvg(truncar(d.label, 17))}</text>
+      <rect x="${labelW}" y="${y}" width="${areaW}" height="${barH}" rx="4" fill="${trackColor}" />
+      <rect x="${labelW}" y="${y}" width="${w}" height="${barH}" rx="4" fill="${c}"><title>${escSvg(d.label)}: ${d.value}${d.pct != null ? ` (${d.pct}%)` : ""}</title></rect>
+      <text x="${labelW + areaW + 8}" y="${y + barH / 2 + 4}" font-size="11" font-weight="700" fill="${textColor}" font-family="Arial,sans-serif">${d.value}${d.pct != null ? ` (${d.pct}%)` : ""}</text>
+    </g>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">${filas}</svg>`;
+}
+
+// Línea + área para la evolución mensual de inspecciones, con grilla,
+// puntos con tooltip nativo (title) y etiquetas de mes.
+function svgLinea(puntos, { width = 480, height = 150, color, textColor, gridColor } = {}) {
+  const padL = 26, padB = 20, padT = 10, padR = 10;
+  const w = Math.max(10, width - padL - padR), h = Math.max(10, height - padT - padB);
+  const n = puntos.length;
+  const max = Math.max(1, ...puntos.map(p => p.cantidad));
+  const x = (i) => padL + (n > 1 ? (i / (n - 1)) * w : w / 2);
+  const y = (v) => padT + h - (v / max) * h;
+  const linePath = puntos.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.cantidad).toFixed(1)}`).join(" ");
+  const areaPath = n ? `${linePath} L ${x(n - 1).toFixed(1)} ${(padT + h).toFixed(1)} L ${x(0).toFixed(1)} ${(padT + h).toFixed(1)} Z` : "";
+  const grid = [0, 0.5, 1].map(f => {
+    const gy = padT + h - f * h;
+    return `<line x1="${padL}" y1="${gy}" x2="${padL + w}" y2="${gy}" stroke="${gridColor}" stroke-width="1"/>
+      <text x="${padL - 5}" y="${gy + 3}" font-size="8.5" fill="${textColor}" opacity="0.5" text-anchor="end" font-family="Arial,sans-serif">${Math.round(f * max)}</text>`;
+  }).join("");
+  const puntosSvg = puntos.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.cantidad).toFixed(1)}" r="3.5" fill="${color}"><title>${escSvg(p.label)}: ${p.cantidad}</title></circle>`).join("");
+  const labelsX = puntos.map((p, i) => `<text x="${x(i).toFixed(1)}" y="${height - 4}" font-size="9" fill="${textColor}" opacity="0.6" text-anchor="middle" font-family="Arial,sans-serif" style="text-transform:capitalize">${escSvg(p.label)}</text>`).join("");
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
+    ${grid}
+    ${n ? `<path d="${areaPath}" fill="${color}" opacity="0.14"/><path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+    ${puntosSvg}
+    ${labelsX}
+  </svg>`;
+}
+
 function BarraLista({ items }) {
   const max = Math.max(1, ...items.map(it => it.value));
   return (
@@ -317,13 +412,6 @@ export default function LogisticaTab({ mob, logistica }) {
     [log.bookings, log.transporte, log.inspecciones, rangoOp, anioOp]
   );
 
-  // Adapta un ranking {nombre,cantidad,pct} al formato {label,value,display,color}
-  // que ya entiende BarraLista, para no duplicar el componente de barras.
-  const aBarraLista = (ranking, limite = 8) => ranking.slice(0, limite).map((r, i) => ({
-    label: r.nombre, value: r.cantidad, display: `${r.cantidad} (${r.pct}%)`,
-    color: PALETA_CATEGORICA[i % PALETA_CATEGORICA.length],
-  }));
-
   // ══════════════ INFORME DE INDICADORES OPERATIVOS (a petición, por el período elegido arriba) ══════════════
   const [generandoInformeOp, setGenerandoInformeOp] = useState(false);
 
@@ -341,9 +429,14 @@ export default function LogisticaTab({ mob, logistica }) {
         <td style="text-align:right">${r.pct}%</td>
       </tr>`;
 
-      const tablaRanking = (titulo, icono, ranking, colHead) => `
+      // Colores de las gráficas en el informe (documento claro/imprimible,
+      // a diferencia del dashboard oscuro) — mismas funciones de src/components/LogisticaTab.jsx.
+      const chartColorFor = { puertos: "#F97316", destinos: "#0EA5E9", navieras: "#845EF7", transportadores: "#F9A826", inspecciones: "#0EA5E9" };
+
+      const tablaRanking = (titulo, icono, ranking, colHead, colorKey) => `
 <h2>${icono} ${titulo}</h2>
 ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>` : `
+${svgBarrasH(ranking.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { width: 480, color: chartColorFor[colorKey], textColor: "#333", trackColor: "#f1ece5" })}
 <table><thead><tr><th>#</th><th>${colHead}</th><th style="text-align:right">Operaciones</th><th style="text-align:right">% Participación</th></tr></thead>
 <tbody>${ranking.map(filaRanking).join("")}</tbody></table>`}`;
 
@@ -354,9 +447,16 @@ ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>`
   ${r ? `<div class="s">${r.cantidad} ops · ${r.pct}%</div>` : ""}
 </div>`;
 
+      const donutHtml = svgDonut([
+        { label: "Llenadas",   value: statsOp.llenadas,   color: "#16a34a" },
+        { label: "Canceladas", value: statsOp.canceladas, color: "#dc2626" },
+        { label: "En proceso", value: statsOp.enProceso,  color: "#94a3b8" },
+      ], { size: 140, holeColor: "#fff7f0", textColor: "#222", centerLabel: String(statsOp.totalReservas), centerSub: "reservas" });
+
       const evolucionFilas = statsOp.inspecciones.evolucion
         .map(mes => `<tr><td style="text-transform:capitalize">${mes.label} ${anioOp}</td><td style="text-align:right">${mes.cantidad}</td></tr>`)
         .join("");
+      const evolucionSvg = svgLinea(statsOp.inspecciones.evolucion.map(mes => ({ label: mes.label, cantidad: mes.cantidad })), { width: 300, height: 130, color: "#0EA5E9", textColor: "#333", gridColor: "#eee" });
 
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Operativo — ${rangoOp.label}</title>
 <style>
@@ -372,6 +472,9 @@ ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>`
   .card-val{font-size:20px;font-weight:800;color:#F97316;line-height:1}
   .card-lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}
   .card.ok .card-val{color:#16a34a} .card.danger .card-val{color:#dc2626}
+  .donut-row{display:flex;align-items:center;gap:24px;margin-bottom:20px;flex-wrap:wrap}
+  .donut-legend{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#333}
+  .donut-legend .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
   .principales{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
   .principal{background:#faf9f7;border:1px solid #eee;border-radius:8px;padding:10px}
   .principal .l{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px}
@@ -397,6 +500,16 @@ ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>`
 </div>
 
 ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registradas en este período.</p>` : `
+<h2>🧩 Composición de reservas</h2>
+<div class="donut-row">
+  <div>${donutHtml}</div>
+  <div class="donut-legend">
+    <div><span class="dot" style="background:#16a34a"></span>Llenadas — <b>${statsOp.llenadas}</b> (${statsOp.pctLlenadas}%)</div>
+    <div><span class="dot" style="background:#dc2626"></span>Canceladas — <b>${statsOp.canceladas}</b> (${statsOp.pctCanceladas}%)</div>
+    <div><span class="dot" style="background:#94a3b8"></span>En proceso — <b>${statsOp.enProceso}</b> (${statsOp.pctEnProceso}%)</div>
+  </div>
+</div>
+
 <h2>🏆 Principales del período</h2>
 <div class="principales">
   ${tarjetaPrincipal("Puerto principal", statsOp.puertos[0])}
@@ -406,23 +519,23 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
 </div>
 
 <div class="grid2">
-  <div>${tablaRanking("Puertos utilizados", "⚓", statsOp.puertos, "Puerto de origen")}</div>
-  <div>${tablaRanking("Destinos de exportación", "🌎", statsOp.destinos, "Destino")}</div>
+  <div>${tablaRanking("Puertos utilizados", "⚓", statsOp.puertos, "Puerto de origen", "puertos")}</div>
+  <div>${tablaRanking("Destinos de exportación", "🌎", statsOp.destinos, "Destino", "destinos")}</div>
 </div>
 <div class="grid2">
-  <div>${tablaRanking("Navieras", "🚢", statsOp.navieras, "Naviera")}</div>
-  <div>${tablaRanking("Transportadores", "🚛", statsOp.transportadores, "Transportador")}</div>
+  <div>${tablaRanking("Navieras", "🚢", statsOp.navieras, "Naviera", "navieras")}</div>
+  <div>${tablaRanking("Transportadores", "🚛", statsOp.transportadores, "Transportador", "transportadores")}</div>
 </div>
 
 <h2>🔍 Inspecciones de contenedores en puerto (solo Física)</h2>
 <div class="meta">${statsOp.inspecciones.contenedoresInspeccionados} contenedor(es) inspeccionado(s) · ${statsOp.inspecciones.total} inspección(es) en total</div>
 <div class="grid2">
-  <div>${tablaRanking("Por puerto", "📍", statsOp.inspecciones.porPuerto, "Puerto")}</div>
+  <div>${tablaRanking("Por puerto", "📍", statsOp.inspecciones.porPuerto, "Puerto", "inspecciones")}</div>
   <div>
     <h2>📈 Evolución en el período</h2>
     ${statsOp.inspecciones.total === 0
       ? `<p style="color:#888">Sin inspecciones en este período.</p>`
-      : `<table><thead><tr><th>Mes</th><th style="text-align:right">Inspecciones</th></tr></thead><tbody>${evolucionFilas}</tbody></table>`}
+      : `${evolucionSvg}<table><thead><tr><th>Mes</th><th style="text-align:right">Inspecciones</th></tr></thead><tbody>${evolucionFilas}</tbody></table>`}
   </div>
 </div>`}
 
@@ -1817,22 +1930,46 @@ ${filas.map(filaDetalle).join("")}
             </div>
           ) : (
             <>
-              {/* ── Resumen: principales de cada categoría ── */}
-              <div style={cardS}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 10 }}>🏆 Principales del período</div>
-                <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
-                  {[
-                    { l: "Puerto principal",         r: statsOp.puertos[0] },
-                    { l: "Naviera principal",        r: statsOp.navieras[0] },
-                    { l: "Transportador principal",  r: statsOp.transportadores[0] },
-                    { l: "Destino principal",        r: statsOp.destinos[0] },
-                  ].map((x, i) => (
-                    <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 10 }}>
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>{x.l}</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>{x.r?.nombre || "—"}</div>
-                      {x.r && <div style={{ fontSize: 10, color: "#fb923c" }}>{x.r.cantidad} ops · {x.r.pct}%</div>}
-                    </div>
-                  ))}
+              {/* ── Composición de reservas (donut) + Principales del período ── */}
+              <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "260px 1fr", gap: 16 }}>
+                <div style={{ ...cardS, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 10, alignSelf: "flex-start" }}>🧩 Composición de reservas</div>
+                  <div dangerouslySetInnerHTML={{ __html: svgDonut([
+                    { label: "Llenadas",   value: statsOp.llenadas,   color: "#00C9A7" },
+                    { label: "Canceladas", value: statsOp.canceladas, color: "#FF6B6B" },
+                    { label: "En proceso", value: statsOp.enProceso,  color: "#64748B" },
+                  ], { size: 148, holeColor: "#121316", textColor: "#fff", centerLabel: String(statsOp.totalReservas), centerSub: "reservas" }) }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", marginTop: 12 }}>
+                    {[
+                      { l: "Llenadas",   v: statsOp.llenadas,   pct: statsOp.pctLlenadas,   c: "#00C9A7" },
+                      { l: "Canceladas", v: statsOp.canceladas, pct: statsOp.pctCanceladas, c: "#FF6B6B" },
+                      { l: "En proceso", v: statsOp.enProceso,  pct: statsOp.pctEnProceso,  c: "#64748B" },
+                    ].map((x, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: 2, background: x.c, flexShrink: 0 }} />
+                        <div style={{ flex: 1, color: "rgba(255,255,255,0.7)" }}>{x.l}</div>
+                        <div style={{ fontWeight: 700, color: "white" }}>{x.v} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}>({x.pct}%)</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={cardS}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 10 }}>🏆 Principales del período</div>
+                  <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(2,1fr)", gap: 10 }}>
+                    {[
+                      { l: "Puerto principal",         r: statsOp.puertos[0] },
+                      { l: "Naviera principal",        r: statsOp.navieras[0] },
+                      { l: "Transportador principal",  r: statsOp.transportadores[0] },
+                      { l: "Destino principal",        r: statsOp.destinos[0] },
+                    ].map((x, i) => (
+                      <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: 10 }}>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>{x.l}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>{x.r?.nombre || "—"}</div>
+                        {x.r && <div style={{ fontSize: 10, color: "#fb923c" }}>{x.r.cantidad} ops · {x.r.pct}%</div>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1842,25 +1979,25 @@ ${filas.map(filaDetalle).join("")}
                   <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>⚓ Puertos utilizados</div>
                   {statsOp.puertos.length === 0
                     ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin puerto de origen registrado en este período.</div>
-                    : <BarraLista items={aBarraLista(statsOp.puertos)} />}
+                    : <div dangerouslySetInnerHTML={{ __html: svgBarrasH(statsOp.puertos.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { color: "#F97316", textColor: "#e2e8f0", trackColor: "rgba(255,255,255,0.07)" }) }} />}
                 </div>
                 <div style={cardS}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🌎 Destinos de exportación</div>
                   {statsOp.destinos.length === 0
                     ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin puerto de destino registrado en este período.</div>
-                    : <BarraLista items={aBarraLista(statsOp.destinos)} />}
+                    : <div dangerouslySetInnerHTML={{ __html: svgBarrasH(statsOp.destinos.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { color: "#0EA5E9", textColor: "#e2e8f0", trackColor: "rgba(255,255,255,0.07)" }) }} />}
                 </div>
                 <div style={cardS}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🚢 Navieras</div>
                   {statsOp.navieras.length === 0
                     ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin naviera registrada en este período.</div>
-                    : <BarraLista items={aBarraLista(statsOp.navieras)} />}
+                    : <div dangerouslySetInnerHTML={{ __html: svgBarrasH(statsOp.navieras.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { color: "#845EF7", textColor: "#e2e8f0", trackColor: "rgba(255,255,255,0.07)" }) }} />}
                 </div>
                 <div style={cardS}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>🚛 Transportadores</div>
                   {statsOp.transportadores.length === 0
                     ? <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Sin transporte registrado en este período.</div>
-                    : <BarraLista items={aBarraLista(statsOp.transportadores)} />}
+                    : <div dangerouslySetInnerHTML={{ __html: svgBarrasH(statsOp.transportadores.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { color: "#F9A826", textColor: "#e2e8f0", trackColor: "rgba(255,255,255,0.07)" }) }} />}
                 </div>
               </div>
 
@@ -1878,23 +2015,11 @@ ${filas.map(filaDetalle).join("")}
                   <div style={{ display: "grid", gridTemplateColumns: m ? "1fr" : "1fr 1fr", gap: 16 }}>
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>Por puerto</div>
-                      <BarraLista items={aBarraLista(statsOp.inspecciones.porPuerto)} />
+                      <div dangerouslySetInnerHTML={{ __html: svgBarrasH(statsOp.inspecciones.porPuerto.slice(0, 8).map(r => ({ label: r.nombre, value: r.cantidad, pct: r.pct })), { color: "#0EA5E9", textColor: "#e2e8f0", trackColor: "rgba(255,255,255,0.07)" }) }} />
                     </div>
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>Evolución en el período</div>
-                      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
-                        {statsOp.inspecciones.evolucion.map((mes, i) => {
-                          const max = Math.max(1, ...statsOp.inspecciones.evolucion.map(x => x.cantidad));
-                          const barH = mes.cantidad ? Math.max(6, (mes.cantidad / max) * 80) : 2;
-                          return (
-                            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 6, height: "100%" }}>
-                              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", minHeight: 14 }}>{mes.cantidad || ""}</div>
-                              <div style={{ width: "60%", height: barH, background: "#0EA5E9", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
-                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>{mes.label}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <div dangerouslySetInnerHTML={{ __html: svgLinea(statsOp.inspecciones.evolucion.map(mes => ({ label: mes.label, cantidad: mes.cantidad })), { color: "#0EA5E9", textColor: "#e2e8f0", gridColor: "rgba(255,255,255,0.08)" }) }} />
                     </div>
                   </div>
                 )}
