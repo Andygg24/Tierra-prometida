@@ -6939,7 +6939,7 @@ function ConfigForm({ config, guardar, usuario }) {
   const [expData, setExpData] = useState(() => load("cfg_exportacion", {
     clientes:    [{ id:1, nombre:"Princesses Kingdom Corp", ciudad:"Miami", pais:"USA", email:"", tel:"+17867102522" }],
     navieras:    [{ id:1, nombre:"MSC", codigo:"MSC", contacto:"", diasLibres:null, diasLibresDesde:"" }],
-    puertos:       ["Miami, FL", "Port Everglades, FL"],
+    puertos:       ["Philadelphia", "Miami, FL", "Port Everglades, FL", "San Juan, PR"],
     puertosOrigen: [],
     transportadoras: [],
     consignees:  [],
