@@ -8156,6 +8156,13 @@ export default function App() {
             opacity     0.22s ease,
             border-color 0.22s ease;
           will-change: transform, box-shadow;
+          /* Fuerza a Chrome/Edge a re-recortar el backdrop-filter (blur) contra el
+             border-radius en cada frame de la animación — sin esto, el blur se sale
+             del borde redondeado durante el transform y deja una rayita/parpadeo
+             visible en algunas tarjetas mientras se mueven. */
+          -webkit-mask-image: -webkit-radial-gradient(white, black);
+          mask-image: radial-gradient(white, black);
+          backface-visibility: hidden;
         }
         /* Shimmer sweep */
         .tp-card-shimmer {
@@ -8515,8 +8522,11 @@ export default function App() {
             const isHov     = hoveredCard  === i;
             const isDim     = hoveredCard !== null && hoveredCard !== i && !isActive;
             const depth     = i / Math.max(1, MODULES.length - 1); // 0 → 1
-            // Cascade: each successive card sits 1px further right (physical stack illusion)
-            const cascadeX  = i * 1.2;
+            // Cascade: each successive card sits 1px further right (physical stack illusion).
+            // Redondeado a enteros: un translateX fraccionado (ej. 1.2px) combinado con el
+            // blur del backdrop-filter y el zoom del layout deja una línea/parpadeo visible
+            // en el borde de la tarjeta por el redondeo de subpíxeles del navegador.
+            const cascadeX  = Math.round(i * 1.2);
             const transform = (isActive || isHov)
               ? `perspective(900px) translateY(-14px) translateX(${cascadeX}px) scale(1.028) rotateX(-2deg)`
               : `translateX(${cascadeX}px)`;
