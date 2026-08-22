@@ -9,6 +9,10 @@ import {
 } from "../hooks/useLogistica.js";
 
 const ESTADOS_BOOKING       = ["Pendiente", "Confirmado", "Cancelado", "Roll Over", "Finalizado"];
+const PLANTAS = [
+  "Planta Tierra Prometida", "Planta Chocoita", "Planta Jhon Blanco", "Planta Claudia",
+  "Planta Ropero", "Planta Rocisan", "Planta Frulat", "Planta Gramaluz",
+];
 const ESTADOS_CONTENEDOR    = ["Posicionado", "Lleno", "Embarcado"];
 const ENTIDADES_INSPECCION  = ["PONAL", "DIAN", "ICA"];
 const RESULTADOS_INSPECCION = ["Física", "Documental", "Libre"];
@@ -108,6 +112,7 @@ function hoyISO() { return fechaLocalISO(); }
 function bookingVacio() {
   return {
     numeroBooking: "", numeroContenedor: "", numeroExportacion: "", numeroProforma: "", estado: "Pendiente",
+    planta: "",
     puertoOrigen: "", puertoDestino: "", naviera: "", motonave: "",
     consignee: "", numeroCajas: "",
     siCutoffFecha: "", siCutoffHora: "", cyCutoffFecha: "", cyCutoffHora: "",
@@ -392,7 +397,7 @@ export default function LogisticaTab({ mob, logistica }) {
     return log.bookings.filter(b => {
       if (filtroEstado && b.estado !== filtroEstado) return false;
       if (!q) return true;
-      return [b.numeroBooking, b.numeroContenedor, b.naviera, b.puertoOrigen, b.puertoDestino]
+      return [b.numeroBooking, b.numeroContenedor, b.naviera, b.puertoOrigen, b.puertoDestino, b.planta]
         .some(v => (v || "").toLowerCase().includes(q));
     });
   }, [log.bookings, busqueda, filtroEstado]);
@@ -876,7 +881,7 @@ ${filas.map(filaDetalle).join("")}
                 <button onClick={nuevaOperacion} style={btnPrimario(false, false)}>➕ Nueva operación</button>
               </div>
               <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-                <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+                <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar booking, contenedor, naviera, planta..." style={{ ...inp, flex: 1, minWidth: 160 }} />
                 <CustomSelect value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ ...inp, width: m ? "100%" : 180 }}>
                   <option value="">Todos los estados</option>
                   {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}
@@ -890,6 +895,7 @@ ${filas.map(filaDetalle).join("")}
                     <thead>
                       <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
                         <th style={{ padding: "6px" }}>Booking</th><th style={{ padding: "6px" }}>Contenedor</th><th style={{ padding: "6px" }}>N° Expo</th><th style={{ padding: "6px" }}>Estado</th>
+                        <th style={{ padding: "6px" }}>Planta</th>
                         <th style={{ padding: "6px" }}>Naviera</th><th style={{ padding: "6px" }}>Motonave</th><th style={{ padding: "6px" }}>Estado contenedor</th>
                         <th style={{ padding: "6px" }}>Días libres</th><th style={{ padding: "6px" }}>Hitos</th><th style={{ padding: "6px" }}></th>
                       </tr>
@@ -906,6 +912,7 @@ ${filas.map(filaDetalle).join("")}
                             <td style={{ padding: "6px" }}>
                               <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: `${COLOR_ESTADO_BOOKING[b.estado]}22`, color: COLOR_ESTADO_BOOKING[b.estado] }}>{b.estado}</span>
                             </td>
+                            <td style={{ padding: "6px" }}>{b.planta || "—"}</td>
                             <td style={{ padding: "6px" }}>{b.naviera || "—"}</td>
                             <td style={{ padding: "6px" }}>{b.motonave || "—"}</td>
                             <td style={{ padding: "6px" }}>
@@ -954,6 +961,12 @@ ${filas.map(filaDetalle).join("")}
                   <div style={campoBox}><div style={lbl}>Estado</div>
                     <CustomSelect value={form.estado} onChange={e => setCampo("estado", e.target.value)} style={inp}>
                       {ESTADOS_BOOKING.map(x => <option key={x} value={x}>{x}</option>)}
+                    </CustomSelect>
+                  </div>
+                  <div style={campoBox}><div style={lbl}>Planta</div>
+                    <CustomSelect value={form.planta} onChange={e => setCampo("planta", e.target.value)} style={inp}>
+                      <option value="">Seleccionar...</option>
+                      {PLANTAS.map(p => <option key={p} value={p}>{p}</option>)}
                     </CustomSelect>
                   </div>
                   <div style={campoBox}><div style={lbl}>Naviera</div>
