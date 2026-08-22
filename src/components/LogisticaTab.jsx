@@ -392,14 +392,22 @@ export default function LogisticaTab({ mob, logistica }) {
     return mapa;
   }, [log.transporte]);
 
+  // Ordenado por N° Expo de mayor a menor (la más reciente primero) — los
+  // bookings sin número de exportación quedan al final.
   const bookingsFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return log.bookings.filter(b => {
-      if (filtroEstado && b.estado !== filtroEstado) return false;
-      if (!q) return true;
-      return [b.numeroBooking, b.numeroContenedor, b.naviera, b.puertoOrigen, b.puertoDestino, b.planta]
-        .some(v => (v || "").toLowerCase().includes(q));
-    });
+    return log.bookings
+      .filter(b => {
+        if (filtroEstado && b.estado !== filtroEstado) return false;
+        if (!q) return true;
+        return [b.numeroBooking, b.numeroContenedor, b.naviera, b.puertoOrigen, b.puertoDestino, b.planta]
+          .some(v => (v || "").toLowerCase().includes(q));
+      })
+      .sort((a, b) => {
+        const na = a.numeroExportacion !== "" && a.numeroExportacion != null ? Number(a.numeroExportacion) : -Infinity;
+        const nb = b.numeroExportacion !== "" && b.numeroExportacion != null ? Number(b.numeroExportacion) : -Infinity;
+        return nb - na;
+      });
   }, [log.bookings, busqueda, filtroEstado]);
 
   // ══════════════ TRANSPORTE (scoped a la operación abierta) ══════════════
