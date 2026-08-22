@@ -393,7 +393,7 @@ ${ranking.length === 0 ? `<p style="color:#888">Sin datos en este período.</p>`
   <div class="card"><div class="card-val">${statsOp.totalReservas}</div><div class="card-lbl">Total reservas gestionadas</div></div>
   <div class="card ok"><div class="card-val">${statsOp.llenadas} (${statsOp.pctLlenadas}%)</div><div class="card-lbl">Reservas llenadas</div></div>
   <div class="card danger"><div class="card-val">${statsOp.canceladas} (${statsOp.pctCanceladas}%)</div><div class="card-lbl">Reservas canceladas</div></div>
-  <div class="card"><div class="card-val">${statsOp.inspecciones.contenedoresInspeccionados}</div><div class="card-lbl">Contenedores inspeccionados</div></div>
+  <div class="card"><div class="card-val">${statsOp.inspecciones.contenedoresInspeccionados}</div><div class="card-lbl">Contenedores inspeccionados (Física)</div></div>
 </div>
 
 ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registradas en este período.</p>` : `
@@ -414,7 +414,7 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
   <div>${tablaRanking("Transportadores", "🚛", statsOp.transportadores, "Transportador")}</div>
 </div>
 
-<h2>🔍 Inspecciones de contenedores en puerto</h2>
+<h2>🔍 Inspecciones de contenedores en puerto (solo Física)</h2>
 <div class="meta">${statsOp.inspecciones.contenedoresInspeccionados} contenedor(es) inspeccionado(s) · ${statsOp.inspecciones.total} inspección(es) en total</div>
 <div class="grid2">
   <div>${tablaRanking("Por puerto", "📍", statsOp.inspecciones.porPuerto, "Puerto")}</div>
@@ -1799,7 +1799,7 @@ ${filas.map(filaDetalle).join("")}
               { l: "Total reservas gestionadas", v: statsOp.totalReservas, c: "#F97316", i: "📋" },
               { l: "Reservas llenadas",   v: `${statsOp.llenadas} (${statsOp.pctLlenadas}%)`, c: "#00C9A7", i: "✅" },
               { l: "Reservas canceladas", v: `${statsOp.canceladas} (${statsOp.pctCanceladas}%)`, c: "#FF6B6B", i: "❌" },
-              { l: "Contenedores inspeccionados", v: statsOp.inspecciones.contenedoresInspeccionados, c: "#0EA5E9", i: "🔍" },
+              { l: "Contenedores inspeccionados (Física)", v: statsOp.inspecciones.contenedoresInspeccionados, c: "#0EA5E9", i: "🔍" },
             ].map((s, i) => (
               <div key={i} style={{ ...cardS, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ fontSize: 20 }}>{s.i}</div>
@@ -1867,7 +1867,7 @@ ${filas.map(filaDetalle).join("")}
               {/* ── Inspecciones de contenedores en puerto ── */}
               <div style={cardS}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🔍 Inspecciones de contenedores en puerto</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🔍 Inspecciones de contenedores en puerto <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.4)", fontSize: 11 }}>(solo Física)</span></div>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
                     <b style={{ color: "#0EA5E9" }}>{statsOp.inspecciones.contenedoresInspeccionados}</b> contenedores · <b style={{ color: "#0EA5E9" }}>{statsOp.inspecciones.total}</b> inspecciones
                   </div>

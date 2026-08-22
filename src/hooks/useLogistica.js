@@ -718,7 +718,9 @@ export function calcularEstadisticasPeriodo(bookings, transporte, inspecciones, 
   const transportePeriodo = transporte.filter(t => idsPeriodo.has(t.bookingId));
   const transportadores = rankearPorValor(transportePeriodo.map(t => t.transportadora), transportePeriodo.length);
 
-  const inspeccionesPeriodo = inspecciones.filter(i => idsPeriodo.has(i.bookingId));
+  // Solo cuenta la inspección Física — Documental y Libre no se tienen en
+  // cuenta para este indicador, a pedido explícito (la que importa es la física).
+  const inspeccionesPeriodo = inspecciones.filter(i => idsPeriodo.has(i.bookingId) && i.resultado === "Física");
   const bookingPorId = new Map(bkPeriodo.map(b => [b.id, b]));
   const contenedoresInspeccionados = new Set(inspeccionesPeriodo.map(i => i.bookingId)).size;
   const inspeccionesPorPuerto = rankearPorValor(
