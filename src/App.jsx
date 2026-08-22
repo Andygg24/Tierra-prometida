@@ -5513,6 +5513,7 @@ function DocumentosDemo({ logisticaBookings = [], guardarNumeroProforma }) {
     { key:"philadelphia", icon:"🏭", label:"Philadelphia", sub:"Parker Ave Marine Terminal C095", molde:"713" },
     { key:"miami",        icon:"🌴", label:"Miami, FL",    sub:"Estados Unidos",                  molde:"706" },
     { key:"san_juan",     icon:"🇵🇷", label:"San Juan",    sub:"Puerto Rico",                     molde:"709" },
+    { key:"everglades",   icon:"🐊", label:"Everglades, Estados Unidos", sub:"Estados Unidos",    molde:"744" },
   ];
 
   const { config: cfgDocs, guardar: guardarCfgDocs } = useConfiguracion();
@@ -5607,7 +5608,7 @@ function DocumentosDemo({ logisticaBookings = [], guardarNumeroProforma }) {
         {/* ── Selector de destino ── */}
         <div style={{marginBottom:12}}>
           {lbl("🚢 Puerto de Descargue")}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:6}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:6}}>
             {DESTINOS.map(d => (
               <button key={d.key} onClick={() => setDestino(d.key)} style={{
                 background: destino===d.key ? "rgba(14,165,233,0.18)" : "rgba(255,255,255,0.04)",

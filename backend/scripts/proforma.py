@@ -25,6 +25,7 @@ MOLDE_POR_DESTINO = {
     "philadelphia": "PROFORMA PRINCESSES KINGDOM 713.xlsx",
     "miami":        "PROFORMA PRINCESSES KINGDOM 706.xlsx",
     "san_juan":     "PROFORMA PRINCESSES KINGDOM 709.xlsx",
+    "everglades":   "PROFORMA PRINCESSES KINGDOM 744.xlsx",
 }
 molde_file = MOLDE_POR_DESTINO.get(destino, "PROFORMA PRINCESSES KINGDOM 713.xlsx")
 TMPL = os.path.abspath(os.path.join(MOLDES, molde_file))
