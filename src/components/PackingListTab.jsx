@@ -10,7 +10,7 @@ import {
   CALIBRES, COL_CAL, CHECKLIST_CALIDAD_CARGUE, CHEQUEO_TOTAL_ITEMS,
 } from "../reportes/informesProceso.js";
 
-const DESTINOS = ["Philadelphia", "Miami, FL", "San Juan"];
+const DESTINOS = ["Philadelphia", "Miami, FL", "Port Everglades, FL", "San Juan"];
 
 const PREDIOS = [
   { registro:"430003503", nombre:"La Esperanza",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
