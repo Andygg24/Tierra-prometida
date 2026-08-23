@@ -35,7 +35,7 @@ const COL_CAL_VACIO = { bg:"#94a3b8", light:"rgba(148,163,184,0.12)", border:"rg
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
 const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral"];
-const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "firmaConductor", "firmaSupervisor"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "trailer", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "firmaConductor", "firmaSupervisor"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
 function pick(obj, keys) {
@@ -2173,6 +2173,7 @@ p{text-align:justify;margin-bottom:14px}
           <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(3,1fr)", gap: m ? 10 : 8, marginBottom: m ? 10 : 8 }}>
             <div><div style={lbl}>Empresa transporte</div><input value={admin.empresaTransporte} onChange={e => sa("empresaTransporte", e.target.value)} placeholder="Transportando Express" style={inp} /></div>
             <div><div style={lbl}>Placa</div><input value={admin.placa} onChange={e => sa("placa", e.target.value)} placeholder="QJN678" style={inp} /></div>
+            <div><div style={lbl}>Trailer</div><input value={admin.trailer} onChange={e => sa("trailer", e.target.value)} placeholder="TRL123" style={inp} /></div>
             <div><div style={lbl}>Conductor</div><input value={admin.conductor} onChange={e => sa("conductor", e.target.value)} placeholder="Nombre del conductor" style={inp} /></div>
             <div><div style={lbl}>Cédula del conductor</div><input value={admin.cedulaConductor} onChange={e => sa("cedulaConductor", e.target.value)} placeholder="Ej: 88.171.056" style={inp} /></div>
             <div><div style={lbl}>Supervisor de cargue</div><input value={admin.supervisorCargue} onChange={e => sa("supervisorCargue", e.target.value)} placeholder="Nombre del supervisor" style={inp} /></div>
