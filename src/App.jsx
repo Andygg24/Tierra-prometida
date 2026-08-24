@@ -1831,6 +1831,9 @@ function InformesDemo() {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
   const [descargandoId, setDescargandoId] = useState(null);
+  const [viendoId, setViendoId] = useState(null);
+  const [previewArchivo, setPreviewArchivo] = useState(null); // { url, nombre }
+  useEffect(() => () => { if (previewArchivo?.url) URL.revokeObjectURL(previewArchivo.url); }, [previewArchivo]);
   const fileRef = useRef(null);
 
   const leerComoDataURL = (file) => new Promise((resolve, reject) => {
@@ -1898,8 +1901,33 @@ function InformesDemo() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
+  // Ver el archivo sin descargarlo — se muestra en un iframe dentro de un
+  // modal de la app (funciona igual en Apple, ya que ahí no depende del
+  // atributo download ni de abrir una pestaña nueva).
+  const verArchivo = async (a) => {
+    setViendoId(a.id);
+    const contenido = await descargar(a.id);
+    setViendoId(null);
+    if (!contenido) { setError("No se pudo abrir ese archivo."); return; }
+    const blob = await (await fetch(contenido)).blob();
+    const url  = URL.createObjectURL(blob);
+    setPreviewArchivo({ url, nombre: a.nombre });
+  };
+
   return (
     <div>
+      {previewArchivo && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:9998,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",background:"#12121f",borderBottom:"1px solid rgba(255,255,255,0.13)",flexShrink:0}}>
+            <span style={{color:"white",fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👁 {previewArchivo.nombre}</span>
+            <div style={{display:"flex",gap:8,flexShrink:0}}>
+              <button onClick={()=>{const l=document.createElement("a");l.href=previewArchivo.url;l.download=previewArchivo.nombre;l.click();}} style={{background:"linear-gradient(135deg,#845EF7,#6366F1)",border:"none",borderRadius:8,padding:"7px 16px",fontSize:12,color:"white",cursor:"pointer",fontWeight:700}}>📥 Descargar</button>
+              <button onClick={()=>setPreviewArchivo(null)} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.20)",borderRadius:8,padding:"7px 14px",fontSize:12,color:"rgba(255,255,255,0.78)",cursor:"pointer"}}>✕ Cerrar</button>
+            </div>
+          </div>
+          <iframe src={previewArchivo.url} style={{flex:1,border:"none",background:"white"}} title="Vista previa del archivo" />
+        </div>
+      )}
       <div onClick={() => !subiendo && fileRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); if (!subiendo) handleFile(e.dataTransfer.files[0]);}} style={{ border:`2px dashed rgba(255,107,107,0.3)`, borderRadius:12, padding:16, textAlign:"center", cursor: subiendo ? "wait" : "pointer", background:"rgba(255,255,255,0.02)", marginBottom:10 }}>
         <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,.png,.jpg,.jpeg,.doc,.docx,.html,.htm" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} disabled={subiendo} />
         {subiendo ? <div><div style={{fontSize:20,marginBottom:4}}>⏳</div><div style={{fontSize:12,color:"#FF6B6B",fontWeight:700}}>Guardando...</div></div>
@@ -1925,6 +1953,9 @@ function InformesDemo() {
                   {a.tamanoKb ? `${a.tamanoKb.toFixed(0)} KB · ` : ""}{a.subidoPor ? `${a.subidoPor} · ` : ""}{a.createdAt ? new Date(a.createdAt).toLocaleString("es-CO", { dateStyle:"short", timeStyle:"short" }) : ""}
                 </div>
               </div>
+              <button onClick={() => verArchivo(a)} disabled={viendoId === a.id} style={{ background:"rgba(99,102,241,0.12)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#a5b4fc", cursor: viendoId === a.id ? "wait" : "pointer" }}>
+                {viendoId === a.id ? "..." : "👁"}
+              </button>
               <button onClick={() => abrirArchivo(a)} disabled={descargandoId === a.id} style={{ background:"rgba(255,107,107,0.12)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:6, padding:"4px 9px", fontSize:10, color:"#FF6B6B", cursor: descargandoId === a.id ? "wait" : "pointer" }}>
                 {descargandoId === a.id ? "..." : "⬇"}
               </button>
