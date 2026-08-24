@@ -1867,10 +1867,31 @@ function InformesDemo() {
   };
 
   const abrirArchivo = async (a) => {
+    // iOS Safari no respeta el atributo `download` de <a> para data:/blob:
+    // URLs — en vez de guardar el archivo, solo lo abre/navega (y si el
+    // tipo no es visualizable, a veces no hace nada visible). Por eso ahí
+    // se abre en una pestaña para que el usuario lo vea y lo guarde con el
+    // botón de compartir de Safari, en vez de simular un <a download> que
+    // en iPhone/iPad no descarga nada. La pestaña se abre ANTES del await
+    // porque, si se abre después de esperar los datos de Supabase, ya no
+    // cuenta como gesto directo del usuario y Safari la bloquea.
+    const esIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const ventana = esIOS ? window.open("", "_blank") : null;
     setDescargandoId(a.id);
     const contenido = await descargar(a.id);
     setDescargandoId(null);
-    if (!contenido) { setError("No se pudo abrir ese archivo."); return; }
+    if (!contenido) {
+      setError("No se pudo abrir ese archivo.");
+      if (ventana) ventana.close();
+      return;
+    }
+    if (ventana) {
+      const blob = await (await fetch(contenido)).blob();
+      const url  = URL.createObjectURL(blob);
+      ventana.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
     const link = document.createElement("a");
     link.href = contenido;
     link.download = a.nombre;
