@@ -128,8 +128,12 @@ export async function generarInformePlantaHtml({ pallets, admin, contenedor, tot
       mixtosMap[key] = (mixtosMap[key] || 0) + 1;
     }
   });
+  // width/height:auto (no los 34x24px fijos de .cal-tag) porque un combo de
+  // 3+ calibres no cabe en esa pastilla — el texto blanco se desbordaba
+  // fuera del recuadro y quedaba invisible sobre el fondo blanco de la
+  // página, dando la impresión de que faltaban calibres.
   const filasPalletsMixtos = Object.entries(mixtosMap).map(([combo, n]) => `<div class="cal-pallet-row">
-      <div class="cal-tag" style="background:#94a3b8;font-size:8.5px;padding:0 3px">${combo}</div>
+      <div class="cal-tag" style="background:#94a3b8;font-size:8.5px;padding:3px 6px;width:auto;height:auto;line-height:1.3">${combo}</div>
       <div class="cal-pallet-count"><b>${n}</b> pallet${n !== 1 ? "s" : ""} mixto${n !== 1 ? "s" : ""}</div>
     </div>`).join("");
 
