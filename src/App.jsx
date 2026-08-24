@@ -3284,6 +3284,71 @@ ${seccionObs}
   );
 }
 
+// Aísla el CSS de un informe HTML standalone bajo un selector `scope`
+// (ej. "#rep-0"), reescribiendo cada regla para que sólo aplique dentro de
+// ese contenedor — usado para fusionar varios informes independientes en un
+// solo documento sin que sus estilos (mismos nombres de clase: .footer,
+// .card, h2…) se pisen entre sí. `body`/`html` se mapean al propio scope
+// (que hace de raíz de esa sección); @page/@font-face/@keyframes se copian
+// tal cual porque no son selectores de elemento.
+function scopearCSS(cssConComentarios, scope) {
+  // Los comentarios se descartan enteros (en vez de preservarlos) para que
+  // una coma dentro de uno (ej. "/* filas, columnas */") no se confunda con
+  // un separador de lista de selectores.
+  const css = cssConComentarios.replace(/\/\*[\s\S]*?\*\//g, " ");
+  const prefijarSelector = (sel) => {
+    sel = sel.trim();
+    if (!sel) return sel;
+    if (/^(body|html)$/i.test(sel)) return scope;
+    if (/^(body|html)(?=[.:#\[])/i.test(sel)) return scope + sel.replace(/^(body|html)/i, "");
+    return `${scope} ${sel}`;
+  };
+  const prefijarLista = (lista) => lista.split(",").map(prefijarSelector).join(", ");
+
+  let out = "";
+  let i = 0;
+  const n = css.length;
+  while (i < n) {
+    let j = i;
+    while (j < n && css[j] !== "{") j++;
+    if (j >= n) { out += css.slice(i); break; }
+    const cabeza = css.slice(i, j).trim();
+    if (/^@media|^@supports/.test(cabeza)) {
+      let depth = 1, k = j + 1;
+      while (k < n && depth > 0) { if (css[k] === "{") depth++; else if (css[k] === "}") depth--; k++; }
+      out += `${cabeza}{${scopearCSS(css.slice(j + 1, k - 1), scope)}}`;
+      i = k;
+    } else if (/^@page|^@font-face|^@keyframes|^@-webkit-keyframes/.test(cabeza)) {
+      let depth = 1, k = j + 1;
+      while (k < n && depth > 0) { if (css[k] === "{") depth++; else if (css[k] === "}") depth--; k++; }
+      out += css.slice(i, k);
+      i = k;
+    } else if (cabeza === "") {
+      i = j + 1;
+    } else {
+      let k = css.indexOf("}", j + 1);
+      if (k < 0) k = n;
+      out += `${prefijarLista(cabeza)}{${css.slice(j + 1, k)}}`;
+      i = k + 1;
+    }
+  }
+  return out;
+}
+
+// Extrae <style> y el contenido de <body> de un informe HTML standalone
+// (los que generan generarInformePlantaHtml/CargueHtml/RendimientoHtml) para
+// poder incrustarlo dentro de otro documento sin iframes — en iOS Safari los
+// iframes (con src, srcdoc o data:) no se renderizan cuando el documento que
+// los contiene se abrió como archivo local (file://), por lo que el informe
+// combinado descargado se veía en blanco salvo por los títulos de sección.
+function extraerSeccionInforme(html, scopeId) {
+  const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  const bodyMatch  = html.match(/<body[^>]*>([\s\S]*?)<\/body>/);
+  const css  = styleMatch ? scopearCSS(styleMatch[1], `#${scopeId}`) : "";
+  const body = bodyMatch ? bodyMatch[1] : html;
+  return { css, body };
+}
+
 // ─── MÓDULO CONTENEDORES ─────────────────────────────────────
 function ContenedoresDemo({ logisticaBookings = [] }) {
   const mob = useM();
@@ -4779,13 +4844,12 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
               return;
             }
 
-            // El contenido de cada sección va directo en el atributo srcdoc
-            // (no vía <script> después de cargar) para que se vea aunque el
-            // visor donde se abra el .html descargado no ejecute JavaScript
-            // (Quick Look de iOS, algunos visores in-app) — si dependía del
-            // script para inyectar el contenido, ese visor mostraba el
-            // documento en blanco.
-            const escapeAttr = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+            // Cada sección se incrusta directo en el DOM del documento (CSS
+            // aislado con scopearCSS), no en un <iframe> — en iOS Safari los
+            // iframes no se renderizan cuando el .html que los contiene se
+            // abre como archivo local (file://), así que el informe
+            // combinado descargado se veía en blanco salvo por los títulos.
+            const seccionesScoped = secciones.map((s, i) => ({ ...s, ...extraerSeccionInforme(s.html, `rep-${i}`) }));
             const fechaHoy = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
 
             const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -4803,13 +4867,13 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   .toc .falta:last-child{border-bottom:none}
   .seccion{max-width:960px;margin:40px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,0.08)}
   .seccion-hdr{padding:14px 24px;background:#0f1522;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px}
-  iframe{width:100%;height:600px;border:none;display:block}
   .footer{max-width:960px;margin:0 auto 40px;text-align:center;color:#94a3b8;font-size:10.5px}
   @media print{
     body{background:#fff}
     .seccion{page-break-before:always;box-shadow:none;margin:0;border-radius:0;max-width:100%}
     .seccion:first-of-type{page-break-before:auto}
   }
+  ${seccionesScoped.map(s => s.css).join("\n")}
 </style></head><body>
 
 <div class="cover">
@@ -4821,21 +4885,14 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
   ${faltantes.map(t => `<div class="falta">${t} — sin datos, no incluido</div>`).join("")}
 </div>
 
-${secciones.map((s, i) => `
+${seccionesScoped.map((s, i) => `
 <div class="seccion" id="sec-${i}">
   <div class="seccion-hdr">${s.titulo}</div>
-  <iframe id="frame-${i}" srcdoc="${escapeAttr(s.html)}"></iframe>
+  <div id="rep-${i}">${s.body}</div>
 </div>`).join("")}
 
 <div class="footer">🍋 Tierra Prometida Trading · JARVIS · Informe generado el ${fechaHoy}</div>
 
-<script>
-document.querySelectorAll("iframe").forEach(f => {
-  f.addEventListener("load", () => {
-    try { f.style.height = (f.contentWindow.document.documentElement.scrollHeight + 24) + "px"; } catch (e) {}
-  });
-});
-</script>
 </body></html>`;
 
             if (modo === "html") return html;
