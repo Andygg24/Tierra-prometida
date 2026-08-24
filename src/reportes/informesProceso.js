@@ -623,6 +623,11 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     ? (mermaKgTotal / totales.kilosProcesados) * 100 : 0;
 
   const proveedoresCont = parseProveedoresRend(cont?.proveedor);
+  // Si el contenedor tiene un solo proveedor, se usa como respaldo cuando el
+  // registro de rendimiento de un camión no trae "proveedor" propio (queda
+  // null si no se llenó ese campo puntual) — sólo para mostrar en el
+  // informe, no toca los cálculos de statsPorProveedor.
+  const proveedorUnico = proveedoresCont.length === 1 ? proveedoresCont[0] : "";
 
   const statsPorProveedor = proveedoresCont.map(pv => {
     const recs = rendsDelCont.filter(r => r.proveedor === pv);
@@ -713,10 +718,11 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   const truckBars = rendsDelCont.map((r, i) => {
     const c = calcRend(r);
     const rc = c.rendGen >= 80 ? "#15803d" : c.rendGen >= 60 ? "#b45309" : "#b91c1c";
+    const provDisplay = r.proveedor || proveedorUnico;
     return `<div style="display:grid;grid-template-columns:140px 1fr 110px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #f8fafc;">
   <div>
     <span style="font-size:11px;font-weight:600;color:#374151;">Contenedor ${i+1}</span>
-    ${r.proveedor ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:4px;">${r.proveedor}</span>` : ""}
+    ${provDisplay ? `<span style="background:#ede9fe;color:#6d28d9;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:4px;">${provDisplay}</span>` : ""}
     <div style="font-size:9px;color:#94a3b8;">${r.fecha}</div>
   </div>
   <div style="background:#f1f5f9;border-radius:5px;height:16px;overflow:hidden;position:relative;">
@@ -729,44 +735,6 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
 </div>`;
   }).join("");
 
-  // ── Calibres agregados (todos los camiones) ──────────────────
-  const calibreAgg = {};
-  rendsDelCont.forEach(r => {
-    (r.calibres || []).forEach(cal => {
-      const calKg = cal.tipo === "cajas"
-        ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS)
-        : Number(cal.cantidad);
-      if (!calibreAgg[cal.nombre]) calibreAgg[cal.nombre] = 0;
-      calibreAgg[cal.nombre] += calKg;
-    });
-  });
-  const calibreEntries = Object.entries(calibreAgg).sort(([a],[b]) => a.localeCompare(b));
-
-  const calibreSection = calibreEntries.length > 0 ? `
-<h2>🎨 Desglose por calibre</h2>
-<div class="chart-wrap">
-  <div class="calibre-note">ℹ️ Los dos porcentajes usan bases distintas: <b>% procesado</b> es sobre el total de kg procesados; <b>% empacado</b> es sobre el total de kg que <b>quedaron en caja</b>.</div>
-  <div class="calibre-grid">
-    ${calibreEntries.map(([nombre, kg]) => {
-      const pctPro = totales.kilosProcesados > 0 ? (kg / totales.kilosProcesados) * 100 : 0;
-      const pctEmp = totales.kgEmp > 0 ? (kg / totales.kgEmp) * 100 : 0;
-      const cc = pctPro >= 80 ? "#15803d" : pctPro >= 60 ? "#b45309" : "#374151";
-      return `
-    <div class="calibre-card">
-      <div class="calibre-head">
-        <span class="calibre-name">${nombre}</span>
-        <span class="calibre-kg">${kg.toFixed(1)} kg</span>
-      </div>
-      <div class="bar-cell">
-        <div class="bar-bg" style="flex:1;width:auto;height:14px;" title="% sobre el total procesado"><div class="bar-fill" style="width:${Math.min(pctPro,100).toFixed(1)}%;background:${cc};"></div></div>
-        <span style="font-weight:800;color:${cc};min-width:46px;text-align:right;flex-shrink:0;" title="% sobre el total procesado">${pctPro.toFixed(1)}%</span>
-      </div>
-      <div class="calibre-sub"><span title="% sobre el total de kg que entraron">% del total procesado (kg crudo)</span> &nbsp;·&nbsp; <b style="color:#6366f1;" title="% sobre el total de kg que quedaron empacados">${pctEmp.toFixed(1)}%</b> del total empacado (kg en caja)</div>
-    </div>`;
-    }).join("")}
-  </div>
-</div>` : "";
-
   // ── Tabla detalle con observaciones ─────────────────────────
   const truckRows = rendsDelCont.map((r, i) => {
     const c = calcRend(r);
@@ -774,23 +742,18 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     const obsChips = (r.observaciones || []).map(o => `<span class="obs-chip">${o}</span>`).join(" ");
     const obsDetalle = r.obsDetalle ? `<div style="margin-top:3px;font-style:italic;color:#64748b;font-size:10px;">${r.obsDetalle}</div>` : "";
     const obsCell = (obsChips || obsDetalle) ? `${obsChips}${obsDetalle}` : `<span class="dim">—</span>`;
-    const calChips = (r.calibres || []).map(cal => {
-      const calKg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
-      const pct = r.kilosProcesados > 0 ? (calKg / r.kilosProcesados * 100).toFixed(1) : "0.0";
-      return `<span style="background:#ede9fe;color:#4c1d95;border-radius:4px;padding:1px 7px;font-size:9px;font-weight:700;margin-right:3px;display:inline-block;">${cal.nombre}: ${pct}%</span>`;
-    }).join("");
+    const provDisplay = r.proveedor || proveedorUnico;
     const mc = c.merma <= 20 ? "#15803d" : c.merma <= 40 ? "#b45309" : "#b91c1c";
     return `<tr>
   <td class="num-cell">${i+1}</td>
   <td>${r.fecha}</td>
-  <td>${r.proveedor ? `<span class="pv-badge">${r.proveedor}</span>` : `<span class="dim">—</span>`}</td>
+  <td>${provDisplay ? `<span class="pv-badge">${provDisplay}</span>` : `<span class="dim">—</span>`}</td>
   <td>${r.kilosProcesados.toLocaleString("es-CO")} kg${r.kilosIngresados > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">${r.kilosIngresados.toLocaleString("es-CO")} ingr. − ${(r.kilosNoProcesados || 0).toLocaleString("es-CO")} no proc.</div>` : ""}</td>
   <td style="color:#b45309;">${r.kilosDevueltos.toLocaleString("es-CO")} kg${r.kilosPrimeraDevueltos > 0 ? `<div style="font-size:9px;color:#94a3b8;font-weight:400;">de primera: ${r.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg</div>` : ""}</td>
   <td style="color:#15803d;font-weight:600;">${c.kgEmp.toFixed(1)} kg</td>
   <td>${r.cajasDelMonte > 0 ? `<span class="tag-dm">${r.cajasDelMonte}</span>` : ""}${r.cajasPrincess > 0 ? `<span class="tag-pri">${r.cajasPrincess}</span>` : ""}</td>
   <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(c.rendGen,100).toFixed(1)}%;background:${rc};"></div></div><span style="font-weight:700;color:${rc};">${c.rendGen.toFixed(1)}%</span></div></td>
   <td style="font-weight:700;color:${mc};">${c.merma.toFixed(1)}%<div style="font-size:9px;color:#94a3b8;font-weight:400;">${c.mermaKg.toLocaleString("es-CO",{maximumFractionDigits:1})} kg</div></td>
-  <td>${calChips || `<span class="dim">—</span>`}</td>
   <td>${obsCell}</td>
 </tr>`;
   }).join("");
@@ -845,19 +808,11 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   .bar-bg { background:#f1f5f9; border-radius:4px; height:10px; width:70px; overflow:hidden; flex-shrink:0; }
   .bar-fill { height:100%; border-radius:4px; }
   .chart-wrap { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; margin-bottom:26px; }
-  .calibre-note { font-size:10.5px; color:#64748b; background:#eef2f7; border:1px solid #dbe3ec; border-radius:8px; padding:9px 12px; margin-bottom:16px; line-height:1.5; }
-  .calibre-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
-  .calibre-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
-  .calibre-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
-  .calibre-name { font-size:16px; font-weight:800; color:#1e1b4b; }
-  .calibre-kg { font-size:12px; font-weight:600; color:#15803d; }
-  .calibre-sub { font-size:10px; color:#94a3b8; margin-top:8px; }
   .footer { margin-top:36px; padding:18px 36px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; background:#f8fafc; }
   @media print {
     .hdr { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     body { font-size:11.5px; }
     .body { padding:20px 28px; }
-    .calibre-grid { grid-template-columns:1fr 1fr; }
   }
 </style>
 </head>
@@ -917,8 +872,6 @@ ${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? `
 
 ${providerSection}
 
-${calibreSection}
-
 <h2>📈 Rendimiento del proceso</h2>
 <div class="chart-wrap">
   ${truckBars}
@@ -929,7 +882,7 @@ ${calibreSection}
   <thead>
     <tr>
       <th>#</th><th>Fecha</th><th>Proveedor</th><th>Kg proc.</th><th>Devueltos</th>
-      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Merma</th><th>Calibres</th><th>Observaciones</th>
+      <th>Kg emp.</th><th>Cajas</th><th>Rdto.</th><th>Merma</th><th>Observaciones</th>
     </tr>
   </thead>
   <tbody>${truckRows}</tbody>
