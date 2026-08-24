@@ -309,6 +309,13 @@ export default function LogisticaTab({ mob, logistica }) {
   }, []);
   const m = mob || isMobLocal;
 
+  // Vista previa de informes (Operativo, CV) — se muestra en un iframe interno
+  // en vez de window.open(blobUrl), porque en móvil (Safari iOS / Chrome
+  // Android) window.open() llamado después de un await ya no cuenta como
+  // gesto directo del usuario y el navegador lo bloquea o abre en blanco.
+  const [previewInforme, setPreviewInforme] = useState(null); // { url, filename }
+  useEffect(() => () => { if (previewInforme?.url) URL.revokeObjectURL(previewInforme.url); }, [previewInforme]);
+
   const log = logistica;
   const { config } = useConfiguracion();
   const navierasCfg       = config.cfg_exportacion?.navieras       || [];
@@ -597,13 +604,14 @@ ${statsOp.totalReservas === 0 ? `<p style="color:#888">No hay reservas registrad
 </body></html>`;
 
       const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+      const subPeriodoParte = tipoPeriodoOp !== "año" ? `-${subPeriodoOp}` : "";
+      const filename = `Informe-Operativo-${tipoPeriodoOp}-${anioOp}${subPeriodoParte}.html`;
       if (modo === "previsualizar") {
-        window.open(blobUrl, "_blank");
+        setPreviewInforme({ url: blobUrl, filename });
       } else {
         const a = document.createElement("a");
         a.href = blobUrl;
-        const subPeriodoParte = tipoPeriodoOp !== "año" ? `-${subPeriodoOp}` : "";
-        a.download = `Informe-Operativo-${tipoPeriodoOp}-${anioOp}${subPeriodoParte}.html`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(blobUrl);
       }
@@ -1123,12 +1131,13 @@ ${filas.map(filaDetalle).join("")}
 </body></html>`;
 
     const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    const filename = `CostoVenta_${periodoInforme}_${fechaLocalISO()}.html`;
     if (modo === "previsualizar") {
-      window.open(blobUrl, "_blank");
+      setPreviewInforme({ url: blobUrl, filename });
     } else {
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `CostoVenta_${periodoInforme}_${fechaLocalISO()}.html`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(blobUrl);
     }
@@ -1165,6 +1174,19 @@ ${filas.map(filaDetalle).join("")}
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {previewInforme && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.88)", zIndex: 9998, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", background: "#12121f", borderBottom: "1px solid rgba(255,255,255,0.13)", flexShrink: 0 }}>
+            <span style={{ color: "white", fontWeight: 700, fontSize: 13 }}>👁 Vista Previa — {previewInforme.filename}</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { const a = document.createElement("a"); a.href = previewInforme.url; a.download = previewInforme.filename; a.click(); }} style={{ background: "linear-gradient(135deg,#845EF7,#6366F1)", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12, color: "white", cursor: "pointer", fontWeight: 700 }}>📥 Descargar</button>
+              <button onClick={() => setPreviewInforme(null)} style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: 8, padding: "7px 14px", fontSize: 12, color: "rgba(255,255,255,0.78)", cursor: "pointer" }}>✕ Cerrar</button>
+            </div>
+          </div>
+          <iframe src={previewInforme.url} style={{ flex: 1, border: "none", background: "white" }} title="Vista previa del informe" />
+        </div>
+      )}
 
       {/* ── KPIs ── */}
       <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>

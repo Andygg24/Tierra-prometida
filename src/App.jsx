@@ -4779,10 +4779,13 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
               return;
             }
 
-            // JSON.stringify escapa comillas/backslashes de forma segura; solo
-            // hay que neutralizar "</script" para que no cierre el <script> del
-            // documento contenedor si algún informe trajera ese texto literal.
-            const escapeParaScript = (s) => JSON.stringify(s).replace(/</g, "\\u003c");
+            // El contenido de cada sección va directo en el atributo srcdoc
+            // (no vía <script> después de cargar) para que se vea aunque el
+            // visor donde se abra el .html descargado no ejecute JavaScript
+            // (Quick Look de iOS, algunos visores in-app) — si dependía del
+            // script para inyectar el contenido, ese visor mostraba el
+            // documento en blanco.
+            const escapeAttr = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
             const fechaHoy = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
 
             const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -4821,13 +4824,12 @@ ${filas.map(f=>`<tr><td>${f.nombre}</td><td>${f.unidad}</td><td style="text-alig
 ${secciones.map((s, i) => `
 <div class="seccion" id="sec-${i}">
   <div class="seccion-hdr">${s.titulo}</div>
-  <iframe id="frame-${i}"></iframe>
+  <iframe id="frame-${i}" srcdoc="${escapeAttr(s.html)}"></iframe>
 </div>`).join("")}
 
 <div class="footer">🍋 Tierra Prometida Trading · JARVIS · Informe generado el ${fechaHoy}</div>
 
 <script>
-${secciones.map((s, i) => `document.getElementById("frame-${i}").srcdoc = ${escapeParaScript(s.html)};`).join("\n")}
 document.querySelectorAll("iframe").forEach(f => {
   f.addEventListener("load", () => {
     try { f.style.height = (f.contentWindow.document.documentElement.scrollHeight + 24) + "px"; } catch (e) {}
