@@ -14,6 +14,7 @@ import LogisticaTab from "./components/LogisticaTab.jsx";
 import ControlExpoTab from "./components/ControlExpoTab.jsx";
 import CajaMenorTab from "./components/CajaMenorTab.jsx";
 import CanastillasTab from "./components/CanastillasTab.jsx";
+import PedidosTab from "./components/PedidosTab.jsx";
 import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import {
@@ -2052,12 +2053,12 @@ const PLANTILLAS_CC = [
   },
 ];
 
-function InventarioDemo() {
+function InventarioDemo({ usuario }) {
   const { items, historial, loading: loadingInv, actualizarItem, registrarMovimiento, agregarItem, eliminarItem } = useInventario(INVENTARIO_BASE);
 
   const mob = useM();
   const [tabInv, setTabInv] = useState(0);
-  const TAB_INV = ["📦 Inventario General", "🔖 Canastillas"];
+  const TAB_INV = ["📦 Inventario General", "🔖 Canastillas", "📝 Pedidos"];
 
   const [filtro, setFiltro] = useState("Todos");
   const [busqueda, setBusqueda] = useState("");
@@ -2137,6 +2138,7 @@ function InventarioDemo() {
       </div>
 
       {tabInv === 1 && <CanastillasTab mob={mob} />}
+      {tabInv === 2 && <PedidosTab mob={mob} usuario={usuario} />}
 
       {tabInv === 0 && <>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null); }} onCancel={() => setConfirm(null)} />}
@@ -8114,7 +8116,7 @@ export default function App() {
     if (demo.type === "personal_live")    return <PersonalDemo />;
     if (demo.type === "nomina_live")      return <NominaDemo />;
     if (demo.type === "informes_live")    return <InformesDemo />;
-    if (demo.type === "inventario_live")  return <InventarioDemo />;
+    if (demo.type === "inventario_live")  return <InventarioDemo usuario={usuario} />;
     if (demo.type === "asistencia_live")  return <AsistenciaDemo />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo logisticaBookings={logisticaApp.bookings} />;
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} logisticaBookings={logisticaApp.bookings} />;
