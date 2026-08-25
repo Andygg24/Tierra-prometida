@@ -3,17 +3,19 @@
  * Tierra Prometida Trading S.A.S.
  *
  * Endpoints:
- *   POST /api/carta-temp   → descarga .docx
- *   POST /api/proforma     → descarga .xlsx
- *   POST /api/isf          → descarga .xlsx
- *   POST /api/id-pallet    → descarga .xlsx
- *   POST /api/exportar-zip → descarga .zip con los 3 archivos
+ *   POST /api/carta-temp        → descarga .docx
+ *   POST /api/proforma          → descarga .xlsx
+ *   POST /api/isf               → descarga .xlsx
+ *   POST /api/id-pallet         → descarga .xlsx
+ *   POST /api/exportar-zip      → descarga .zip con los 3 archivos
+ *   POST /api/notificar-pedido  → avisa al Jefe por correo (Inventario → Pedidos)
  */
 
-const express  = require("express");
-const cors     = require("cors");
-const path     = require("path");
+const express    = require("express");
+const cors       = require("cors");
+const path       = require("path");
 const { execFile } = require("child_process");
+const nodemailer = require("nodemailer");
 
 // Carga backend/.env (API keys de servidor — nunca deben llevar el prefijo VITE_
 // para que Vite no las incruste en el bundle del navegador)
@@ -231,6 +233,50 @@ app.post("/api/informe-analisis", async (req, res) => {
   }
 });
 
+// ── POST /api/notificar-pedido — avisa al Jefe por correo cuando alguien
+// crea una solicitud en Inventario → Pedidos. Credenciales en backend/.env
+// (EMAIL_USER, EMAIL_APP_PASSWORD, JEFE_EMAIL) — nunca en el frontend.
+app.post("/api/notificar-pedido", async (req, res) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD || !process.env.JEFE_EMAIL) {
+    console.error("[notificar-pedido] Falta configurar EMAIL_USER/EMAIL_APP_PASSWORD/JEFE_EMAIL en backend/.env");
+    return res.status(500).json({ error: "Envío de correo no configurado" });
+  }
+  const { items = [], area, prioridad, obs, solicitadoPor } = req.body;
+  if (!items.length) return res.status(400).json({ error: "Faltan los ítems del pedido" });
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_APP_PASSWORD },
+    });
+
+    const listaItems = items
+      .map(it => `- ${it.item}${it.cantidad != null && it.cantidad !== "" ? ` — ${it.cantidad} ${it.unidad || ""}` : ""}`)
+      .join("\n");
+    const asuntoItem = items[0]?.item || "solicitud";
+    const asuntoExtra = items.length > 1 ? ` y ${items.length - 1} más` : "";
+
+    const texto =
+      `Nueva solicitud de pedido en Tierra Prometida Trading\n\n` +
+      `Solicitado por: ${solicitadoPor || "—"}\n` +
+      `Área: ${area || "—"}\n` +
+      `Prioridad: ${prioridad || "—"}\n\n` +
+      `Ítems solicitados:\n${listaItems}\n` +
+      (obs ? `\nObservaciones: ${obs}\n` : "");
+
+    await transporter.sendMail({
+      from: `"JARVIS — Tierra Prometida" <${process.env.EMAIL_USER}>`,
+      to: process.env.JEFE_EMAIL,
+      subject: `📝 Nuevo pedido: ${asuntoItem}${asuntoExtra}`,
+      text: texto,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[notificar-pedido]", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Health check ──────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", version: "1.0.0", service: "Tierra Prometida Export Docs" });
@@ -247,7 +293,8 @@ if (require.main === module) {
     console.log(`     POST /api/isf`);
     console.log(`     POST /api/id-pallet`);
     console.log(`     POST /api/exportar-zip`);
-    console.log(`     POST /api/informe-analisis\n`);
+    console.log(`     POST /api/informe-analisis`);
+    console.log(`     POST /api/notificar-pedido\n`);
   });
 }
 
