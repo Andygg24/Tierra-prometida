@@ -11,8 +11,6 @@ const rowToDex = (r) => ({
   fecha:             r.fecha              || "",
   verificado:        !!r.verificado,
   obs:               r.obs                || "",
-  declaracionCambioId: r.declaracion_cambio_id != null ? r.declaracion_cambio_id : null,
-  valorDeclaracion:  r.valor_declaracion_usd != null ? Number(r.valor_declaracion_usd) : null,
   createdAt:         r.created_at         || "",
 });
 
@@ -35,19 +33,29 @@ const rowToDeclaracion = (r) => ({
   createdAt: r.created_at || "",
 });
 
+const rowToAsignacion = (r) => ({
+  id:                  r.id,
+  declaracionCambioId: r.declaracion_cambio_id,
+  dexId:               r.dex_id,
+  valorUsd:            Number(r.valor_usd) || 0,
+  createdAt:           r.created_at || "",
+});
+
 export function useControlExpo() {
   const [registros, setRegistros] = useState([]);
   const [pagos,     setPagos]     = useState([]);
   const [declaraciones, setDeclaraciones] = useState([]);
+  const [asignaciones, setAsignaciones]   = useState([]); // relación DEX <-> declaración (un DEX puede repetirse en varias)
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchAll() {
-      const [{ data, error }, { data: dataPagos, error: errorPagos }, { data: dataDecl, error: errorDecl }] = await Promise.all([
+      const [{ data, error }, { data: dataPagos, error: errorPagos }, { data: dataDecl, error: errorDecl }, { data: dataAsig, error: errorAsig }] = await Promise.all([
         supabase.from("control_expo").select("*").order("numero_expo", { ascending: false }),
         supabase.from("control_expo_pagos").select("*").order("fecha", { ascending: false }),
         supabase.from("declaraciones_cambio").select("*").order("created_at", { ascending: false }),
+        supabase.from("declaraciones_cambio_dex").select("*").order("created_at", { ascending: false }),
       ]);
       if (cancelled) return;
       if (!error) setRegistros((data || []).map(rowToDex));
@@ -56,26 +64,36 @@ export function useControlExpo() {
       if (errorPagos) console.error("[control_expo_pagos]", errorPagos.message);
       if (!errorDecl) setDeclaraciones((dataDecl || []).map(rowToDeclaracion));
       if (errorDecl) console.error("[declaraciones_cambio]", errorDecl.message);
+      if (!errorAsig) setAsignaciones((dataAsig || []).map(rowToAsignacion));
+      if (errorAsig) console.error("[declaraciones_cambio_dex]", errorAsig.message);
       setLoading(false);
     }
     fetchAll();
     return () => { cancelled = true; };
   }, []);
 
+  // Aplica cada evento con el payload que ya trae el mensaje realtime, en
+  // vez de refrescar la tabla entera con un SELECT aparte — ese refetch
+  // corre en una conexión distinta a la del insert/update que lo disparó,
+  // y a veces (por el pool de conexiones) alcanza a leer el dato TODAVÍA
+  // no confirmado, pisando el cambio recién hecho con la versión vieja
+  // (ej. una asignación que "se hacía y se quitaba sola" al toque).
+  const aplicarEvento = (setter, mapper) => ({ new: row, old, eventType }) => {
+    if (eventType === "DELETE") {
+      setter(prev => prev.filter(x => x.id !== old.id));
+      return;
+    }
+    if (!row) return;
+    const nuevo = mapper(row);
+    setter(prev => prev.some(x => x.id === nuevo.id) ? prev.map(x => x.id === nuevo.id ? nuevo : x) : [nuevo, ...prev]);
+  };
+
   useEffect(() => {
     const ch = supabase.channel(`control-expo-changes-${Date.now()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "control_expo" }, () => {
-        supabase.from("control_expo").select("*").order("numero_expo", { ascending: false })
-          .then(({ data }) => data && setRegistros(data.map(rowToDex)));
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "control_expo_pagos" }, () => {
-        supabase.from("control_expo_pagos").select("*").order("fecha", { ascending: false })
-          .then(({ data }) => data && setPagos(data.map(rowToPago)));
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "declaraciones_cambio" }, () => {
-        supabase.from("declaraciones_cambio").select("*").order("created_at", { ascending: false })
-          .then(({ data }) => data && setDeclaraciones(data.map(rowToDeclaracion)));
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "control_expo" }, aplicarEvento(setRegistros, rowToDex))
+      .on("postgres_changes", { event: "*", schema: "public", table: "control_expo_pagos" }, aplicarEvento(setPagos, rowToPago))
+      .on("postgres_changes", { event: "*", schema: "public", table: "declaraciones_cambio" }, aplicarEvento(setDeclaraciones, rowToDeclaracion))
+      .on("postgres_changes", { event: "*", schema: "public", table: "declaraciones_cambio_dex" }, aplicarEvento(setAsignaciones, rowToAsignacion))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -165,8 +183,9 @@ export function useControlExpo() {
   }, [pagos]);
 
   // ── Declaraciones de cambio ──
-  // Cada DEX pertenece completo a lo sumo una declaración (no se parte)
-  // — se asigna guardando su id en control_expo.declaracion_cambio_id.
+  // Un mismo DEX se puede repartir entre varias declaraciones — cada fila
+  // de declaraciones_cambio_dex es "este DEX aporta tanto USD a esta
+  // declaración" (no siempre su valor completo).
 
   const crearDeclaracion = useCallback(async ({ numero, banco, valorUsd, fecha, obs }) => {
     const row = {
@@ -185,47 +204,55 @@ export function useControlExpo() {
 
   const eliminarDeclaracion = useCallback(async (id) => {
     const removida = declaraciones.find(d => d.id === id);
-    const dexAsignados = registros.filter(r => r.declaracionCambioId === id);
+    const asigRemovidas = asignaciones.filter(a => a.declaracionCambioId === id);
     setDeclaraciones(prev => prev.filter(d => d.id !== id));
-    // Los DEX quedan libres localmente de una vez — el ON DELETE SET NULL
-    // de la base hace lo mismo, pero así no queda un parpadeo visual.
-    setRegistros(prev => prev.map(r => r.declaracionCambioId === id ? { ...r, declaracionCambioId: null, valorDeclaracion: null } : r));
+    // El ON DELETE CASCADE de la base borra las asignaciones de esa
+    // declaración — se refleja local de una vez para evitar parpadeo.
+    setAsignaciones(prev => prev.filter(a => a.declaracionCambioId !== id));
     const { error } = await supabase.from("declaraciones_cambio").delete().eq("id", id);
     if (error) {
       if (removida) setDeclaraciones(prev => [removida, ...prev]);
-      if (dexAsignados.length) setRegistros(prev => prev.map(r => dexAsignados.find(d => d.id === r.id) || r));
+      if (asigRemovidas.length) setAsignaciones(prev => [...asigRemovidas, ...prev]);
     }
     return !error;
-  }, [declaraciones, registros]);
+  }, [declaraciones, asignaciones]);
 
-  // valorUsado: cuánto de ese DEX se aplica a esta declaración — a veces no
-  // se usa el monto completo del DEX, así que no siempre es igual a
-  // valorDexUsd.
-  const asignarDexADeclaracion = useCallback(async (dexId, declaracionId, valorUsado = null) => {
-    const actual = registros.find(r => r.id === dexId);
-    if (!actual) return false;
-    const nuevoValor = declaracionId == null ? null : valorUsado;
-    setRegistros(prev => prev.map(r => r.id === dexId ? { ...r, declaracionCambioId: declaracionId, valorDeclaracion: nuevoValor } : r));
-    const { error } = await supabase.from("control_expo")
-      .update({ declaracion_cambio_id: declaracionId, valor_declaracion_usd: nuevoValor, updated_at: new Date().toISOString() })
-      .eq("id", dexId);
-    if (error) setRegistros(prev => prev.map(r => r.id === dexId ? actual : r));
+  // Crea una nueva asignación (fila) DEX -> declaración. Como es una tabla
+  // de relación, el mismo DEX puede tener varias asignaciones a distintas
+  // declaraciones — o incluso más de una a la misma, si hiciera falta.
+  const asignarDexADeclaracion = useCallback(async (dexId, declaracionId, valorUsado) => {
+    const dex = registros.find(r => r.id === dexId);
+    const valor = valorUsado != null && valorUsado !== "" ? Number(valorUsado) : (dex ? Number(dex.valorDexUsd) || 0 : 0);
+    const row = { id: Date.now(), declaracion_cambio_id: declaracionId, dex_id: dexId, valor_usd: valor };
+    setAsignaciones(prev => [rowToAsignacion(row), ...prev]);
+    const { error } = await supabase.from("declaraciones_cambio_dex").insert(row);
+    if (error) setAsignaciones(prev => prev.filter(a => a.id !== row.id));
     return !error;
   }, [registros]);
 
-  const quitarDexDeDeclaracion = useCallback((dexId) => asignarDexADeclaracion(dexId, null), [asignarDexADeclaracion]);
+  const quitarAsignacion = useCallback(async (asignacionId) => {
+    const removida = asignaciones.find(a => a.id === asignacionId);
+    setAsignaciones(prev => prev.filter(a => a.id !== asignacionId));
+    const { error } = await supabase.from("declaraciones_cambio_dex").delete().eq("id", asignacionId);
+    if (error && removida) setAsignaciones(prev => [removida, ...prev]);
+    return !error;
+  }, [asignaciones]);
 
-  // Ajusta el valor usado de un DEX ya asignado, sin tocar a qué
-  // declaración pertenece.
-  const actualizarValorAsignado = useCallback(async (dexId, nuevoValor) => {
-    const actual = registros.find(r => r.id === dexId);
-    if (!actual || actual.declaracionCambioId == null) return false;
-    return asignarDexADeclaracion(dexId, actual.declaracionCambioId, nuevoValor);
-  }, [registros, asignarDexADeclaracion]);
+  // Ajusta el valor usado de una asignación existente, sin tocar el DEX ni
+  // la declaración a la que pertenece.
+  const actualizarValorAsignacion = useCallback(async (asignacionId, nuevoValor) => {
+    const previa = asignaciones.find(a => a.id === asignacionId);
+    if (!previa) return false;
+    const valor = Number(nuevoValor) || 0;
+    setAsignaciones(prev => prev.map(a => a.id === asignacionId ? { ...a, valorUsd: valor } : a));
+    const { error } = await supabase.from("declaraciones_cambio_dex").update({ valor_usd: valor }).eq("id", asignacionId);
+    if (error) setAsignaciones(prev => prev.map(a => a.id === asignacionId ? previa : a));
+    return !error;
+  }, [asignaciones]);
 
   return {
-    registros, pagos, declaraciones, loading,
+    registros, pagos, declaraciones, asignaciones, loading,
     guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago,
-    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion, actualizarValorAsignado,
+    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion,
   };
 }
