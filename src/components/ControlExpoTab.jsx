@@ -18,8 +18,8 @@ async function cargarLogoBase64() {
   } catch { return ""; }
 }
 
-const ESTADOS_DEX = ["Pendiente", "Radicado", "Cancelado"];
-const COLOR_ESTADO_DEX = { Pendiente: "#F9A826", Radicado: "#00C9A7", Cancelado: "#FF6B6B" };
+const ESTADOS_DEX = ["Pendiente", "Verificado", "Radicado", "Cancelado"];
+const COLOR_ESTADO_DEX = { Pendiente: "#F9A826", Verificado: "#845EF7", Radicado: "#00C9A7", Cancelado: "#FF6B6B" };
 const COLOR_ESTADO_PAGO = { Pagado: "#00C9A7", Parcial: "#F9A826", "Sin abonos": "rgba(255,255,255,0.4)" };
 
 function estadoPagoDex(valorDexUsd, totalPagado) {

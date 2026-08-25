@@ -104,9 +104,13 @@ export function useControlExpo() {
     const actual = registros.find(r => r.id === id);
     if (!actual) return;
     const nuevo = !actual.verificado;
-    setRegistros(prev => prev.map(r => r.id === id ? { ...r, verificado: nuevo } : r));
-    const { error } = await supabase.from("control_expo").update({ verificado: nuevo, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) setRegistros(prev => prev.map(r => r.id === id ? { ...r, verificado: actual.verificado } : r));
+    // Al marcar el chulito, el estado pasa a "Verificado"; al desmarcarlo
+    // vuelve a "Pendiente" — pero solo si seguía en "Verificado" (si
+    // mientras tanto lo cambiaron a mano a Radicado/Cancelado, no se pisa).
+    const nuevoEstado = nuevo ? "Verificado" : (actual.estado === "Verificado" ? "Pendiente" : actual.estado);
+    setRegistros(prev => prev.map(r => r.id === id ? { ...r, verificado: nuevo, estado: nuevoEstado } : r));
+    const { error } = await supabase.from("control_expo").update({ verificado: nuevo, estado: nuevoEstado, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) setRegistros(prev => prev.map(r => r.id === id ? actual : r));
   }, [registros]);
 
   const agregarPago = useCallback(async (dexId, { fecha, montoUsd, obs }) => {
