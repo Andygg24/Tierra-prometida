@@ -19,7 +19,9 @@ const ESTADO_COLOR = {
 };
 const PRIORIDAD_COLOR = { Baja: "#64748B", Media: "#F9A826", Alta: "#FF6B6B" };
 
-const FILA_VACIA = () => ({ item: "", cantidad: "", unidad: "" });
+const UNIDADES = ["Unidades", "Kilos", "Gramos", "Litros", "Metros cúbicos", "Cajas", "Paquetes", "Rollos", "Metros", "Milímetros", "Galones"];
+
+const FILA_VACIA = () => ({ item: "", cantidad: "", unidad: UNIDADES[0] });
 
 const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
@@ -125,7 +127,9 @@ export default function PedidosTab({ mob, usuario }) {
                 </div>
                 <div>
                   {idx === 0 && <label style={lbl}>Unidad</label>}
-                  <input style={inp} value={it.unidad} onChange={e => actualizarFila(idx, "unidad", e.target.value)} placeholder="cajas, kg..." />
+                  <CustomSelect style={inp} value={it.unidad} onChange={e => actualizarFila(idx, "unidad", e.target.value)}>
+                    {UNIDADES.map(u => <option key={u} value={u} style={{ background: "#1a1c26" }}>{u}</option>)}
+                  </CustomSelect>
                 </div>
                 <button onClick={() => quitarFila(idx)} title="Quitar ítem" style={{ ...btnTablaEliminar, opacity: (form.items.length === 1 && !it.item && !it.cantidad && !it.unidad) ? 0.35 : 1 }}>✕</button>
               </div>
@@ -181,7 +185,12 @@ export default function PedidosTab({ mob, usuario }) {
                   <div style={{ fontWeight: 700, fontSize: 13, color: "white", display: "flex", flexDirection: "column", gap: 2 }}>
                     {s.items.map((it, i) => (
                       <div key={i}>
-                        {it.item}{it.cantidad != null ? <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}> — {it.cantidad.toLocaleString("es-CO")} {it.unidad}</span> : null}
+                        {it.item}
+                        {(it.cantidad != null || it.unidad) && (
+                          <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500, fontSize: 11.5 }}>
+                            {" "}— Cantidad: {it.cantidad != null ? it.cantidad.toLocaleString("es-CO") : "—"}{it.unidad ? ` · Unidad: ${it.unidad}` : ""}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

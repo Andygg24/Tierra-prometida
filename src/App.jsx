@@ -1954,7 +1954,7 @@ const INVENTARIO_BASE = [
   { id:8,  nombre:"DESENGRASANTE",                 cant:0,     unidad:"LITROS",     minimo:2,   categoria:"Insumos",      obs:"", costo:0 },
   { id:9,  nombre:"ESQUINEROS",                    cant:620,   unidad:"UNIDADES",   minimo:200, categoria:"Insumos",      obs:"Comprar 1000 esquineros", costo:4641 },
   { id:10, nombre:"ESTIBA EXPORTACIÓN MADERA",     cant:63,    unidad:"UNIDADES",   minimo:20,  categoria:"Insumos",      obs:"Llegan 120 estibas", costo:80325 },
-  { id:11, nombre:"GAS",                           cant:1.5,   unidad:"CILINDROS",  minimo:1,   categoria:"Insumos",      obs:"", costo:267800 },
+  { id:11, nombre:"GAS",                           cant:100,   unidad:"%",          minimo:20,  categoria:"Insumos",      obs:"", costo:267800 },
   { id:12, nombre:"TERMOREGISTROS",                cant:22,    unidad:"UNIDADES",   minimo:5,   categoria:"Insumos",      obs:"", costo:63070 },
   { id:13, nombre:"PEGANTE PARA CAJAS (HOTMELT)",  cant:14.5,  unidad:"BULTOS",     minimo:5,   categoria:"Insumos",      obs:"", costo:17850 },
   { id:14, nombre:"GRAPAS PARA CAJAS",             cant:4,     unidad:"CAJAS x10",  minimo:2,   categoria:"Insumos",      obs:"Comprar 10 bolsas", costo:42840 },
