@@ -906,6 +906,8 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
   const [valorPorFila, setValorPorFila] = useState({}); // { [dexId]: "texto del input" } — valores a asignar en el picker
   const [editandoId, setEditandoId] = useState(null); // id de la asignación cuyo valor se está ajustando
   const [valorEditado, setValorEditado] = useState("");
+  const [buscaDex, setBuscaDex] = useState(""); // buscador "¿en qué declaración está este DEX?"
+  const [dexVisiblesId, setDexVisiblesId] = useState(null); // declaración cuyos DEX asignados están expandidos (oculto por defecto)
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
 
@@ -938,6 +940,34 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
       .filter(r => !q || [String(r.numeroExpo || ""), r.numeroDex, r.facturaComercial].some(v => (v || "").toLowerCase().includes(q)))
       .sort((a, b) => (Number(b.valorDexUsd) || 0) - (Number(a.valorDexUsd) || 0));
   }, [registros, buscaPicker, asignacionesPorDeclaracion, pickerAbiertoId]);
+
+  // Resumen general: cuánto se ha declarado, cuánto ya está asignado con
+  // DEX, y cuántas declaraciones quedan completas o no.
+  const resumen = useMemo(() => {
+    const totalDeclarado = declaraciones.reduce((s, d) => s + d.valorUsd, 0);
+    const totalAsignado  = asignaciones.reduce((s, a) => s + a.valorUsd, 0);
+    let completas = 0;
+    declaraciones.forEach(d => {
+      const suma = (asignacionesPorDeclaracion[d.id] || []).reduce((s, a) => s + a.valorUsd, 0);
+      if (Math.abs(d.valorUsd - suma) < 0.01) completas++;
+    });
+    return {
+      totalDeclaraciones: declaraciones.length,
+      totalDeclarado,
+      totalAsignado,
+      saldoPendiente: totalDeclarado - totalAsignado,
+      completas,
+      incompletas: declaraciones.length - completas,
+    };
+  }, [declaraciones, asignaciones, asignacionesPorDeclaracion]);
+
+  // Buscador "¿en qué declaración está este DEX?" — busca por número de
+  // DEX, número de expo o factura comercial.
+  const resultadosBusquedaDex = useMemo(() => {
+    const q = buscaDex.trim().toLowerCase();
+    if (!q) return [];
+    return registros.filter(r => [String(r.numeroExpo || ""), r.numeroDex, r.facturaComercial].some(v => (v || "").toLowerCase().includes(q)));
+  }, [registros, buscaDex]);
 
   const nuevaDeclaracion = () => { setForm(declaracionVacia()); setEditandoDeclaracionId(null); setErrorForm(""); setMostrarForm(true); };
   const editarDeclaracion = (d) => {
@@ -994,6 +1024,56 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
         <button onClick={mostrarForm ? cerrarForm : nuevaDeclaracion} style={btnPrimario(false, false)}>
           {mostrarForm ? "✕ Cancelar" : "➕ Nueva declaración"}
         </button>
+      </div>
+
+      {/* ── Resumen ── */}
+      <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(5,1fr)", gap: 10 }}>
+        {[
+          { l: "Declaraciones", v: resumen.totalDeclaraciones, c: "#059669", i: "💱" },
+          { l: "Completas",     v: `${resumen.completas}/${resumen.totalDeclaraciones}`, c: "#00C9A7", i: "✔" },
+          { l: "Total declarado", v: `US$ ${usd(resumen.totalDeclarado)}`, c: "#845EF7", i: "💵" },
+          { l: "Total asignado",  v: `US$ ${usd(resumen.totalAsignado)}`,  c: "#0EA5E9", i: "🛃" },
+          { l: "Saldo pendiente", v: `US$ ${usd(resumen.saldoPendiente)}`, c: resumen.saldoPendiente > 0.01 ? "#F9A826" : "#00C9A7", i: "⚖️" },
+        ].map((k, i) => (
+          <div key={i} style={{ ...cardS, textAlign: "center" }}>
+            <div style={{ fontSize: 16 }}>{k.i}</div>
+            <div style={{ fontSize: m ? 15 : 16, fontWeight: 800, color: k.c, marginTop: 2 }}>{k.v}</div>
+            <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.42)", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.3 }}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Buscador: ¿en qué declaración está este DEX? ── */}
+      <div style={cardS}>
+        <label style={lbl}>🔎 Buscar en qué declaración está un DEX (por número de DEX, expo o factura)</label>
+        <input style={inp} value={buscaDex} onChange={e => setBuscaDex(e.target.value)} placeholder="Ej. 6007783103632, 45, BAQ-695..." />
+        {buscaDex.trim() && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            {resultadosBusquedaDex.length === 0 ? (
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>No se encontró ningún DEX con "{buscaDex}".</div>
+            ) : resultadosBusquedaDex.map(r => {
+              const asigDelDex = asignaciones.filter(a => a.dexId === r.id);
+              return (
+                <div key={r.id} style={{ paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: "white" }}>
+                    🛃 {nombreCortoDex(r)} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· real US$ {usd(r.valorDexUsd)}</span>
+                  </div>
+                  {asigDelDex.length === 0 ? (
+                    <div style={{ fontSize: 11, color: "#F9A826", marginTop: 3 }}>No está asignado a ninguna declaración todavía.</div>
+                  ) : asigDelDex.map(a => {
+                    const decl = declaraciones.find(d => d.id === a.declaracionCambioId);
+                    return (
+                      <div key={a.id} style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>
+                        → {decl ? `Declaración ${decl.numero || decl.id}${decl.banco ? " — " + decl.banco : ""}` : `Declaración #${a.declaracionCambioId}`}
+                        <span style={{ color: "#00C9A7", fontWeight: 700 }}> · usado US$ {usd(a.valorUsd)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {mostrarForm && (
@@ -1060,6 +1140,12 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
                 </div>
 
                 {asig.length > 0 && (
+                  <button onClick={() => setDexVisiblesId(prev => prev === d.id ? null : d.id)} style={{ ...btnSecundario, marginTop: 10 }}>
+                    {dexVisiblesId === d.id ? "▲ Ocultar DEX asignados" : `▼ Ver DEX asignados (${asig.length})`}
+                  </button>
+                )}
+
+                {asig.length > 0 && dexVisiblesId === d.id && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", gap: 6 }}>
                     {asig.map(a => {
                       const dex = dexById[a.dexId];
