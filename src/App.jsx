@@ -7999,8 +7999,9 @@ export default function App() {
   const logout = ()  => { setUsuario(null); try { localStorage.removeItem("tp_session"); } catch {} };
 
   // ── Alerta en el título de la pestaña cuando alguien más crea un pedido
-  // (como WhatsApp Web: "Fulano te envió un mensaje") — solo mientras esta
-  // pestaña no está siendo vista, para no interrumpir si ya la tienes abierta.
+  // (como WhatsApp Web: "Fulano te envió un mensaje") — avisa siempre, esté
+  // o no visible la pestaña en ese momento (si solo avisara con la pestaña
+  // oculta, alguien viendo otra sección de la misma app nunca se enteraría).
   const [alertaPedido, setAlertaPedido] = useState(null); // null | { cantidad, texto }
   const tituloOriginalRef = useRef(typeof document !== "undefined" ? document.title : "");
   useEffect(() => {
@@ -8008,7 +8009,6 @@ export default function App() {
     const ch = supabase.channel(`alerta-pedidos-${Date.now()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "solicitudes_planta" }, ({ new: row }) => {
         if (row.solicitado_por && row.solicitado_por === usuario.nombre) return; // no avisar del propio pedido
-        if (!document.hidden) return; // ya se está viendo la pestaña, no hace falta alertar
         const item = Array.isArray(row.items) && row.items[0]?.item;
         setAlertaPedido(prev => ({
           cantidad: (prev?.cantidad || 0) + 1,
@@ -8022,12 +8022,19 @@ export default function App() {
   useEffect(() => {
     if (!alertaPedido) { document.title = tituloOriginalRef.current; return; }
     document.title = `🔔 (${alertaPedido.cantidad}) ${alertaPedido.texto}`;
-    const limpiar = () => { if (!document.hidden) setAlertaPedido(null); };
+    // Se limpia con cualquier señal de que la persona ya está de vuelta:
+    // enfocar la ventana, volver a la pestaña, o simplemente interactuar
+    // (clic o tecla) si ya la tenía abierta y enfocada.
+    const limpiar = () => setAlertaPedido(null);
     document.addEventListener("visibilitychange", limpiar);
     window.addEventListener("focus", limpiar);
+    document.addEventListener("click", limpiar);
+    document.addEventListener("keydown", limpiar);
     return () => {
       document.removeEventListener("visibilitychange", limpiar);
       window.removeEventListener("focus", limpiar);
+      document.removeEventListener("click", limpiar);
+      document.removeEventListener("keydown", limpiar);
     };
   }, [alertaPedido]);
 
