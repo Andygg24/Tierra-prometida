@@ -3,9 +3,7 @@ import { supabase } from "../supabase.js";
 
 const rowToSolicitud = (r) => ({
   id:            r.id,
-  item:          r.item || "",
-  cantidad:      r.cantidad != null ? Number(r.cantidad) : null,
-  unidad:        r.unidad || "",
+  items:         Array.isArray(r.items) ? r.items : [],
   area:          r.area || "",
   prioridad:     r.prioridad || "Media",
   obs:           r.obs || "",
@@ -42,13 +40,15 @@ export function useSolicitudesPlanta() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  const crear = useCallback(async ({ item, cantidad, unidad, area, prioridad, obs, solicitadoPor }) => {
+  const crear = useCallback(async ({ items, area, prioridad, obs, solicitadoPor }) => {
     const ev = { evento: "Solicitud creada", responsable: solicitadoPor || "", fecha: new Date().toISOString() };
     const row = {
       id:             Date.now(),
-      item:           item.trim(),
-      cantidad:       cantidad !== "" && cantidad != null ? Number(cantidad) : null,
-      unidad:         unidad || null,
+      items:          items.map(it => ({
+        item:    it.item.trim(),
+        cantidad: it.cantidad !== "" && it.cantidad != null ? Number(it.cantidad) : null,
+        unidad:  it.unidad || null,
+      })),
       area:           area || null,
       prioridad:      prioridad || "Media",
       obs:            obs || null,

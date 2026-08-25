@@ -19,6 +19,8 @@ const ESTADO_COLOR = {
 };
 const PRIORIDAD_COLOR = { Baja: "#64748B", Media: "#F9A826", Alta: "#FF6B6B" };
 
+const FILA_VACIA = () => ({ item: "", cantidad: "", unidad: "" });
+
 const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
@@ -31,10 +33,12 @@ function fmtFecha(iso) {
   try { return new Date(iso).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" }); } catch { return iso; }
 }
 
+const nombresItems = (s) => s.items.map(it => it.item).join(", ");
+
 export default function PedidosTab({ mob, usuario }) {
   const { solicitudes, loading, crear, cambiarEstado, eliminar } = useSolicitudesPlanta();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ item: "", cantidad: "", unidad: "", area: "", prioridad: "Media", obs: "" });
+  const [form, setForm] = useState({ items: [FILA_VACIA()], area: "", prioridad: "Media", obs: "" });
   const [filtro, setFiltro] = useState("Todas");
   const [expandidoId, setExpandidoId] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -46,19 +50,27 @@ export default function PedidosTab({ mob, usuario }) {
 
   const FILTROS = ["Todas", "Pendiente", "Aprobado", "Rechazado", "Comprado", "Entregado"];
   const visibles = filtro === "Todas" ? solicitudes : solicitudes.filter(s => s.estado === filtro);
+  const hayItemValido = form.items.some(it => it.item.trim());
+
+  const actualizarFila = (idx, campo, valor) => {
+    setForm(p => ({ ...p, items: p.items.map((it, i) => i === idx ? { ...it, [campo]: valor } : it) }));
+  };
+  const agregarFila = () => setForm(p => ({ ...p, items: [...p.items, FILA_VACIA()] }));
+  const quitarFila = (idx) => setForm(p => ({ ...p, items: p.items.length === 1 ? [FILA_VACIA()] : p.items.filter((_, i) => i !== idx) }));
 
   const crearSolicitud = async () => {
-    if (!form.item.trim()) return;
+    const itemsValidos = form.items.filter(it => it.item.trim());
+    if (!itemsValidos.length) return;
     setGuardando(true);
     const solicitadoPor = nombreUsuarioSesion();
-    const ok = await crear({ ...form, solicitadoPor });
+    const ok = await crear({ items: itemsValidos, area: form.area, prioridad: form.prioridad, obs: form.obs, solicitadoPor });
     if (ok) {
       registrarActividad({
         usuario: solicitadoPor, modulo: "Inventario", accion: "pedido_creado",
-        detalle: `${solicitadoPor || "Alguien"} solicitó ${form.cantidad ? `${form.cantidad} ${form.unidad || ""} de ` : ""}${form.item}`,
-        referencia: form.item,
+        detalle: `${solicitadoPor || "Alguien"} solicitó ${itemsValidos.length} ítem${itemsValidos.length !== 1 ? "s" : ""}: ${itemsValidos.map(it => it.item).join(", ")}`,
+        referencia: itemsValidos.map(it => it.item).join(", "),
       });
-      setForm({ item: "", cantidad: "", unidad: "", area: "", prioridad: "Media", obs: "" });
+      setForm({ items: [FILA_VACIA()], area: "", prioridad: "Media", obs: "" });
       setShowForm(false);
     }
     setGuardando(false);
@@ -70,20 +82,20 @@ export default function PedidosTab({ mob, usuario }) {
     if (ok) {
       registrarActividad({
         usuario: responsable, modulo: "Inventario", accion: "pedido_" + nuevoEstado.toLowerCase(),
-        detalle: `${responsable || "Alguien"} marcó "${s.item}" como ${nuevoEstado}`,
-        referencia: s.item,
+        detalle: `${responsable || "Alguien"} marcó "${nombresItems(s)}" como ${nuevoEstado}`,
+        referencia: nombresItems(s),
       });
     }
   };
 
   const rechazar = (s) => {
-    const motivo = window.prompt(`¿Por qué se rechaza "${s.item}"? (opcional)`, "");
+    const motivo = window.prompt(`¿Por qué se rechaza "${nombresItems(s)}"? (opcional)`, "");
     if (motivo === null) return; // canceló el prompt
     avanzar(s, "Rechazado", motivo);
   };
 
   const confirmarEliminar = (s) => {
-    if (window.confirm(`¿Eliminar la solicitud "${s.item}"? Esta acción no se puede deshacer.`)) eliminar(s.id);
+    if (window.confirm(`¿Eliminar la solicitud "${nombresItems(s)}"? Esta acción no se puede deshacer.`)) eliminar(s.id);
   };
 
   return (
@@ -100,19 +112,28 @@ export default function PedidosTab({ mob, usuario }) {
 
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "2fr 1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={lbl}>¿Qué se necesita?</label>
-              <input style={inp} value={form.item} onChange={e => setForm(p => ({ ...p, item: e.target.value }))} placeholder="Ej. Guantes de nitrilo talla M" />
-            </div>
-            <div>
-              <label style={lbl}>Cantidad</label>
-              <input style={inp} type="number" value={form.cantidad} onChange={e => setForm(p => ({ ...p, cantidad: e.target.value }))} placeholder="0" />
-            </div>
-            <div>
-              <label style={lbl}>Unidad</label>
-              <input style={inp} value={form.unidad} onChange={e => setForm(p => ({ ...p, unidad: e.target.value }))} placeholder="cajas, unidades, kg..." />
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+            {form.items.map((it, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr auto" : "2fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
+                <div style={{ gridColumn: mob ? "1 / -1" : "auto" }}>
+                  {idx === 0 && <label style={lbl}>¿Qué se necesita?</label>}
+                  <input style={inp} value={it.item} onChange={e => actualizarFila(idx, "item", e.target.value)} placeholder="Ej. Guantes de nitrilo talla M" />
+                </div>
+                <div>
+                  {idx === 0 && <label style={lbl}>Cantidad</label>}
+                  <input style={inp} type="number" value={it.cantidad} onChange={e => actualizarFila(idx, "cantidad", e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  {idx === 0 && <label style={lbl}>Unidad</label>}
+                  <input style={inp} value={it.unidad} onChange={e => actualizarFila(idx, "unidad", e.target.value)} placeholder="cajas, kg..." />
+                </div>
+                <button onClick={() => quitarFila(idx)} title="Quitar ítem" style={{ ...btnTablaEliminar, opacity: (form.items.length === 1 && !it.item && !it.cantidad && !it.unidad) ? 0.35 : 1 }}>✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={agregarFila} style={{ ...btnSecundario, marginBottom: 14 }}>➕ Agregar otro ítem</button>
+
+          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
             <div>
               <label style={lbl}>Área que lo solicita</label>
               <input style={inp} value={form.area} onChange={e => setForm(p => ({ ...p, area: e.target.value }))} placeholder="Ej. Empaque" />
@@ -128,7 +149,7 @@ export default function PedidosTab({ mob, usuario }) {
               <input style={inp} value={form.obs} onChange={e => setForm(p => ({ ...p, obs: e.target.value }))} placeholder="Detalles adicionales (opcional)" />
             </div>
           </div>
-          <button onClick={crearSolicitud} disabled={guardando || !form.item.trim()} style={{ ...btnPrimario(false, guardando), marginTop: 14 }}>
+          <button onClick={crearSolicitud} disabled={guardando || !hayItemValido} style={{ ...btnPrimario(false, guardando), marginTop: 14 }}>
             {guardando ? "Guardando..." : "✅ Enviar solicitud"}
           </button>
         </div>
@@ -157,10 +178,14 @@ export default function PedidosTab({ mob, usuario }) {
             <div key={s.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderLeft: `3px solid ${ESTADO_COLOR[s.estado] || "#64748B"}`, borderRadius: 10, padding: "12px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "white" }}>
-                    {s.item}{s.cantidad != null ? <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}> — {s.cantidad.toLocaleString("es-CO")} {s.unidad}</span> : null}
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "white", display: "flex", flexDirection: "column", gap: 2 }}>
+                    {s.items.map((it, i) => (
+                      <div key={i}>
+                        {it.item}{it.cantidad != null ? <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}> — {it.cantidad.toLocaleString("es-CO")} {it.unidad}</span> : null}
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.42)", marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.42)", marginTop: 5, display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {s.solicitadoPor && <span>👤 {s.solicitadoPor}</span>}
                     {s.area && <span>🏭 {s.area}</span>}
                     <span>🕐 {fmtFecha(s.createdAt)}</span>
