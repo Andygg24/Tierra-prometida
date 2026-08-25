@@ -12,6 +12,7 @@ const rowToDex = (r) => ({
   verificado:        !!r.verificado,
   obs:               r.obs                || "",
   declaracionCambioId: r.declaracion_cambio_id != null ? r.declaracion_cambio_id : null,
+  valorDeclaracion:  r.valor_declaracion_usd != null ? Number(r.valor_declaracion_usd) : null,
   createdAt:         r.created_at         || "",
 });
 
@@ -188,29 +189,43 @@ export function useControlExpo() {
     setDeclaraciones(prev => prev.filter(d => d.id !== id));
     // Los DEX quedan libres localmente de una vez — el ON DELETE SET NULL
     // de la base hace lo mismo, pero así no queda un parpadeo visual.
-    setRegistros(prev => prev.map(r => r.declaracionCambioId === id ? { ...r, declaracionCambioId: null } : r));
+    setRegistros(prev => prev.map(r => r.declaracionCambioId === id ? { ...r, declaracionCambioId: null, valorDeclaracion: null } : r));
     const { error } = await supabase.from("declaraciones_cambio").delete().eq("id", id);
     if (error) {
       if (removida) setDeclaraciones(prev => [removida, ...prev]);
-      if (dexAsignados.length) setRegistros(prev => prev.map(r => dexAsignados.some(d => d.id === r.id) ? { ...r, declaracionCambioId: id } : r));
+      if (dexAsignados.length) setRegistros(prev => prev.map(r => dexAsignados.find(d => d.id === r.id) || r));
     }
     return !error;
   }, [declaraciones, registros]);
 
-  const asignarDexADeclaracion = useCallback(async (dexId, declaracionId) => {
+  // valorUsado: cuánto de ese DEX se aplica a esta declaración — a veces no
+  // se usa el monto completo del DEX, así que no siempre es igual a
+  // valorDexUsd.
+  const asignarDexADeclaracion = useCallback(async (dexId, declaracionId, valorUsado = null) => {
     const actual = registros.find(r => r.id === dexId);
     if (!actual) return false;
-    setRegistros(prev => prev.map(r => r.id === dexId ? { ...r, declaracionCambioId: declaracionId } : r));
-    const { error } = await supabase.from("control_expo").update({ declaracion_cambio_id: declaracionId, updated_at: new Date().toISOString() }).eq("id", dexId);
+    const nuevoValor = declaracionId == null ? null : valorUsado;
+    setRegistros(prev => prev.map(r => r.id === dexId ? { ...r, declaracionCambioId: declaracionId, valorDeclaracion: nuevoValor } : r));
+    const { error } = await supabase.from("control_expo")
+      .update({ declaracion_cambio_id: declaracionId, valor_declaracion_usd: nuevoValor, updated_at: new Date().toISOString() })
+      .eq("id", dexId);
     if (error) setRegistros(prev => prev.map(r => r.id === dexId ? actual : r));
     return !error;
   }, [registros]);
 
   const quitarDexDeDeclaracion = useCallback((dexId) => asignarDexADeclaracion(dexId, null), [asignarDexADeclaracion]);
 
+  // Ajusta el valor usado de un DEX ya asignado, sin tocar a qué
+  // declaración pertenece.
+  const actualizarValorAsignado = useCallback(async (dexId, nuevoValor) => {
+    const actual = registros.find(r => r.id === dexId);
+    if (!actual || actual.declaracionCambioId == null) return false;
+    return asignarDexADeclaracion(dexId, actual.declaracionCambioId, nuevoValor);
+  }, [registros, asignarDexADeclaracion]);
+
   return {
     registros, pagos, declaraciones, loading,
     guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago,
-    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion,
+    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion, actualizarValorAsignado,
   };
 }

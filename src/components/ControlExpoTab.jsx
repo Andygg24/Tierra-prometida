@@ -156,7 +156,7 @@ export default function ControlExpoTab({ mob }) {
 
   const {
     registros, pagos, declaraciones, loading, guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago,
-    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion,
+    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion, actualizarValorAsignado,
   } = useControlExpo();
 
   const [vista, setVista] = useState("registro"); // registro | liquidacion
@@ -309,6 +309,7 @@ export default function ControlExpoTab({ mob }) {
         <SeccionDeclaracionCambio m={m} registros={registros} declaraciones={declaraciones}
           crearDeclaracion={crearDeclaracion} eliminarDeclaracion={eliminarDeclaracion}
           asignarDexADeclaracion={asignarDexADeclaracion} quitarDexDeDeclaracion={quitarDexDeDeclaracion}
+          actualizarValorAsignado={actualizarValorAsignado}
           inp={inp} lbl={lbl} cardS={cardS} />
       ) : (
       <>
@@ -891,13 +892,23 @@ function nombreCortoDex(r) {
   return `#${r.id}`;
 }
 
-function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion, inp, lbl, cardS }) {
+// Cuánto de ese DEX cuenta para la declaración a la que está asignado —
+// puede ser menor al valor real del DEX (a veces no se usa el monto
+// completo). Si nunca se ajustó, cae al valor completo del DEX.
+function valorEfectivo(r) {
+  return r.valorDeclaracion != null ? r.valorDeclaracion : (Number(r.valorDexUsd) || 0);
+}
+
+function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion, actualizarValorAsignado, inp, lbl, cardS }) {
   const [form, setForm]               = useState(declaracionVacia);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [guardando, setGuardando]     = useState(false);
   const [errorForm, setErrorForm]     = useState("");
   const [pickerAbiertoId, setPickerAbiertoId] = useState(null);
   const [buscaPicker, setBuscaPicker] = useState("");
+  const [valorPorFila, setValorPorFila] = useState({}); // { [dexId]: "texto del input" } — valores a asignar en el picker
+  const [editandoValorId, setEditandoValorId] = useState(null); // dex ya asignado cuyo valor se está ajustando
+  const [valorEditado, setValorEditado] = useState("");
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
 
@@ -939,7 +950,20 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracio
     if (window.confirm(`¿Eliminar la declaración "${d.numero || d.id}"? Los DEX asignados quedan libres.`)) eliminarDeclaracion(d.id);
   };
 
-  const togglePicker = (id) => { setPickerAbiertoId(prev => prev === id ? null : id); setBuscaPicker(""); };
+  const togglePicker = (id) => { setPickerAbiertoId(prev => prev === id ? null : id); setBuscaPicker(""); setValorPorFila({}); };
+
+  const asignar = (r, declaracionId) => {
+    const valor = valorPorFila[r.id] !== undefined && valorPorFila[r.id] !== "" ? Number(valorPorFila[r.id]) : (Number(r.valorDexUsd) || 0);
+    asignarDexADeclaracion(r.id, declaracionId, valor);
+    setValorPorFila(prev => { const n = { ...prev }; delete n[r.id]; return n; });
+  };
+
+  const empezarEdicionValor = (r) => { setEditandoValorId(r.id); setValorEditado(String(valorEfectivo(r))); };
+  const guardarEdicionValor = (r) => {
+    const v = Number(valorEditado);
+    if (!isNaN(v) && v >= 0) actualizarValorAsignado(r.id, v);
+    setEditandoValorId(null);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -992,7 +1016,7 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracio
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {declaraciones.map(d => {
             const asignados = dexPorDeclaracion[d.id] || [];
-            const sumaAsignada = asignados.reduce((s, r) => s + (Number(r.valorDexUsd) || 0), 0);
+            const sumaAsignada = asignados.reduce((s, r) => s + valorEfectivo(r), 0);
             const saldo = d.valorUsd - sumaAsignada;
             const completa = Math.abs(saldo) < 0.01;
             return (
@@ -1018,12 +1042,30 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracio
 
                 {asignados.length > 0 && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", gap: 6 }}>
-                    {asignados.map(r => (
-                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, color: "rgba(255,255,255,0.75)" }}>
-                        <span>🛃 {nombreCortoDex(r)} <span style={{ color: "rgba(255,255,255,0.4)" }}>· US$ {usd(r.valorDexUsd)}</span></span>
-                        <button onClick={() => quitarDexDeDeclaracion(r.id)} style={{ ...btnTablaEliminar, padding: "2px 7px" }}>✕</button>
-                      </div>
-                    ))}
+                    {asignados.map(r => {
+                      const usado = valorEfectivo(r);
+                      const parcial = Math.abs(usado - (Number(r.valorDexUsd) || 0)) > 0.005;
+                      return (
+                        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, color: "rgba(255,255,255,0.75)", gap: 8 }}>
+                          <span style={{ minWidth: 0 }}>🛃 {nombreCortoDex(r)}{parcial ? <span style={{ color: "rgba(255,255,255,0.4)" }}> · DEX real US$ {usd(r.valorDexUsd)}</span> : null}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            {editandoValorId === r.id ? (
+                              <>
+                                <input type="number" autoFocus value={valorEditado} onChange={e => setValorEditado(e.target.value)}
+                                  onKeyDown={e => { if (e.key === "Enter") guardarEdicionValor(r); if (e.key === "Escape") setEditandoValorId(null); }}
+                                  style={{ ...inp, width: 100, padding: "3px 6px" }} />
+                                <button onClick={() => guardarEdicionValor(r)} style={{ ...btnSecundario, padding: "2px 7px" }}>✓</button>
+                              </>
+                            ) : (
+                              <span onClick={() => empezarEdicionValor(r)} title="Clic para editar el valor usado" style={{ fontWeight: 700, color: parcial ? "#F9A826" : "#00C9A7", cursor: "pointer", borderBottom: "1px dashed currentColor" }}>
+                                US$ {usd(usado)}
+                              </span>
+                            )}
+                            <button onClick={() => quitarDexDeDeclaracion(r.id)} style={{ ...btnTablaEliminar, padding: "2px 7px" }}>✕</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1040,12 +1082,15 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracio
                     {disponiblesFiltrados.length === 0 ? (
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textAlign: "center", padding: "10px 0" }}>No hay DEX disponibles sin asignar.</div>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 260, overflowY: "auto" }}>
                         {disponiblesFiltrados.map(r => (
-                          <div key={r.id} onClick={() => asignarDexADeclaracion(r.id, d.id)}
-                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7, cursor: "pointer", fontSize: 11.5 }}>
-                            <span>🛃 {nombreCortoDex(r)} <span style={{ color: "rgba(255,255,255,0.4)" }}>· {r.estado}</span></span>
-                            <span style={{ fontWeight: 700, color: "#00C9A7" }}>US$ {usd(r.valorDexUsd)}</span>
+                          <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7, fontSize: 11.5, gap: 8 }}>
+                            <span style={{ minWidth: 0 }}>🛃 {nombreCortoDex(r)} <span style={{ color: "rgba(255,255,255,0.4)" }}>· {r.estado} · real US$ {usd(r.valorDexUsd)}</span></span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              <input type="number" value={valorPorFila[r.id] ?? r.valorDexUsd ?? ""} onChange={e => setValorPorFila(prev => ({ ...prev, [r.id]: e.target.value }))}
+                                style={{ ...inp, width: 100, padding: "3px 6px" }} placeholder="Valor a usar" />
+                              <button onClick={() => asignar(r, d.id)} style={{ ...btnSecundario, color: "#00C9A7", borderColor: "#00C9A760" }}>Asignar</button>
+                            </div>
                           </div>
                         ))}
                       </div>
