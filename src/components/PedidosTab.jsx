@@ -1,7 +1,7 @@
 import { useState } from "react";
 import LimonLoader from "./LimonLoader.jsx";
 import CustomSelect from "./CustomSelect.jsx";
-import { btnSecundario, btnPrimario, btnTablaEliminar } from "./buttonStyles.js";
+import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useSolicitudesPlanta } from "../hooks/useSolicitudesPlanta.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 
@@ -38,8 +38,9 @@ function fmtFecha(iso) {
 const nombresItems = (s) => s.items.map(it => it.item).join(", ");
 
 export default function PedidosTab({ mob, usuario }) {
-  const { solicitudes, loading, crear, cambiarEstado, eliminar } = useSolicitudesPlanta();
+  const { solicitudes, loading, crear, actualizar, cambiarEstado, eliminar } = useSolicitudesPlanta();
   const [showForm, setShowForm] = useState(false);
+  const [editandoId, setEditandoId] = useState(null); // null = creando nueva
   const [form, setForm] = useState({ items: [FILA_VACIA()], area: "", prioridad: "Media", obs: "" });
   const [filtro, setFiltro] = useState("Todas");
   const [expandidoId, setExpandidoId] = useState(null);
@@ -60,20 +61,46 @@ export default function PedidosTab({ mob, usuario }) {
   const agregarFila = () => setForm(p => ({ ...p, items: [...p.items, FILA_VACIA()] }));
   const quitarFila = (idx) => setForm(p => ({ ...p, items: p.items.length === 1 ? [FILA_VACIA()] : p.items.filter((_, i) => i !== idx) }));
 
-  const crearSolicitud = async () => {
+  const cerrarForm = () => {
+    setShowForm(false);
+    setEditandoId(null);
+    setForm({ items: [FILA_VACIA()], area: "", prioridad: "Media", obs: "" });
+  };
+
+  const editarSolicitud = (s) => {
+    setForm({
+      items: s.items.map(it => ({ item: it.item, cantidad: it.cantidad != null ? String(it.cantidad) : "", unidad: it.unidad || UNIDADES[0] })),
+      area: s.area, prioridad: s.prioridad, obs: s.obs,
+    });
+    setEditandoId(s.id);
+    setShowForm(true);
+  };
+
+  const guardarSolicitud = async () => {
     const itemsValidos = form.items.filter(it => it.item.trim());
     if (!itemsValidos.length) return;
     setGuardando(true);
-    const solicitadoPor = nombreUsuarioSesion();
-    const ok = await crear({ items: itemsValidos, area: form.area, prioridad: form.prioridad, obs: form.obs, solicitadoPor });
-    if (ok) {
-      registrarActividad({
-        usuario: solicitadoPor, modulo: "Inventario", accion: "pedido_creado",
-        detalle: `${solicitadoPor || "Alguien"} solicitó ${itemsValidos.length} ítem${itemsValidos.length !== 1 ? "s" : ""}: ${itemsValidos.map(it => it.item).join(", ")}`,
-        referencia: itemsValidos.map(it => it.item).join(", "),
-      });
-      setForm({ items: [FILA_VACIA()], area: "", prioridad: "Media", obs: "" });
-      setShowForm(false);
+    const responsable = nombreUsuarioSesion();
+    if (editandoId) {
+      const ok = await actualizar(editandoId, { items: itemsValidos, area: form.area, prioridad: form.prioridad, obs: form.obs, responsable });
+      if (ok) {
+        registrarActividad({
+          usuario: responsable, modulo: "Inventario", accion: "pedido_editado",
+          detalle: `${responsable || "Alguien"} editó la solicitud: ${itemsValidos.map(it => it.item).join(", ")}`,
+          referencia: itemsValidos.map(it => it.item).join(", "),
+        });
+        cerrarForm();
+      }
+    } else {
+      const ok = await crear({ items: itemsValidos, area: form.area, prioridad: form.prioridad, obs: form.obs, solicitadoPor: responsable });
+      if (ok) {
+        registrarActividad({
+          usuario: responsable, modulo: "Inventario", accion: "pedido_creado",
+          detalle: `${responsable || "Alguien"} solicitó ${itemsValidos.length} ítem${itemsValidos.length !== 1 ? "s" : ""}: ${itemsValidos.map(it => it.item).join(", ")}`,
+          referencia: itemsValidos.map(it => it.item).join(", "),
+        });
+        cerrarForm();
+      }
     }
     setGuardando(false);
   };
@@ -107,7 +134,7 @@ export default function PedidosTab({ mob, usuario }) {
           <div style={{ fontWeight: 800, fontSize: 15, color: "white" }}>📝 Pedidos a Planta</div>
           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", marginTop: 2 }}>Solicitudes de insumos: Pendiente → Aprobado/Rechazado → Comprado → Entregado</div>
         </div>
-        <button onClick={() => setShowForm(v => !v)} style={btnPrimario(false, false)}>
+        <button onClick={() => (showForm ? cerrarForm() : setShowForm(true))} style={btnPrimario(false, false)}>
           {showForm ? "✕ Cancelar" : "➕ Nueva solicitud"}
         </button>
       </div>
@@ -153,8 +180,8 @@ export default function PedidosTab({ mob, usuario }) {
               <input style={inp} value={form.obs} onChange={e => setForm(p => ({ ...p, obs: e.target.value }))} placeholder="Detalles adicionales (opcional)" />
             </div>
           </div>
-          <button onClick={crearSolicitud} disabled={guardando || !hayItemValido} style={{ ...btnPrimario(false, guardando), marginTop: 14 }}>
-            {guardando ? "Guardando..." : "✅ Enviar solicitud"}
+          <button onClick={guardarSolicitud} disabled={guardando || !hayItemValido} style={{ ...btnPrimario(false, guardando), marginTop: 14 }}>
+            {guardando ? "Guardando..." : editandoId ? "✅ Guardar cambios" : "✅ Enviar solicitud"}
           </button>
         </div>
       )}
@@ -226,6 +253,7 @@ export default function PedidosTab({ mob, usuario }) {
                 <button onClick={() => setExpandidoId(v => v === s.id ? null : s.id)} style={{ ...btnSecundario, marginLeft: "auto" }}>
                   {expandidoId === s.id ? "▲ Ocultar historial" : `▼ Historial (${s.trazabilidad.length})`}
                 </button>
+                {puedeAprobar && <button onClick={() => editarSolicitud(s)} style={btnTablaEditar}>✏️</button>}
                 {puedeAprobar && <button onClick={() => confirmarEliminar(s)} style={btnTablaEliminar}>🗑</button>}
               </div>
 

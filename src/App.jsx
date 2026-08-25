@@ -7791,9 +7791,13 @@ function ConfigForm({ config, guardar, usuario }) {
 // registro real (tabla actividad_log en Supabase, alimentada desde esos
 // módulos) — no inventa entradas si todavía no hay actividad.
 function ActividadTab({ mob, secS, secH, iS }) {
-  const { actividad, loading } = useActividad();
+  const { actividad, loading, eliminar } = useActividad();
   const [filtroModulo, setFiltroModulo] = useState("Todos");
   const [busqueda, setBusqueda] = useState("");
+
+  const confirmarEliminar = (a) => {
+    if (window.confirm(`¿Eliminar este movimiento de la bitácora?\n\n"${a.detalle}"\n\nEsta acción no se puede deshacer.`)) eliminar(a.id);
+  };
 
   const modulos = ["Todos", ...Array.from(new Set(actividad.map(a => a.modulo))).sort()];
   const filtrada = actividad.filter(a => {
@@ -7835,6 +7839,7 @@ function ActividadTab({ mob, secS, secH, iS }) {
                     {a.createdAt ? new Date(a.createdAt).toLocaleString("es-CO", { dateStyle:"medium", timeStyle:"short" }) : ""}
                   </div>
                 </div>
+                <button onClick={() => confirmarEliminar(a)} title="Eliminar este movimiento" style={{ flexShrink:0, background:"rgba(255,107,107,0.08)", border:"1px solid #FF6B6B30", borderRadius:7, padding:"4px 8px", color:"#FF6B6B", cursor:"pointer", fontSize:12 }}>🗑</button>
               </div>
             ))}
           </div>

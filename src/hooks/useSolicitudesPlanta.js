@@ -30,11 +30,20 @@ export function useSolicitudesPlanta() {
   }, []);
 
   // ── Tiempo real (sync con otros usuarios) ──
+  // Aplica el payload del evento directo, sin volver a leer la tabla entera
+  // — un refetch aparte puede, por el pool de conexiones, alcanzar a leer
+  // la fila todavía sin confirmar y pisar un cambio recién hecho (mismo bug
+  // que ya se vio en Control Expo con las Declaraciones de Cambio).
   useEffect(() => {
     const ch = supabase.channel(`solicitudes-planta-changes-${Date.now()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes_planta" }, () => {
-        supabase.from("solicitudes_planta").select("*").order("created_at", { ascending: false })
-          .then(({ data }) => data && setSolicitudes(data.map(rowToSolicitud)));
+      .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes_planta" }, ({ new: row, old, eventType }) => {
+        if (eventType === "DELETE") {
+          setSolicitudes(prev => prev.filter(s => s.id !== old.id));
+          return;
+        }
+        if (!row) return;
+        const nuevo = rowToSolicitud(row);
+        setSolicitudes(prev => prev.some(s => s.id === nuevo.id) ? prev.map(s => s.id === nuevo.id ? nuevo : s) : [nuevo, ...prev]);
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -63,6 +72,27 @@ export function useSolicitudesPlanta() {
     return !error;
   }, []);
 
+  // Edita los datos de la solicitud (ítems, área, prioridad, obs) sin
+  // tocar su estado — para corregir errores (ej. cantidad mal escrita).
+  const actualizar = useCallback(async (id, { items, area, prioridad, obs, responsable }) => {
+    const actual = solicitudes.find(s => s.id === id);
+    if (!actual) return false;
+    const ev = { evento: "Solicitud editada", responsable: responsable || "", fecha: new Date().toISOString() };
+    const nuevaTraz = [...(actual.trazabilidad || []), ev];
+    const itemsLimpios = items.map(it => ({
+      item:     it.item.trim(),
+      cantidad: it.cantidad !== "" && it.cantidad != null ? Number(it.cantidad) : null,
+      unidad:   it.unidad || null,
+    }));
+    const nuevo = { ...actual, items: itemsLimpios, area: area || "", prioridad: prioridad || "Media", obs: obs || "", trazabilidad: nuevaTraz };
+    setSolicitudes(prev => prev.map(s => s.id === id ? nuevo : s));
+    const { error } = await supabase.from("solicitudes_planta")
+      .update({ items: itemsLimpios, area: area || null, prioridad: prioridad || "Media", obs: obs || null, trazabilidad: nuevaTraz })
+      .eq("id", id);
+    if (error) setSolicitudes(prev => prev.map(s => s.id === id ? actual : s));
+    return !error;
+  }, [solicitudes]);
+
   // nuevoEstado: "Aprobado" | "Rechazado" | "Comprado" | "Entregado"
   const cambiarEstado = useCallback(async (id, nuevoEstado, { responsable, nota } = {}) => {
     const actual = solicitudes.find(s => s.id === id);
@@ -86,5 +116,5 @@ export function useSolicitudesPlanta() {
     return !error;
   }, [solicitudes]);
 
-  return { solicitudes, loading, crear, cambiarEstado, eliminar };
+  return { solicitudes, loading, crear, actualizar, cambiarEstado, eliminar };
 }

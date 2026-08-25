@@ -41,8 +41,12 @@ export function useActividad() {
 
   useEffect(() => {
     const ch = supabase.channel(`actividad-log-changes-${Date.now()}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "actividad_log" }, ({ new: row }) => {
-        if (row) setActividad(prev => [rowToActividad(row), ...prev.slice(0, LIMITE - 1)]);
+      .on("postgres_changes", { event: "*", schema: "public", table: "actividad_log" }, ({ new: row, old, eventType }) => {
+        if (eventType === "DELETE") {
+          setActividad(prev => prev.filter(a => a.id !== old.id));
+        } else if (row) {
+          setActividad(prev => [rowToActividad(row), ...prev.slice(0, LIMITE - 1)]);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -50,5 +54,13 @@ export function useActividad() {
 
   const registrar = useCallback((datos) => registrarActividad(datos), []);
 
-  return { actividad, loading, registrar };
+  const eliminar = useCallback(async (id) => {
+    const removido = actividad.find(a => a.id === id);
+    setActividad(prev => prev.filter(a => a.id !== id));
+    const { error } = await supabase.from("actividad_log").delete().eq("id", id);
+    if (error && removido) setActividad(prev => [removido, ...prev].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
+    return !error;
+  }, [actividad]);
+
+  return { actividad, loading, registrar, eliminar };
 }
