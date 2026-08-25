@@ -59,15 +59,8 @@ export function useSolicitudesPlanta() {
     // Optimistic insert
     setSolicitudes(prev => [rowToSolicitud(row), ...prev]);
     const { error } = await supabase.from("solicitudes_planta").insert(row);
-    if (error) { setSolicitudes(prev => prev.filter(s => s.id !== row.id)); return false; }
-    // Avisar al Jefe por correo — si falla el envío, la solicitud ya quedó
-    // guardada de todos modos (no se le muestra error al usuario por esto).
-    fetch("/api/notificar-pedido", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: row.items, area: row.area, prioridad: row.prioridad, obs: row.obs, solicitadoPor: row.solicitado_por }),
-    }).catch(e => console.error("[notificar-pedido]", e.message));
-    return true;
+    if (error) setSolicitudes(prev => prev.filter(s => s.id !== row.id));
+    return !error;
   }, []);
 
   // nuevoEstado: "Aprobado" | "Rechazado" | "Comprado" | "Entregado"
