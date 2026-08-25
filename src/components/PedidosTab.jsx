@@ -17,7 +17,9 @@ const ESTADO_COLOR = {
   Comprado:   "#845EF7",
   Entregado:  "#00C9A7",
 };
-const PRIORIDAD_COLOR = { Baja: "#64748B", Media: "#F9A826", Alta: "#FF6B6B" };
+const PRIORIDAD_COLOR  = { Baja: "#22C55E", Media: "#F9A826", Urgente: "#FF6B6B" };
+const PRIORIDAD_ICONO  = { Baja: "🟢", Media: "🟡", Urgente: "🔴" };
+const PRIORIDADES = ["Baja", "Media", "Urgente"];
 
 const UNIDADES = ["Unidades", "Kilos", "Gramos", "Litros", "Metros cúbicos", "Cajas", "Paquetes", "Rollos", "Metros", "Milímetros", "Galones"];
 
@@ -172,7 +174,7 @@ export default function PedidosTab({ mob, usuario }) {
             <div>
               <label style={lbl}>Prioridad</label>
               <CustomSelect style={inp} value={form.prioridad} onChange={e => setForm(p => ({ ...p, prioridad: e.target.value }))}>
-                {["Baja", "Media", "Alta"].map(p => <option key={p} value={p} style={{ background: "#1a1c26" }}>{p}</option>)}
+                {PRIORIDADES.map(p => <option key={p} value={p} style={{ background: "#1a1c26" }}>{PRIORIDAD_ICONO[p]} {p}</option>)}
               </CustomSelect>
             </div>
             <div style={{ gridColumn: mob ? "1" : "1 / -1" }}>
@@ -229,7 +231,7 @@ export default function PedidosTab({ mob, usuario }) {
                   {s.obs && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 5, fontStyle: "italic" }}>{s.obs}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 700, color: PRIORIDAD_COLOR[s.prioridad] || "#94a3b8", background: `${PRIORIDAD_COLOR[s.prioridad] || "#64748B"}20`, padding: "2px 8px", borderRadius: 5 }}>{s.prioridad}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: PRIORIDAD_COLOR[s.prioridad] || "#94a3b8", background: `${PRIORIDAD_COLOR[s.prioridad] || "#64748B"}20`, padding: "2px 8px", borderRadius: 5 }}>{PRIORIDAD_ICONO[s.prioridad] || ""} {s.prioridad}</span>
                   <span style={{ fontSize: 9.5, fontWeight: 700, color: ESTADO_COLOR[s.estado] || "#94a3b8", background: `${ESTADO_COLOR[s.estado] || "#64748B"}20`, padding: "2px 8px", borderRadius: 5 }}>{s.estado}</span>
                 </div>
               </div>
