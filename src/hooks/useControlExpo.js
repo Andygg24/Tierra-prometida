@@ -202,6 +202,23 @@ export function useControlExpo() {
     return !error;
   }, []);
 
+  const actualizarDeclaracion = useCallback(async (id, { numero, banco, valorUsd, fecha, obs }) => {
+    const previa = declaraciones.find(d => d.id === id);
+    if (!previa) return false;
+    const row = {
+      numero:    numero || null,
+      banco:     banco  || null,
+      valor_usd: Number(valorUsd) || 0,
+      fecha:     fecha  || null,
+      obs:       obs    || null,
+      updated_at: new Date().toISOString(),
+    };
+    setDeclaraciones(prev => prev.map(d => d.id === id ? rowToDeclaracion({ ...row, id }) : d));
+    const { error } = await supabase.from("declaraciones_cambio").update(row).eq("id", id);
+    if (error) setDeclaraciones(prev => prev.map(d => d.id === id ? previa : d));
+    return !error;
+  }, [declaraciones]);
+
   const eliminarDeclaracion = useCallback(async (id) => {
     const removida = declaraciones.find(d => d.id === id);
     const asigRemovidas = asignaciones.filter(a => a.declaracionCambioId === id);
@@ -253,6 +270,6 @@ export function useControlExpo() {
   return {
     registros, pagos, declaraciones, asignaciones, loading,
     guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago,
-    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion,
+    crearDeclaracion, actualizarDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion,
   };
 }

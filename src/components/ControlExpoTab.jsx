@@ -156,7 +156,7 @@ export default function ControlExpoTab({ mob }) {
 
   const {
     registros, pagos, declaraciones, asignaciones, loading, guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago,
-    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion,
+    crearDeclaracion, actualizarDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion,
   } = useControlExpo();
 
   const [vista, setVista] = useState("registro"); // registro | liquidacion
@@ -307,7 +307,7 @@ export default function ControlExpoTab({ mob }) {
           inp={inp} lbl={lbl} cardS={cardS} />
       ) : vista === "declaracion" ? (
         <SeccionDeclaracionCambio m={m} registros={registros} declaraciones={declaraciones} asignaciones={asignaciones}
-          crearDeclaracion={crearDeclaracion} eliminarDeclaracion={eliminarDeclaracion}
+          crearDeclaracion={crearDeclaracion} actualizarDeclaracion={actualizarDeclaracion} eliminarDeclaracion={eliminarDeclaracion}
           asignarDexADeclaracion={asignarDexADeclaracion} quitarAsignacion={quitarAsignacion}
           actualizarValorAsignacion={actualizarValorAsignacion}
           inp={inp} lbl={lbl} cardS={cardS} />
@@ -895,9 +895,10 @@ function nombreCortoDex(r) {
   return partes.join(" · ");
 }
 
-function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion, inp, lbl, cardS }) {
+function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, crearDeclaracion, actualizarDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarAsignacion, actualizarValorAsignacion, inp, lbl, cardS }) {
   const [form, setForm]               = useState(declaracionVacia);
   const [mostrarForm, setMostrarForm] = useState(false);
+  const [editandoDeclaracionId, setEditandoDeclaracionId] = useState(null); // null = creando nueva
   const [guardando, setGuardando]     = useState(false);
   const [errorForm, setErrorForm]     = useState("");
   const [pickerAbiertoId, setPickerAbiertoId] = useState(null);
@@ -938,8 +939,14 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
       .sort((a, b) => (Number(b.valorDexUsd) || 0) - (Number(a.valorDexUsd) || 0));
   }, [registros, buscaPicker, asignacionesPorDeclaracion, pickerAbiertoId]);
 
-  const nuevaDeclaracion = () => { setForm(declaracionVacia()); setErrorForm(""); setMostrarForm(true); };
-  const cerrarForm = () => { setMostrarForm(false); setForm(declaracionVacia()); setErrorForm(""); };
+  const nuevaDeclaracion = () => { setForm(declaracionVacia()); setEditandoDeclaracionId(null); setErrorForm(""); setMostrarForm(true); };
+  const editarDeclaracion = (d) => {
+    setForm({ numero: d.numero, banco: d.banco, valorUsd: String(d.valorUsd), fecha: d.fecha, obs: d.obs });
+    setEditandoDeclaracionId(d.id);
+    setErrorForm("");
+    setMostrarForm(true);
+  };
+  const cerrarForm = () => { setMostrarForm(false); setForm(declaracionVacia()); setEditandoDeclaracionId(null); setErrorForm(""); };
 
   const guardar = async () => {
     setErrorForm("");
@@ -948,7 +955,9 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
       return;
     }
     setGuardando(true);
-    const ok = await crearDeclaracion(form);
+    const ok = editandoDeclaracionId
+      ? await actualizarDeclaracion(editandoDeclaracionId, form)
+      : await crearDeclaracion(form);
     setGuardando(false);
     if (ok) cerrarForm();
     else setErrorForm("No se pudo guardar. Intenta de nuevo.");
@@ -1013,7 +1022,7 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
           </div>
           {errorForm && <div style={{ color: "#FF6B6B", fontSize: 11, marginTop: 8 }}>{errorForm}</div>}
           <button onClick={guardar} disabled={guardando} style={{ ...btnPrimario(false, guardando), marginTop: 12 }}>
-            {guardando ? "Guardando..." : "✅ Registrar declaración"}
+            {guardando ? "Guardando..." : editandoDeclaracionId ? "✅ Guardar cambios" : "✅ Registrar declaración"}
           </button>
         </div>
       )}
@@ -1084,7 +1093,8 @@ function SeccionDeclaracionCambio({ m, registros, declaraciones, asignaciones, c
                   <button onClick={() => togglePicker(d.id)} style={btnSecundario}>
                     {pickerAbiertoId === d.id ? "▲ Cerrar" : "➕ Asignar DEX"}
                   </button>
-                  <button onClick={() => eliminar(d)} style={{ ...btnTablaEliminar, marginLeft: "auto" }}>🗑 Eliminar declaración</button>
+                  <button onClick={() => editarDeclaracion(d)} style={{ ...btnTablaEditar, marginLeft: "auto" }}>✏️ Editar</button>
+                  <button onClick={() => eliminar(d)} style={btnTablaEliminar}>🗑 Eliminar</button>
                 </div>
 
                 {pickerAbiertoId === d.id && (
