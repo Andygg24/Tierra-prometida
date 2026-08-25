@@ -7997,6 +7997,40 @@ export default function App() {
   });
   const login  = (u) => { setUsuario(u); try { localStorage.setItem("tp_session", JSON.stringify(u)); } catch {} };
   const logout = ()  => { setUsuario(null); try { localStorage.removeItem("tp_session"); } catch {} };
+
+  // ── Alerta en el título de la pestaña cuando alguien más crea un pedido
+  // (como WhatsApp Web: "Fulano te envió un mensaje") — solo mientras esta
+  // pestaña no está siendo vista, para no interrumpir si ya la tienes abierta.
+  const [alertaPedido, setAlertaPedido] = useState(null); // null | { cantidad, texto }
+  const tituloOriginalRef = useRef(typeof document !== "undefined" ? document.title : "");
+  useEffect(() => {
+    if (!usuario) return;
+    const ch = supabase.channel(`alerta-pedidos-${Date.now()}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "solicitudes_planta" }, ({ new: row }) => {
+        if (row.solicitado_por && row.solicitado_por === usuario.nombre) return; // no avisar del propio pedido
+        if (!document.hidden) return; // ya se está viendo la pestaña, no hace falta alertar
+        const item = Array.isArray(row.items) && row.items[0]?.item;
+        setAlertaPedido(prev => ({
+          cantidad: (prev?.cantidad || 0) + 1,
+          texto: `${row.solicitado_por || "Alguien"} pidió${item ? ` "${item}"` : ""}`,
+        }));
+      })
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [usuario]);
+
+  useEffect(() => {
+    if (!alertaPedido) { document.title = tituloOriginalRef.current; return; }
+    document.title = `🔔 (${alertaPedido.cantidad}) ${alertaPedido.texto}`;
+    const limpiar = () => { if (!document.hidden) setAlertaPedido(null); };
+    document.addEventListener("visibilitychange", limpiar);
+    window.addEventListener("focus", limpiar);
+    return () => {
+      document.removeEventListener("visibilitychange", limpiar);
+      window.removeEventListener("focus", limpiar);
+    };
+  }, [alertaPedido]);
+
   const [activeModule, setActiveModule] = useState(0);
   const [showNotif,    setShowNotif]    = useState(false);
   const [showSearch,   setShowSearch]   = useState(false);
