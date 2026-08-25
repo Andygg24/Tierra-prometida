@@ -154,7 +154,10 @@ export default function ControlExpoTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { registros, pagos, loading, guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago } = useControlExpo();
+  const {
+    registros, pagos, declaraciones, loading, guardarDex, eliminarDex, toggleVerificado, agregarPago, eliminarPago, actualizarPago,
+    crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion,
+  } = useControlExpo();
 
   const [vista, setVista] = useState("registro"); // registro | liquidacion
 
@@ -283,8 +286,9 @@ export default function ControlExpoTab({ mob }) {
       {/* ── Tabs de sección ── */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {[
-          { id: "registro",    label: "🛃 Registro DEX" },
-          { id: "liquidacion", label: "💵 Liquidación de DEX" },
+          { id: "registro",     label: "🛃 Registro DEX" },
+          { id: "liquidacion",  label: "💵 Liquidación de DEX" },
+          { id: "declaracion",  label: "💱 Declaración de Cambio" },
         ].map(t => (
           <button key={t.id} onClick={() => setVista(t.id)}
             style={{
@@ -300,6 +304,11 @@ export default function ControlExpoTab({ mob }) {
 
       {vista === "liquidacion" ? (
         <SeccionLiquidacion m={m} registros={registros} pagos={pagos} agregarPago={agregarPago} eliminarPago={eliminarPago} actualizarPago={actualizarPago}
+          inp={inp} lbl={lbl} cardS={cardS} />
+      ) : vista === "declaracion" ? (
+        <SeccionDeclaracionCambio m={m} registros={registros} declaraciones={declaraciones}
+          crearDeclaracion={crearDeclaracion} eliminarDeclaracion={eliminarDeclaracion}
+          asignarDexADeclaracion={asignarDexADeclaracion} quitarDexDeDeclaracion={quitarDexDeDeclaracion}
           inp={inp} lbl={lbl} cardS={cardS} />
       ) : (
       <>
@@ -864,6 +873,188 @@ function SeccionLiquidacion({ m, registros, pagos, agregarPago, eliminarPago, ac
             </div>
           </div>
           <iframe src={preview.url} style={{ flex: 1, border: "none", borderRadius: 10, background: "white" }} title="Vista previa del informe" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function declaracionVacia() {
+  return { numero: "", banco: "", valorUsd: "", fecha: new Date().toISOString().slice(0, 10), obs: "" };
+}
+
+// Nombre corto para mostrar un DEX en las listas: prioriza el número real
+// del DEX, y si todavía no lo tiene (no radicado) cae al número de expo.
+function nombreCortoDex(r) {
+  if (r.numeroDex) return r.numeroDex;
+  if (r.numeroExpo) return `Expo ${r.numeroExpo}`;
+  return `#${r.id}`;
+}
+
+function SeccionDeclaracionCambio({ m, registros, declaraciones, crearDeclaracion, eliminarDeclaracion, asignarDexADeclaracion, quitarDexDeDeclaracion, inp, lbl, cardS }) {
+  const [form, setForm]               = useState(declaracionVacia);
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [guardando, setGuardando]     = useState(false);
+  const [errorForm, setErrorForm]     = useState("");
+  const [pickerAbiertoId, setPickerAbiertoId] = useState(null);
+  const [buscaPicker, setBuscaPicker] = useState("");
+
+  const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
+
+  const dexPorDeclaracion = useMemo(() => {
+    const map = {};
+    registros.forEach(r => {
+      if (r.declaracionCambioId == null) return;
+      (map[r.declaracionCambioId] ||= []).push(r);
+    });
+    return map;
+  }, [registros]);
+
+  const disponibles = useMemo(() => registros.filter(r => r.declaracionCambioId == null), [registros]);
+
+  const disponiblesFiltrados = useMemo(() => {
+    const q = buscaPicker.toLowerCase();
+    return disponibles
+      .filter(r => !q || [String(r.numeroExpo || ""), r.numeroDex, r.facturaComercial].some(v => (v || "").toLowerCase().includes(q)))
+      .sort((a, b) => (Number(b.valorDexUsd) || 0) - (Number(a.valorDexUsd) || 0));
+  }, [disponibles, buscaPicker]);
+
+  const nuevaDeclaracion = () => { setForm(declaracionVacia()); setErrorForm(""); setMostrarForm(true); };
+  const cerrarForm = () => { setMostrarForm(false); setForm(declaracionVacia()); setErrorForm(""); };
+
+  const guardar = async () => {
+    setErrorForm("");
+    if (!form.valorUsd || Number(form.valorUsd) <= 0) {
+      setErrorForm("Ingresa el valor de la declaración en USD.");
+      return;
+    }
+    setGuardando(true);
+    const ok = await crearDeclaracion(form);
+    setGuardando(false);
+    if (ok) cerrarForm();
+    else setErrorForm("No se pudo guardar. Intenta de nuevo.");
+  };
+
+  const eliminar = (d) => {
+    if (window.confirm(`¿Eliminar la declaración "${d.numero || d.id}"? Los DEX asignados quedan libres.`)) eliminarDeclaracion(d.id);
+  };
+
+  const togglePicker = (id) => { setPickerAbiertoId(prev => prev === id ? null : id); setBuscaPicker(""); };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: "white" }}>💱 Declaraciones de Cambio</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", marginTop: 2 }}>Cada declaración se llena asignándole uno o varios DEX hasta cuadrar su valor total</div>
+        </div>
+        <button onClick={mostrarForm ? cerrarForm : nuevaDeclaracion} style={btnPrimario(false, false)}>
+          {mostrarForm ? "✕ Cancelar" : "➕ Nueva declaración"}
+        </button>
+      </div>
+
+      {mostrarForm && (
+        <div style={cardS}>
+          <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={lbl}>N° / referencia</label>
+              <input style={inp} value={form.numero} onChange={e => setCampo("numero", e.target.value)} placeholder="Opcional" />
+            </div>
+            <div>
+              <label style={lbl}>Banco / intermediario</label>
+              <input style={inp} value={form.banco} onChange={e => setCampo("banco", e.target.value)} placeholder="Opcional" />
+            </div>
+            <div>
+              <label style={lbl}>Valor USD *</label>
+              <input style={inp} type="number" value={form.valorUsd} onChange={e => setCampo("valorUsd", e.target.value)} placeholder="0.00" />
+            </div>
+            <div>
+              <label style={lbl}>Fecha</label>
+              <input style={inp} type="date" value={form.fecha} onChange={e => setCampo("fecha", e.target.value)} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={lbl}>Observaciones</label>
+              <input style={inp} value={form.obs} onChange={e => setCampo("obs", e.target.value)} placeholder="Opcional" />
+            </div>
+          </div>
+          {errorForm && <div style={{ color: "#FF6B6B", fontSize: 11, marginTop: 8 }}>{errorForm}</div>}
+          <button onClick={guardar} disabled={guardando} style={{ ...btnPrimario(false, guardando), marginTop: 12 }}>
+            {guardando ? "Guardando..." : "✅ Registrar declaración"}
+          </button>
+        </div>
+      )}
+
+      {declaraciones.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.33)", fontSize: 13 }}>
+          Todavía no hay declaraciones de cambio registradas.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {declaraciones.map(d => {
+            const asignados = dexPorDeclaracion[d.id] || [];
+            const sumaAsignada = asignados.reduce((s, r) => s + (Number(r.valorDexUsd) || 0), 0);
+            const saldo = d.valorUsd - sumaAsignada;
+            const completa = Math.abs(saldo) < 0.01;
+            return (
+              <div key={d.id} style={{ ...cardS, borderLeft: `3px solid ${completa ? "#00C9A7" : "#F9A826"}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "white" }}>
+                      {d.numero ? `Declaración ${d.numero}` : `Declaración #${d.id}`}
+                      {d.banco ? <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}> — {d.banco}</span> : null}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.42)", marginTop: 3 }}>
+                      {d.fecha ? `🕐 ${fmtFechaCorta(d.fecha)}` : ""}
+                    </div>
+                    {d.obs && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 5, fontStyle: "italic" }}>{d.obs}</div>}
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "white" }}>US$ {usd(d.valorUsd)}</div>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, color: completa ? "#00C9A7" : "#F9A826", background: `${completa ? "#00C9A7" : "#F9A826"}20`, padding: "2px 8px", borderRadius: 5 }}>
+                      {completa ? "✓ Completa" : saldo > 0 ? `Falta US$ ${usd(saldo)}` : `Sobra US$ ${usd(Math.abs(saldo))}`}
+                    </span>
+                  </div>
+                </div>
+
+                {asignados.length > 0 && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", gap: 6 }}>
+                    {asignados.map(r => (
+                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, color: "rgba(255,255,255,0.75)" }}>
+                        <span>🛃 {nombreCortoDex(r)} <span style={{ color: "rgba(255,255,255,0.4)" }}>· US$ {usd(r.valorDexUsd)}</span></span>
+                        <button onClick={() => quitarDexDeDeclaracion(r.id)} style={{ ...btnTablaEliminar, padding: "2px 7px" }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button onClick={() => togglePicker(d.id)} style={btnSecundario}>
+                    {pickerAbiertoId === d.id ? "▲ Cerrar" : "➕ Asignar DEX"}
+                  </button>
+                  <button onClick={() => eliminar(d)} style={{ ...btnTablaEliminar, marginLeft: "auto" }}>🗑 Eliminar declaración</button>
+                </div>
+
+                {pickerAbiertoId === d.id && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <input style={{ ...inp, marginBottom: 8 }} value={buscaPicker} onChange={e => setBuscaPicker(e.target.value)} placeholder="Buscar DEX disponible por número, expo o factura..." />
+                    {disponiblesFiltrados.length === 0 ? (
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textAlign: "center", padding: "10px 0" }}>No hay DEX disponibles sin asignar.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+                        {disponiblesFiltrados.map(r => (
+                          <div key={r.id} onClick={() => asignarDexADeclaracion(r.id, d.id)}
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7, cursor: "pointer", fontSize: 11.5 }}>
+                            <span>🛃 {nombreCortoDex(r)} <span style={{ color: "rgba(255,255,255,0.4)" }}>· {r.estado}</span></span>
+                            <span style={{ fontWeight: 700, color: "#00C9A7" }}>US$ {usd(r.valorDexUsd)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
