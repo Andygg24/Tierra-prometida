@@ -6609,7 +6609,7 @@ function EstadisticasDemo() {
 // Inicio, con el resumen del día: contenedor programado, último contenedor
 // autorizado, kilos recibidos ayer y bookings próximos a vencer.
 let _wbEstiloInyectado = false;
-function WidgetBienvenidaDiaria({ nombre, contenedoresHoy, ultimoAutorizado, kilosAyer, bookingsPorVencer, onClose, mob }) {
+function WidgetBienvenidaDiaria({ nombre, contenedoresHoy, ultimoAutorizado, kilosAyer, kilosHoy, bookingsPorVencer, onClose, mob }) {
   useEffect(() => {
     if (_wbEstiloInyectado) return;
     _wbEstiloInyectado = true;
@@ -6653,6 +6653,11 @@ function WidgetBienvenidaDiaria({ nombre, contenedoresHoy, ultimoAutorizado, kil
     ? `${Math.round(kilosAyer).toLocaleString("es-CO")} kg`
     : "Sin recepciones registradas ayer";
 
+  const totalAyerHoy = (kilosAyer || 0) + (kilosHoy || 0);
+  const valorKilosTotal = totalAyerHoy > 0
+    ? `${Math.round(totalAyerHoy).toLocaleString("es-CO")} kg`
+    : "Sin recepciones entre ayer y hoy";
+
   const valorBookings = bookingsPorVencer.length === 0
     ? "Ninguno por ahora 👌"
     : bookingsPorVencer.slice(0,3).map(({ b, restantes }) =>
@@ -6689,7 +6694,8 @@ function WidgetBienvenidaDiaria({ nombre, contenedoresHoy, ultimoAutorizado, kil
             {fila("📦", "Contenedor programado hoy",   valorContenedorHoy,     "#a5b4fc", 550)}
             {fila("🔓", "Último contenedor autorizado", valorUltimoAutorizado, "#00C9A7", 900)}
             {fila("⚖️", "Limón recibido ayer",          valorKilosAyer,         "#F9A826", 1250)}
-            {fila("⏳", "Bookings próximos a vencer",    valorBookings,          bookingsPorVencer.length ? "#FF6B6B" : "rgba(255,255,255,0.6)", 1600)}
+            {fila("🍋", "Limón total (ayer + hoy)",     valorKilosTotal,        "#00C9A7", 1600)}
+            {fila("⏳", "Bookings próximos a vencer",    valorBookings,          bookingsPorVencer.length ? "#FF6B6B" : "rgba(255,255,255,0.6)", 1950)}
           </div>
         </div>
       </div>
@@ -6759,6 +6765,9 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const contenedoresHoyBienvenida = procesosBienvenida.filter(p => (p.fechaProgramacion || p.fecha) === hoyLocalBienvenida);
   const kilosAyerBienvenida = recepcionesBienvenida
     .filter(r => r.tipo === "entrada" && r.fecha === ayerLocalBienvenida)
+    .reduce((s, r) => s + (Number(r.total) || 0), 0);
+  const kilosHoyBienvenida = recepcionesBienvenida
+    .filter(r => r.tipo === "entrada" && r.fecha === hoyLocalBienvenida)
     .reduce((s, r) => s + (Number(r.total) || 0), 0);
   const navierasCfgBienvenida = cfgBienvenida.cfg_exportacion?.navieras || [];
   const bookingsPorVencerBienvenida = bookingsBienvenida
@@ -6881,6 +6890,7 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
           contenedoresHoy={contenedoresHoyBienvenida}
           ultimoAutorizado={ultimoAutorizado}
           kilosAyer={kilosAyerBienvenida}
+          kilosHoy={kilosHoyBienvenida}
           bookingsPorVencer={bookingsPorVencerBienvenida}
           onClose={cerrarWidgetBienvenida}
           mob={mob}
