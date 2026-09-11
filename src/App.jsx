@@ -3432,6 +3432,11 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const [editIdx, setEditIdx]     = useState(null); // container id or null
   const [busqueda, setBusqueda]   = useState("");
   const [filtroMes, setFiltroMes] = useState("");
+  // Cambio rápido del N° de contenedor directo desde la tarjeta, sin tener
+  // que abrir el formulario completo de edición.
+  const [renombrandoId, setRenombrandoId]     = useState(null);
+  const [nuevoNumContenedor, setNuevoNumContenedor] = useState("");
+  const [guardandoRenombre, setGuardandoRenombre]   = useState(false);
   const [form, setForm]           = useState(formDef);
   const [nuevoProveedor, setNuevoProveedor] = useState("");
 
@@ -3500,6 +3505,23 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
       showToast("Contenedor guardado", true);
     } else {
       showToast("Error al guardar el contenedor", false);
+    }
+  };
+
+  const iniciarRenombre = (p) => { setRenombrandoId(p.id); setNuevoNumContenedor(p.numContenedor); };
+  const cancelarRenombre = () => { setRenombrandoId(null); setNuevoNumContenedor(""); };
+  const confirmarRenombre = async (p) => {
+    const valor = nuevoNumContenedor.trim();
+    if (!valor) return;
+    if (valor === p.numContenedor) { cancelarRenombre(); return; }
+    setGuardandoRenombre(true);
+    const ok = await guardarContenedor({ ...formDef, ...p, numContenedor: valor }, p.id);
+    setGuardandoRenombre(false);
+    if (ok) {
+      showToast("N° de contenedor actualizado", true);
+      cancelarRenombre();
+    } else {
+      showToast("Error al cambiar el N° de contenedor", false);
     }
   };
 
@@ -3687,7 +3709,24 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
                 <div key={p.id||i} style={{background:`${col}08`,border:`1px solid ${col}28`,borderRadius:12,marginBottom:8,overflow:"hidden"}}>
                   <div style={{padding:"12px 14px 10px"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                      <span style={{fontSize:15,fontWeight:800,color:"white"}}>🚢 {p.numContenedor}</span>
+                      {renombrandoId===p.id ? (
+                        <div style={{display:"flex",alignItems:"center",gap:5}} onClick={e=>e.stopPropagation()}>
+                          <input autoFocus value={nuevoNumContenedor} onChange={e=>setNuevoNumContenedor(e.target.value.toUpperCase())}
+                            onKeyDown={e=>{ if(e.key==="Enter") confirmarRenombre(p); if(e.key==="Escape") cancelarRenombre(); }}
+                            style={{...inp,width:150,fontSize:13,fontWeight:700,padding:"4px 8px"}} placeholder="N° contenedor" />
+                          <button onClick={()=>confirmarRenombre(p)} disabled={guardandoRenombre}
+                            style={{background:"rgba(0,201,167,0.2)",border:"1px solid rgba(0,201,167,0.4)",borderRadius:6,color:"#00C9A7",padding:"4px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                            {guardandoRenombre?"...":"✓"}
+                          </button>
+                          <button onClick={cancelarRenombre} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:6,color:"rgba(255,255,255,0.5)",padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✕</button>
+                        </div>
+                      ) : (
+                        <span style={{fontSize:15,fontWeight:800,color:"white",display:"flex",alignItems:"center",gap:5}}>
+                          🚢 {p.numContenedor}
+                          <button onClick={e=>{e.stopPropagation();iniciarRenombre(p);}} title="Cambiar N° de contenedor"
+                            style={{background:"none",border:"none",color:"rgba(255,255,255,0.35)",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}}>✏️</button>
+                        </span>
+                      )}
                       <span style={{fontSize:10,background:`${col}22`,color:col,borderRadius:6,padding:"3px 8px",fontWeight:700,border:`1px solid ${col}40`}}>{p.estado}</span>
                       {p.logisticaBookingId && <span style={{fontSize:10,background:"rgba(14,165,233,0.15)",border:"1px solid rgba(14,165,233,0.3)",color:"#0EA5E9",borderRadius:6,padding:"3px 8px",fontWeight:700}}>🔗 Logística</span>}
                       <span style={{fontSize:10,background:"rgba(255,255,255,0.09)",color:"rgba(255,255,255,0.58)",borderRadius:6,padding:"3px 8px",fontWeight:600}}>
