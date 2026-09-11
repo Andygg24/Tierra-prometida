@@ -61,6 +61,36 @@ function playBeep() {
   } catch { /* beep opcional — si el navegador bloquea audio, seguimos sin sonido */ }
 }
 
+// Redimensiona/comprime la foto de evidencia antes de guardarla como base64
+// (mismo helper que usa Caja Menor) — una foto de cámara sin comprimir puede
+// pesar varios MB, esto la deja liviana (~200KB).
+function comprimirImagen(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1280;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          const ratio = Math.min(MAX / width, MAX / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
@@ -108,6 +138,7 @@ function nuevaEstiba(numero) {
   return {
     numero,
     pesoBruto: "",
+    fotoPesoBruto: "", // evidencia fotográfica del peso mostrado en la pesadora
     estibaPlastica: "no",
     canastillas: [nuevaTipoCanastilla()],
     pesoEstiba: "",
@@ -612,6 +643,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [guardando,  setGuardando]  = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [preview,    setPreview]    = useState(null); // { url, filename }
+  const [subiendoFotoIdx, setSubiendoFotoIdx] = useState(null); // idx de la estiba cuya foto de peso se está procesando
+  const [imagenAmpliada, setImagenAmpliada]   = useState(null); // url de la foto de peso en vista ampliada
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
   const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
@@ -667,6 +700,24 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       estibas: f.estibas.map((e, i) => i === idx ? { ...e, [campo]: valor } : e),
     }));
   };
+
+  // Foto de evidencia del peso bruto — la que muestra la pesadora al pesar
+  // la estiba, para poder cruzar información si hay una discrepancia después.
+  const onFotoPesoSeleccionada = async (idx, ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    setSubiendoFotoIdx(idx);
+    try {
+      const dataUrl = await comprimirImagen(file);
+      setEstiba(idx, "fotoPesoBruto", dataUrl);
+    } catch {
+      alert("No se pudo procesar la foto — intenta con otra imagen.");
+    }
+    setSubiendoFotoIdx(null);
+  };
+  const quitarFotoPeso = (idx) => setEstiba(idx, "fotoPesoBruto", "");
+  const verImagenPeso  = (url) => { if (url) setImagenAmpliada(url); };
 
   // Una estiba es "mixta" cuando trae más de un tipo de canastilla (p.ej.
   // x canastillas de 2 kg + x de 2.4 kg). setCanastilla edita un tipo puntual;
@@ -744,7 +795,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       horaInicio: r.horaInicio, horaFin: r.horaFin, observaciones: r.observaciones || "",
       estibas: r.estibas.length
         ? r.estibas.map(e => ({
-            numero: e.numero, pesoBruto: e.pesoBruto, estibaPlastica: e.estibaPlastica,
+            numero: e.numero, pesoBruto: e.pesoBruto, fotoPesoBruto: e.fotoPesoBruto || "", estibaPlastica: e.estibaPlastica,
             pesoEstiba: e.pesoEstiba, canastillas: canastillasDeEstiba(e),
             usada: !!e.usada, usadaPor: e.usadaPor || "", usadaEn: e.usadaEn || "",
           }))
@@ -812,8 +863,18 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       alert("Falta la fecha de la recepción.");
       return;
     }
-    setGuardando(true);
     const esNueva = !editId;
+    // Evidencia obligatoria del peso bruto (foto de la pesadora) — solo para
+    // recepciones nuevas, para no bloquear la edición de recepciones antiguas
+    // que se registraron antes de exigir esta foto.
+    if (esNueva) {
+      const faltantes = form.estibas.filter(e => !e.fotoPesoBruto).map(e => e.numero);
+      if (faltantes.length) {
+        alert(`Falta enlazar la foto del peso bruto en la${faltantes.length > 1 ? "s" : ""} estiba${faltantes.length > 1 ? "s" : ""} #${faltantes.join(", ")}.\n\nUsa el botón "🔗 Enlazar foto" en cada estiba antes de guardar.`);
+        return;
+      }
+    }
+    setGuardando(true);
     const estibasCalc = form.estibas.map(e => ({ ...e, descuentoEstiba: descuentoEstiba(e), pesoNeto: pesoNetoEstiba(e) }));
     const ok = await guardarRecepcion({ ...form, estibas: estibasCalc, total: totalNeto }, editId);
     setGuardando(false);
@@ -1229,6 +1290,23 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   </div>
                 </div>
 
+                {/* Evidencia fotográfica del peso bruto (pesadora) */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8, flexWrap:"wrap" }}>
+                  <label style={{ ...btnTablaEditar, display:"inline-flex", alignItems:"center", gap:4, cursor: subiendoFotoIdx===idx ? "wait" : "pointer", opacity: subiendoFotoIdx===idx ? 0.6 : 1 }}>
+                    {subiendoFotoIdx===idx ? "Procesando..." : (e.fotoPesoBruto ? "🔗 Cambiar foto" : "🔗 Enlazar foto")}
+                    <input type="file" accept="image/*" capture="environment" onChange={ev=>onFotoPesoSeleccionada(idx, ev)} disabled={subiendoFotoIdx===idx} style={{ display:"none" }} />
+                  </label>
+                  {e.fotoPesoBruto ? (
+                    <>
+                      <img src={e.fotoPesoBruto} alt="Evidencia peso bruto" onClick={()=>verImagenPeso(e.fotoPesoBruto)} style={{ width:34, height:34, objectFit:"cover", borderRadius:6, border:"1px solid rgba(0,201,167,0.5)", cursor:"pointer" }} />
+                      <span style={{ fontSize:9, fontWeight:700, color:"#00C9A7" }}>✓ Evidencia</span>
+                      <button onClick={()=>quitarFotoPeso(idx)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:10, textDecoration:"underline", cursor:"pointer", padding:0, fontFamily:"inherit" }}>Quitar</button>
+                    </>
+                  ) : (
+                    <span style={{ fontSize:9, fontWeight:700, color:"#F9A826" }}>⚠ Falta foto de evidencia</span>
+                  )}
+                </div>
+
                 <div style={{ marginTop:8 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:5 }}>
                     <div style={lbl}>Canastillas</div>
@@ -1274,6 +1352,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
                   <th style={{ padding:"4px 6px" }}>#</th>
                   <th style={{ padding:"4px 6px" }}>Peso bruto</th>
+                  <th style={{ padding:"4px 6px" }}>Foto peso</th>
                   <th style={{ padding:"4px 6px" }}>Estiba plástica</th>
                   <th style={{ padding:"4px 6px", minWidth:210 }}>Canastillas (tipo · cant. · peso)</th>
                   <th style={{ padding:"4px 6px" }}>Peso canastillas</th>
@@ -1289,6 +1368,19 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <tr key={idx} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                     <td style={{ padding:"6px", color:"white", fontWeight:700 }}>{e.numero}</td>
                     <td style={{ padding:"6px" }}><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></td>
+                    <td style={{ padding:"6px", minWidth:96 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
+                        <label style={{ ...btnTablaEditar, cursor: subiendoFotoIdx===idx ? "wait" : "pointer", opacity: subiendoFotoIdx===idx ? 0.6 : 1, whiteSpace:"nowrap" }} title={e.fotoPesoBruto ? "Cambiar foto" : "Enlazar foto"}>
+                          {subiendoFotoIdx===idx ? "..." : "🔗"}
+                          <input type="file" accept="image/*" capture="environment" onChange={ev=>onFotoPesoSeleccionada(idx, ev)} disabled={subiendoFotoIdx===idx} style={{ display:"none" }} />
+                        </label>
+                        {e.fotoPesoBruto ? (
+                          <img src={e.fotoPesoBruto} alt="Evidencia peso bruto" onClick={()=>verImagenPeso(e.fotoPesoBruto)} style={{ width:26, height:26, objectFit:"cover", borderRadius:5, border:"1px solid rgba(0,201,167,0.5)", cursor:"pointer" }} />
+                        ) : (
+                          <span style={{ fontSize:12, color:"#F9A826" }} title="Falta foto de evidencia">⚠</span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ padding:"6px", minWidth:100 }}>
                       <CustomSelect value={e.estibaPlastica} onChange={ev=>setEstiba(idx,"estibaPlastica",ev.target.value)} style={inp}>
                         <option value="si">Sí</option><option value="no">No</option>
@@ -1798,6 +1890,14 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             </div>
           </div>
           <iframe src={preview.url} style={{ flex:1, border:"none", borderRadius:10, background:"white" }} title="Vista previa del informe" />
+        </div>
+      )}
+
+      {/* ── Visor de la foto de evidencia del peso bruto ── */}
+      {imagenAmpliada && (
+        <div onClick={() => setImagenAmpliada(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20, cursor:"zoom-out" }}>
+          <img src={imagenAmpliada} alt="Evidencia peso bruto ampliada" style={{ maxWidth:"100%", maxHeight:"100%", borderRadius:8, boxShadow:"0 12px 40px rgba(0,0,0,0.6)" }} />
+          <button onClick={() => setImagenAmpliada(null)} style={{ position:"absolute", top:20, right:20, background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:8, color:"white", fontSize:20, width:36, height:36, cursor:"pointer" }}>✕</button>
         </div>
       )}
     </div>
