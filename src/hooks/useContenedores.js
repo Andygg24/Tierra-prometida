@@ -4,6 +4,7 @@ import { supabase } from "../supabase.js";
 const rowToCont = (r) => ({
   id:            r.id,
   fecha:         r.fecha,
+  fechaProgramacion: r.fecha_programacion || "",
   numContenedor: r.num_contenedor  || "",
   proveedor:     r.proveedor       || "",
   producto:      r.producto        || "",
@@ -126,6 +127,7 @@ export function useContenedores() {
   const guardarContenedor = useCallback(async (form, id = null) => {
     const row = {
       fecha:          form.fecha,
+      fecha_programacion: form.fechaProgramacion || null,
       num_contenedor: form.numContenedor,
       proveedor:      form.proveedor      || null,
       producto:       form.producto       || null,

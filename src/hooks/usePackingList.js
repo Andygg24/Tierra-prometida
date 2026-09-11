@@ -93,5 +93,25 @@ export function usePackingList() {
     return { data, error };
   }, []);
 
-  return { cargarPorContenedor, cargarTodos, guardar, cargarPorIdConContenedor, actualizarPallets, actualizarFase, ultimaActualizacion };
+  // Busca el packing list más reciente que ya llegó a Paso 3 (Fase 2 del
+  // camión guardada y autorizada) — usado por el widget de bienvenida de
+  // Inicio para mostrar "el último contenedor trabajado".
+  const cargarUltimoAutorizado = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("packing_lists")
+      .select("id, contenedor_id, fase, updated_at")
+      .gte("fase", 3)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return { data: null, error };
+    const { data: cont } = await supabase
+      .from("contenedores")
+      .select("num_contenedor")
+      .eq("id", data.contenedor_id)
+      .maybeSingle();
+    return { data: { ...data, numContenedor: cont?.num_contenedor || "" }, error: null };
+  }, []);
+
+  return { cargarPorContenedor, cargarTodos, guardar, cargarPorIdConContenedor, actualizarPallets, actualizarFase, cargarUltimoAutorizado, ultimaActualizacion };
 }

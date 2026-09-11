@@ -20,11 +20,13 @@ import { usePackingList } from "./hooks/usePackingList.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml, generarInformeRendimientoHtml,
 } from "./reportes/informesProceso.js";
-import { useLogistica, calcularAlertasLogistica } from "./hooks/useLogistica.js";
+import { useLogistica, calcularAlertasLogistica, diasLibresRestantes } from "./hooks/useLogistica.js";
+import { useRecepciones } from "./hooks/useRecepciones.js";
 import { fechaLocalISO, diferenciaDiasLocal } from "./utils/dates.js";
 import CustomSelect from "./components/CustomSelect.jsx";
 import SearchableSelect from "./components/SearchableSelect.jsx";
 import LimonLoader from "./components/LimonLoader.jsx";
+import JarvisChat from "./components/JarvisChat.jsx";
 
 // ─── CONTEXTO RESPONSIVE ─────────────────────────────────────
 const MobCtx   = createContext(false);
@@ -3427,7 +3429,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const empleadosContReal = empleadosCont.length > 0 ? empleadosCont : EMPLEADOS_DB;
 
   // ── Tab 0: Contenedores ──
-  const formDef = { fecha:hoy, numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", vessel:"", destino:"Miami, FL", logisticaBookingId:null, trazabilidad:[] };
+  const formDef = { fecha:hoy, fechaProgramacion:"", numContenedor:"", proveedor:"", producto:"", cajasSalida:"", turno:"Día", estado:"En proceso", operadores:"", transporte:"", placa:"", trailer:"", obs:"", grupoDia:"", grupoNoche:"", booking:"", naviera:"", vessel:"", destino:"Miami, FL", logisticaBookingId:null, trazabilidad:[] };
   const [showForm, setShowForm]   = useState(false);
   const [editIdx, setEditIdx]     = useState(null); // container id or null
   const [busqueda, setBusqueda]   = useState("");
@@ -3618,6 +3620,12 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}><div style={lbl}>Fecha *</div><input type="date" value={form.fecha} onChange={e=>setForm(p=>({...p,fecha:e.target.value}))} style={inp} /></div>
                   <div style={{flex:1}}><div style={lbl}>N° Contenedor *</div><input value={form.numContenedor} onChange={e=>setForm(p=>({...p,numContenedor:e.target.value}))} placeholder="Ej: MNBU3679199" style={inp} /></div>
+                </div>
+                <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
+                  <div style={{flex:1}}>
+                    <div style={lbl}>Programación <span style={{color:"rgba(255,255,255,0.32)",fontWeight:400}}>(opcional — para qué día está programado)</span></div>
+                    <input type="date" value={form.fechaProgramacion} onChange={e=>setForm(p=>({...p,fechaProgramacion:e.target.value}))} style={inp} />
+                  </div>
                 </div>
                 <div style={{display:"flex",flexDirection:mob?"column":"row",gap:6}}>
                   <div style={{flex:1}}>
@@ -6597,6 +6605,98 @@ function EstadisticasDemo() {
   );
 }
 
+// ─── Widget de bienvenida diaria — aparece una vez al día al entrar a
+// Inicio, con el resumen del día: contenedor programado, último contenedor
+// autorizado, kilos recibidos ayer y bookings próximos a vencer.
+let _wbEstiloInyectado = false;
+function WidgetBienvenidaDiaria({ nombre, contenedoresHoy, ultimoAutorizado, kilosAyer, bookingsPorVencer, onClose, mob }) {
+  useEffect(() => {
+    if (_wbEstiloInyectado) return;
+    _wbEstiloInyectado = true;
+    const s = document.createElement("style");
+    s.textContent = `
+      @keyframes wbEntrada { 0%{opacity:0;transform:translateY(-18px) scale(0.96)} 60%{opacity:1;transform:translateY(3px) scale(1.005)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+      @keyframes wbShimmer { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+      @keyframes wbFloat1 { 0%,100%{transform:translateY(0) rotate(-8deg)} 50%{transform:translateY(-10px) rotate(8deg)} }
+      @keyframes wbFloat2 { 0%,100%{transform:translateY(0) rotate(6deg)} 50%{transform:translateY(-14px) rotate(-6deg)} }
+      @keyframes wbFloat3 { 0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-8px) rotate(10deg)} }
+      @keyframes wbPop { 0%{opacity:0;transform:translateY(14px) scale(0.96)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+    `;
+    document.head.appendChild(s);
+  }, []);
+
+  const fila = (icon, label, valor, color, delay) => (
+    <div style={{
+      background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.10)", borderRadius:12,
+      padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:10,
+      opacity:0, animation:`wbPop 0.55s cubic-bezier(.2,.8,.3,1.1) both`, animationDelay:`${delay}ms`,
+    }}>
+      <div style={{ fontSize:18, flexShrink:0 }}>{icon}</div>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontSize:9.5, color:"rgba(255,255,255,0.45)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.4, marginBottom:2 }}>{label}</div>
+        <div style={{ fontSize:12.5, color, fontWeight:700, lineHeight:1.35 }}>{valor}</div>
+      </div>
+    </div>
+  );
+
+  const valorContenedorHoy = contenedoresHoy.length === 0
+    ? "Sin contenedor programado para hoy"
+    : contenedoresHoy.map(c => c.numContenedor).join(", ");
+
+  const valorUltimoAutorizado = ultimoAutorizado === undefined
+    ? "Cargando…"
+    : ultimoAutorizado === null
+      ? "Todavía no hay contenedores autorizados"
+      : `${ultimoAutorizado.numContenedor || "—"} · ${new Date(ultimoAutorizado.updated_at).toLocaleDateString("es-CO",{day:"2-digit",month:"short"})}`;
+
+  const valorKilosAyer = kilosAyer > 0
+    ? `${Math.round(kilosAyer).toLocaleString("es-CO")} kg`
+    : "Sin recepciones registradas ayer";
+
+  const valorBookings = bookingsPorVencer.length === 0
+    ? "Ninguno por ahora 👌"
+    : bookingsPorVencer.slice(0,3).map(({ b, restantes }) =>
+        `${b.numeroContenedor || b.numeroBooking || `#${b.id}`} (${restantes === 0 ? "vence hoy" : `${restantes}d`})`
+      ).join(" · ");
+
+  return (
+    <div style={{
+      position:"relative", overflow:"hidden", marginBottom:16, borderRadius:18, padding:2,
+      background:"linear-gradient(120deg,#845EF7,#6366F1,#00C9A7,#845EF7)", backgroundSize:"300% 300%",
+      animation:"wbEntrada 0.5s cubic-bezier(.2,.9,.25,1.15) both, wbShimmer 6s ease infinite",
+    }}>
+      <div style={{ position:"relative", background:"linear-gradient(135deg,#1b1730,#171a2b 60%,#101225)", borderRadius:16, padding: mob ? "16px 14px" : "20px 22px", overflow:"hidden" }}>
+
+        {/* Limones flotando de fondo — puramente decorativo */}
+        <div style={{ position:"absolute", top:8,  right:60, fontSize:26, opacity:0.16, animation:"wbFloat1 4.5s ease-in-out infinite" }}>🍋</div>
+        <div style={{ position:"absolute", top:38, right:18, fontSize:20, opacity:0.14, animation:"wbFloat2 5.5s ease-in-out infinite" }}>🍋</div>
+        <div style={{ position:"absolute", bottom:10, right:100, fontSize:16, opacity:0.12, animation:"wbFloat3 5s ease-in-out infinite" }}>🚢</div>
+
+        <button onClick={onClose} title="Cerrar por hoy" style={{
+          position:"absolute", top:12, right:12, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)",
+          borderRadius:8, color:"rgba(255,255,255,0.6)", width:26, height:26, cursor:"pointer", fontSize:13, lineHeight:1, zIndex:2,
+        }}>✕</button>
+
+        <div style={{ position:"relative", zIndex:1 }}>
+          <div style={{ fontSize: mob ? 16 : 19, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"white", marginBottom:2, opacity:0, animation:"wbPop 0.5s ease-out both" }}>
+            🍋✅ ¡Bienvenido, {nombre || "de vuelta"}!
+          </div>
+          <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.5)", marginBottom:14, opacity:0, animation:"wbPop 0.5s ease-out both", animationDelay:"250ms" }}>
+            Esto es lo que necesitas saber para hoy:
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns: mob ? "1fr" : "repeat(2,1fr)", gap:8 }}>
+            {fila("📦", "Contenedor programado hoy",   valorContenedorHoy,     "#a5b4fc", 550)}
+            {fila("🔓", "Último contenedor autorizado", valorUltimoAutorizado, "#00C9A7", 900)}
+            {fila("⚖️", "Limón recibido ayer",          valorKilosAyer,         "#F9A826", 1250)}
+            {fila("⏳", "Bookings próximos a vencer",    valorBookings,          bookingsPorVencer.length ? "#FF6B6B" : "rgba(255,255,255,0.6)", 1600)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MÓDULO INICIO — DASHBOARD EJECUTIVO ─────────────────────
 function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const mob   = useM();
@@ -6608,6 +6708,33 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const { empleados: empleadosInicio, loading: loadingPersonalInicio } = usePersonal();
   const { actividad: actividadUsuarios } = useActividad();
   const empleadosReal = empleadosInicio.length > 0 ? empleadosInicio : EMPLEADOS_DB;
+
+  // ── Datos para el widget de bienvenida diario ──
+  const { procesos: procesosBienvenida }     = useContenedores();
+  const { recepciones: recepcionesBienvenida } = useRecepciones();
+  const { bookings: bookingsBienvenida }     = useLogistica();
+  const { config: cfgBienvenida }            = useConfiguracion();
+  const { cargarUltimoAutorizado }           = usePackingList();
+  const [ultimoAutorizado, setUltimoAutorizado] = useState(undefined); // undefined = cargando, null = ninguno
+  useEffect(() => {
+    let cancelado = false;
+    cargarUltimoAutorizado().then(({ data }) => { if (!cancelado) setUltimoAutorizado(data || null); });
+    return () => { cancelado = true; };
+  }, []);
+
+  // El widget solo aparece la primera vez que se entra a Inicio cada día —
+  // se recuerda en localStorage para no repetirlo en cada visita a la pestaña.
+  const [widgetBienvenidaAbierto, setWidgetBienvenidaAbierto] = useState(false);
+  useEffect(() => {
+    try {
+      const hoyKey = fechaLocalISO();
+      if (localStorage.getItem("tp_widget_bienvenida_fecha") !== hoyKey) setWidgetBienvenidaAbierto(true);
+    } catch { setWidgetBienvenidaAbierto(true); }
+  }, []);
+  const cerrarWidgetBienvenida = () => {
+    setWidgetBienvenidaAbierto(false);
+    try { localStorage.setItem("tp_widget_bienvenida_fecha", fechaLocalISO()); } catch {}
+  };
 
   useEffect(() => {
     const id = setInterval(() => setHora(new Date()), 1000);
@@ -6624,6 +6751,20 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   }, []);
 
   const hoy = hora.toISOString().split("T")[0];
+
+  // ── Cálculos del widget de bienvenida (fechas en hora LOCAL, no UTC —
+  // toISOString() ya se adelanta un día en Colombia después de las 7pm) ──
+  const hoyLocalBienvenida  = fechaLocalISO(hora);
+  const ayerLocalBienvenida = fechaLocalISO(new Date(hora.getTime() - 86400000));
+  const contenedoresHoyBienvenida = procesosBienvenida.filter(p => (p.fechaProgramacion || p.fecha) === hoyLocalBienvenida);
+  const kilosAyerBienvenida = recepcionesBienvenida
+    .filter(r => r.tipo === "entrada" && r.fecha === ayerLocalBienvenida)
+    .reduce((s, r) => s + (Number(r.total) || 0), 0);
+  const navierasCfgBienvenida = cfgBienvenida.cfg_exportacion?.navieras || [];
+  const bookingsPorVencerBienvenida = bookingsBienvenida
+    .map(b => ({ b, restantes: diasLibresRestantes(b, navierasCfgBienvenida) }))
+    .filter(x => x.restantes != null && x.restantes >= 0 && x.restantes <= 4)
+    .sort((x, y) => x.restantes - y.restantes);
 
   // Asistencia hoy — desde Supabase via useAsistencia
   const asistHoy = (() => {
@@ -6733,14 +6874,27 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
 
   return (
     <div>
-      {/* ── SALUDO al usuario actual ── */}
+      {/* ── Widget de bienvenida diaria ── */}
+      {widgetBienvenidaAbierto && (
+        <WidgetBienvenidaDiaria
+          nombre={primerNombre}
+          contenedoresHoy={contenedoresHoyBienvenida}
+          ultimoAutorizado={ultimoAutorizado}
+          kilosAyer={kilosAyerBienvenida}
+          bookingsPorVencer={bookingsPorVencerBienvenida}
+          onClose={cerrarWidgetBienvenida}
+          mob={mob}
+        />
+      )}
+
+      {/* ── Nombre del usuario actual ── */}
       {primerNombre && (
         <div style={{ marginBottom:14 }}>
           <div style={{ fontSize: mob ? 18 : 22, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"white", letterSpacing:-0.5 }}>
-            Hola, {primerNombre} 👋
+            {primerNombre}
           </div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.52)", marginTop:2 }}>
-            Sistema en línea y listo para el proceso, ¡éxitos!
+            Sistema en línea y listo para la operación. ¡Éxitos!
           </div>
         </div>
       )}
@@ -8793,6 +8947,8 @@ export default function App() {
         </div>
 
       </div>
+
+      <JarvisChat usuario={usuario} />
     </div>
     </SmallCtx.Provider>
     </MobCtx.Provider>
