@@ -407,7 +407,7 @@ export default function CajaMenorTab({ mob }) {
                   <input type="file" accept="image/*" capture="environment" onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
                 </label>
                 <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
-                  {subiendoFoto ? "Procesando..." : "📁 Subir imágenes"}
+                  {subiendoFoto ? "Procesando..." : "+ Agregar imagen nueva"}
                   <input type="file" accept="image/*" multiple onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
                 </label>
               </div>
