@@ -10,7 +10,7 @@ const TIPOS_DOCUMENTO = ["Factura", "Cuenta de cobro", "N/A"];
 function facturaVacia() {
   return {
     fecha: fechaLocalISO(), nit: "", nombre: "", tipoDocumento: "Factura", numeroDocumento: "",
-    concepto: "", monto: "", foto: "", obs: "", registradoPor: "",
+    concepto: "", monto: "", fotos: [], obs: "", registradoPor: "",
   };
 }
 
@@ -169,18 +169,22 @@ export default function CajaMenorTab({ mob }) {
     }
   };
 
-  const onFotoSeleccionada = async (e) => {
-    const file = e.target.files?.[0];
+  const onFotosSeleccionadas = async (e) => {
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (!file) return;
+    if (!files.length) return;
     setSubiendoFoto(true);
     try {
-      const dataUrl = await comprimirImagen(file);
-      setCampo("foto", dataUrl);
+      const nuevas = await Promise.all(files.map(comprimirImagen));
+      setForm(f => ({ ...f, fotos: [...(f.fotos || []), ...nuevas] }));
     } catch {
-      setErrorGuardado("No se pudo procesar la foto — intenta con otra imagen.");
+      setErrorGuardado("No se pudo procesar una de las fotos — intenta con otra imagen.");
     }
     setSubiendoFoto(false);
+  };
+
+  const quitarFoto = (idx) => {
+    setForm(f => ({ ...f, fotos: (f.fotos || []).filter((_, i) => i !== idx) }));
   };
 
   const facturasFiltradas = useMemo(() => {
@@ -328,11 +332,11 @@ export default function CajaMenorTab({ mob }) {
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }}>{fmtFechaCorta(f.fecha)}</td>
                         <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{f.nombre || "—"}</td>
                         <td style={{ padding: "6px" }}>{f.concepto || "—"}</td>
-                        <td style={{ padding: "6px", textAlign: "center" }}>{f.foto ? "📷" : "—"}</td>
+                        <td style={{ padding: "6px", textAlign: "center" }}>{f.fotos?.length ? `📷 ${f.fotos.length}` : "—"}</td>
                         <td style={{ padding: "6px", fontWeight: 700, color: "#F9A826" }}>{fmtCOP(f.monto)}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
                           <button onClick={() => abrirFactura(f)} style={btnTablaEditar}>Editar</button>
-                          {f.foto && <button onClick={() => verImagen(f.foto)} style={btnTablaEditar}>👁 Imagen</button>}
+                          {f.fotos?.length > 0 && <button onClick={() => verImagen(f.fotos[0])} style={btnTablaEditar}>👁 Imagen{f.fotos.length > 1 ? ` (${f.fotos.length})` : ""}</button>}
                           <button onClick={() => eliminar(f)} style={btnTablaEliminar}>Eliminar</button>
                         </td>
                       </tr>
@@ -385,28 +389,27 @@ export default function CajaMenorTab({ mob }) {
               <textarea style={{ ...inp, minHeight: m ? 70 : 56, resize: "vertical", fontFamily: "inherit" }} value={form.obs} onChange={e => setCampo("obs", e.target.value)} placeholder="Notas sobre esta factura..." />
             </div>
 
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Foto de la factura</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>Fotos de la factura {form.fotos?.length > 0 && `(${form.fotos.length})`}</div>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14, flexWrap: "wrap" }}>
-              {form.foto && (
-                <img src={form.foto} alt="Factura" onClick={() => verImagen(form.foto)} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer" }} />
+              {form.fotos?.length > 0 && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {form.fotos.map((url, idx) => (
+                    <div key={idx} style={{ position: "relative" }}>
+                      <img src={url} alt={`Factura ${idx + 1}`} onClick={() => verImagen(url)} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer" }} />
+                      <button onClick={() => quitarFoto(idx)} title="Quitar esta foto" style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", background: "#FF6B6B", border: "2px solid rgba(20,20,20,0.9)", color: "white", fontSize: 12, lineHeight: "18px", cursor: "pointer", padding: 0 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
                   {subiendoFoto ? "Procesando..." : "📷 Tomar foto"}
-                  <input type="file" accept="image/*" capture="environment" onChange={onFotoSeleccionada} disabled={subiendoFoto} style={{ display: "none" }} />
+                  <input type="file" accept="image/*" capture="environment" onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
                 </label>
                 <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
-                  {subiendoFoto ? "Procesando..." : "📁 Subir imagen"}
-                  <input type="file" accept="image/*" onChange={onFotoSeleccionada} disabled={subiendoFoto} style={{ display: "none" }} />
+                  {subiendoFoto ? "Procesando..." : "📁 Subir imágenes"}
+                  <input type="file" accept="image/*" multiple onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
                 </label>
-                {form.foto && (
-                  <button onClick={() => verImagen(form.foto)} style={btnSecundario}>👁 Ver imagen</button>
-                )}
-                {form.foto && (
-                  <button onClick={() => setCampo("foto", "")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: 0, fontFamily: "inherit", textAlign: "left" }}>
-                    Quitar foto
-                  </button>
-                )}
               </div>
             </div>
 
