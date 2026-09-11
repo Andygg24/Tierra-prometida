@@ -57,8 +57,7 @@ const kg = (n) => Math.round(Number(n) || 0).toLocaleString("es-CO");
 function fechaLocalISO(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-const fechaLocalHoy  = () => fechaLocalISO();
-const fechaLocalAyer = () => fechaLocalISO(new Date(Date.now() - 86400000));
+const fechaLocalHoy = () => fechaLocalISO();
 
 // ── Reglas de respuesta — la primera que haga match (por palabras clave)
 // gana. Las que usan `ctx` responden con datos reales de Supabase; el resto
@@ -176,36 +175,10 @@ const REGLAS = [
     },
   },
   {
-    // "total entre ayer y hoy" — va antes de las reglas de "ayer" y "hoy"
-    // sueltas, porque una pregunta así menciona ambas palabras.
-    test: (q) => /(recepcion|limon|fruta)/.test(q) && /total/.test(q) && /ayer/.test(q) && /hoy/.test(q),
-    responder: (ctx) => {
-      const hoy = fechaLocalHoy(), ayer = fechaLocalAyer();
-      const ambos = ctx.recepcionesRecientes.filter(r => r.tipo === "entrada" && (r.fecha === hoy || r.fecha === ayer));
-      const total = ambos.reduce((s, r) => s + (Number(r.total) || 0), 0);
-      if (!ambos.length) return "No tengo recepciones de entrada registradas entre ayer y hoy.";
-      return `Entre ayer y hoy se han recibido ${kg(total)} kg de limón en total, en ${ambos.length} recepción${ambos.length > 1 ? "es" : ""}.`;
-    },
-  },
-  {
-    test: (q) => /(recepcion|limon|fruta)/.test(q) && /ayer/.test(q),
-    responder: (ctx) => {
-      const ayer = fechaLocalAyer();
-      const deAyer = ctx.recepcionesRecientes.filter(r => r.tipo === "entrada" && r.fecha === ayer);
-      const total = deAyer.reduce((s, r) => s + (Number(r.total) || 0), 0);
-      if (!deAyer.length) return "No tengo recepciones de entrada registradas para ayer.";
-      return `Ayer se recibieron ${kg(total)} kg de limón, en ${deAyer.length} recepción${deAyer.length > 1 ? "es" : ""}.`;
-    },
-  },
-  {
-    test: (q) => /(recepcion|limon|fruta)/.test(q) && /(hoy|reciente|ultima)/.test(q),
-    responder: (ctx) => {
-      const hoy = fechaLocalHoy();
-      const deHoy = ctx.recepcionesRecientes.filter(r => r.tipo === "entrada" && r.fecha === hoy);
-      const total = deHoy.reduce((s, r) => s + (Number(r.total) || 0), 0);
-      if (!deHoy.length) return "No tengo recepciones de entrada registradas hoy todavía.";
-      return `Hoy se han recibido ${kg(total)} kg de limón, en ${deHoy.length} recepción${deHoy.length > 1 ? "es" : ""}.`;
-    },
+    // Los kilos de limón ahora solo se consultan por rango de fechas (más
+    // flexible que preguntas fijas de "ayer"/"hoy") — se redirige a esa opción.
+    test: (q) => /(recepcion|limon|fruta)/.test(q) && !ES_ACCION.test(q),
+    responder: () => 'Para ver los kilos de limón recibidos, usa la opción "📅 Kilos de limón en un rango de fechas..." de las preguntas sugeridas — ahí eliges el rango exacto que necesites (aunque sea de varios días).',
   },
   {
     test: (q) => /(inventario|insumo|stock)/.test(q) && /(bajo|falta|comprar|agotad)/.test(q),
@@ -244,9 +217,6 @@ function responderLocal(pregunta, contexto) {
 const PREGUNTAS_SUGERIDAS = [
   "¿Cuántos contenedores hay en proceso?",
   "¿Qué contenedor está programado para hoy?",
-  "¿Cuánto limón se recibió ayer?",
-  "¿Cuánto limón se recibió hoy?",
-  "¿Cuánto limón se recibió en total entre ayer y hoy?",
   "¿Qué hay bajo en inventario?",
   "¿Qué bookings están activos?",
   "¿Cómo registro una recepción?",
@@ -256,6 +226,8 @@ const PREGUNTAS_SUGERIDAS = [
   "¿Qué módulos tiene el sistema?",
 ];
 
+const fmtFechaCorta = (f) => new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+
 export default function JarvisChat({ usuario }) {
   const [abierto,   setAbierto]   = useState(false);
   const [mensajes,  setMensajes]  = useState([]);
@@ -264,6 +236,9 @@ export default function JarvisChat({ usuario }) {
   const [error,     setError]     = useState("");
   const [contexto,  setContexto]  = useState(null);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(true);
+  const [mostrarRango, setMostrarRango] = useState(false);
+  const [rangoDesde, setRangoDesde] = useState("");
+  const [rangoHasta, setRangoHasta] = useState("");
   const scrollRef = useRef(null);
 
   useEffect(() => { inyectarEstiloJarvis(); }, []);
@@ -307,6 +282,45 @@ export default function JarvisChat({ usuario }) {
     if (!pregunta) return;
     setInput("");
     preguntar(pregunta);
+  };
+
+  const abrirRango = () => {
+    setMostrarSugerencias(false);
+    setMostrarRango(true);
+  };
+  const cancelarRango = () => {
+    setMostrarRango(false);
+    setRangoDesde(""); setRangoHasta("");
+    setMostrarSugerencias(true);
+  };
+
+  // Consulta directa a Supabase (no usa el contexto de los últimos 20
+  // registros) — así el rango funciona sin importar cuántos días abarque.
+  const consultarRango = async () => {
+    if (!rangoDesde || !rangoHasta || cargando) return;
+    if (rangoDesde > rangoHasta) { setError("La fecha 'desde' no puede ser posterior a la fecha 'hasta'."); return; }
+    setError("");
+    const desde = rangoDesde, hasta = rangoHasta;
+    setMostrarRango(false);
+    setMostrarSugerencias(false);
+    setMensajes(m => [...m, { role: "user", content: `¿Cuántos kilos de limón se recibieron entre ${fmtFechaCorta(desde)} y ${fmtFechaCorta(hasta)}?` }]);
+    setCargando(true);
+    try {
+      const { data, error: errSb } = await supabase
+        .from("recepciones").select("fecha, total")
+        .eq("tipo", "entrada").gte("fecha", desde).lte("fecha", hasta);
+      if (errSb) throw errSb;
+      const total = (data || []).reduce((s, r) => s + (Number(r.total) || 0), 0);
+      await new Promise(r => setTimeout(r, 350));
+      const respuesta = data && data.length
+        ? `Entre ${fmtFechaCorta(desde)} y ${fmtFechaCorta(hasta)} se recibieron ${kg(total)} kg de limón, en ${data.length} recepción${data.length > 1 ? "es" : ""}.`
+        : `No tengo recepciones de entrada registradas entre ${fmtFechaCorta(desde)} y ${fmtFechaCorta(hasta)}.`;
+      setMensajes(m => [...m, { role: "assistant", content: respuesta }]);
+    } catch {
+      setError("No pude consultar ese rango de fechas. Intenta de nuevo.");
+    }
+    setRangoDesde(""); setRangoHasta("");
+    setCargando(false);
   };
 
   return (
@@ -372,12 +386,44 @@ export default function JarvisChat({ usuario }) {
                     {p}
                   </button>
                 ))}
+                <button onClick={abrirRango} style={{
+                  textAlign: "left", background: "rgba(0,201,167,0.08)", border: "1px solid rgba(0,201,167,0.3)",
+                  borderRadius: 10, padding: "8px 12px", color: "#5eead4", fontSize: 11.5, cursor: "pointer",
+                  fontFamily: "inherit", fontWeight: 700,
+                }}>
+                  📅 Kilos de limón en un rango de fechas...
+                </button>
+              </div>
+            )}
+
+            {/* Mini-formulario de rango de fechas — para consultas de más de
+                un par de días (ayer/hoy no alcanzan) ── */}
+            {mostrarRango && (
+              <div style={{ background: "rgba(0,201,167,0.06)", border: "1px solid rgba(0,201,167,0.25)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: "#5eead4", fontWeight: 700 }}>📅 Kilos de limón entre dos fechas</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7, padding: "6px 8px", color: "white", fontSize: 11, fontFamily: "inherit", minWidth: 0 }} />
+                  <input type="date" value={rangoHasta} onChange={e => setRangoHasta(e.target.value)}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7, padding: "6px 8px", color: "white", fontSize: 11, fontFamily: "inherit", minWidth: 0 }} />
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={consultarRango} disabled={!rangoDesde || !rangoHasta} style={{
+                    flex: 1, background: "linear-gradient(135deg,#00C9A7,#0EA5E9)", border: "none", borderRadius: 7, color: "white",
+                    padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: !rangoDesde || !rangoHasta ? "default" : "pointer",
+                    opacity: !rangoDesde || !rangoHasta ? 0.5 : 1, fontFamily: "inherit",
+                  }}>Consultar</button>
+                  <button onClick={cancelarRango} style={{
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7,
+                    color: "rgba(255,255,255,0.6)", padding: "6px 12px", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                  }}>Cancelar</button>
+                </div>
               </div>
             )}
 
             {/* Botón para volver a ver las preguntas sugeridas — reemplaza la
                 lista mientras hay una respuesta reciente en pantalla ── */}
-            {!mostrarSugerencias && !cargando && mensajes.length > 0 && (
+            {!mostrarSugerencias && !mostrarRango && !cargando && mensajes.length > 0 && (
               <button onClick={() => setMostrarSugerencias(true)} style={{
                 alignSelf: "center", marginTop: 4, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: 20, padding: "6px 14px", color: "rgba(255,255,255,0.6)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
