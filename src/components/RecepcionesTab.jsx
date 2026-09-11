@@ -870,7 +870,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     if (esNueva) {
       const faltantes = form.estibas.filter(e => !e.fotoPesoBruto).map(e => e.numero);
       if (faltantes.length) {
-        alert(`Falta enlazar la foto del peso bruto en la${faltantes.length > 1 ? "s" : ""} estiba${faltantes.length > 1 ? "s" : ""} #${faltantes.join(", ")}.\n\nUsa el botón "🔗 Enlazar foto" en cada estiba antes de guardar.`);
+        alert(`Falta tomar la foto del peso bruto en la${faltantes.length > 1 ? "s" : ""} estiba${faltantes.length > 1 ? "s" : ""} #${faltantes.join(", ")}.\n\nUsa el botón "📷 Tomar foto" en cada estiba antes de guardar.`);
         return;
       }
     }
@@ -1293,7 +1293,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 {/* Evidencia fotográfica del peso bruto (pesadora) */}
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8, flexWrap:"wrap" }}>
                   <label style={{ ...btnTablaEditar, display:"inline-flex", alignItems:"center", gap:4, cursor: subiendoFotoIdx===idx ? "wait" : "pointer", opacity: subiendoFotoIdx===idx ? 0.6 : 1 }}>
-                    {subiendoFotoIdx===idx ? "Procesando..." : (e.fotoPesoBruto ? "🔗 Cambiar foto" : "🔗 Enlazar foto")}
+                    {subiendoFotoIdx===idx ? "Procesando..." : (e.fotoPesoBruto ? "📷 Repetir foto" : "📷 Tomar foto")}
                     <input type="file" accept="image/*" capture="environment" onChange={ev=>onFotoPesoSeleccionada(idx, ev)} disabled={subiendoFotoIdx===idx} style={{ display:"none" }} />
                   </label>
                   {e.fotoPesoBruto ? (
@@ -1370,8 +1370,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     <td style={{ padding:"6px" }}><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></td>
                     <td style={{ padding:"6px", minWidth:96 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
-                        <label style={{ ...btnTablaEditar, cursor: subiendoFotoIdx===idx ? "wait" : "pointer", opacity: subiendoFotoIdx===idx ? 0.6 : 1, whiteSpace:"nowrap" }} title={e.fotoPesoBruto ? "Cambiar foto" : "Enlazar foto"}>
-                          {subiendoFotoIdx===idx ? "..." : "🔗"}
+                        <label style={{ ...btnTablaEditar, cursor: subiendoFotoIdx===idx ? "wait" : "pointer", opacity: subiendoFotoIdx===idx ? 0.6 : 1, whiteSpace:"nowrap" }} title={e.fotoPesoBruto ? "Repetir foto" : "Tomar foto"}>
+                          {subiendoFotoIdx===idx ? "..." : "📷"}
                           <input type="file" accept="image/*" capture="environment" onChange={ev=>onFotoPesoSeleccionada(idx, ev)} disabled={subiendoFotoIdx===idx} style={{ display:"none" }} />
                         </label>
                         {e.fotoPesoBruto ? (
