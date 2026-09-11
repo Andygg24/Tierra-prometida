@@ -95,6 +95,10 @@ const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
 
+const rolUsuarioSesion = () => {
+  try { return JSON.parse(localStorage.getItem("tp_session"))?.rol || ""; } catch { return ""; }
+};
+
 const TIPOS = [
   { value: "entrada", label: "Entrada de fruta" },
   { value: "salida",  label: "Salida de fruta"  },
@@ -865,9 +869,10 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     }
     const esNueva = !editId;
     // Evidencia obligatoria del peso bruto (foto de la pesadora) — solo para
-    // recepciones nuevas, para no bloquear la edición de recepciones antiguas
-    // que se registraron antes de exigir esta foto.
-    if (esNueva) {
+    // recepciones nuevas (no bloquea la edición de recepciones antiguas que
+    // se registraron antes de exigir esta foto) y solo para el rol Operario;
+    // Supervisor/Administrador/Owner pueden guardar sin ella.
+    if (esNueva && rolUsuarioSesion() === "Operario") {
       const faltantes = form.estibas.filter(e => !e.fotoPesoBruto).map(e => e.numero);
       if (faltantes.length) {
         alert(`Falta tomar la foto del peso bruto en la${faltantes.length > 1 ? "s" : ""} estiba${faltantes.length > 1 ? "s" : ""} #${faltantes.join(", ")}.\n\nUsa el botón "📷 Tomar foto" en cada estiba antes de guardar.`);
