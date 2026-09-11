@@ -622,6 +622,18 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   const mermaTotal = totales.kilosProcesados > 0
     ? (mermaKgTotal / totales.kilosProcesados) * 100 : 0;
 
+  // ── Desglose por calibre (agregado de todos los camiones del contenedor) ──
+  const calibreKgPorNombre = new Map();
+  rendsDelCont.forEach(r => (r.calibres || []).forEach(cal => {
+    const kg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
+    calibreKgPorNombre.set(cal.nombre, (calibreKgPorNombre.get(cal.nombre) || 0) + kg);
+  }));
+  const calibresAgg = [...calibreKgPorNombre.entries()].map(([nombre, kg]) => ({
+    nombre, kg,
+    pctPro: totales.kilosProcesados > 0 ? (kg / totales.kilosProcesados) * 100 : 0,
+    pctEmp: totales.kgEmp > 0 ? (kg / totales.kgEmp) * 100 : 0,
+  }));
+
   const proveedoresCont = parseProveedoresRend(cont?.proveedor);
   // Si el contenedor tiene un solo proveedor, se usa como respaldo cuando el
   // registro de rendimiento de un camión no trae "proveedor" propio (queda
@@ -713,6 +725,24 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   }).join("")}
   </tbody>
 </table>` : "";
+
+  // ── Desglose por calibre ──────────────────────────────────────
+  const calibresSection = calibresAgg.length > 0 ? `
+<h2>📐 Rendimiento por calibre</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:8px;">
+  ${calibresAgg.map(c => {
+    const pc = c.pctPro >= 80 ? "#15803d" : c.pctPro >= 60 ? "#b45309" : "#b91c1c";
+    return `
+  <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 12px;">
+    <div style="font-size:15px;font-weight:800;color:#6d28d9;">${c.nombre}</div>
+    <div style="font-size:10px;color:#94a3b8;margin-bottom:5px;">${c.kg.toLocaleString("es-CO",{maximumFractionDigits:0})} kg</div>
+    <div style="display:flex;gap:14px;">
+      <div><div style="font-size:8px;color:#94a3b8;text-transform:uppercase;">% procesado</div><div style="font-size:13px;font-weight:700;color:${pc};">${c.pctPro.toFixed(1)}%</div></div>
+      <div><div style="font-size:8px;color:#94a3b8;text-transform:uppercase;">% empacado</div><div style="font-size:13px;font-weight:700;color:#6d28d9;">${c.pctEmp.toFixed(1)}%</div></div>
+    </div>
+  </div>`;
+  }).join("")}
+</div>` : "";
 
   // ── Gráfico de barras por camión ─────────────────────────────
   const truckBars = rendsDelCont.map((r, i) => {
@@ -871,6 +901,8 @@ ${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? `
 </div>` : ""}
 
 ${providerSection}
+
+${calibresSection}
 
 <h2>📈 Rendimiento del proceso</h2>
 <div class="chart-wrap">
