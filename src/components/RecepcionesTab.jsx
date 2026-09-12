@@ -149,7 +149,7 @@ function nuevaEstiba(numero) {
     numero,
     pesoBruto: "",
     fotoPesoBruto: "", // evidencia fotográfica del peso mostrado en la pesadora
-    estibaPlastica: "no",
+    estibaPlastica: "si",
     canastillas: [nuevaTipoCanastilla()],
     pesoEstiba: "",
     usada: false, usadaPor: "", usadaEn: "",
@@ -661,6 +661,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [subiendoFotoComparacion, setSubiendoFotoComparacion] = useState(false); // foto(s) del cuaderno del proveedor
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
+  const [limiteHistorial, setLimiteHistorial] = useState("15"); // cuántas recepciones se listan a la vez, para no cargar todo el historial de una — "todas" las muestra completas
   const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
   const [seccion,     setSeccion]     = useState("form"); // "stats" muestra las tarjetas KPI, ocultas por defecto; formulario e historial siempre visibles
   const [tabRec,      setTabRec]      = useState(0); // 0 = Recepciones, 1 = Verificación de Estibas
@@ -866,6 +867,14 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       return true;
     });
   }, [recepciones, filtroDesde, filtroHasta, tipoTab]);
+
+  // Lo que realmente se pinta en la tabla — recorta a las últimas N para no
+  // renderizar todo el historial de una vez. El informe general y los totales
+  // sí usan recepcionesFiltradas completo, sin este recorte.
+  const recepcionesMostradas = useMemo(() => {
+    if (limiteHistorial === "todas") return recepcionesFiltradas;
+    return recepcionesFiltradas.slice(0, Number(limiteHistorial));
+  }, [recepcionesFiltradas, limiteHistorial]);
 
   const verInformeGeneral = async () => {
     const html = await generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta, tipoTab);
@@ -1586,6 +1595,16 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             <div style={lbl}>Hasta</div>
             <input type="date" style={inp} value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} />
           </div>
+          <div style={{ flex: m ? "1 1 100%" : "0 1 150px" }}>
+            <div style={lbl}>Ver últimas</div>
+            <CustomSelect value={limiteHistorial} onChange={e=>setLimiteHistorial(e.target.value)} style={inp}>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="todas">Todas</option>
+            </CustomSelect>
+          </div>
           {(filtroDesde || filtroHasta) && (
             <button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{ ...btnSecundario, padding:"0 14px", height: isLandscape?36:(m?44:32), display:"flex", alignItems:"center", justifyContent:"center" }}>
               ✕ Limpiar
@@ -1602,6 +1621,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
           </div>
         ) : (
           <div style={{ overflowX:"auto" }}>
+            {recepcionesMostradas.length < recepcionesFiltradas.length && (
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>
+                Mostrando {recepcionesMostradas.length} de {recepcionesFiltradas.length} — elige "Ver últimas: Todas" para verlas completas.
+              </div>
+            )}
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
               <thead>
                 <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
@@ -1616,7 +1640,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 </tr>
               </thead>
               <tbody>
-                {recepcionesFiltradas.map(r => (
+                {recepcionesMostradas.map(r => (
                   <tr key={r.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                     <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{r.remision || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.fecha}</td>
