@@ -4,6 +4,7 @@ import CustomSelect from "./CustomSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
+import { useVerificacionesEstibas } from "../hooks/useVerificacionesEstibas.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 import { fechaLocalISO } from "../utils/dates.js";
 
@@ -142,6 +143,20 @@ function pesoNetoEstiba(e) {
 const DIVISOR_KILOS_NETOS = 23;
 function kilosNetosEntre23(pesoNeto) {
   return num(pesoNeto) / DIVISOR_KILOS_NETOS;
+}
+
+// Cuánto de una estiba se usó vs. lo que faltó, en canastillas y en kilos —
+// el kilaje se reparte proporcional (peso neto total ÷ canastillas totales)
+// porque no se guarda el peso exacto de cada canastilla individual.
+function calcularUsoEstiba(estiba, cantidadUsadaVal) {
+  const totalCant = canastillasDeEstiba(estiba).reduce((s, c) => s + num(c.cantidad), 0);
+  const usadas = Math.min(num(cantidadUsadaVal), totalCant);
+  const faltantes = Math.max(totalCant - usadas, 0);
+  const kgTotalEstiba = pesoNetoEstiba(estiba);
+  const kgPorCanastilla = totalCant > 0 ? kgTotalEstiba / totalCant : 0;
+  const kgUsados = kgPorCanastilla * usadas;
+  const kgFaltantes = kgTotalEstiba - kgUsados;
+  return { totalCant, usadas, faltantes, kgUsados, kgFaltantes };
 }
 
 function nuevaEstiba(numero) {
@@ -650,6 +665,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const m = mob || isMobLocal;
 
   const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, guardarAsignacion, eliminarAsignacion } = useRecepciones();
+  const { verificaciones, guardarVerificacion, eliminarVerificacion } = useVerificacionesEstibas();
 
   const [form,       setForm]       = useState(formVacio);
   const [editId,     setEditId]     = useState(null);
@@ -963,6 +979,13 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [marcandoUsada, setMarcandoUsada] = useState(false);
   const [modoCantidadUsada, setModoCantidadUsada] = useState(null); // null | "parcial"
   const [cantidadRealUsada, setCantidadRealUsada] = useState("");
+  const [cantidadUsadaConfirmada, setCantidadUsadaConfirmada] = useState(null); // canastillas usadas de la última marcación, para mostrar el resumen de usado/faltante
+  // Acumulado de toda la sesión de verificación (escaneando o marcando manual
+  // varias estibas seguidas) — se reinicia a mano con el botón del resumen.
+  const [resumenVerificacion, setResumenVerificacion] = useState({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+  const [notaVerificacion, setNotaVerificacion]     = useState(""); // ej. contenedor o comentario de la sesión
+  const [editandoVerifId, setEditandoVerifId]       = useState(null); // id de la verificación guardada que se está editando
+  const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
   const html5QrRef    = useRef(null);
   const procesandoRef = useRef(false);
   const ignoradoRef   = useRef(null);
@@ -1048,17 +1071,125 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     const ok = await actualizarEstibas(recepcion.id, nuevasEstibas);
     setMarcandoUsada(false);
     if (ok) {
+      const totalCant = canastillasDeEstiba(estiba).reduce((s, c) => s + num(c.cantidad), 0);
+      const cantidadFinal = cantidadRealUsadaVal != null ? cantidadRealUsadaVal : totalCant;
+      setCantidadUsadaConfirmada(cantidadFinal);
+      const uso = calcularUsoEstiba(estiba, cantidadFinal);
+      setResumenVerificacion(r => ({
+        estibas: r.estibas + 1,
+        canastillasUsadas: r.canastillasUsadas + uso.usadas,
+        canastillasFaltantes: r.canastillasFaltantes + uso.faltantes,
+        kgUsados: r.kgUsados + uso.kgUsados,
+        kgFaltantes: r.kgFaltantes + uso.kgFaltantes,
+      }));
       setResultadoEstiba({ estado: "ok", recepcion: { ...recepcion, estibas: nuevasEstibas }, estiba: nuevasEstibas.find(e => e.numero === estiba.numero) });
       setModoCantidadUsada(null);
       setCantidadRealUsada("");
     }
   };
 
+  const reiniciarResumenVerificacion = () => {
+    if (!window.confirm("¿Reiniciar el resumen acumulado de esta sesión de verificación?")) return;
+    setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+    setNotaVerificacion("");
+    setEditandoVerifId(null);
+  };
+
+  const guardarResumenVerificacion = async () => {
+    setGuardandoVerificacion(true);
+    const form = {
+      fecha: fechaLocalISO(),
+      nota: notaVerificacion,
+      estibasMarcadas: resumenVerificacion.estibas,
+      canastillasUsadas: resumenVerificacion.canastillasUsadas,
+      canastillasFaltantes: resumenVerificacion.canastillasFaltantes,
+      kgUsados: resumenVerificacion.kgUsados,
+      kgFaltantes: resumenVerificacion.kgFaltantes,
+      registradoPor: nombreUsuarioSesion(),
+    };
+    const { ok } = await guardarVerificacion(form, editandoVerifId);
+    setGuardandoVerificacion(false);
+    if (ok) {
+      setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+      setNotaVerificacion("");
+      setEditandoVerifId(null);
+    } else {
+      alert("No se pudo guardar la verificación. Revisa tu conexión e intenta de nuevo.");
+    }
+  };
+
+  const editarVerificacionGuardada = (v) => {
+    setResumenVerificacion({
+      estibas: v.estibasMarcadas, canastillasUsadas: v.canastillasUsadas, canastillasFaltantes: v.canastillasFaltantes,
+      kgUsados: v.kgUsados, kgFaltantes: v.kgFaltantes,
+    });
+    setNotaVerificacion(v.nota);
+    setEditandoVerifId(v.id);
+    if (typeof window !== "undefined") window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  };
+
+  const eliminarVerificacionGuardada = (v) => {
+    if (!window.confirm(`¿Eliminar esta verificación guardada (${v.fecha}${v.nota ? ` — ${v.nota}` : ""})? Esta acción no se puede deshacer.`)) return;
+    eliminarVerificacion(v.id);
+    if (editandoVerifId === v.id) reiniciarResumenVerificacion();
+  };
+
+  const [subVistaVerif, setSubVistaVerif]   = useState("escanear"); // "escanear" | "manual" | "revision" — dentro de Verificación de Estibas
+  const [busquedaManualVerif, setBusquedaManualVerif] = useState("");
+  const [contenedorManualId, setContenedorManualId]   = useState(""); // contenedor elegido antes de listar sus estibas pendientes
+
   const escanearOtraEstiba = () => {
     setResultadoEstiba(null);
     setModoCantidadUsada(null);
     setCantidadRealUsada("");
+    setCantidadUsadaConfirmada(null);
     iniciarCamaraEstiba();
+  };
+
+  // Volver desde la tarjeta de resultado a donde corresponda según el modo:
+  // reinicia la cámara si se venía escaneando, o simplemente vuelve a la
+  // lista si se venía marcando manual.
+  const volverDesdeResultadoEstiba = () => {
+    setResultadoEstiba(null);
+    setModoCantidadUsada(null);
+    setCantidadRealUsada("");
+    setCantidadUsadaConfirmada(null);
+    if (subVistaVerif === "escanear") iniciarCamaraEstiba();
+  };
+
+  // ── Marcado manual — mismo resultado que escanear el QR, pero primero se
+  // elige el contenedor y de ahí salen solo las estibas asignadas a él que
+  // todavía no se marcaron como usadas (para cuando no se tiene o no sirve
+  // la tirilla física).
+  const estibasPendientesManual = useMemo(() => {
+    if (!contenedorManualId) return [];
+    const match = contenedorManualId === "reserva"
+      ? (a) => a.contenedorId == null
+      : (a) => a.contenedorId === Number(contenedorManualId);
+    const vistas = new Set();
+    const lista = [];
+    asignaciones.filter(match).forEach(a => {
+      const recepcion = recepciones.find(r => r.id === a.recepcionId);
+      const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba);
+      if (!recepcion || !estiba || estiba.usada) return;
+      const clave = `${recepcion.id}-${estiba.numero}`;
+      if (vistas.has(clave)) return; // por si quedó más de una asignación de la misma estiba a este contenedor
+      vistas.add(clave);
+      lista.push({ recepcion, estiba });
+    });
+    lista.sort((a, b) => (a.recepcion.fecha || "").localeCompare(b.recepcion.fecha || "") || a.estiba.numero - b.estiba.numero);
+    const q = busquedaManualVerif.trim().toLowerCase();
+    if (!q) return lista;
+    return lista.filter(({ recepcion }) =>
+      (recepcion.remision || "").toLowerCase().includes(q) ||
+      (recepcion.proveedor || "").toLowerCase().includes(q) ||
+      (recepcion.placa || "").toLowerCase().includes(q)
+    );
+  }, [recepciones, asignaciones, contenedorManualId, busquedaManualVerif]);
+
+  const seleccionarEstibaManual = (recepcion, estiba) => {
+    setCantidadUsadaConfirmada(null);
+    setResultadoEstiba({ estado: "ok", recepcion, estiba });
   };
 
   // ══════════════ ASOCIAR CONTENEDOR (remisión completa → contenedor) ══════════════
@@ -1066,14 +1197,12 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   // con su cantidad total de canastillas. Si al validar el uso (Verificación
   // de Estibas) resulta que no se usó todo, ahí se ajusta y aparece el
   // sobrante para reasignar a otro contenedor o dejar en reserva.
-  const [subVistaVerif, setSubVistaVerif]   = useState("escanear"); // "escanear" | "revision" — dentro de Verificación de Estibas
   const [busquedaAsoc, setBusquedaAsoc]     = useState("");
   const [filtroDesdeAsoc, setFiltroDesdeAsoc] = useState("");
   const [filtroHastaAsoc, setFiltroHastaAsoc] = useState("");
   const [seleccionAsoc, setSeleccionAsoc]   = useState([]); // ids de recepciones elegidas
   const [contenedorAsocSel, setContenedorAsocSel] = useState("");
   const [guardandoAsociacion, setGuardandoAsociacion] = useState(false);
-  const [contenedorRevisionId, setContenedorRevisionId] = useState("");
 
   const asignacionesPorEstiba = (recepcionId, numeroEstiba) =>
     asignaciones.filter(a => a.recepcionId === recepcionId && a.numeroEstiba === numeroEstiba);
@@ -1143,25 +1272,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setSeleccionAsoc([]);
   };
 
-  const asignacionesDelContenedor = useMemo(() => {
-    if (!contenedorRevisionId) return [];
-    const match = contenedorRevisionId === "reserva"
-      ? (a) => a.contenedorId == null
-      : (a) => a.contenedorId === Number(contenedorRevisionId);
-    return asignaciones
-      .filter(match)
-      .map(a => {
-        const recepcion = recepciones.find(r => r.id === a.recepcionId) || null;
-        const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba) || null;
-        return { ...a, recepcion, estiba };
-      })
-      .sort((a, b) => (a.recepcion?.fecha || "").localeCompare(b.recepcion?.fecha || ""));
-  }, [asignaciones, recepciones, contenedorRevisionId]);
-
-  const totalCanastillasContenedor = useMemo(
-    () => asignacionesDelContenedor.reduce((s, a) => s + (Number(a.cantidadCanastillas) || 0), 0),
-    [asignacionesDelContenedor]
-  );
 
   // ── Excedente al validar uso (Verificación de Estibas) ──────────────────
   // Al confirmar que una estiba se usó, si no todas sus canastillas quedaron
@@ -1670,8 +1780,12 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       {tabRec === 2 && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {[["escanear","📷 Escanear"],["revision","📊 Revisión por Contenedor"]].map(([id,label]) => (
-              <button key={id} onClick={()=>setSubVistaVerif(id)} style={{
+            {[["escanear","📷 Escanear"],["manual","☑️ Marcar manual"]].map(([id,label]) => (
+              <button key={id} onClick={()=>{
+                if (id !== "escanear" && camActiva) detenerCamaraEstiba();
+                setResultadoEstiba(null); setModoCantidadUsada(null); setCantidadRealUsada("");
+                setSubVistaVerif(id);
+              }} style={{
                 background: subVistaVerif===id ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${subVistaVerif===id ? "#00C9A790" : "rgba(255,255,255,0.1)"}`,
                 borderRadius:8, padding:"7px 14px", cursor:"pointer",
@@ -1681,74 +1795,15 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             ))}
           </div>
 
-          {subVistaVerif === "revision" && (
-            <div style={cardS}>
-              <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:10 }}>📊 Revisión de Canastillas por Contenedor</div>
-              <div style={{ marginBottom:14, maxWidth:320 }}>
-                <div style={lbl}>Contenedor</div>
-                <CustomSelect value={contenedorRevisionId} onChange={e=>setContenedorRevisionId(e.target.value)} style={inp}>
-                  <option value="">Selecciona un contenedor...</option>
-                  <option value="reserva">🗄 Reserva (sin contenedor)</option>
-                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
-                </CustomSelect>
-              </div>
-
-              {!contenedorRevisionId ? (
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Elige un contenedor para ver sus asignaciones y cuáles ya se validaron como usadas.</div>
-              ) : asignacionesDelContenedor.length === 0 ? (
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Todavía no hay canastillas asignadas a este contenedor.</div>
-              ) : (
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                    <thead>
-                      <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
-                        <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
-                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estiba</th>
-                        <th style={{ padding:"6px" }}>Canastillas</th><th style={{ padding:"6px" }}>Usada</th>
-                        <th style={{ padding:"6px" }}>Registrado por</th>
-                        <th style={{ padding:"6px" }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {asignacionesDelContenedor.map(a => (
-                        <tr key={a.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                          <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{a.recepcion?.remision || "—"}</td>
-                          <td style={{ padding:"6px" }}>{a.recepcion?.fecha || "—"}</td>
-                          <td style={{ padding:"6px" }}>{a.recepcion?.proveedor || "—"}</td>
-                          <td style={{ padding:"6px" }}>#{a.numeroEstiba}</td>
-                          <td style={{ padding:"6px", fontWeight:700, color:"#00C9A7" }}>{a.cantidadCanastillas}</td>
-                          <td style={{ padding:"6px" }}>
-                            <span style={{ padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:700, background: a.estiba?.usada ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.06)", color: a.estiba?.usada ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>
-                              {a.estiba?.usada ? "✓ Usada" : "Pendiente"}
-                            </span>
-                          </td>
-                          <td style={{ padding:"6px" }}>{a.registradoPor || "—"}</td>
-                          <td style={{ padding:"6px" }}>
-                            <button onClick={()=>eliminarAsignacion(a.id)} style={btnTablaEliminar}>✕</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ borderTop:"2px solid rgba(255,255,255,0.12)" }}>
-                        <td colSpan={4} style={{ padding:"8px 6px", fontWeight:700, color:"rgba(255,255,255,0.6)" }}>Total canastillas</td>
-                        <td style={{ padding:"8px 6px", fontWeight:800, color:"#00C9A7" }}>{totalCanastillasContenedor}</td>
-                        <td colSpan={3}></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {subVistaVerif === "escanear" && (
+          {(subVistaVerif === "escanear" || subVistaVerif === "manual") && (
         <div style={{ maxWidth:460, margin:"0 auto" }}>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:16, lineHeight:1.5 }}>
-            🧱 Escanea el QR de la tirilla de una estiba (la que quitaste al usarla) para marcarla como usada.
+            {subVistaVerif === "escanear"
+              ? "🧱 Escanea el QR de la tirilla de una estiba (la que quitaste al usarla) para marcarla como usada."
+              : "☑️ Elige el contenedor y marca de su lista la estiba que quieres dar por usada — para cuando no tienes o no sirve la tirilla física."}
           </div>
 
-          {!resultadoEstiba && (
+          {!resultadoEstiba && subVistaVerif === "escanear" && (
             <div style={cardS}>
               {!camActiva && (
                 <button onClick={iniciarCamaraEstiba} style={{ ...btnPrimario(false,false), width:"100%", padding: m ? "14px" : "10px", fontSize: m ? 14 : 12 }}>
@@ -1766,6 +1821,54 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 </div>
               )}
               <div id={READER_ID_ESTIBA} style={{ marginTop:10, borderRadius:10, overflow:"hidden", background: camActiva ? "black" : "transparent" }} />
+            </div>
+          )}
+
+          {!resultadoEstiba && subVistaVerif === "manual" && (
+            <div style={cardS}>
+              <div style={{ marginBottom:12 }}>
+                <div style={lbl}>Contenedor</div>
+                <CustomSelect value={contenedorManualId} onChange={e=>setContenedorManualId(e.target.value)} style={inp}>
+                  <option value="">Selecciona un contenedor...</option>
+                  <option value="reserva">🗄 Reserva (sin contenedor)</option>
+                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                </CustomSelect>
+              </div>
+
+              {!contenedorManualId ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Elige un contenedor para ver sus estibas asignadas que faltan por marcar como usadas.</div>
+              ) : (
+                <>
+              <input
+                value={busquedaManualVerif} onChange={e=>setBusquedaManualVerif(e.target.value)}
+                placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, marginBottom:10 }}
+              />
+              {estibasPendientesManual.length === 0 ? (
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", textAlign:"center", padding:"12px 0" }}>
+                  {busquedaManualVerif.trim() ? "Ninguna estiba pendiente coincide con la búsqueda." : "Este contenedor no tiene estibas pendientes por usar. 👌"}
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:420, overflowY:"auto" }}>
+                  {estibasPendientesManual.map(({ recepcion, estiba }) => (
+                    <button key={`${recepcion.id}-${estiba.numero}`} onClick={()=>seleccionarEstibaManual(recepcion, estiba)} style={{
+                      display:"flex", alignItems:"center", gap:10, textAlign:"left", background:"rgba(255,255,255,0.04)",
+                      border:"1px solid rgba(255,255,255,0.1)", borderRadius:9, padding:"9px 12px", cursor:"pointer", fontFamily:"inherit",
+                    }}>
+                      <span style={{ fontSize:18, flexShrink:0, color:"rgba(255,255,255,0.35)" }}>☐</span>
+                      <span style={{ flex:1, minWidth:0 }}>
+                        <span style={{ display:"block", fontSize:12, fontWeight:700, color:"white" }}>
+                          Estiba #{estiba.numero} — {recepcion.remision || "Sin remisión"}
+                        </span>
+                        <span style={{ display:"block", fontSize:10.5, color:"rgba(255,255,255,0.45)" }}>
+                          {recepcion.fecha} · {recepcion.proveedor || "—"} · {kg(pesoNetoEstiba(estiba))} kg neto
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+                </>
+              )}
             </div>
           )}
 
@@ -1811,6 +1914,25 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                         {estiba.usadaPor ? `Por ${estiba.usadaPor} · ` : ""}{estiba.usadaEn ? new Date(estiba.usadaEn).toLocaleString("es-CO",{dateStyle:"short",timeStyle:"short"}) : ""}
                       </div>
                     </div>
+
+                    {/* Resumen de esta marcación — solo aparece justo después de marcar
+                        (en esta misma sesión), con lo usado y lo que faltó en kilos y canastillas */}
+                    {cantidadUsadaConfirmada != null && (() => {
+                      const { usadas, faltantes, kgUsados, kgFaltantes } = calcularUsoEstiba(estiba, cantidadUsadaConfirmada);
+                      const colorFaltante = faltantes > 0 ? "#F9A826" : "rgba(255,255,255,0.5)";
+                      return (
+                        <div style={{ background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:9, padding:"10px 12px", marginBottom:10 }}>
+                          <div style={{ fontSize:10, fontWeight:700, color:"#a5b4fc", textTransform:"uppercase", letterSpacing:0.4, marginBottom:8 }}>📊 Resumen de esta marcación</div>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                            <div><div style={lbl}>Canastillas usadas</div><div style={{ fontSize:14, fontWeight:800, color:"#00C9A7" }}>{usadas}</div></div>
+                            <div><div style={lbl}>Canastillas faltantes</div><div style={{ fontSize:14, fontWeight:800, color:colorFaltante }}>{faltantes}</div></div>
+                            <div><div style={lbl}>Kilos usados</div><div style={{ fontSize:14, fontWeight:800, color:"#00C9A7" }}>{kg(kgUsados)} kg</div></div>
+                            <div><div style={lbl}>Kilos faltantes</div><div style={{ fontSize:14, fontWeight:800, color:colorFaltante }}>{kg(kgFaltantes)} kg</div></div>
+                            <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Canastillas en kilos</div><div style={{ fontSize:14, fontWeight:800, color:"#a78bfa" }}>{kg(kilosNetosEntre23(kgUsados))}</div></div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {(() => {
                       const totalCant    = canastillasDeEstiba(estiba).reduce((s,c)=>s+num(c.cantidad),0);
@@ -1893,13 +2015,92 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   </div>
                 )}
 
-                <button onClick={escanearOtraEstiba} style={{ ...btnSecundario, width:"100%" }}>🔄 Escanear otra estiba</button>
+                <button onClick={volverDesdeResultadoEstiba} style={{ ...btnSecundario, width:"100%" }}>
+                  {subVistaVerif === "manual" ? "← Volver a la lista" : "🔄 Escanear otra estiba"}
+                </button>
               </div>
             );
           })()}
         </div>
           )}
-        </div>
+
+        {/* ── Resumen acumulado de la sesión — va creciendo con cada estiba
+            que se marca (por escáner o manual), hasta que se reinicia a mano.
+            Los valores se pueden ajustar a mano antes de guardar. ── */}
+        {resumenVerificacion.estibas > 0 && (
+          <div style={{ ...cardS, border:"1px solid rgba(0,201,167,0.3)", background:"rgba(0,201,167,0.05)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+              <div style={{ fontSize:12, fontWeight:800, color:"#00C9A7" }}>
+                {editandoVerifId ? "✏️ Editando verificación guardada" : "📊 Resumen acumulado"} — {resumenVerificacion.estibas} estiba{resumenVerificacion.estibas > 1 ? "s" : ""} marcada{resumenVerificacion.estibas > 1 ? "s" : ""}
+              </div>
+              <button onClick={reiniciarResumenVerificacion} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:10.5, textDecoration:"underline", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
+                {editandoVerifId ? "✕ Cancelar edición" : "🔄 Reiniciar resumen"}
+              </button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:8, marginBottom:10 }}>
+              <div><div style={lbl}>Canastillas usadas</div><input type="number" min="0" style={inp} value={resumenVerificacion.canastillasUsadas} onChange={e=>setResumenVerificacion(r=>({...r, canastillasUsadas:Number(e.target.value)||0}))} /></div>
+              <div><div style={lbl}>Canastillas faltantes</div><input type="number" min="0" style={inp} value={resumenVerificacion.canastillasFaltantes} onChange={e=>setResumenVerificacion(r=>({...r, canastillasFaltantes:Number(e.target.value)||0}))} /></div>
+              <div><div style={lbl}>Kilos usados</div><input type="number" min="0" style={inp} value={resumenVerificacion.kgUsados} onChange={e=>setResumenVerificacion(r=>({...r, kgUsados:Number(e.target.value)||0}))} /></div>
+              <div><div style={lbl}>Kilos faltantes</div><input type="number" min="0" style={inp} value={resumenVerificacion.kgFaltantes} onChange={e=>setResumenVerificacion(r=>({...r, kgFaltantes:Number(e.target.value)||0}))} /></div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={lbl}>Canastillas en kilos <span style={{ color:"rgba(255,255,255,0.32)", fontWeight:400 }}>(calculado — kilos usados ÷ 23)</span></div>
+              <div style={{ ...inp, background:"rgba(132,94,247,0.08)", color:"#a78bfa", fontWeight:700, display:"flex", alignItems:"center" }}>{kg(kilosNetosEntre23(resumenVerificacion.kgUsados))}</div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={lbl}>Nota <span style={{ color:"rgba(255,255,255,0.32)", fontWeight:400 }}>(opcional — ej. contenedor o comentario)</span></div>
+              <input value={notaVerificacion} onChange={e=>setNotaVerificacion(e.target.value)} placeholder="Ej: MSKU1234567" style={inp} />
+            </div>
+            <button onClick={guardarResumenVerificacion} disabled={guardandoVerificacion} style={{ ...btnPrimario(false, guardandoVerificacion), width:"100%" }}>
+              {guardandoVerificacion ? "Guardando..." : editandoVerifId ? "💾 Guardar cambios" : "💾 Guardar verificación"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Historial de verificaciones guardadas ── */}
+        {verificaciones.length > 0 && (
+          <div style={cardS}>
+            <div style={{ fontSize:12, fontWeight:700, color:"white", marginBottom:10 }}>📋 Historial de verificaciones</div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11.5 }}>
+                <thead>
+                  <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                    <th style={{ padding:"6px" }}>Fecha</th>
+                    <th style={{ padding:"6px" }}>Nota</th>
+                    <th style={{ padding:"6px" }}>Estibas</th>
+                    <th style={{ padding:"6px" }}>Canast. usadas</th>
+                    <th style={{ padding:"6px" }}>Canast. faltantes</th>
+                    <th style={{ padding:"6px" }}>Kg usados</th>
+                    <th style={{ padding:"6px" }}>Kg faltantes</th>
+                    <th style={{ padding:"6px" }}>Canast. en kilos</th>
+                    <th style={{ padding:"6px" }}>Registrado por</th>
+                    <th style={{ padding:"6px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {verificaciones.map(v => (
+                    <tr key={v.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                      <td style={{ padding:"6px", whiteSpace:"nowrap" }}>{v.fecha}</td>
+                      <td style={{ padding:"6px", color:"white" }}>{v.nota || "—"}</td>
+                      <td style={{ padding:"6px", textAlign:"center" }}>{v.estibasMarcadas}</td>
+                      <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{v.canastillasUsadas}</td>
+                      <td style={{ padding:"6px", color: v.canastillasFaltantes>0 ? "#F9A826" : "rgba(255,255,255,0.5)", fontWeight:700 }}>{v.canastillasFaltantes}</td>
+                      <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{kg(v.kgUsados)}</td>
+                      <td style={{ padding:"6px", color: v.kgFaltantes>0 ? "#F9A826" : "rgba(255,255,255,0.5)", fontWeight:700 }}>{kg(v.kgFaltantes)}</td>
+                      <td style={{ padding:"6px", color:"#a78bfa", fontWeight:700 }}>{kg(kilosNetosEntre23(v.kgUsados))}</td>
+                      <td style={{ padding:"6px" }}>{v.registradoPor || "—"}</td>
+                      <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
+                        <button onClick={()=>editarVerificacionGuardada(v)} style={btnTablaEditar}>Editar</button>
+                        <button onClick={()=>eliminarVerificacionGuardada(v)} style={btnTablaEliminar}>Eliminar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
       )}
 
       {/* ═══ TAB 1 — ASOCIAR CONTENEDOR ═══ */}
