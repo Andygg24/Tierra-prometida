@@ -10,6 +10,7 @@ const rowToVerificacion = (r) => ({
   canastillasFaltantes: Number(r.canastillas_faltantes || 0),
   kgUsados:            Number(r.kg_usados || 0),
   kgFaltantes:         Number(r.kg_faltantes || 0),
+  detalle:             Array.isArray(r.detalle) ? r.detalle : [], // [{recepcionId, numeroEstiba}] — para poder revertir el "usada" si se elimina
   registradoPor:       r.registrado_por || "",
   createdAt:           r.created_at || "",
 });
@@ -51,6 +52,7 @@ export function useVerificacionesEstibas() {
       canastillas_faltantes: Number(form.canastillasFaltantes) || 0,
       kg_usados:             Number(form.kgUsados) || 0,
       kg_faltantes:          Number(form.kgFaltantes) || 0,
+      detalle:               Array.isArray(form.detalle) ? form.detalle : [],
       registrado_por:        form.registradoPor || null,
       updated_at:            new Date().toISOString(),
     };

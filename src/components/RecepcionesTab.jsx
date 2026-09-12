@@ -848,6 +848,27 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setDesmarcandoUsada(null);
   };
 
+  // Versión general (no depende de tener la recepción abierta en el
+  // formulario) — desmarca "usada" en varias estibas de golpe, agrupadas por
+  // recepción. Se usa cuando se deshace algo que dependía de ese uso: quitar
+  // una asociación a contenedor, borrar una reserva, o eliminar una
+  // verificación guardada.
+  const desmarcarEstibasPorPares = async (pares) => {
+    const porRecepcion = new Map();
+    (pares || []).forEach(({ recepcionId, numeroEstiba }) => {
+      if (recepcionId == null || numeroEstiba == null) return;
+      if (!porRecepcion.has(recepcionId)) porRecepcion.set(recepcionId, new Set());
+      porRecepcion.get(recepcionId).add(numeroEstiba);
+    });
+    for (const [recepcionId, numeros] of porRecepcion) {
+      const recepcion = recepciones.find(r => r.id === recepcionId);
+      if (!recepcion) continue;
+      if (!recepcion.estibas.some(e => numeros.has(e.numero) && e.usada)) continue;
+      const nuevasEstibas = recepcion.estibas.map(e => numeros.has(e.numero) ? { ...e, usada: false, usadaPor: "", usadaEn: "" } : e);
+      await actualizarEstibas(recepcionId, nuevasEstibas);
+    }
+  };
+
   const cancelarEdicion = () => { setForm(formVacio()); setEditId(null); };
 
   const editarRecepcion = (r) => {
@@ -983,6 +1004,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   // Acumulado de toda la sesión de verificación (escaneando o marcando manual
   // varias estibas seguidas) — se reinicia a mano con el botón del resumen.
   const [resumenVerificacion, setResumenVerificacion] = useState({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+  const [detalleVerificacion, setDetalleVerificacion] = useState([]); // [{recepcionId, numeroEstiba}] marcadas en esta sesión — para poder revertir "usada" si se elimina la verificación guardada
   const [notaVerificacion, setNotaVerificacion]     = useState(""); // ej. contenedor o comentario de la sesión
   const [editandoVerifId, setEditandoVerifId]       = useState(null); // id de la verificación guardada que se está editando
   const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
@@ -1083,6 +1105,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
         kgUsados: r.kgUsados + uso.kgUsados,
         kgFaltantes: r.kgFaltantes + uso.kgFaltantes,
       }));
+      setDetalleVerificacion(d => [...d, { recepcionId: recepcion.id, numeroEstiba: estiba.numero }]);
       setResultadoEstiba({ estado: "ok", recepcion: { ...recepcion, estibas: nuevasEstibas }, estiba: nuevasEstibas.find(e => e.numero === estiba.numero) });
       setModoCantidadUsada(null);
       setCantidadRealUsada("");
@@ -1092,6 +1115,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const reiniciarResumenVerificacion = () => {
     if (!window.confirm("¿Reiniciar el resumen acumulado de esta sesión de verificación?")) return;
     setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+    setDetalleVerificacion([]);
     setNotaVerificacion("");
     setEditandoVerifId(null);
     setMostrarEdicionResumen(false);
@@ -1107,12 +1131,14 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       canastillasFaltantes: resumenVerificacion.canastillasFaltantes,
       kgUsados: resumenVerificacion.kgUsados,
       kgFaltantes: resumenVerificacion.kgFaltantes,
+      detalle: detalleVerificacion,
       registradoPor: nombreUsuarioSesion(),
     };
     const { ok } = await guardarVerificacion(form, editandoVerifId);
     setGuardandoVerificacion(false);
     if (ok) {
       setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+      setDetalleVerificacion([]);
       setNotaVerificacion("");
       setEditandoVerifId(null);
       setMostrarEdicionResumen(false);
@@ -1126,14 +1152,19 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       estibas: v.estibasMarcadas, canastillasUsadas: v.canastillasUsadas, canastillasFaltantes: v.canastillasFaltantes,
       kgUsados: v.kgUsados, kgFaltantes: v.kgFaltantes,
     });
+    setDetalleVerificacion(v.detalle || []);
     setNotaVerificacion(v.nota);
     setEditandoVerifId(v.id);
     setMostrarEdicionResumen(true);
     if (typeof window !== "undefined") window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   };
 
-  const eliminarVerificacionGuardada = (v) => {
-    if (!window.confirm(`¿Eliminar esta verificación guardada (${v.fecha}${v.nota ? ` — ${v.nota}` : ""})? Esta acción no se puede deshacer.`)) return;
+  // Al eliminar una verificación guardada, se revierte el "usada" de las
+  // estibas que se marcaron en esa sesión — así vuelven a quedar disponibles
+  // en vez de quedar marcadas usadas sin ningún registro que lo respalde.
+  const eliminarVerificacionGuardada = async (v) => {
+    if (!window.confirm(`¿Eliminar esta verificación guardada (${v.fecha}${v.nota ? ` — ${v.nota}` : ""})? Las estibas que se marcaron en esa sesión volverán a quedar disponibles. Esta acción no se puede deshacer.`)) return;
+    await desmarcarEstibasPorPares(v.detalle || []);
     eliminarVerificacion(v.id);
     if (editandoVerifId === v.id) reiniciarResumenVerificacion();
   };
@@ -1267,6 +1298,14 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setContenedorReasignarSel("");
   };
 
+  // Al eliminar una reserva sin asignarla a ningún contenedor, también se
+  // desmarca esa estiba como usada (ya no queda ninguna asignación real que
+  // la respalde).
+  const eliminarReservaYDesmarcar = async (asignacion) => {
+    await eliminarAsignacion(asignacion.id);
+    await desmarcarEstibasPorPares([{ recepcionId: asignacion.recepcionId, numeroEstiba: asignacion.numeroEstiba }]);
+  };
+
   const recepcionesAsocFiltradas = useMemo(() => {
     const q = busquedaAsoc.trim().toLowerCase();
     return recepciones.filter(r => {
@@ -1317,15 +1356,18 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
 
   // Quita todas las asignaciones (a cualquier contenedor, o en reserva) de
   // las remisiones seleccionadas — para deshacer asociaciones de prueba o
-  // corregir un error, sin tener que borrar fila por fila en Revisión.
+  // corregir un error, sin tener que borrar fila por fila en Revisión. También
+  // revierte el "usada" de esas estibas, para que no queden marcadas usadas
+  // sin ninguna asignación real detrás.
   const desasociarRemisionesSeleccionadas = async () => {
     if (seleccionAsoc.length === 0) return;
-    if (!window.confirm(`¿Quitar toda la asociación a contenedor de ${seleccionAsoc.length} remisión(es) seleccionada(s)? Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(`¿Quitar toda la asociación a contenedor de ${seleccionAsoc.length} remisión(es) seleccionada(s)? Las estibas afectadas que ya estaban marcadas usadas volverán a quedar disponibles. Esta acción no se puede deshacer.`)) return;
     setGuardandoAsociacion(true);
-    const idsAEliminar = asignaciones.filter(a => seleccionAsoc.includes(a.recepcionId)).map(a => a.id);
-    for (const id of idsAEliminar) {
-      await eliminarAsignacion(id);
+    const aEliminar = asignaciones.filter(a => seleccionAsoc.includes(a.recepcionId));
+    for (const a of aEliminar) {
+      await eliminarAsignacion(a.id);
     }
+    await desmarcarEstibasPorPares(aEliminar.map(a => ({ recepcionId: a.recepcionId, numeroEstiba: a.numeroEstiba })));
     setGuardandoAsociacion(false);
     setSeleccionAsoc([]);
   };
@@ -2364,7 +2406,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                             ) : (
                               <>
                                 <button onClick={()=>setReasignandoId(a.id)} style={btnTablaEditar}>Asignar a contenedor</button>
-                                <button onClick={()=>eliminarAsignacion(a.id)} style={btnTablaEliminar}>✕</button>
+                                <button onClick={()=>eliminarReservaYDesmarcar(a)} style={btnTablaEliminar} title="Elimina la reserva y desmarca la estiba como usada">✕</button>
                               </>
                             )}
                           </td>
