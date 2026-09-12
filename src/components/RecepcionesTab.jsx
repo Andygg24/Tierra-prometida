@@ -986,6 +986,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [notaVerificacion, setNotaVerificacion]     = useState(""); // ej. contenedor o comentario de la sesión
   const [editandoVerifId, setEditandoVerifId]       = useState(null); // id de la verificación guardada que se está editando
   const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
+  const [mostrarEdicionResumen, setMostrarEdicionResumen] = useState(false); // los valores del resumen solo se vuelven editables si el usuario lo pide
   const html5QrRef    = useRef(null);
   const procesandoRef = useRef(false);
   const ignoradoRef   = useRef(null);
@@ -1093,6 +1094,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
     setNotaVerificacion("");
     setEditandoVerifId(null);
+    setMostrarEdicionResumen(false);
   };
 
   const guardarResumenVerificacion = async () => {
@@ -1113,6 +1115,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
       setNotaVerificacion("");
       setEditandoVerifId(null);
+      setMostrarEdicionResumen(false);
     } else {
       alert("No se pudo guardar la verificación. Revisa tu conexión e intenta de nuevo.");
     }
@@ -1125,6 +1128,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     });
     setNotaVerificacion(v.nota);
     setEditandoVerifId(v.id);
+    setMostrarEdicionResumen(true);
     if (typeof window !== "undefined") window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   };
 
@@ -1137,6 +1141,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [subVistaVerif, setSubVistaVerif]   = useState("escanear"); // "escanear" | "manual" | "revision" — dentro de Verificación de Estibas
   const [busquedaManualVerif, setBusquedaManualVerif] = useState("");
   const [contenedorManualId, setContenedorManualId]   = useState(""); // contenedor elegido antes de listar sus estibas pendientes
+  const [vistaManualContenedor, setVistaManualContenedor] = useState("marcar"); // "marcar" | "resumen" — evita mostrar todo junto y saturar
 
   const escanearOtraEstiba = () => {
     setResultadoEstiba(null);
@@ -1192,6 +1197,27 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setResultadoEstiba({ estado: "ok", recepcion, estiba });
   };
 
+  // Información agregada del contenedor elegido en "Marcar manual" — todas
+  // sus asignaciones (usadas y pendientes), con el detalle de qué recepción
+  // aportó cada una, y los totales de kilos/canastillas.
+  const infoContenedorManual = useMemo(() => {
+    if (!contenedorManualId) return null;
+    const match = contenedorManualId === "reserva"
+      ? (a) => a.contenedorId == null
+      : (a) => a.contenedorId === Number(contenedorManualId);
+    const filas = asignaciones.filter(match).map(a => {
+      const recepcion = recepciones.find(r => r.id === a.recepcionId) || null;
+      const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba) || null;
+      const uso = estiba ? calcularUsoEstiba(estiba, a.cantidadCanastillas) : null;
+      return { ...a, recepcion, estiba, kgAsignados: uso ? uso.kgUsados : 0 };
+    }).sort((a, b) => (a.recepcion?.fecha || "").localeCompare(b.recepcion?.fecha || ""));
+    const totalCanastillas = filas.reduce((s, f) => s + (Number(f.cantidadCanastillas) || 0), 0);
+    const totalKg = filas.reduce((s, f) => s + f.kgAsignados, 0);
+    const booking = contenedorManualId === "reserva" ? null : bookingsLog.find(b => b.id === Number(contenedorManualId));
+    const fechaContenedor = booking ? (booking.fechaAsignacion || booking.createdAt || "") : "";
+    return { filas, totalCanastillas, totalKg, fechaContenedor, booking };
+  }, [asignaciones, recepciones, contenedorManualId, bookingsLog]);
+
   // ══════════════ ASOCIAR CONTENEDOR (remisión completa → contenedor) ══════════════
   // Se asocia la remisión completa: cada estiba queda asignada al contenedor
   // con su cantidad total de canastillas. Si al validar el uso (Verificación
@@ -1208,6 +1234,38 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     asignaciones.filter(a => a.recepcionId === recepcionId && a.numeroEstiba === numeroEstiba);
   const cantidadAsignadaEstiba = (recepcionId, numeroEstiba) =>
     asignacionesPorEstiba(recepcionId, numeroEstiba).reduce((s, a) => s + (Number(a.cantidadCanastillas) || 0), 0);
+
+  // Canastillas que quedaron "en reserva" (sobrante de una estiba que se dejó
+  // sin contenedor) — disponibles para asignar a otro contenedor más tarde.
+  const asignacionesEnReserva = useMemo(() => {
+    return asignaciones
+      .filter(a => a.contenedorId == null)
+      .map(a => {
+        const recepcion = recepciones.find(r => r.id === a.recepcionId) || null;
+        const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba) || null;
+        return { ...a, recepcion, estiba };
+      })
+      .filter(a => a.recepcion && a.estiba)
+      .sort((a, b) => (a.recepcion.fecha || "").localeCompare(b.recepcion.fecha || ""));
+  }, [asignaciones, recepciones]);
+
+  const [reasignandoId, setReasignandoId] = useState(null); // id de la asignación en reserva que se está pasando a un contenedor
+  const [contenedorReasignarSel, setContenedorReasignarSel] = useState("");
+  const [guardandoReasignacion, setGuardandoReasignacion] = useState(false);
+
+  const reasignarReservaAContenedor = async (asignacion) => {
+    if (!contenedorReasignarSel) return;
+    setGuardandoReasignacion(true);
+    await eliminarAsignacion(asignacion.id);
+    await guardarAsignacion({
+      recepcionId: asignacion.recepcionId, numeroEstiba: asignacion.numeroEstiba,
+      contenedorId: contenedorReasignarSel, cantidadCanastillas: asignacion.cantidadCanastillas,
+      registradoPor: nombreUsuarioSesion(),
+    });
+    setGuardandoReasignacion(false);
+    setReasignandoId(null);
+    setContenedorReasignarSel("");
+  };
 
   const recepcionesAsocFiltradas = useMemo(() => {
     const q = busquedaAsoc.trim().toLowerCase();
@@ -1839,6 +1897,70 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Elige un contenedor para ver sus estibas asignadas que faltan por marcar como usadas.</div>
               ) : (
                 <>
+              {/* ── Elegir entre ver el resumen del contenedor o marcar estibas —
+                  para no mostrar todo junto y saturar el apartado ── */}
+              <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+                {[["marcar","☑️ Marcar estibas"],["resumen","📊 Ver resumen"]].map(([id,label]) => (
+                  <button key={id} onClick={()=>setVistaManualContenedor(id)} style={{
+                    flex:1, background: vistaManualContenedor===id ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${vistaManualContenedor===id ? "#00C9A790" : "rgba(255,255,255,0.1)"}`,
+                    borderRadius:8, padding:"7px 10px", cursor:"pointer",
+                    color: vistaManualContenedor===id ? "#00C9A7" : "rgba(255,255,255,0.45)",
+                    fontWeight:700, fontSize:11.5, fontFamily:"inherit",
+                  }}>{label}</button>
+                ))}
+              </div>
+
+              {/* ── Info agregada del contenedor: fecha, totales de kg/canastillas
+                  y el detalle de qué recepciones aportaron ── */}
+              {vistaManualContenedor === "resumen" && infoContenedorManual && (
+                <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:10, padding:"10px 12px", marginBottom:12 }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:"white", marginBottom:8 }}>
+                    🚢 {contenedorManualId === "reserva" ? "Reserva (sin contenedor)" : labelBookingLog(infoContenedorManual.booking)}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:8, marginBottom: infoContenedorManual.filas.length ? 10 : 0 }}>
+                    <div><div style={lbl}>Fecha del contenedor</div><div style={{ fontSize:13, fontWeight:700, color:"white" }}>{infoContenedorManual.fechaContenedor || "—"}</div></div>
+                    <div><div style={lbl}>Canastillas totales</div><div style={{ fontSize:13, fontWeight:700, color:"#00C9A7" }}>{infoContenedorManual.totalCanastillas}</div></div>
+                    <div><div style={lbl}>Kilos totales</div><div style={{ fontSize:13, fontWeight:700, color:"#00C9A7" }}>{kg(infoContenedorManual.totalKg)} kg</div></div>
+                    <div><div style={lbl}>Canastillas en kilos</div><div style={{ fontSize:13, fontWeight:700, color:"#a78bfa" }}>{kg(kilosNetosEntre23(infoContenedorManual.totalKg))}</div></div>
+                  </div>
+
+                  {infoContenedorManual.filas.length > 0 && (
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                        <thead>
+                          <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                            <th style={{ padding:"5px" }}>Remisión</th><th style={{ padding:"5px" }}>Fecha</th>
+                            <th style={{ padding:"5px" }}>Proveedor</th><th style={{ padding:"5px" }}>Estiba</th>
+                            <th style={{ padding:"5px" }}>Canastillas</th><th style={{ padding:"5px" }}>Kg</th>
+                            <th style={{ padding:"5px" }}>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {infoContenedorManual.filas.map(f => (
+                            <tr key={f.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                              <td style={{ padding:"5px", color:"white", fontWeight:600 }}>{f.recepcion?.remision || "—"}</td>
+                              <td style={{ padding:"5px" }}>{f.recepcion?.fecha || "—"}</td>
+                              <td style={{ padding:"5px" }}>{f.recepcion?.proveedor || "—"}</td>
+                              <td style={{ padding:"5px" }}>#{f.numeroEstiba}</td>
+                              <td style={{ padding:"5px", color:"#00C9A7", fontWeight:700 }}>{f.cantidadCanastillas}</td>
+                              <td style={{ padding:"5px", color:"#00C9A7", fontWeight:700 }}>{kg(f.kgAsignados)}</td>
+                              <td style={{ padding:"5px" }}>
+                                <span style={{ padding:"2px 8px", borderRadius:20, fontSize:9.5, fontWeight:700, background: f.estiba?.usada ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.06)", color: f.estiba?.usada ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>
+                                  {f.estiba?.usada ? "✓ Usada" : "Pendiente"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {vistaManualContenedor === "marcar" && (
+                <>
               <input
                 value={busquedaManualVerif} onChange={e=>setBusquedaManualVerif(e.target.value)}
                 placeholder="🔍 Buscar por remisión, proveedor o placa..." style={{ ...inp, marginBottom:10 }}
@@ -1866,6 +1988,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     </button>
                   ))}
                 </div>
+              )}
+                </>
               )}
                 </>
               )}
@@ -2033,16 +2157,32 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
               <div style={{ fontSize:12, fontWeight:800, color:"#00C9A7" }}>
                 {editandoVerifId ? "✏️ Editando verificación guardada" : "📊 Resumen acumulado"} — {resumenVerificacion.estibas} estiba{resumenVerificacion.estibas > 1 ? "s" : ""} marcada{resumenVerificacion.estibas > 1 ? "s" : ""}
               </div>
-              <button onClick={reiniciarResumenVerificacion} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:10.5, textDecoration:"underline", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
-                {editandoVerifId ? "✕ Cancelar edición" : "🔄 Reiniciar resumen"}
-              </button>
+              <div style={{ display:"flex", gap:12 }}>
+                {!mostrarEdicionResumen && (
+                  <button onClick={()=>setMostrarEdicionResumen(true)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:10.5, textDecoration:"underline", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
+                    ✏️ Editar
+                  </button>
+                )}
+                <button onClick={reiniciarResumenVerificacion} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:10.5, textDecoration:"underline", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
+                  {editandoVerifId ? "✕ Cancelar edición" : "🔄 Reiniciar resumen"}
+                </button>
+              </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:8, marginBottom:10 }}>
-              <div><div style={lbl}>Canastillas usadas</div><input type="number" min="0" style={inp} value={resumenVerificacion.canastillasUsadas} onChange={e=>setResumenVerificacion(r=>({...r, canastillasUsadas:Number(e.target.value)||0}))} /></div>
-              <div><div style={lbl}>Canastillas faltantes</div><input type="number" min="0" style={inp} value={resumenVerificacion.canastillasFaltantes} onChange={e=>setResumenVerificacion(r=>({...r, canastillasFaltantes:Number(e.target.value)||0}))} /></div>
-              <div><div style={lbl}>Kilos usados</div><input type="number" min="0" style={inp} value={resumenVerificacion.kgUsados} onChange={e=>setResumenVerificacion(r=>({...r, kgUsados:Number(e.target.value)||0}))} /></div>
-              <div><div style={lbl}>Kilos faltantes</div><input type="number" min="0" style={inp} value={resumenVerificacion.kgFaltantes} onChange={e=>setResumenVerificacion(r=>({...r, kgFaltantes:Number(e.target.value)||0}))} /></div>
-            </div>
+            {mostrarEdicionResumen ? (
+              <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:8, marginBottom:10 }}>
+                <div><div style={lbl}>Canastillas usadas</div><input type="number" min="0" style={inp} value={resumenVerificacion.canastillasUsadas} onChange={e=>setResumenVerificacion(r=>({...r, canastillasUsadas:Number(e.target.value)||0}))} /></div>
+                <div><div style={lbl}>Canastillas faltantes</div><input type="number" min="0" style={inp} value={resumenVerificacion.canastillasFaltantes} onChange={e=>setResumenVerificacion(r=>({...r, canastillasFaltantes:Number(e.target.value)||0}))} /></div>
+                <div><div style={lbl}>Kilos usados</div><input type="number" min="0" style={inp} value={resumenVerificacion.kgUsados} onChange={e=>setResumenVerificacion(r=>({...r, kgUsados:Number(e.target.value)||0}))} /></div>
+                <div><div style={lbl}>Kilos faltantes</div><input type="number" min="0" style={inp} value={resumenVerificacion.kgFaltantes} onChange={e=>setResumenVerificacion(r=>({...r, kgFaltantes:Number(e.target.value)||0}))} /></div>
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:8, marginBottom:10 }}>
+                <div><div style={lbl}>Canastillas usadas</div><div style={{ fontSize:16, fontWeight:800, color:"#00C9A7" }}>{resumenVerificacion.canastillasUsadas}</div></div>
+                <div><div style={lbl}>Canastillas faltantes</div><div style={{ fontSize:16, fontWeight:800, color: resumenVerificacion.canastillasFaltantes > 0 ? "#F9A826" : "rgba(255,255,255,0.5)" }}>{resumenVerificacion.canastillasFaltantes}</div></div>
+                <div><div style={lbl}>Kilos usados</div><div style={{ fontSize:16, fontWeight:800, color:"#00C9A7" }}>{kg(resumenVerificacion.kgUsados)} kg</div></div>
+                <div><div style={lbl}>Kilos faltantes</div><div style={{ fontSize:16, fontWeight:800, color: resumenVerificacion.kgFaltantes > 0 ? "#F9A826" : "rgba(255,255,255,0.5)" }}>{kg(resumenVerificacion.kgFaltantes)} kg</div></div>
+              </div>
+            )}
             <div style={{ marginBottom:10 }}>
               <div style={lbl}>Canastillas en kilos <span style={{ color:"rgba(255,255,255,0.32)", fontWeight:400 }}>(calculado — kilos usados ÷ 23)</span></div>
               <div style={{ ...inp, background:"rgba(132,94,247,0.08)", color:"#a78bfa", fontWeight:700, display:"flex", alignItems:"center" }}>{kg(kilosNetosEntre23(resumenVerificacion.kgUsados))}</div>
@@ -2182,6 +2322,59 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 </button>
               </div>
             </div>
+
+            {/* ── Estibas en reserva: sobrante de canastillas sin contenedor,
+                disponible para asignar a otro contenedor ── */}
+            {asignacionesEnReserva.length > 0 && (
+              <div style={cardS}>
+                <div style={{ fontSize:13, fontWeight:700, color:"white", marginBottom:4 }}>🗄 Estibas en reserva</div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:10 }}>Canastillas que quedaron sin contenedor (sobrante al validar el uso) — disponibles para asignar a otro contenedor.</div>
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                    <thead>
+                      <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
+                        <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
+                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estiba</th>
+                        <th style={{ padding:"6px" }}>Canastillas disponibles</th>
+                        <th style={{ padding:"6px" }}>Registrado por</th>
+                        <th style={{ padding:"6px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {asignacionesEnReserva.map(a => (
+                        <tr key={a.id} style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                          <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{a.recepcion.remision || "—"}</td>
+                          <td style={{ padding:"6px" }}>{a.recepcion.fecha}</td>
+                          <td style={{ padding:"6px" }}>{a.recepcion.proveedor || "—"}</td>
+                          <td style={{ padding:"6px" }}>#{a.numeroEstiba}</td>
+                          <td style={{ padding:"6px", fontWeight:700, color:"#F9A826" }}>{a.cantidadCanastillas}</td>
+                          <td style={{ padding:"6px" }}>{a.registradoPor || "—"}</td>
+                          <td style={{ padding:"6px", whiteSpace:"nowrap" }} onClick={e=>e.stopPropagation()}>
+                            {reasignandoId === a.id ? (
+                              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                                <CustomSelect value={contenedorReasignarSel} onChange={e=>setContenedorReasignarSel(e.target.value)} style={{ ...inp, minWidth:160 }}>
+                                  <option value="">Selecciona un contenedor...</option>
+                                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                                </CustomSelect>
+                                <button onClick={()=>reasignarReservaAContenedor(a)} disabled={!contenedorReasignarSel || guardandoReasignacion} style={btnPrimario(false, guardandoReasignacion)}>
+                                  {guardandoReasignacion ? "..." : "Confirmar"}
+                                </button>
+                                <button onClick={()=>{ setReasignandoId(null); setContenedorReasignarSel(""); }} style={btnSecundario}>Cancelar</button>
+                              </div>
+                            ) : (
+                              <>
+                                <button onClick={()=>setReasignandoId(a.id)} style={btnTablaEditar}>Asignar a contenedor</button>
+                                <button onClick={()=>eliminarAsignacion(a.id)} style={btnTablaEliminar}>✕</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
         </div>
       )}
 
