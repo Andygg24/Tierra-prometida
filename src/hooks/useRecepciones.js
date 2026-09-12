@@ -15,7 +15,6 @@ const rowToRecepcion = (r) => ({
   horaInicio: r.hora_inicio || "",
   horaFin:    r.hora_fin    || "",
   observaciones: r.observaciones || "",
-  fotosComparacionProveedor: Array.isArray(r.fotos_comparacion_proveedor) ? r.fotos_comparacion_proveedor : [],
   estibas:    Array.isArray(r.estibas) ? r.estibas : [],
   total:      Number(r.total || 0),
 });
@@ -88,7 +87,6 @@ export function useRecepciones() {
       hora_inicio: form.horaInicio  || null,
       hora_fin:    form.horaFin     || null,
       observaciones: form.observaciones || null,
-      fotos_comparacion_proveedor: Array.isArray(form.fotosComparacionProveedor) ? form.fotosComparacionProveedor : [],
       estibas:     form.estibas     || [],
       total:       Number(form.total || 0),
       updated_at:  new Date().toISOString(),

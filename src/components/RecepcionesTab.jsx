@@ -169,7 +169,6 @@ function formVacio() {
     remision: "", fecha: hoy, tipo: "entrada",
     placa: "", conductor: "", cedulaConductor: "", origen: "", proveedor: "", supervisor: "",
     horaInicio: "", horaFin: "", observaciones: "",
-    fotosComparacionProveedor: [], // fotos del cuaderno del proveedor, para cruzar datos
     estibas: [nuevaEstiba(1)],
   };
 }
@@ -658,7 +657,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [preview,    setPreview]    = useState(null); // { url, filename }
   const [subiendoFotoIdx, setSubiendoFotoIdx] = useState(null); // idx de la estiba cuya foto de peso se está procesando
   const [imagenAmpliada, setImagenAmpliada]   = useState(null); // url de la foto de peso en vista ampliada
-  const [subiendoFotoComparacion, setSubiendoFotoComparacion] = useState(false); // foto(s) del cuaderno del proveedor
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
   const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
@@ -732,27 +730,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   };
   const quitarFotoPeso = (idx) => setEstiba(idx, "fotoPesoBruto", "");
   const verImagenPeso  = (url) => { if (url) setImagenAmpliada(url); };
-
-  // Foto(s) del cuaderno físico del proveedor — para comparar/cruzar sus
-  // datos con lo registrado en el sistema. Es a nivel de toda la recepción
-  // (no por estiba), y admite varias fotos por si el cuaderno tiene más de
-  // una página.
-  const onFotosComparacionSeleccionadas = async (ev) => {
-    const files = Array.from(ev.target.files || []);
-    ev.target.value = "";
-    if (!files.length) return;
-    setSubiendoFotoComparacion(true);
-    try {
-      const nuevas = await Promise.all(files.map(comprimirImagen));
-      setForm(f => ({ ...f, fotosComparacionProveedor: [...(f.fotosComparacionProveedor || []), ...nuevas] }));
-    } catch {
-      alert("No se pudo procesar una de las fotos — intenta con otra imagen.");
-    }
-    setSubiendoFotoComparacion(false);
-  };
-  const quitarFotoComparacion = (idx) => {
-    setForm(f => ({ ...f, fotosComparacionProveedor: (f.fotosComparacionProveedor || []).filter((_, i) => i !== idx) }));
-  };
 
   // Una estiba es "mixta" cuando trae más de un tipo de canastilla (p.ej.
   // x canastillas de 2 kg + x de 2.4 kg). setCanastilla edita un tipo puntual;
@@ -828,7 +805,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       placa: r.placa, conductor: r.conductor, cedulaConductor: r.cedulaConductor || "", origen: r.origen || "",
       proveedor: r.proveedor, supervisor: r.supervisor,
       horaInicio: r.horaInicio, horaFin: r.horaFin, observaciones: r.observaciones || "",
-      fotosComparacionProveedor: r.fotosComparacionProveedor || [],
       estibas: r.estibas.length
         ? r.estibas.map(e => ({
             numero: e.numero, pesoBruto: e.pesoBruto, fotoPesoBruto: e.fotoPesoBruto || "", estibaPlastica: e.estibaPlastica,
@@ -908,10 +884,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       const faltantes = form.estibas.filter(e => !e.fotoPesoBruto).map(e => e.numero);
       if (faltantes.length) {
         alert(`Falta tomar la foto del peso bruto en la${faltantes.length > 1 ? "s" : ""} estiba${faltantes.length > 1 ? "s" : ""} #${faltantes.join(", ")}.\n\nUsa el botón "📷 Tomar foto" en cada estiba antes de guardar.`);
-        return;
-      }
-      if (!form.fotosComparacionProveedor?.length) {
-        alert('Falta la foto del cuaderno del proveedor.\n\nUsa el botón "📷 Tomar foto" en "Comparar con proveedor" antes de guardar.');
         return;
       }
     }
@@ -1295,32 +1267,6 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
             onChange={e=>setCampo("observaciones", e.target.value)}
             placeholder="Notas adicionales sobre la recepción..."
           />
-        </div>
-
-        {/* ── Comparar con proveedor: foto(s) del cuaderno físico del proveedor ── */}
-        <div style={{ marginBottom:14, background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:10, padding:"10px 12px" }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.6)", marginBottom:8 }}>
-            📷 Comparar con proveedor {form.fotosComparacionProveedor?.length > 0 && `(${form.fotosComparacionProveedor.length})`}
-          </div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:10 }}>
-            Foto(s) del cuaderno del proveedor, para cruzar sus datos con lo registrado aquí.
-          </div>
-          <div style={{ display:"flex", gap:12, alignItems:"flex-start", flexWrap:"wrap" }}>
-            {form.fotosComparacionProveedor?.length > 0 && (
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {form.fotosComparacionProveedor.map((url, idx) => (
-                  <div key={idx} style={{ position:"relative" }}>
-                    <img src={url} alt={`Cuaderno proveedor ${idx+1}`} onClick={()=>verImagenPeso(url)} style={{ width:70, height:70, objectFit:"cover", borderRadius:8, border:"1px solid rgba(255,255,255,0.12)", cursor:"pointer" }} />
-                    <button onClick={()=>quitarFotoComparacion(idx)} title="Quitar esta foto" style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%", background:"#FF6B6B", border:"2px solid rgba(20,20,20,0.9)", color:"white", fontSize:11, lineHeight:"16px", cursor:"pointer", padding:0 }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <label style={{ ...btnSecundario, display:"inline-block", cursor: subiendoFotoComparacion ? "wait" : "pointer", opacity: subiendoFotoComparacion ? 0.6 : 1 }}>
-              {subiendoFotoComparacion ? "Procesando..." : "📷 Tomar foto"}
-              <input type="file" accept="image/*" capture="environment" multiple onChange={onFotosComparacionSeleccionadas} disabled={subiendoFotoComparacion} style={{ display:"none" }} />
-            </label>
-          </div>
         </div>
 
         {/* ── Estibas ── */}
