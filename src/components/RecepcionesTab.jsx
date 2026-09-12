@@ -684,6 +684,17 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     padding: isLandscape ? "4px 7px" : (m ? "7px 9px" : "4px 7px"),
     minHeight: isLandscape ? 28 : (m ? 34 : 26),
   };
+  // Para valores calculados de solo lectura (descuento, peso neto, canastillas
+  // en kilos): no son campos donde se escribe, así que no necesitan el mismo
+  // tamaño táctil que `inp` — una fuente más chica y sin overflow evita que
+  // los números largos se vean apretados o se corten en móvil.
+  const valBox = {
+    background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)",
+    borderRadius:8, padding: m ? "8px 10px" : "6px 8px", color:"rgba(255,255,255,0.75)",
+    fontSize: m ? 13 : 11, fontFamily:"inherit", display:"flex", alignItems:"center",
+    minHeight: m ? 36 : 28, boxSizing:"border-box", overflow:"hidden",
+    textOverflow:"ellipsis", whiteSpace:"nowrap",
+  };
   const cardS = {
     background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
     borderRadius:10, padding: isLandscape ? 10 : (m ? 14 : 16),
@@ -1346,9 +1357,9 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
                   </div>
                 </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                  <div><div style={lbl}>Peso bruto</div><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></div>
-                  <div><div style={lbl}>Estiba plástica</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:8 }}>
+                  <div style={{ minWidth:0 }}><div style={lbl}>Peso bruto</div><input type="number" min="0" style={inp} value={e.pesoBruto} onChange={ev=>setEstiba(idx,"pesoBruto",ev.target.value)} /></div>
+                  <div style={{ minWidth:0 }}><div style={lbl}>Estiba plástica</div>
                     <CustomSelect value={e.estibaPlastica} onChange={ev=>setEstiba(idx,"estibaPlastica",ev.target.value)} style={inp}>
                       <option value="si">Sí</option><option value="no">No</option>
                     </CustomSelect>
@@ -1402,11 +1413,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   </button>
                 </div>
 
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
-                  <div><div style={lbl}>Peso estiba</div><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
-                  <div><div style={lbl}>Descuento estiba</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
-                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso neto</div><div style={{...inp, background: pesoNetoEstiba(e) < 0 ? "rgba(240,68,56,0.12)" : "rgba(0,201,167,0.1)", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700, display:"flex", alignItems:"center"}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</div></div>
-                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Canastillas en kilos</div><div style={{...inp, background:"rgba(132,94,247,0.08)", color:"#a78bfa", fontWeight:700, display:"flex", alignItems:"center"}}>{kilosNetosEntre23(pesoNetoEstiba(e)).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:8, marginTop:8 }}>
+                  <div style={{ minWidth:0 }}><div style={lbl}>Peso estiba</div><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
+                  <div style={{ minWidth:0 }}><div style={lbl}>Descuento estiba</div><div style={valBox}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
+                  <div style={{ minWidth:0 }}><div style={lbl}>Peso neto</div><div style={{...valBox, background: pesoNetoEstiba(e) < 0 ? "rgba(240,68,56,0.12)" : "rgba(0,201,167,0.1)", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</div></div>
+                  <div style={{ minWidth:0 }}><div style={lbl}>Canastillas en kilos</div><div style={{...valBox, background:"rgba(132,94,247,0.08)", color:"#a78bfa", fontWeight:700}}>{kilosNetosEntre23(pesoNetoEstiba(e)).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
                 </div>
               </div>
             ))}
@@ -1417,15 +1428,15 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
               <thead>
                 <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
                   <th style={{ padding:"4px 6px" }}>#</th>
-                  <th style={{ padding:"4px 6px" }}>Peso bruto</th>
+                  <th style={{ padding:"4px 6px", minWidth:100 }}>Peso bruto</th>
                   <th style={{ padding:"4px 6px" }}>Foto peso</th>
                   <th style={{ padding:"4px 6px" }}>Estiba plástica</th>
                   <th style={{ padding:"4px 6px", minWidth:210 }}>Canastillas (tipo · cant. · peso)</th>
                   <th style={{ padding:"4px 6px" }}>Peso canastillas</th>
-                  <th style={{ padding:"4px 6px" }}>Peso estiba</th>
-                  <th style={{ padding:"4px 6px" }}>Descuento estiba</th>
-                  <th style={{ padding:"4px 6px" }}>Peso neto</th>
-                  <th style={{ padding:"4px 6px" }}>Canastillas en kilos</th>
+                  <th style={{ padding:"4px 6px", minWidth:100 }}>Peso estiba</th>
+                  <th style={{ padding:"4px 6px", minWidth:110 }}>Descuento estiba</th>
+                  <th style={{ padding:"4px 6px", minWidth:100 }}>Peso neto</th>
+                  <th style={{ padding:"4px 6px", minWidth:110 }}>Canastillas en kilos</th>
                   {editId && <th style={{ padding:"4px 6px" }}>Usada</th>}
                   <th style={{ padding:"4px 6px" }}></th>
                 </tr>
