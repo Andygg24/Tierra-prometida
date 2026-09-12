@@ -848,6 +848,24 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setDesmarcandoUsada(null);
   };
 
+  // Desmarca de un solo golpe TODAS las estibas de la recepción abierta —
+  // para pruebas/ejercicios donde se necesita repetir el proceso completo,
+  // sin tener que ir estiba por estiba.
+  const desmarcarTodasLasEstibas = async () => {
+    if (!editId) return;
+    const usadasCount = form.estibas.filter(e => e.usada).length;
+    if (!usadasCount) return;
+    if (!window.confirm(`¿Desmarcar las ${usadasCount} estiba(s) usada(s) de esta recepción? Todas quedarán disponibles de nuevo. Esta acción no se puede deshacer.`)) return;
+    setDesmarcandoUsada("todas");
+    const recepcion = recepciones.find(r => r.id === editId);
+    if (recepcion) {
+      const nuevasEstibas = recepcion.estibas.map(re => re.usada ? { ...re, usada: false, usadaPor: "", usadaEn: "" } : re);
+      await actualizarEstibas(editId, nuevasEstibas);
+    }
+    setForm(f => ({ ...f, estibas: f.estibas.map(it => it.usada ? { ...it, usada: false, usadaPor: "", usadaEn: "" } : it) }));
+    setDesmarcandoUsada(null);
+  };
+
   // Versión general (no depende de tener la recepción abierta en el
   // formulario) — desmarca "usada" en varias estibas de golpe, agrupadas por
   // recepción. Se usa cuando se deshace algo que dependía de ese uso: quitar
@@ -1112,8 +1130,26 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     }
   };
 
-  const reiniciarResumenVerificacion = () => {
-    if (!window.confirm("¿Reiniciar el resumen acumulado de esta sesión de verificación?")) return;
+  // Si se reinicia una sesión que NUNCA se guardó como verificación, las
+  // marcas de "usada" que ya se escribieron en cada estiba (al escanear o
+  // marcar manual) quedarían huérfanas — sin ningún registro que las
+  // respalde — si solo se limpiara el contador en pantalla. Por eso este
+  // reinicio también revierte esas marcas reales. Si en cambio se estaba
+  // editando una verificación YA guardada, cancelar no debe tocar datos
+  // reales — solo se abandona la edición.
+  const reiniciarResumenVerificacion = async () => {
+    if (editandoVerifId) {
+      if (!window.confirm("¿Cancelar la edición? Los cambios no guardados se perderán (la verificación ya guardada no se modifica).")) return;
+      setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
+      setDetalleVerificacion([]);
+      setNotaVerificacion("");
+      setEditandoVerifId(null);
+      setMostrarEdicionResumen(false);
+      return;
+    }
+    const n = resumenVerificacion.estibas;
+    if (!window.confirm(`¿Reiniciar el resumen? Como todavía no lo has guardado, esto también desmarca como "usada" la${n > 1 ? "s" : ""} ${n} estiba${n > 1 ? "s" : ""} que marcaste en esta sesión, para que no queden huérfanas.`)) return;
+    await desmarcarEstibasPorPares(detalleVerificacion);
     setResumenVerificacion({ estibas: 0, canastillasUsadas: 0, canastillasFaltantes: 0, kgUsados: 0, kgFaltantes: 0 });
     setDetalleVerificacion([]);
     setNotaVerificacion("");
@@ -1226,6 +1262,17 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const seleccionarEstibaManual = (recepcion, estiba) => {
     setCantidadUsadaConfirmada(null);
     setResultadoEstiba({ estado: "ok", recepcion, estiba });
+  };
+
+  // Corrige desde la tabla de "Ver resumen" una estiba que quedó marcada
+  // usada sin ninguna asignación/verificación real detrás (ej. de pruebas
+  // viejas) — así vuelve a aparecer disponible en "Marcar estibas".
+  const [desmarcandoResumenId, setDesmarcandoResumenId] = useState(null);
+  const desmarcarDesdeResumenManual = async (fila) => {
+    const clave = `${fila.recepcionId}-${fila.numeroEstiba}`;
+    setDesmarcandoResumenId(clave);
+    await desmarcarEstibasPorPares([{ recepcionId: fila.recepcionId, numeroEstiba: fila.numeroEstiba }]);
+    setDesmarcandoResumenId(null);
   };
 
   // Información agregada del contenedor elegido en "Marcar manual" — todas
@@ -1552,7 +1599,14 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
         </div>
 
         {/* ── Estibas ── */}
-        <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.6)", marginBottom:8 }}>Estibas</div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.6)" }}>Estibas</div>
+          {editId && form.estibas.some(e => e.usada) && (
+            <button onClick={desmarcarTodasLasEstibas} disabled={desmarcandoUsada==="todas"} style={{ ...btnTablaEliminar, fontSize:10 }}>
+              {desmarcandoUsada==="todas" ? "Desmarcando..." : "🔓 Desmarcar todas"}
+            </button>
+          )}
+        </div>
 
         {m ? (
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -1573,6 +1627,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                     {editId && <button onClick={()=>imprimirTirillaEstiba(e,"rollo")} style={btnTablaEditar}>🖨 Rollo</button>}
                     {editId && <button onClick={()=>imprimirTirillaEstiba(e,"word")} style={btnTablaEditar}>📝 Word</button>}
+                    {editId && e.usada && (
+                      <button onClick={()=>desmarcarEstibaUsada(idx)} disabled={desmarcandoUsada===idx} style={btnTablaEliminar} title="Desmarcar como usada">
+                        {desmarcandoUsada===idx ? "..." : "Desmarcar"}
+                      </button>
+                    )}
                     <button onClick={()=>quitarEstiba(idx)} style={btnTablaEliminar}>Quitar</button>
                   </div>
                 </div>
@@ -1976,6 +2035,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                             <th style={{ padding:"5px" }}>Proveedor</th><th style={{ padding:"5px" }}>Estiba</th>
                             <th style={{ padding:"5px" }}>Canastillas</th><th style={{ padding:"5px" }}>Kg</th>
                             <th style={{ padding:"5px" }}>Estado</th>
+                            <th style={{ padding:"5px" }}></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1991,6 +2051,18 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                                 <span style={{ padding:"2px 8px", borderRadius:20, fontSize:9.5, fontWeight:700, background: f.estiba?.usada ? "rgba(0,201,167,0.15)" : "rgba(255,255,255,0.06)", color: f.estiba?.usada ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>
                                   {f.estiba?.usada ? "✓ Usada" : "Pendiente"}
                                 </span>
+                              </td>
+                              <td style={{ padding:"5px", whiteSpace:"nowrap" }}>
+                                {f.estiba?.usada && (
+                                  <button
+                                    onClick={()=>desmarcarDesdeResumenManual(f)}
+                                    disabled={desmarcandoResumenId === `${f.recepcionId}-${f.numeroEstiba}`}
+                                    style={{ ...btnTablaEliminar, fontSize:9.5, padding:"2px 7px" }}
+                                    title="Esta estiba quedó marcada usada sin una asignación/verificación real detrás — desmárcala para que vuelva a aparecer en Marcar estibas"
+                                  >
+                                    {desmarcandoResumenId === `${f.recepcionId}-${f.numeroEstiba}` ? "..." : "Desmarcar"}
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))}
