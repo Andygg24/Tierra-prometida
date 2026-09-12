@@ -138,6 +138,12 @@ function pesoNetoEstiba(e) {
   return num(e.pesoBruto) - descuentoEstiba(e);
 }
 
+// Métrica aparte, no toca los cálculos de arriba — kilos netos ÷ 23.
+const DIVISOR_KILOS_NETOS = 23;
+function kilosNetosEntre23(pesoNeto) {
+  return num(pesoNeto) / DIVISOR_KILOS_NETOS;
+}
+
 function nuevaEstiba(numero) {
   return {
     numero,
@@ -211,6 +217,7 @@ async function generarInformeHTML(r) {
       <div class="erow"><span>Peso canastillas</span><b>${kg(pesoCanastillasEstiba(e))} kg</b></div>
       <div class="erow"><span>Peso estiba</span><b>${kg(e.pesoEstiba)} kg</b></div>
       <div class="erow"><span>Descuento total</span><b>${kg(descuentoEstiba(e))} kg</b></div>
+      <div class="erow"><span>Canastillas en kilos</span><b>${kg(kilosNetosEntre23(pesoNetoEstiba(e)))}</b></div>
     </div>`;
   }).join("");
 
@@ -332,6 +339,7 @@ h2::after{content:"";flex:1;height:1px;background:${t.divider}}
       <div class="totalbox alt"><div class="l">Peso bruto</div><div class="v">${kg(pesoBrutoTotal)} kg</div></div>
       <div class="totalbox alt"><div class="l">Descuento total</div><div class="v">${kg(descuentoTotal)} kg</div></div>
       <div class="totalbox"><div class="l">Total peso neto</div><div class="v">${kg(r.total)} kg</div></div>
+      <div class="totalbox alt"><div class="l">Canastillas en kilos</div><div class="v">${kg(kilosNetosEntre23(r.total))}</div></div>
     </div>
 
     ${r.observaciones ? `
@@ -1400,6 +1408,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <div><div style={lbl}>Peso estiba</div><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></div>
                   <div><div style={lbl}>Descuento estiba</div><div style={{...inp, background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.7)", display:"flex", alignItems:"center"}}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
                   <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso neto</div><div style={{...inp, background: pesoNetoEstiba(e) < 0 ? "rgba(240,68,56,0.12)" : "rgba(0,201,167,0.1)", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700, display:"flex", alignItems:"center"}}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</div></div>
+                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Canastillas en kilos</div><div style={{...inp, background:"rgba(132,94,247,0.08)", color:"#a78bfa", fontWeight:700, display:"flex", alignItems:"center"}}>{kilosNetosEntre23(pesoNetoEstiba(e)).toLocaleString("es-CO",{maximumFractionDigits:2})}</div></div>
                 </div>
               </div>
             ))}
@@ -1418,6 +1427,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <th style={{ padding:"4px 6px" }}>Peso estiba</th>
                   <th style={{ padding:"4px 6px" }}>Descuento estiba</th>
                   <th style={{ padding:"4px 6px" }}>Peso neto</th>
+                  <th style={{ padding:"4px 6px" }}>Canastillas en kilos</th>
                   {editId && <th style={{ padding:"4px 6px" }}>Usada</th>}
                   <th style={{ padding:"4px 6px" }}></th>
                 </tr>
@@ -1472,6 +1482,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     <td style={{ padding:"6px" }}><input type="number" min="0" style={inp} value={e.pesoEstiba} onChange={ev=>setEstiba(idx,"pesoEstiba",ev.target.value)} /></td>
                     <td style={{ padding:"6px", color:"rgba(255,255,255,0.7)" }}>{descuentoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
                     <td style={{ padding:"6px", color: pesoNetoEstiba(e) < 0 ? "#F04438" : "#00C9A7", fontWeight:700 }}>{pesoNetoEstiba(e).toLocaleString("es-CO",{maximumFractionDigits:2})}{pesoNetoEstiba(e) < 0 ? " ⚠️" : ""}</td>
+                    <td style={{ padding:"6px", color:"#a78bfa", fontWeight:700 }}>{kilosNetosEntre23(pesoNetoEstiba(e)).toLocaleString("es-CO",{maximumFractionDigits:2})}</td>
                     {editId && (
                       <td style={{ padding:"6px" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
@@ -1503,9 +1514,15 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
         </button>
 
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:16, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
-          <div>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>Total peso neto</div>
-            <div style={{ fontSize: m?20:22, fontWeight:800, color:"#00C9A7" }}>{totalNeto.toLocaleString("es-CO",{maximumFractionDigits:2})} kg</div>
+          <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+            <div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>Total peso neto</div>
+              <div style={{ fontSize: m?20:22, fontWeight:800, color:"#00C9A7" }}>{totalNeto.toLocaleString("es-CO",{maximumFractionDigits:2})} kg</div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>Canastillas en kilos</div>
+              <div style={{ fontSize: m?20:22, fontWeight:800, color:"#a78bfa" }}>{kilosNetosEntre23(totalNeto).toLocaleString("es-CO",{maximumFractionDigits:2})}</div>
+            </div>
           </div>
           <div style={{ display:"flex", gap:8 }}>
             {editId && (
