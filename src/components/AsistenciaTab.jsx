@@ -1365,16 +1365,24 @@ function EscanearPanel({ asisQR, procesos }) {
 
   const onScan = async (decodedText) => {
     if (procesandoRef.current) return;
-    const linea  = (decodedText || "").split("\n")[0].trim();
-    const partes = linea.split("|");
-    if (partes[0] !== QR_ASIS_PREFIX || partes.length < 3) return;
     procesandoRef.current = true;
     playBeep();
-    const r = await registrarRef.current(partes[2]);
-    setFeedback(r.ok
-      ? { ok:true, nombre:r.nombre, msg: r.yaEstaba ? "ya estaba registrado" : "registrado" }
-      : { ok:false, msg:r.msg });
-    setTimeout(() => { setFeedback(null); procesandoRef.current = false; }, 1600);
+    try {
+      const linea  = (decodedText || "").split("\n")[0].trim();
+      const partes = linea.split("|");
+      if (partes[0] !== QR_ASIS_PREFIX || partes.length < 3) {
+        setFeedback({ ok:false, msg:"Ese QR no es de asistencia (¿es de otro módulo?)" });
+        return;
+      }
+      const r = await registrarRef.current(partes[2]);
+      setFeedback(r.ok
+        ? { ok:true, nombre:r.nombre, msg: r.yaEstaba ? "ya estaba registrado" : "registrado" }
+        : { ok:false, msg:r.msg });
+    } catch (err) {
+      setFeedback({ ok:false, msg: err?.message || "Error al registrar el escaneo" });
+    } finally {
+      setTimeout(() => { setFeedback(null); procesandoRef.current = false; }, 1800);
+    }
   };
 
   const iniciarCamara = async () => {
