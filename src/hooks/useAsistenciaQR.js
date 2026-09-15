@@ -20,6 +20,10 @@ const rowToAjuste = (r) => ({
   creadoPor: r.creado_por || "", createdAt: r.created_at,
 });
 
+const rowToEvento = (r) => ({
+  id: r.id, sesionId: r.sesion_id, empNum: r.emp_num, tipo: r.tipo, hora: r.hora,
+});
+
 // Puentea el check-in por QR con la tubería de pago que ya existe
 // (grupos_trabajo.miembros + contenedores.grupo_dia/grupo_noche), para que el
 // Liquidador ("Pago por Contenedor") detecte automáticamente a quien escaneó,
@@ -29,6 +33,7 @@ const rowToAjuste = (r) => ({
 export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContenedor }) {
   const [sesionActiva, setSesionActiva] = useState(null);
   const [ajustes,      setAjustes]      = useState([]);
+  const [eventos,      setEventos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
 
   // ── Sesión activa (si alguien la dejó abierta en otro dispositivo) ──
@@ -74,6 +79,20 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [sesionActiva?.contenedorId]);
 
+  // ── Eventos de entrada/salida de la sesión activa ─────────────
+  useEffect(() => {
+    if (!sesionActiva) return;
+    let cancelled = false;
+    const cargar = () => supabase.from("asistencia_eventos").select("*")
+      .eq("sesion_id", sesionActiva.id).order("hora", { ascending: true })
+      .then(({ data }) => { if (!cancelled) setEventos((data || []).map(rowToEvento)); });
+    cargar();
+    const ch = supabase.channel(`asistencia-eventos-${sesionActiva.id}-${Date.now()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "asistencia_eventos", filter: `sesion_id=eq.${sesionActiva.id}` }, cargar)
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [sesionActiva?.id]);
+
   // ── Abrir sesión de escaneo ──────────────────────────────────
   const abrirSesion = useCallback(async ({ contenedorId, turno, valorBase }) => {
     const contenedor = procesos.find(p => p.id === contenedorId);
@@ -110,7 +129,9 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     return { ok: true };
   }, [procesos, grupos, guardarGrupo, guardarContenedor]);
 
-  // ── Registrar un escaneo válido (empleado ya existente) ───────
+  // ── Registrar un escaneo válido (empleado ya existente) — el mismo QR
+  // alterna entre entrada y salida según el último evento de esa persona
+  // en esta sesión, para poder reconstruir idas y vueltas durante el proceso ─
   const registrarEscaneo = useCallback(async (num) => {
     if (!sesionActiva) return { ok: false, msg: "No hay proceso abierto" };
 
@@ -118,26 +139,38 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     if (!emp) return { ok: false, msg: "QR no reconocido" };
     if (!emp.activo) return { ok: false, msg: `${emp.nombre} está inactivo` };
 
-    const { data: grupoRow } = await supabase.from("grupos_trabajo").select("miembros").eq("id", sesionActiva.grupoTrabajoId).maybeSingle();
-    const miembrosActuales = Array.isArray(grupoRow?.miembros) ? grupoRow.miembros : [];
-    const yaEstaba = miembrosActuales.includes(num);
-    if (!yaEstaba) {
-      await supabase.from("grupos_trabajo").update({ miembros: [...miembrosActuales, num] }).eq("id", sesionActiva.grupoTrabajoId);
+    const { data: ultimoEvento } = await supabase.from("asistencia_eventos").select("tipo")
+      .eq("sesion_id", sesionActiva.id).eq("emp_num", num)
+      .order("hora", { ascending: false }).limit(1).maybeSingle();
+    const esPrimeraVez = !ultimoEvento;
+    const tipo = (esPrimeraVez || ultimoEvento.tipo === "salida") ? "entrada" : "salida";
+    const ahora = new Date();
+
+    await supabase.from("asistencia_eventos").insert({
+      id: Date.now(), sesion_id: sesionActiva.id, emp_num: num, tipo, hora: ahora.toISOString(),
+    });
+
+    if (tipo === "entrada") {
+      const { data: grupoRow } = await supabase.from("grupos_trabajo").select("miembros").eq("id", sesionActiva.grupoTrabajoId).maybeSingle();
+      const miembrosActuales = Array.isArray(grupoRow?.miembros) ? grupoRow.miembros : [];
+      if (!miembrosActuales.includes(num)) {
+        await supabase.from("grupos_trabajo").update({ miembros: [...miembrosActuales, num] }).eq("id", sesionActiva.grupoTrabajoId);
+      }
+      if (esPrimeraVez) {
+        const contenedor = procesos.find(p => p.id === sesionActiva.contenedorId);
+        await supabase.from("asistencia").upsert({
+          fecha: ahora.toISOString().split("T")[0],
+          emp_nombre: emp.nombre,
+          estado: "P",
+          contenedor: contenedor?.numContenedor || null,
+          hora_registro: ahora.toISOString(),
+          sesion_id: sesionActiva.id,
+          via_qr: true,
+        }, { onConflict: "fecha,emp_nombre" });
+      }
     }
 
-    const contenedor = procesos.find(p => p.id === sesionActiva.contenedorId);
-    const ahora = new Date();
-    await supabase.from("asistencia").upsert({
-      fecha: ahora.toISOString().split("T")[0],
-      emp_nombre: emp.nombre,
-      estado: "P",
-      contenedor: contenedor?.numContenedor || null,
-      hora_registro: ahora.toISOString(),
-      sesion_id: sesionActiva.id,
-      via_qr: true,
-    }, { onConflict: "fecha,emp_nombre" });
-
-    return { ok: true, nombre: emp.nombre, hora: ahora, yaEstaba };
+    return { ok: true, nombre: emp.nombre, hora: ahora, tipo, yaEstaba: !esPrimeraVez };
   }, [sesionActiva, procesos]);
 
   // ── Registro rápido de personal temporal (nombre + documento) ─
@@ -247,7 +280,7 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
   }, [procesos, grupos, ajustes, sesionActiva]);
 
   return {
-    sesionActiva, ajustes, loading,
+    sesionActiva, ajustes, eventos, loading,
     abrirSesion, cerrarSesion, registrarEscaneo, registrarTemporal,
     asignarPersona, quitarAsignado,
     subirFoto, agregarAjuste, eliminarAjuste, calcularPago,

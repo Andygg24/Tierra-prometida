@@ -151,21 +151,29 @@ async function compartirQR({ emp, tipo, contenedor, fecha }) {
 
 // ── Informe final del proceso: asistencia real vs. asignados, horarios,
 // foto del grupo y pago por persona ──────────────────────────────────
-async function buildInformeProceso({ contenedor, sesionActiva, horaCierre, asignados, miembrosActivos, pago, nombreDe, docDe }) {
+async function buildInformeProceso({ contenedor, sesionActiva, horaCierre, asignados, miembrosActivos, eventos, pago, nombreDe, docDe }) {
   const logoSrc = await cargarLogoBase64();
   const fechaFmt = new Date(sesionActiva.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" });
   const horaInicio = new Date(sesionActiva.abiertaEn).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" });
-  const horaFin     = horaCierre ? new Date(horaCierre).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" }) : "—";
+  const horaFin     = horaCierre ? new Date(horaCierre).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" }) : "En curso";
   const todas = Array.from(new Set([...asignados, ...miembrosActivos]));
+  const hora = (iso) => new Date(iso).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" });
 
   const filas = todas.map(num => {
     const asistio = miembrosActivos.includes(num);
     const d = pago?.detalle.find(x => x.num === num);
+    const propios = (eventos || []).filter(e => e.empNum === num).sort((a,b) => new Date(a.hora) - new Date(b.hora));
+    const movimientos = propios.length
+      ? propios.map(e => `<span style="color:${e.tipo === "entrada" ? "#1D6F42" : "#e53935"}">${e.tipo === "entrada" ? "↳" : "↰"} ${hora(e.hora)}</span>`).join(" · ")
+      : "—";
+    const ultimo = propios[propios.length - 1];
+    const estadoActual = !propios.length ? "✖ No llegó" : (ultimo.tipo === "entrada" ? "🟢 Adentro" : "🔴 Salió");
     return `<tr>
       <td><strong>${nombreDe(num)}</strong></td>
       <td style="color:#666">${docDe(num)}</td>
-      <td style="text-align:center;color:${asistio ? "#1D6F42" : "#e53935"};font-weight:700">${asistio ? "✔ Asistió" : "✖ No llegó"}</td>
-      <td style="text-align:right;font-weight:700">${d ? fmtCOP(d.total) : "—"}</td>
+      <td style="text-align:center;color:${asistio ? "#1D6F42" : "#e53935"};font-weight:700;white-space:nowrap">${estadoActual}</td>
+      <td style="font-size:10px">${movimientos}</td>
+      <td style="text-align:right;font-weight:700;white-space:nowrap">${d ? fmtCOP(d.total) : "—"}</td>
     </tr>`;
   }).join("");
 
@@ -181,6 +189,7 @@ async function buildInformeProceso({ contenedor, sesionActiva, horaCierre, asign
   .header img{width:38px;height:38px;object-fit:contain;margin:0 auto 4px}
   .htitle{color:#845EF7;font-size:20px;font-weight:800}
   .sub{color:#666;font-size:12px;margin-top:3px}
+  .badge-curso{display:inline-block;background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:20px;font-size:9px;font-weight:800;margin-top:6px}
   .stats{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
   .stat{flex:1;min-width:100px;background:#f5f3ff;border-radius:10px;padding:10px;text-align:center}
   .stl{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:0.4px}
@@ -188,7 +197,7 @@ async function buildInformeProceso({ contenedor, sesionActiva, horaCierre, asign
   .sec{font-size:13px;font-weight:800;color:#6d28d9;background:#ede9fe;border-left:4px solid #6d28d9;padding:7px 12px;margin:18px 0 10px;border-radius:0 6px 6px 0}
   table{width:100%;border-collapse:collapse;font-size:11px}
   th{background:#6d28d9;color:#fff;padding:7px 10px;text-align:left}
-  td{padding:6px 10px;border-bottom:1px solid #eee}
+  td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}
   .fotos{display:flex;flex-wrap:wrap;margin-top:8px}
   .total{display:flex;justify-content:space-between;font-size:15px;font-weight:800;color:#6d28d9;border-top:2px solid #ede9fe;padding-top:10px;margin-top:10px}
   @media print{body{padding:10px}}
@@ -198,6 +207,7 @@ async function buildInformeProceso({ contenedor, sesionActiva, horaCierre, asign
     ${logoSrc ? `<img src="${logoSrc}"/>` : ""}
     <div class="htitle">TIERRA PROMETIDA TRADING</div>
     <div class="sub">Informe de Proceso — Contenedor ${contenedor?.numContenedor || "—"}</div>
+    ${!horaCierre ? `<div class="badge-curso">⏱ PROCESO EN CURSO — VISTA PREVIA</div>` : ""}
   </div>
 
   <div class="stats">
@@ -208,10 +218,11 @@ async function buildInformeProceso({ contenedor, sesionActiva, horaCierre, asign
     <div class="stat"><div class="stl">Asistieron</div><div class="stv">${miembrosActivos.length} / ${todas.length || miembrosActivos.length}</div></div>
   </div>
 
-  <div class="sec">Asistencia y pago por persona</div>
+  <div class="sec">Asistencia, movimientos y pago por persona</div>
+  <p style="font-size:9px;color:#999;margin-bottom:8px;font-style:italic">↳ entrada · ↰ salida — el orden muestra si alguien salió y volvió a entrar durante el proceso.</p>
   <table>
-    <thead><tr><th>Nombre</th><th>Documento</th><th style="text-align:center">Estado</th><th style="text-align:right">Pago</th></tr></thead>
-    <tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#999;padding:16px">Nadie asignado ni escaneado en este proceso.</td></tr>`}</tbody>
+    <thead><tr><th>Nombre</th><th>Documento</th><th style="text-align:center">Estado actual</th><th>Movimientos</th><th style="text-align:right">Pago</th></tr></thead>
+    <tbody>${filas || `<tr><td colspan="5" style="text-align:center;color:#999;padding:16px">Nadie asignado ni escaneado en este proceso.</td></tr>`}</tbody>
   </table>
   <div class="total"><span>Total pagado</span><span>${fmtCOP(totalPagado)}</span></div>
 
@@ -301,7 +312,7 @@ export default function AsistenciaTab() {
       {modo === "sesion" && (
         <SesionPanel
           asisQR={asisQR} procesos={procesos} grupos={grupos} empleados={empleados}
-          registros={registros} guardarContenedor={guardarContenedor}
+          guardarContenedor={guardarContenedor}
           agregarLiquidacion={agregarLiquidacion}
           verPrevia={verPrevia} showToast={showToast}
         />
@@ -1028,9 +1039,9 @@ ${seccionObs}
 // MODO SESIÓN / PAGOS — encargado: abre/cierra el proceso, registra
 // temporales, ajustes de pago y evidencia fotográfica
 // ═══════════════════════════════════════════════════════════════
-function SesionPanel({ asisQR, procesos, grupos, empleados, registros, guardarContenedor, agregarLiquidacion, verPrevia, showToast }) {
+function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, agregarLiquidacion, verPrevia, showToast }) {
   const {
-    sesionActiva, ajustes, abrirSesion, cerrarSesion, registrarTemporal,
+    sesionActiva, ajustes, eventos, abrirSesion, cerrarSesion, registrarTemporal,
     asignarPersona, quitarAsignado, subirFoto, agregarAjuste, eliminarAjuste, calcularPago,
   } = asisQR;
 
@@ -1085,11 +1096,19 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, registros, guardarCo
     else showToast("Proceso iniciado — ya puedes asignar personas");
   };
 
+  const onVerVistaPrevia = async () => {
+    const html = await buildInformeProceso({
+      contenedor: contenedorActivo, sesionActiva, horaCierre: null,
+      asignados: sesionActiva.asignados, miembrosActivos, eventos, pago, nombreDe, docDe,
+    });
+    verPrevia(html, `Vista_previa_Contenedor_${contenedorActivo?.numContenedor || sesionActiva.contenedorId}.html`);
+  };
+
   const onCerrarSesion = async () => {
     if (!window.confirm("¿Cerrar este proceso y ver el informe final? El personal temporal que participó quedará inactivo (su QR deja de servir) y podrás reactivarlo luego desde Personal si vuelve a trabajar con ustedes.")) return;
     const html = await buildInformeProceso({
       contenedor: contenedorActivo, sesionActiva, horaCierre: new Date().toISOString(),
-      asignados: sesionActiva.asignados, miembrosActivos, pago, nombreDe, docDe,
+      asignados: sesionActiva.asignados, miembrosActivos, eventos, pago, nombreDe, docDe,
     });
     verPrevia(html, `Informe_Contenedor_${contenedorActivo?.numContenedor || sesionActiva.contenedorId}.html`);
     const r = await cerrarSesion();
@@ -1226,7 +1245,10 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, registros, guardarCo
           <div style={{ ...card, border:"1px solid rgba(0,201,167,0.35)", background:"rgba(0,201,167,0.06)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, flexWrap:"wrap", gap:6 }}>
               <div style={{ fontSize:14, fontWeight:800, color:"#00C9A7" }}>🟢 Proceso abierto — {contenedorActivo?.numContenedor || `#${sesionActiva.contenedorId}`} · {sesionActiva.turno}</div>
-              <button onClick={onCerrarSesion} style={{ ...btnTablaEliminar, padding:"6px 12px", fontSize:11 }}>🏁 Cerrar y ver informe</button>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={onVerVistaPrevia} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:8, color:"#a5b4fc", padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>👁 Vista previa</button>
+                <button onClick={onCerrarSesion} style={{ ...btnTablaEliminar, padding:"6px 12px", fontSize:11 }}>🏁 Cerrar y ver informe</button>
+              </div>
             </div>
             <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>Valor base: {fmtCOP(sesionActiva.valorBase)} · Abierta por {sesionActiva.abiertaPor || "—"}</div>
           </div>
@@ -1258,13 +1280,19 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, registros, guardarCo
                 {personasContenedor.map(num => {
                   const emp = empleados.find(e => e.num === num);
                   const asistio = miembrosActivos.includes(num);
-                  const reg = registros[fecha]?.[nombreDe(num)] || {};
+                  const propios = eventos.filter(ev => ev.empNum === num);
+                  const ultimo = propios[propios.length - 1];
+                  let estadoTexto, estadoColor;
+                  if (!ultimo) { estadoTexto = "⏳ Asignado, falta escanear"; estadoColor = "rgba(255,255,255,0.4)"; }
+                  else if (ultimo.tipo === "entrada") { estadoTexto = `🟢 Adentro desde ${new Date(ultimo.hora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}`; estadoColor = "#00C9A7"; }
+                  else { estadoTexto = `🔴 Salió a las ${new Date(ultimo.hora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}`; estadoColor = "#FF6B6B"; }
+                  const vueltas = propios.filter(ev => ev.tipo === "entrada").length;
                   return (
                     <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, fontSize:12, color:"white", background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px" }}>
                       <div style={{ minWidth:0 }}>
                         <div style={{ fontWeight:700 }}>{nombreDe(num)}</div>
-                        <div style={{ fontSize:10, color: asistio ? "#00C9A7" : "rgba(255,255,255,0.4)", fontWeight:700 }}>
-                          {asistio ? `✔ Asistió ${reg.horaRegistro ? new Date(reg.horaRegistro).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"}) : ""}` : "⏳ Asignado, falta escanear"}
+                        <div style={{ fontSize:10, color: estadoColor, fontWeight:700 }}>
+                          {estadoTexto}{vueltas > 1 ? ` · ${vueltas}ª entrada` : ""}
                         </div>
                       </div>
                       <div style={{ display:"flex", gap:6, flexShrink:0, flexWrap:"wrap" }}>
@@ -1378,7 +1406,7 @@ function EscanearPanel({ asisQR, procesos }) {
       }
       const r = await registrarRef.current(partes[2]);
       setFeedback(r.ok
-        ? { ok:true, nombre:r.nombre, msg: r.yaEstaba ? "ya estaba registrado" : "registrado" }
+        ? { ok:true, nombre:r.nombre, tipo:r.tipo, msg: r.tipo === "entrada" ? "Entrada registrada" : "Salida registrada" }
         : { ok:false, msg:r.msg });
     } catch (err) {
       setFeedback({ ok:false, msg: err?.message || "Error al registrar el escaneo" });
@@ -1436,17 +1464,18 @@ function EscanearPanel({ asisQR, procesos }) {
 
       <div id={READER_ID} style={{ width:"100%", maxWidth:420, margin:"0 auto", borderRadius:14, overflow:"hidden" }} />
 
-      {feedback && (
-        <div style={{
-          marginTop:16, padding:"18px 14px", borderRadius:14, fontSize:16, fontWeight:800,
-          background: feedback.ok ? "rgba(0,201,167,0.15)" : "rgba(255,107,107,0.15)",
-          border: `1px solid ${feedback.ok ? "rgba(0,201,167,0.4)" : "rgba(255,107,107,0.4)"}`,
-          color: feedback.ok ? "#00C9A7" : "#FF6B6B",
-        }}>
-          {feedback.ok ? `✅ ${feedback.nombre}` : `❌ ${feedback.msg}`}
-          {feedback.ok && <div style={{ fontSize:11, fontWeight:600, marginTop:4, opacity:0.8 }}>{feedback.msg}</div>}
-        </div>
-      )}
+      {feedback && (() => {
+        const color = !feedback.ok ? "#FF6B6B" : feedback.tipo === "salida" ? "#a5b4fc" : "#00C9A7";
+        return (
+          <div style={{
+            marginTop:16, padding:"18px 14px", borderRadius:14, fontSize:16, fontWeight:800,
+            background: `${color}22`, border: `1px solid ${color}66`, color,
+          }}>
+            {feedback.ok ? `${feedback.tipo === "salida" ? "🚪" : "✅"} ${feedback.nombre}` : `❌ ${feedback.msg}`}
+            {feedback.ok && <div style={{ fontSize:11, fontWeight:600, marginTop:4, opacity:0.8 }}>{feedback.msg}</div>}
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -55,13 +55,29 @@ CREATE TABLE IF NOT EXISTS contenedor_ajustes (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
+-- Registro de cada entrada y salida (no solo la primera llegada) — el mismo
+-- QR alterna: si la persona está afuera el escaneo cuenta como entrada, si
+-- está adentro cuenta como salida. Así se puede reconstruir quién salió
+-- durante el proceso y cuándo volvió a entrar.
+CREATE TABLE IF NOT EXISTS asistencia_eventos (
+  id        bigint PRIMARY KEY,
+  sesion_id bigint NOT NULL REFERENCES asistencia_sesiones(id) ON DELETE CASCADE,
+  emp_num   text NOT NULL REFERENCES empleados(num),
+  tipo      text NOT NULL CHECK (tipo IN ('entrada','salida')),
+  hora      timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_asistencia_sesiones_contenedor ON asistencia_sesiones(contenedor_id);
 CREATE INDEX IF NOT EXISTS idx_asistencia_sesiones_activa     ON asistencia_sesiones(activa) WHERE activa = true;
 CREATE INDEX IF NOT EXISTS idx_contenedor_ajustes_contenedor  ON contenedor_ajustes(contenedor_id);
+CREATE INDEX IF NOT EXISTS idx_asistencia_eventos_sesion      ON asistencia_eventos(sesion_id);
+CREATE INDEX IF NOT EXISTS idx_asistencia_eventos_emp         ON asistencia_eventos(sesion_id, emp_num);
 
 ALTER TABLE asistencia_sesiones DISABLE ROW LEVEL SECURITY;
 ALTER TABLE contenedor_ajustes  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE asistencia_eventos  DISABLE ROW LEVEL SECURITY;
 
 -- Verificar
 SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'asistencia_sesiones' ORDER BY ordinal_position;
 SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'contenedor_ajustes'  ORDER BY ordinal_position;
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'asistencia_eventos'  ORDER BY ordinal_position;
