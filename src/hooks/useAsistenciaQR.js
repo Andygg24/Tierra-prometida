@@ -146,12 +146,14 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     const tipo = (esPrimeraVez || ultimoEvento.tipo === "salida") ? "entrada" : "salida";
     const ahora = new Date();
 
-    const { error: errorEvento } = await supabase.from("asistencia_eventos").insert({
-      id: Date.now(), sesion_id: sesionActiva.id, emp_num: num, tipo, hora: ahora.toISOString(),
-    });
+    const nuevoEvento = { id: Date.now(), sesion_id: sesionActiva.id, emp_num: num, tipo, hora: ahora.toISOString() };
+    const { error: errorEvento } = await supabase.from("asistencia_eventos").insert(nuevoEvento);
     if (errorEvento) {
       return { ok: false, msg: `No se pudo guardar el movimiento (¿corriste la migración SQL más reciente?): ${errorEvento.message}` };
     }
+    // Actualiza el estado local de una vez — no depende de que la tabla tenga
+    // Realtime habilitado en Supabase para que ESTE dispositivo vea el cambio.
+    setEventos(prev => [...prev, rowToEvento(nuevoEvento)]);
 
     if (tipo === "entrada") {
       const { data: grupoRow } = await supabase.from("grupos_trabajo").select("miembros").eq("id", sesionActiva.grupoTrabajoId).maybeSingle();
