@@ -6,6 +6,7 @@ const rowToEmp = (r) => ({
   tel: r.tel || "-", area: r.area || "", banco: r.banco || "", cuenta: r.cuenta || "",
   direccion: r.direccion || "", contactoEmergencia: r.contacto_emergencia || "", telEmergencia: r.tel_emergencia || "",
   titularNombre: r.titular_nombre || "", titularDoc: r.titular_doc || "", titularDocNum: r.titular_doc_num || "",
+  esTemporal: r.es_temporal || false,
 });
 
 export function usePersonal() {

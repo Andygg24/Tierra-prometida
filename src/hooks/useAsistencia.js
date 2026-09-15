@@ -17,7 +17,10 @@ async function fetchMes(mes) {
   const regMap = {};
   (regs || []).forEach(r => {
     if (!regMap[r.fecha]) regMap[r.fecha] = {};
-    regMap[r.fecha][r.emp_nombre] = { estado: r.estado || null, contenedor: r.contenedor || "", obs: r.obs || "" };
+    regMap[r.fecha][r.emp_nombre] = {
+      estado: r.estado || null, contenedor: r.contenedor || "", obs: r.obs || "",
+      horaRegistro: r.hora_registro || null, viaQr: r.via_qr || false,
+    };
   });
 
   const metaMap = {};
@@ -79,7 +82,10 @@ export function useAsistencia() {
             ...prev,
             [row.fecha]: {
               ...(prev[row.fecha] || {}),
-              [row.emp_nombre]: { estado: row.estado || null, contenedor: row.contenedor || "", obs: row.obs || "" },
+              [row.emp_nombre]: {
+                estado: row.estado || null, contenedor: row.contenedor || "", obs: row.obs || "",
+                horaRegistro: row.hora_registro || null, viaQr: row.via_qr || false,
+              },
             },
           }));
         }
