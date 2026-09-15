@@ -146,9 +146,12 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     const tipo = (esPrimeraVez || ultimoEvento.tipo === "salida") ? "entrada" : "salida";
     const ahora = new Date();
 
-    await supabase.from("asistencia_eventos").insert({
+    const { error: errorEvento } = await supabase.from("asistencia_eventos").insert({
       id: Date.now(), sesion_id: sesionActiva.id, emp_num: num, tipo, hora: ahora.toISOString(),
     });
+    if (errorEvento) {
+      return { ok: false, msg: `No se pudo guardar el movimiento (¿corriste la migración SQL más reciente?): ${errorEvento.message}` };
+    }
 
     if (tipo === "entrada") {
       const { data: grupoRow } = await supabase.from("grupos_trabajo").select("miembros").eq("id", sesionActiva.grupoTrabajoId).maybeSingle();
