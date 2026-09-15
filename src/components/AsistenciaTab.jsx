@@ -73,7 +73,9 @@ const textoQrAsistencia = (tipo, num) => `${QR_ASIS_PREFIX}|${tipo}|${num}`;
 // para reimprimir el QR fijo de una sola persona.
 async function buildTirillaEmpleado({ nombre, num, tipo, contenedor, fecha }) {
   const logoSrc   = await cargarLogoBase64();
-  const qrDataUrl = await QRCode.toDataURL(textoQrAsistencia(tipo, num), { errorCorrectionLevel: "M", margin: 1, width: 260 });
+  // Corrección de errores "H" (máxima) y buen tamaño en píxeles — así el QR
+  // sigue siendo legible aunque WhatsApp lo recomprima al enviarlo como foto.
+  const qrDataUrl = await QRCode.toDataURL(textoQrAsistencia(tipo, num), { errorCorrectionLevel: "H", margin: 2, width: 400 });
   const fechaFmt  = fecha ? new Date(fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"short", year:"numeric" }) : "";
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>QR ${nombre}</title>
 <style>
@@ -130,7 +132,7 @@ async function compartirQR({ emp, tipo, contenedor, fecha }) {
   const mensaje = `Hola ${emp.nombre.split(" ")[0]}, este es tu código QR de asistencia${contenedor ? ` para el contenedor ${contenedor}` : ""}${fecha ? ` del ${fecha}` : ""}. Preséntalo al llegar 🍋`;
   try {
     if (navigator.share && navigator.canShare) {
-      const qrDataUrl = await QRCode.toDataURL(textoQrAsistencia(tipo, emp.num), { errorCorrectionLevel:"M", margin:1, width:500 });
+      const qrDataUrl = await QRCode.toDataURL(textoQrAsistencia(tipo, emp.num), { errorCorrectionLevel:"H", margin:2, width:500 });
       const blob = await (await fetch(qrDataUrl)).blob();
       const file = new File([blob], `QR_${emp.nombre.replace(/\s+/g,"_")}.png`, { type: "image/png" });
       if (navigator.canShare({ files: [file] })) {
