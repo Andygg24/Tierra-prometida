@@ -2,29 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
 import CustomSelect from "./CustomSelect.jsx";
+import SearchableSelect from "./SearchableSelect.jsx";
 import { usePackingList } from "../hooks/usePackingList.js";
 import { useConfiguracion } from "../hooks/useConfiguracion.js";
+import { useRecepciones } from "../hooks/useRecepciones.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml,
-  CALIBRES, COL_CAL, CHECKLIST_CALIDAD_CARGUE, CHEQUEO_TOTAL_ITEMS,
+  CALIBRES, COL_CAL, PREDIOS, CHECKLIST_CALIDAD_CARGUE, CHEQUEO_TOTAL_ITEMS,
 } from "../reportes/informesProceso.js";
 
 const DESTINOS = ["Philadelphia", "Miami, FL", "Port Everglades, FL", "San Juan"];
-
-const PREDIOS = [
-  { registro:"430003503", nombre:"La Esperanza",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"650002801", nombre:"El Molino",      dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"580004907", nombre:"La Esmeralda",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"980005905", nombre:"Las Brisas",     dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"590004304", nombre:"La Ponderosa",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"350001906", nombre:"Los Charcos",    dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"15000896",  nombre:"Los Almendros",  dir:"Vereda Peñas",     ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"55000592",  nombre:"Villa Isabel",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"25000843",  nombre:"San Nicolás",    dir:"Vereda El Pilón",  ciudad:"Zapatoca", dpto:"Santander" },
-  { registro:"180003708", nombre:"Vista Hermosa",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
-  { registro:"790004802", nombre:"La Arenosa",     dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
-];
 const PESO_STR = "16.2 KG";
 
 // Fallback neutro para pallets sin calibre asignado todavía (no debe
@@ -48,7 +36,7 @@ function initPallets(total) {
   const cpp = Math.floor(total / 20);
   return Array.from({ length: 20 }, (_, i) => ({
     id: i + 1,
-    calibres: [{ size: "", cajas: cpp, predio: "", ica: "", plu: false }],
+    calibres: [{ size: "", cajas: cpp, predio: "", ica: "", plu: false, lote: "" }],
     listo: false,
   }));
 }
@@ -316,6 +304,10 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const hoy = new Date().toISOString().split("T")[0];
   const { cargarPorContenedor, guardar, actualizarFase } = usePackingList();
   const { config: cfgSeguridad } = useConfiguracion();
+  // Lotes reales creados en Recepciones (por remisión) — Fase 1 elige entre
+  // estos, no se inventan a mano, para que "cajas por lote" sea confiable.
+  const { recepciones } = useRecepciones();
+  const lotesDisponibles = [...new Set(recepciones.map(r => r.lote).filter(Boolean))].sort();
   const claveRequerida = cfgSeguridad?.cfg_claves_acceso?.paso1_packing || "";
   const [paso1Ok,       setPaso1Ok]       = useState(false);
   const [claveInput,    setClaveInput]    = useState("");
@@ -610,12 +602,12 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     setCajasInput(String(n));
     // Solo se redistribuye parejo (20 pallets vacíos, sin calibre) si
     // nadie ha tocado todavía ningún pallet. En cuanto se edita un calibre,
-    // se mezcla, o se asigna predio/ICA, cambiar el total NO debe borrar
+    // se mezcla, se asigna predio/ICA/lote, cambiar el total NO debe borrar
     // ese trabajo — se deja el reparto tal cual y el indicador de cuadre
     // ("Faltan/Sobran X cajas") guía el ajuste manual de la diferencia.
     const sinTocar = pallets.every(p =>
       p.calibres.length === 1 && !p.calibres[0].size &&
-      !p.calibres[0].predio && !p.calibres[0].ica && !p.calibres[0].plu
+      !p.calibres[0].predio && !p.calibres[0].ica && !p.calibres[0].plu && !p.calibres[0].lote
     );
     if (sinTocar) setPallets(initPallets(n));
     setSelPid(null);
@@ -641,7 +633,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   };
   const addCal = (pi) =>
     setPallets(prev => prev.map((p, i) => i !== pi ? p : {
-      ...p, calibres: [...p.calibres, { size:"", cajas:0, predio:"", ica:"", plu:false }],
+      ...p, calibres: [...p.calibres, { size:"", cajas:0, predio:"", ica:"", plu:false, lote:"" }],
     }));
   const removeCal = (pi, ci) =>
     setPallets(prev => prev.map((p, i) => (i !== pi || p.calibres.length <= 1) ? p : {
@@ -1965,6 +1957,7 @@ p{text-align:justify;margin-bottom:14px}
                   const isSel   = selPid === p.id;
                   const sum     = palletSum(p);
                   const ok      = sum === cpp;
+                  const lotesPallet = [...new Set(p.calibres.map(c => c.lote).filter(Boolean))];
                   const bg      = isMixed
                     ? `linear-gradient(135deg,${p.calibres.map((c,i) => `${COL_CAL[c.size]?.bg||"#888"}${i===0?"55":"33"}`).join(",")})`
                     : isSel ? mainCal.light : "rgba(255,255,255,0.05)";
@@ -1974,8 +1967,11 @@ p{text-align:justify;margin-bottom:14px}
                       style={{ background:bg, border:brd, borderRadius: m ? 8 : 6, padding: m ? "10px 8px" : "6px 7px", cursor:"pointer", position:"relative", transition:"all 0.12s", minHeight: m ? 72 : 58, display:"flex", flexDirection:"column", justifyContent:"space-between", boxShadow: isSel ? "0 0 0 1px rgba(255,255,255,0.3) inset" : "none" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                         <span style={{ fontSize: m ? 10 : 9, fontWeight:800, color:"rgba(255,255,255,0.55)" }}>P{p.id}</span>
-                        {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
-                        {ok  && <span style={{ fontSize: m ? 9 : 8, color:"#00C9A7" }}>✓</span>}
+                        <span style={{ display:"flex", alignItems:"center", gap:3 }}>
+                          {lotesPallet.length > 0 && <span title={`Lote(s): ${lotesPallet.join(", ")}`} style={{ fontSize: m ? 9 : 8, color:"#a5b4fc" }}>🏷️</span>}
+                          {!ok && <span style={{ fontSize: m ? 9 : 8, color:"#F9A826" }}>⚠</span>}
+                          {ok  && <span style={{ fontSize: m ? 9 : 8, color:"#00C9A7" }}>✓</span>}
+                        </span>
                       </div>
                       <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                         {p.calibres.map((c, ci) => (
@@ -2044,13 +2040,19 @@ p{text-align:justify;margin-bottom:14px}
                           <div><div style={lbl}>Observación</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Observación de este calibre" style={inp} /></div>
                           <div><div style={lbl}>Registro ICA (este pallet)</div><input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder={admin.icaGeneral || "980005905"} style={inp} /></div>
                         </div>
+                        <div><div style={lbl}>🏷️ Lote</div>
+                          <SearchableSelect value={c.lote} onChange={e => setPF(selPalletIdx, ci, "lote", e.target.value)} placeholder="Buscar lote..." style={inp}>
+                            <option value="">— Sin lote —</option>
+                            {lotesDisponibles.map(l => <option key={l} value={l}>{l}</option>)}
+                          </SearchableSelect>
+                        </div>
                         <div>{ci === 0
                           ? <button onClick={() => addCal(selPalletIdx)} style={{ width:"100%", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:8, padding:"12px", color:"#a5b4fc", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>➕ Agregar calibre mixto</button>
                           : <button onClick={() => removeCal(selPalletIdx, ci)} style={{ width:"100%", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"12px", color:"#fca5a5", cursor:"pointer", fontSize:14, fontWeight:600, minHeight:44 }}>✕ Quitar calibre</button>
                         }</div>
                       </div>
                     ) : (
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 1fr 1fr auto", gap:8, alignItems:"end" }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 80px 1fr 1fr 1fr auto", gap:8, alignItems:"end" }}>
                         <div><div style={lbl}>Calibre / Size</div>
                           <CustomSelect value={c.plu ? "230PLU" : c.size} onChange={e => setCalOpcion(selPalletIdx, ci, e.target.value)} style={{ ...inp, background:COL_CAL[c.size]?.light||"rgba(255,255,255,0.07)", cursor:"pointer" }}>
                             {CALIBRES.flatMap(cal => cal === 230
@@ -2061,6 +2063,12 @@ p{text-align:justify;margin-bottom:14px}
                         <div><div style={lbl}>N° Cajas</div><input type="number" min={0} value={c.cajas} onChange={e => setPF(selPalletIdx, ci, "cajas", e.target.value)} style={inp} /></div>
                         <div><div style={lbl}>Observación</div><input value={c.predio} onChange={e => setPF(selPalletIdx, ci, "predio", e.target.value)} placeholder="Observación de este calibre" style={inp} /></div>
                         <div><div style={lbl}>Registro ICA</div><input value={c.ica} onChange={e => setPF(selPalletIdx, ci, "ica", e.target.value)} placeholder="980005905" style={inp} /></div>
+                        <div><div style={lbl}>🏷️ Lote</div>
+                          <SearchableSelect value={c.lote} onChange={e => setPF(selPalletIdx, ci, "lote", e.target.value)} placeholder="Buscar lote..." style={inp}>
+                            <option value="">— Sin lote —</option>
+                            {lotesDisponibles.map(l => <option key={l} value={l}>{l}</option>)}
+                          </SearchableSelect>
+                        </div>
                         <div style={{ paddingBottom:1 }}>{ci === 0
                           ? <button onClick={() => addCal(selPalletIdx)} style={{ background:"rgba(99,102,241,0.2)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:7, padding:"6px 10px", color:"#a5b4fc", cursor:"pointer", fontSize:12, width:"100%" }}>➕</button>
                           : <button onClick={() => removeCal(selPalletIdx, ci)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:7, padding:"6px 10px", color:"#fca5a5", cursor:"pointer", fontSize:12, width:"100%" }}>✕</button>

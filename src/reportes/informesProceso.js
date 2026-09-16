@@ -3,6 +3,23 @@
 // dependa de montar ese componente, y PackingListTab los importa de vuelta.
 export const CALIBRES = [110, 150, 175, 200, 230, 250];
 
+// Catálogo de predios/fincas registrados ante el ICA — compartido entre
+// Packing List (Grower List por calibre) y Recepciones (selector de lote,
+// ya que cada lote corresponde a un predio de origen).
+export const PREDIOS = [
+  { registro:"430003503", nombre:"La Esperanza",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"650002801", nombre:"El Molino",      dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"580004907", nombre:"La Esmeralda",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"980005905", nombre:"Las Brisas",     dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"590004304", nombre:"La Ponderosa",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"350001906", nombre:"Los Charcos",    dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"15000896",  nombre:"Los Almendros",  dir:"Vereda Peñas",     ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"55000592",  nombre:"Villa Isabel",   dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"25000843",  nombre:"San Nicolás",    dir:"Vereda El Pilón",  ciudad:"Zapatoca", dpto:"Santander" },
+  { registro:"180003708", nombre:"Vista Hermosa",  dir:"Vereda Palogordo", ciudad:"Chocoita", dpto:"Santander" },
+  { registro:"790004802", nombre:"La Arenosa",     dir:"Vereda Chocoita",  ciudad:"Chocoita", dpto:"Santander" },
+];
+
 // ── Checklist "Control de Calidad y Cargue" — molde agregado en Moldes/ ──
 export const CHECKLIST_CALIDAD_CARGUE = [
   { cat:"Calidad del producto", icon:"🍋", items:[
@@ -137,6 +154,32 @@ export async function generarInformePlantaHtml({ pallets, admin, contenedor, tot
       <div class="cal-pallet-count"><b>${n}</b> pallet${n !== 1 ? "s" : ""} mixto${n !== 1 ? "s" : ""}</div>
     </div>`).join("");
 
+  // ── Resumen de cajas por lote (y por calibre dentro de cada lote) — la
+  // trazabilidad pedida: cuántas cajas exactas salieron con cada lote.
+  const loteCalMap = {};
+  pallets.forEach(p => p.calibres.forEach(c => {
+    if (!c.lote) return;
+    const key = c.plu ? `${c.size}PLU` : (c.size || "—");
+    loteCalMap[c.lote] = loteCalMap[c.lote] || {};
+    loteCalMap[c.lote][key] = (loteCalMap[c.lote][key] || 0) + Number(c.cajas || 0);
+  }));
+  const lotesOrdenados = Object.keys(loteCalMap).sort();
+  const seccionLotes = lotesOrdenados.length ? `
+    <h2>🏷️ Resumen de cajas por lote</h2>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
+      ${lotesOrdenados.map(lote => {
+        const porCalibre = loteCalMap[lote];
+        const total = Object.values(porCalibre).reduce((a, b) => a + b, 0);
+        const detalle = Object.entries(porCalibre)
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+          .map(([s, q]) => `${s}: <b>${q.toLocaleString("es-CO")}</b>cj`).join(" &middot; ");
+        return `<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div><span style="font-weight:800;color:#4338ca;">🏷️ ${lote}</span> <span style="font-size:11px;color:#64748b;">&mdash; ${detalle}</span></div>
+          <div style="font-weight:800;color:#4338ca;font-size:15px;">${total.toLocaleString("es-CO")} cj</div>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
   const pallCards = pallets.map(p => {
     const sum   = palletSum(p);
     const ok    = sum === cpp;
@@ -146,11 +189,13 @@ export async function generarInformePlantaHtml({ pallets, admin, contenedor, tot
     }).join("");
     const observacion = p.calibres.find(c => c.predio)?.predio;
     const icasPallet = [...new Set(p.calibres.map(c => (c.ica || admin.icaGeneral || "").trim()).filter(Boolean))];
+    const lotesPallet = [...new Set(p.calibres.map(c => c.lote).filter(Boolean))];
     return `<div class="pallet-card ${ok ? "" : "warn"}">
       <div class="pallet-top"><span class="pid">Pallet ${p.id}</span><span class="pflag">${ok ? "✓ cuadra" : `⚠ ${sum}/${cpp}`}</span></div>
       <div class="pchips">${chips}</div>
       ${observacion ? `<div class="ppredio">📝 ${observacion}</div>` : ""}
       ${icasPallet.length ? `<div class="pica">🏷 ${icasPallet.join(" · ")}</div>` : ""}
+      ${lotesPallet.length ? `<div class="plote">📦 Lote${lotesPallet.length !== 1 ? "s" : ""}: ${lotesPallet.join(", ")}</div>` : ""}
     </div>`;
   }).join("");
   const pallOk = pallets.filter(p => palletSum(p) === cpp).length;
@@ -247,6 +292,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .pchip{border:1px solid;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:600}
 .ppredio{margin-top:6px;font-size:9px;color:#222;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pica{margin-top:3px;font-size:9px;color:#2d8a2d;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plote{margin-top:3px;font-size:9px;color:#6366F1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Checklist ── */
 .chk-cat{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 16px;margin-bottom:10px;break-inside:avoid}
@@ -323,6 +369,8 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
         ${filasPalletsMixtos ? `<div class="cal-col-title" style="margin-top:10px">Pallets mixtos</div>${filasPalletsMixtos}` : ""}
       </div>
     </div>
+
+    ${seccionLotes}
 
     <h2>🧱 Distribución por pallet (${pallets.length})</h2>
     <div class="pallet-grid">${pallCards}</div>

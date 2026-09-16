@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import QRCode from "qrcode";
 import CustomSelect from "./CustomSelect.jsx";
+import SearchableSelect from "./SearchableSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
 import { useVerificacionesEstibas } from "../hooks/useVerificacionesEstibas.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 import { fechaLocalISO } from "../utils/dates.js";
+import { PREDIOS } from "../reportes/informesProceso.js";
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
 // descargados muestran el logo aunque se abran después, sin servidor.
@@ -182,7 +184,7 @@ function formVacio() {
   const hoy = fechaLocalISO();
   return {
     remision: "", fecha: hoy, tipo: "entrada",
-    placa: "", conductor: "", cedulaConductor: "", origen: "", proveedor: "", supervisor: "",
+    placa: "", conductor: "", cedulaConductor: "", origen: "", proveedor: "", lote: "", supervisor: "",
     horaInicio: "", horaFin: "", observaciones: "",
     fotosComparacionProveedor: [], // fotos del cuaderno del proveedor, para cruzar datos
     estibas: [nuevaEstiba(1)],
@@ -341,6 +343,7 @@ h2::after{content:"";flex:1;height:1px;background:${t.divider}}
       <div class="info-item"><div class="l">Cédula conductor</div><div class="v">${esc(r.cedulaConductor) || "—"}</div></div>
       <div class="info-item"><div class="l">Origen</div><div class="v">${esc(r.origen) || "—"}</div></div>
       <div class="info-item"><div class="l">Proveedor</div><div class="v">${esc(r.proveedor) || "—"}</div></div>
+      <div class="info-item"><div class="l">N° de lote</div><div class="v">${esc(r.lote) || "—"}</div></div>
       <div class="info-item"><div class="l">Supervisor</div><div class="v">${esc(r.supervisor) || "—"}</div></div>
       <div class="info-item"><div class="l">Hora inicio — Hora fin</div><div class="v">${esc(r.horaInicio) || "—"} — ${esc(r.horaFin) || "—"}</div></div>
     </div>
@@ -399,6 +402,7 @@ async function generarInformeGeneralHTML(recs, desde, hasta, tipo) {
       <td>${esc(r.fecha) || "—"}</td>
       <td>${esc(r.placa) || "—"}</td>
       <td>${esc(r.proveedor) || "—"}</td>
+      <td>${esc(r.lote) || "—"}</td>
       <td>${esc(r.supervisor) || "—"}</td>
       <td style="text-align:center">${r.estibas?.length || 0}</td>
       <td style="text-align:right;font-weight:700;color:${t.mid}">${kg(r.total)}</td>
@@ -477,7 +481,7 @@ tfoot td{background:${t.totalboxBg};font-weight:800;border-top:2px solid ${t.mid
     <table>
       <thead>
         <tr>
-          <th>Remisión</th><th>Fecha</th><th>Placa</th><th>Proveedor</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
+          <th>Remisión</th><th>Fecha</th><th>Placa</th><th>Proveedor</th><th>Lote</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
         </tr>
       </thead>
       <tbody>
@@ -893,7 +897,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     setForm({
       remision: r.remision, fecha: r.fecha, tipo: r.tipo,
       placa: r.placa, conductor: r.conductor, cedulaConductor: r.cedulaConductor || "", origen: r.origen || "",
-      proveedor: r.proveedor, supervisor: r.supervisor,
+      proveedor: r.proveedor, lote: r.lote || "", supervisor: r.supervisor,
       horaInicio: r.horaInicio, horaFin: r.horaFin, observaciones: r.observaciones || "",
       fotosComparacionProveedor: r.fotosComparacionProveedor || [],
       estibas: r.estibas.length
@@ -1359,7 +1363,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
       if (filtroDesdeAsoc && r.fecha < filtroDesdeAsoc) return false;
       if (filtroHastaAsoc && r.fecha > filtroHastaAsoc) return false;
       if (!q) return true;
-      return [r.remision, r.proveedor, r.placa].some(v => (v || "").toLowerCase().includes(q));
+      return [r.remision, r.proveedor, r.placa, r.lote].some(v => (v || "").toLowerCase().includes(q));
     });
   }, [recepciones, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
 
@@ -1547,6 +1551,13 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
           <div style={campoBox}>
             <div style={lbl}>Proveedor</div>
             <input style={inp} value={form.proveedor} onChange={e=>setCampo("proveedor", e.target.value)} placeholder="Predio / proveedor" />
+          </div>
+          <div style={campoBox}>
+            <div style={lbl}>Lote (predio de origen)</div>
+            <SearchableSelect value={form.lote} onChange={e=>setCampo("lote", e.target.value)} placeholder="Buscar predio..." style={inp}>
+              <option value="">— Sin lote todavía —</option>
+              {PREDIOS.map(p => <option key={p.registro} value={p.nombre}>{p.nombre}</option>)}
+            </SearchableSelect>
           </div>
           <div style={campoBox}>
             <div style={lbl}>Supervisor</div>
@@ -1902,6 +1913,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <th style={{ padding:"6px" }}>Fecha</th>
                   <th style={{ padding:"6px" }}>Placa</th>
                   <th style={{ padding:"6px" }}>Proveedor</th>
+                  <th style={{ padding:"6px" }}>Lote</th>
                   <th style={{ padding:"6px" }}>Supervisor</th>
                   <th style={{ padding:"6px" }}>Estibas</th>
                   <th style={{ padding:"6px" }}>Total neto</th>
@@ -1915,6 +1927,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     <td style={{ padding:"6px" }}>{r.fecha}</td>
                     <td style={{ padding:"6px" }}>{r.placa || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
+                    <td style={{ padding:"6px" }}>{r.lote || <span style={{ color:"rgba(255,255,255,0.3)" }}>sin lote</span>}</td>
                     <td style={{ padding:"6px" }}>{r.supervisor || "—"}</td>
                     <td style={{ padding:"6px", textAlign:"center" }}>
                       {r.estibas.filter(e => e.usada).length}/{r.estibas.length}
@@ -2389,7 +2402,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                       <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
                         <th style={{ padding:"6px" }}></th>
                         <th style={{ padding:"6px" }}>Remisión</th><th style={{ padding:"6px" }}>Fecha</th>
-                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Estibas</th>
+                        <th style={{ padding:"6px" }}>Proveedor</th><th style={{ padding:"6px" }}>Lote</th><th style={{ padding:"6px" }}>Estibas</th>
                         <th style={{ padding:"6px" }}>Estado</th>
                       </tr>
                     </thead>
@@ -2410,6 +2423,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                             <td style={{ padding:"6px", color:"white", fontWeight:600 }}>{r.remision || "—"}</td>
                             <td style={{ padding:"6px" }}>{r.fecha}</td>
                             <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
+                            <td style={{ padding:"6px" }}>{r.lote || <span style={{ color:"rgba(255,255,255,0.3)" }}>sin lote</span>}</td>
                             <td style={{ padding:"6px" }}>{r.estibas.length}</td>
                             <td style={{ padding:"6px", color:estadoMeta.col, fontWeight:700 }}>{estadoMeta.txt}</td>
                           </tr>
