@@ -3,6 +3,7 @@ import LimonLoader from "./LimonLoader.jsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useCajaMenor } from "../hooks/useCajaMenor.js";
+import { useTerceros } from "../hooks/useTerceros.js";
 import { fechaLocalISO } from "../utils/dates.js";
 
 const TIPOS_DOCUMENTO = ["Factura", "Cuenta de cobro", "N/A"];
@@ -16,6 +17,10 @@ function facturaVacia() {
 
 function abonoVacio() {
   return { fecha: fechaLocalISO(), monto: "", concepto: "", obs: "", registradoPor: "" };
+}
+
+function terceroVacio() {
+  return { nombre: "", nit: "", tipo: "Persona", telefono: "", obs: "", registradoPor: "" };
 }
 
 function fmtCOP(v) { return `$${Math.round(Number(v) || 0).toLocaleString("es-CO")}`; }
@@ -75,9 +80,10 @@ export default function CajaMenorTab({ mob }) {
   const m = mob || isMobLocal;
 
   const { facturas, abonos, loading, guardarFactura, eliminarFactura, guardarAbono, eliminarAbono } = useCajaMenor();
+  const { terceros, loading: loadingTerceros, guardarTercero, toggleActivo, eliminarTercero } = useTerceros();
 
   const [tabCM, setTabCM] = useState(0);
-  const TAB_CM = ["📋 Facturas", "💵 Abonos"];
+  const TAB_CM = ["📋 Facturas", "💵 Abonos", "🏢 Terceros"];
 
   const inp = {
     background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
@@ -118,8 +124,16 @@ export default function CajaMenorTab({ mob }) {
     return mapa;
   }, [facturas]);
 
+  // Terceros activos del catálogo — para ofrecerlos como autocompletado en el
+  // formulario de Facturas, además de la heurística sobre facturas anteriores.
+  const terceroPorNombre = useMemo(() => {
+    const mapa = new Map();
+    terceros.filter(t => t.activo).forEach(t => { if (t.nombre && !mapa.has(t.nombre)) mapa.set(t.nombre, t.nit || ""); });
+    return mapa;
+  }, [terceros]);
+
   const onNombreChange = (v) => {
-    const nitConocido = proveedoresPorNombre.get(v.trim());
+    const nitConocido = terceroPorNombre.get(v.trim()) || proveedoresPorNombre.get(v.trim());
     setForm(f => ({ ...f, nombre: v, nit: (!f.nit && nitConocido) ? nitConocido : f.nit }));
   };
   const onNitChange = (v) => {
@@ -142,7 +156,10 @@ export default function CajaMenorTab({ mob }) {
     setForm(facturaVacia());
   };
 
-  const guardar = async () => {
+  // `crearOtra`: además de guardar, deja el formulario limpio y listo para
+  // capturar la siguiente factura de una — para cuando llegan varias
+  // facturas juntas y no tiene sentido volver a la lista entre cada una.
+  const guardar = async (crearOtra = false) => {
     setErrorGuardado("");
     if (!form.concepto.trim()) { setErrorGuardado("Falta el concepto de la factura."); return; }
     if (!form.monto) { setErrorGuardado("Falta el monto de la factura."); return; }
@@ -155,8 +172,13 @@ export default function CajaMenorTab({ mob }) {
     setGuardando(false);
     if (ok) {
       setGuardadoOk(true);
-      setTimeout(() => setGuardadoOk(false), 2000);
-      if (esNueva && id) setFacturaSel(id);
+      setTimeout(() => setGuardadoOk(false), crearOtra ? 1200 : 2000);
+      if (crearOtra) {
+        setForm(facturaVacia());
+        setFacturaSel("new");
+      } else if (esNueva && id) {
+        setFacturaSel(id);
+      }
     } else {
       setErrorGuardado("No se pudo guardar la factura. Revisa tu conexión e intenta de nuevo.");
     }
@@ -266,7 +288,68 @@ export default function CajaMenorTab({ mob }) {
     return ordenarPorFechaDesc(filtrados);
   }, [abonos, busquedaAbono]);
 
-  if (loading) return <LimonLoader texto="Cargando Caja Menor" />;
+  // ══════════════ TERCEROS: lista / detalle ══════════════
+  const [tercerSel, setTercerSel]           = useState(null); // null = lista | "new" | id
+  const [tercerForm, setTercerForm]         = useState(terceroVacio);
+  const [guardandoTercero, setGuardandoTercero] = useState(false);
+  const [guardadoOkTercero, setGuardadoOkTercero] = useState(false);
+  const [errorTercero, setErrorTercero]     = useState("");
+  const [busquedaTercero, setBusquedaTercero] = useState("");
+
+  const setCampoTercero = (campo, valor) => setTercerForm(f => ({ ...f, [campo]: valor }));
+
+  const nuevoTercero = () => {
+    setTercerForm(terceroVacio());
+    setTercerSel("new");
+    setErrorTercero("");
+  };
+  const abrirTercero = (t) => {
+    setTercerForm({ ...terceroVacio(), ...t });
+    setTercerSel(t.id);
+    setErrorTercero("");
+  };
+  const volverListaTerceros = () => {
+    setTercerSel(null);
+    setTercerForm(terceroVacio());
+  };
+
+  const guardarTerceroForm = async () => {
+    setErrorTercero("");
+    if (!tercerForm.nombre.trim()) { setErrorTercero("Falta el nombre."); return; }
+    setGuardandoTercero(true);
+    const esNuevo = tercerSel === "new";
+    const { ok } = await guardarTercero(
+      { ...tercerForm, registradoPor: tercerForm.registradoPor || nombreUsuarioSesion() },
+      esNuevo ? null : tercerSel
+    );
+    setGuardandoTercero(false);
+    if (ok) {
+      setGuardadoOkTercero(true);
+      setTimeout(() => setGuardadoOkTercero(false), 2000);
+      if (esNuevo) volverListaTerceros();
+    } else {
+      setErrorTercero("No se pudo guardar. Revisa tu conexión e intenta de nuevo.");
+    }
+  };
+
+  const eliminarTerceroForm = (t) => {
+    if (window.confirm(`¿Eliminar a "${t.nombre || t.id}"? Esta acción no se puede deshacer.`)) {
+      eliminarTercero(t.id);
+      if (tercerSel === t.id) volverListaTerceros();
+    }
+  };
+
+  // Tercero seleccionado tal como está en la base (no en el formulario en
+  // edición) — para mostrar y togglear "activo" sin depender del guardado.
+  const tercerActual = tercerSel && tercerSel !== "new" ? terceros.find(t => t.id === tercerSel) : null;
+
+  const tercerosFiltrados = useMemo(() => {
+    const q = busquedaTercero.trim().toLowerCase();
+    const filtrados = terceros.filter(t => !q || [t.nombre, t.nit, t.telefono].some(v => (v || "").toLowerCase().includes(q)));
+    return [...filtrados].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [terceros, busquedaTercero]);
+
+  if (loading || loadingTerceros) return <LimonLoader texto="Cargando Caja Menor" />;
 
   return (
     <div>
@@ -364,7 +447,7 @@ export default function CajaMenorTab({ mob }) {
             </div>
 
             <datalist id="cm-nombres">
-              {[...proveedoresPorNombre.keys()].map(n => <option key={n} value={n} />)}
+              {[...new Set([...terceroPorNombre.keys(), ...proveedoresPorNombre.keys()])].map(n => <option key={n} value={n} />)}
             </datalist>
             <datalist id="cm-nits">
               {[...proveedoresPorNit.keys()].map(n => <option key={n} value={n} />)}
@@ -419,13 +502,18 @@ export default function CajaMenorTab({ mob }) {
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
               {facturaSel !== "new" ? (
                 <button onClick={() => eliminar({ id: facturaSel, concepto: form.concepto })} style={btnTablaEliminar}>Eliminar factura</button>
               ) : <span />}
-              <button onClick={guardar} disabled={guardando} style={btnPrimario(guardadoOk, guardando)}>
-                {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : "Guardar Factura"}
-              </button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => guardar(true)} disabled={guardando} style={btnSecundario}>
+                  {guardando ? "Guardando..." : "➕ Guardar y crear otra"}
+                </button>
+                <button onClick={() => guardar(false)} disabled={guardando} style={btnPrimario(guardadoOk, guardando)}>
+                  {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : "Guardar Factura"}
+                </button>
+              </div>
             </div>
           </div>
         )
@@ -514,6 +602,106 @@ export default function CajaMenorTab({ mob }) {
               ) : <span />}
               <button onClick={guardarAbonoForm} disabled={guardandoAbono} style={btnPrimario(guardadoOkAbono, guardandoAbono)}>
                 {guardadoOkAbono ? "✓ Guardado" : guardandoAbono ? "Guardando..." : "Guardar Abono"}
+              </button>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ═══ TAB 2 — TERCEROS ═══ */}
+      {tabCM === 2 && (
+        tercerSel === null ? (
+          /* ── Lista maestra ── */
+          <div style={cardS}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🏢 Terceros — personas y empresas</div>
+              <button onClick={nuevoTercero} style={btnPrimario(false, false)}>+ Nuevo tercero</button>
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>Catálogo de proveedores y beneficiarios — cada uno se puede editar, y aparecen sugeridos al registrar una factura.</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              <input value={busquedaTercero} onChange={e => setBusquedaTercero(e.target.value)} placeholder="🔍 Buscar por nombre, NIT o teléfono..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+            </div>
+            {tercerosFiltrados.length === 0 ? (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin terceros registrados todavía.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ color: "rgba(255,255,255,0.45)", textAlign: "left" }}>
+                      <th style={{ padding: "6px" }}>Nombre</th><th style={{ padding: "6px" }}>Tipo</th>
+                      <th style={{ padding: "6px" }}>NIT/Cédula</th><th style={{ padding: "6px" }}>Teléfono</th>
+                      <th style={{ padding: "6px" }}>Estado</th><th style={{ padding: "6px" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tercerosFiltrados.map(t => (
+                      <tr key={t.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", opacity: t.activo ? 1 : 0.5 }} onClick={() => abrirTercero(t)}>
+                        <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{t.nombre || "—"}</td>
+                        <td style={{ padding: "6px" }}>{t.tipo}</td>
+                        <td style={{ padding: "6px" }}>{t.nit || "—"}</td>
+                        <td style={{ padding: "6px" }}>{t.telefono || "—"}</td>
+                        <td style={{ padding: "6px", color: t.activo ? "#00C9A7" : "rgba(255,255,255,0.4)", fontWeight: 700 }}>{t.activo ? "Activo" : "Inactivo"}</td>
+                        <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => abrirTercero(t)} style={btnTablaEditar}>Editar</button>
+                          <button onClick={() => eliminarTerceroForm(t)} style={btnTablaEliminar}>Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── Detalle / formulario ── */
+          <div style={cardS}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>
+                🏢 {tercerSel === "new" ? "Nuevo tercero" : `Editando: ${tercerForm.nombre || tercerSel}`}
+              </div>
+              <button onClick={volverListaTerceros} style={btnSecundario}>← Volver a la lista</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: camposCols, gap: 10, marginBottom: 14 }}>
+              <div style={campoBox}><div style={lbl}>Nombre / Razón social</div><input style={inp} value={tercerForm.nombre} onChange={e => setCampoTercero("nombre", e.target.value)} placeholder="Nombre o empresa" /></div>
+              <div style={campoBox}><div style={lbl}>Tipo</div>
+                <CustomSelect value={tercerForm.tipo} onChange={e => setCampoTercero("tipo", e.target.value)} style={inp}>
+                  <option value="Persona">Persona</option>
+                  <option value="Empresa">Empresa</option>
+                </CustomSelect>
+              </div>
+              <div style={campoBox}><div style={lbl}>NIT / Cédula</div><input style={inp} value={tercerForm.nit} onChange={e => setCampoTercero("nit", e.target.value)} placeholder="Documento" /></div>
+              <div style={campoBox}><div style={lbl}>Teléfono</div><input style={inp} value={tercerForm.telefono} onChange={e => setCampoTercero("telefono", e.target.value)} placeholder="Número de contacto" /></div>
+            </div>
+
+            {tercerActual && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: tercerActual.activo ? "rgba(0,201,167,0.08)" : "rgba(255,107,107,0.08)", border: `1px solid ${tercerActual.activo ? "rgba(0,201,167,0.3)" : "rgba(255,107,107,0.3)"}`, borderRadius: 8, padding: "9px 12px", marginBottom: 14 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: tercerActual.activo ? "#00C9A7" : "#FF6B6B" }}>
+                  {tercerActual.activo ? "✓ Activo — aparece sugerido al registrar facturas" : "✕ Inactivo — ya no aparece sugerido"}
+                </span>
+                <button onClick={() => toggleActivo(tercerActual.id, !tercerActual.activo)} style={btnSecundario}>
+                  {tercerActual.activo ? "Desactivar" : "Reactivar"}
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={lbl}>Observaciones</div>
+              <textarea style={{ ...inp, minHeight: m ? 70 : 56, resize: "vertical", fontFamily: "inherit" }} value={tercerForm.obs} onChange={e => setCampoTercero("obs", e.target.value)} placeholder="Notas sobre este tercero..." />
+            </div>
+
+            {errorTercero && (
+              <div style={{ background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 8, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#FF6B6B" }}>
+                ⚠️ {errorTercero}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              {tercerSel !== "new" ? (
+                <button onClick={() => eliminarTerceroForm({ id: tercerSel, nombre: tercerForm.nombre })} style={btnTablaEliminar}>Eliminar tercero</button>
+              ) : <span />}
+              <button onClick={guardarTerceroForm} disabled={guardandoTercero} style={btnPrimario(guardadoOkTercero, guardandoTercero)}>
+                {guardadoOkTercero ? "✓ Guardado" : guardandoTercero ? "Guardando..." : "Guardar Tercero"}
               </button>
             </div>
           </div>
