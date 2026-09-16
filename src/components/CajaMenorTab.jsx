@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import LimonLoader from "./LimonLoader.jsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
@@ -7,6 +7,64 @@ import { useTerceros } from "../hooks/useTerceros.js";
 import { fechaLocalISO } from "../utils/dates.js";
 
 const TIPOS_DOCUMENTO = ["Factura", "Cuenta de cobro", "N/A"];
+
+// Campo de texto libre (para poder escribir un nombre nuevo que todavía no
+// es tercero) + sugerencias de terceros ya registrados debajo, alfabético y
+// topado a 10 hasta que pidan "ver más" — a diferencia de SearchableSelect
+// (que es de solo-selección), acá cada tecla sí actualiza el valor real.
+function ComboTerceros({ value, onChangeText, onPick, opciones, placeholder, inputStyle }) {
+  const [open, setOpen]           = useState(false);
+  const [mostrarTodos, setMostrarTodos] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const q = value.trim().toLowerCase();
+  const filtradas = q ? opciones.filter(t => t.nombre.toLowerCase().includes(q)) : opciones;
+  const visibles  = mostrarTodos ? filtradas : filtradas.slice(0, 10);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        style={inputStyle}
+        value={value}
+        onChange={e => { onChangeText(e.target.value); setOpen(true); setMostrarTodos(false); }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+      />
+      {open && filtradas.length > 0 && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 50,
+          background: "rgba(7,8,18,0.97)", backdropFilter: "blur(30px)", WebkitBackdropFilter: "blur(30px)",
+          border: "1px solid rgba(139,92,246,0.3)", borderRadius: 10, maxHeight: 240, overflowY: "auto",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.45)", padding: 4,
+        }}>
+          {visibles.map(t => (
+            <div
+              key={t.id}
+              onMouseDown={e => { e.preventDefault(); onPick(t); setOpen(false); }}
+              style={{ padding: "8px 12px", fontSize: 11, color: "rgba(255,255,255,0.8)", cursor: "pointer", borderRadius: 7 }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(139,92,246,0.16)"; e.currentTarget.style.color = "white"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
+            >
+              {t.nombre}
+            </div>
+          ))}
+          {!mostrarTodos && filtradas.length > 10 && (
+            <div onMouseDown={e => { e.preventDefault(); setMostrarTodos(true); }} style={{ padding: "8px 12px", fontSize: 11, color: "#a5b4fc", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>
+              Ver más ({filtradas.length - 10})
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function facturaVacia() {
   return {
@@ -141,15 +199,32 @@ export default function CajaMenorTab({ mob }) {
     setForm(f => ({ ...f, nit: v, nombre: (!f.nombre && nombreConocido) ? nombreConocido : f.nombre }));
   };
 
+  // Opciones del selector de Nombre en Factura — alfabético, con buscador
+  // (SearchableSelect) y opción de escribir uno nuevo (allowCustom).
+  const tercerosActivosOrdenados = useMemo(
+    () => terceros.filter(t => t.activo).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [terceros]
+  );
+
+  // Si el nombre ya coincide con un tercero existente, no tiene sentido
+  // ofrecer "guardarlo como tercero nuevo" — ya está.
+  const tercerCoincideExacto = useMemo(() => {
+    const key = form.nombre.trim().toLowerCase();
+    return key ? terceros.some(t => t.nombre.trim().toLowerCase() === key) : false;
+  }, [form.nombre, terceros]);
+  const [guardarComoTercero, setGuardarComoTercero] = useState(false);
+
   const nuevaFactura = () => {
     setForm(facturaVacia());
     setFacturaSel("new");
     setErrorGuardado("");
+    setGuardarComoTercero(false);
   };
   const abrirFactura = (f) => {
     setForm({ ...facturaVacia(), ...f });
     setFacturaSel(f.id);
     setErrorGuardado("");
+    setGuardarComoTercero(false);
   };
   const volverLista = () => {
     setFacturaSel(null);
@@ -171,13 +246,21 @@ export default function CajaMenorTab({ mob }) {
     );
     setGuardando(false);
     if (ok) {
+      if (guardarComoTercero && form.nombre.trim() && !tercerCoincideExacto) {
+        await guardarTercero({
+          nombre: form.nombre.trim(), nit: form.nit || "", tipo: "Persona", telefono: "",
+          obs: "Creado al guardar una factura.", registradoPor: form.registradoPor || nombreUsuarioSesion(),
+        }, null);
+      }
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), crearOtra ? 1200 : 2000);
       if (crearOtra) {
         setForm(facturaVacia());
         setFacturaSel("new");
+        setGuardarComoTercero(false);
       } else if (esNueva && id) {
         setFacturaSel(id);
+        setGuardarComoTercero(false);
       }
     } else {
       setErrorGuardado("No se pudo guardar la factura. Revisa tu conexión e intenta de nuevo.");
@@ -339,6 +422,36 @@ export default function CajaMenorTab({ mob }) {
     }
   };
 
+  // Crea un Tercero por cada nombre distinto que ya aparece en las facturas
+  // guardadas — para poblar el catálogo con lo que ya se venía registrando
+  // como texto libre, sin tener que volver a escribirlo a mano.
+  const [importandoTerceros, setImportandoTerceros] = useState(false);
+  const importarTercerosDesdeFacturas = async () => {
+    setImportandoTerceros(true);
+    const existentes = new Set(terceros.map(t => t.nombre.trim().toLowerCase()));
+    const nuevos = new Map();
+    facturas.forEach(f => {
+      const nombre = (f.nombre || "").trim();
+      if (!nombre) return;
+      const key = nombre.toLowerCase();
+      if (existentes.has(key) || nuevos.has(key)) return;
+      nuevos.set(key, { nombre, nit: f.nit || "" });
+    });
+    let creados = 0;
+    for (const { nombre, nit } of nuevos.values()) {
+      const { ok } = await guardarTercero({
+        nombre, nit, tipo: "Persona", telefono: "",
+        obs: "Importado automáticamente desde facturas existentes.",
+        registradoPor: nombreUsuarioSesion(),
+      }, null);
+      if (ok) creados++;
+    }
+    setImportandoTerceros(false);
+    alert(creados > 0
+      ? `Se crearon ${creados} tercero(s) nuevo(s) a partir de las facturas ya guardadas.`
+      : "No había proveedores nuevos por importar — ya estaban todos en Terceros.");
+  };
+
   // Tercero seleccionado tal como está en la base (no en el formulario en
   // edición) — para mostrar y togglear "activo" sin depender del guardado.
   const tercerActual = tercerSel && tercerSel !== "new" ? terceros.find(t => t.id === tercerSel) : null;
@@ -446,9 +559,6 @@ export default function CajaMenorTab({ mob }) {
               <button onClick={volverLista} style={btnSecundario}>← Volver a la lista</button>
             </div>
 
-            <datalist id="cm-nombres">
-              {[...new Set([...terceroPorNombre.keys(), ...proveedoresPorNombre.keys()])].map(n => <option key={n} value={n} />)}
-            </datalist>
             <datalist id="cm-nits">
               {[...proveedoresPorNit.keys()].map(n => <option key={n} value={n} />)}
             </datalist>
@@ -462,10 +572,43 @@ export default function CajaMenorTab({ mob }) {
               </div>
               <div style={campoBox}><div style={lbl}>N° de documento</div><input style={inp} value={form.numeroDocumento} onChange={e => setCampo("numeroDocumento", e.target.value)} placeholder="Ej: 4521" /></div>
               <div style={campoBox}><div style={lbl}>NIT o Cédula</div><input list="cm-nits" style={inp} value={form.nit} onChange={e => onNitChange(e.target.value)} placeholder="Ej: 900123456-1" /></div>
-              <div style={campoBox}><div style={lbl}>Nombre</div><input list="cm-nombres" style={inp} value={form.nombre} onChange={e => onNombreChange(e.target.value)} placeholder="Nombre o razón social" /></div>
+              <div style={campoBox}>
+                <div style={lbl}>Nombre</div>
+                <ComboTerceros
+                  value={form.nombre}
+                  onChangeText={onNombreChange}
+                  onPick={t => setForm(f => ({ ...f, nombre: t.nombre, nit: t.nit || f.nit }))}
+                  opciones={tercerosActivosOrdenados}
+                  placeholder="Nombre o razón social"
+                  inputStyle={inp}
+                />
+              </div>
               <div style={campoBox}><div style={lbl}>Concepto</div><input style={inp} value={form.concepto} onChange={e => setCampo("concepto", e.target.value)} placeholder="Ej: Almuerzo, repuestos..." /></div>
               <div style={campoBox}><div style={lbl}>Valor total (COP)</div><input type="number" style={inp} value={form.monto} onChange={e => setCampo("monto", e.target.value)} placeholder="0" /></div>
             </div>
+
+            {form.nombre.trim() && !tercerCoincideExacto && (
+              <div
+                onClick={() => setGuardarComoTercero(v => !v)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 9, cursor: "pointer", userSelect: "none",
+                  background: guardarComoTercero ? "rgba(0,201,167,0.1)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${guardarComoTercero ? "rgba(0,201,167,0.35)" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius: 8, padding: "9px 12px", marginBottom: 14,
+                }}
+              >
+                <div style={{
+                  width: 17, height: 17, borderRadius: 5, flexShrink: 0,
+                  background: guardarComoTercero ? "#00C9A7" : "transparent",
+                  border: `2px solid ${guardarComoTercero ? "#00C9A7" : "rgba(255,255,255,0.3)"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, color: "#0b1a16", fontWeight: 900,
+                }}>{guardarComoTercero ? "✓" : ""}</div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: guardarComoTercero ? "#00C9A7" : "rgba(255,255,255,0.65)" }}>
+                  Guardar "{form.nombre.trim()}" también como tercero nuevo (nombre + NIT/cédula)
+                </span>
+              </div>
+            )}
 
             <div style={{ marginBottom: 14 }}>
               <div style={lbl}>Observaciones</div>
@@ -615,9 +758,14 @@ export default function CajaMenorTab({ mob }) {
           <div style={cardS}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🏢 Terceros — personas y empresas</div>
-              <button onClick={nuevoTercero} style={btnPrimario(false, false)}>+ Nuevo tercero</button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={importarTercerosDesdeFacturas} disabled={importandoTerceros} style={btnSecundario}>
+                  {importandoTerceros ? "Importando..." : "📥 Crear desde facturas"}
+                </button>
+                <button onClick={nuevoTercero} style={btnPrimario(false, false)}>+ Nuevo tercero</button>
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>Catálogo de proveedores y beneficiarios — cada uno se puede editar, y aparecen sugeridos al registrar una factura.</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>Catálogo de proveedores y beneficiarios — cada uno se puede editar, y aparecen sugeridos al registrar una factura. "Crear desde facturas" arma un tercero por cada nombre distinto que ya tienes guardado en facturas anteriores.</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
               <input value={busquedaTercero} onChange={e => setBusquedaTercero(e.target.value)} placeholder="🔍 Buscar por nombre, NIT o teléfono..." style={{ ...inp, flex: 1, minWidth: 160 }} />
             </div>
