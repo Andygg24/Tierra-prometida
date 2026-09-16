@@ -34,6 +34,18 @@ export function usePackingList() {
     return { data: data || [], error };
   }, []);
 
+  // Trae solo `pallets` de varios contenedores a la vez — usado en
+  // Verificación de Estibas para sumar, entre todos los contenedores a los
+  // que fue una remisión, cuántas cajas quedaron marcadas con su lote.
+  const cargarPalletsPorContenedores = useCallback(async (contenedorIds) => {
+    if (!contenedorIds?.length) return { data: [], error: null };
+    const { data, error } = await supabase
+      .from("packing_lists")
+      .select("contenedor_id, pallets")
+      .in("contenedor_id", contenedorIds);
+    return { data: data || [], error };
+  }, []);
+
   const guardar = useCallback(async (pl) => {
     const row = {
       ...pl,
@@ -113,5 +125,5 @@ export function usePackingList() {
     return { data: { ...data, numContenedor: cont?.num_contenedor || "" }, error: null };
   }, []);
 
-  return { cargarPorContenedor, cargarTodos, guardar, cargarPorIdConContenedor, actualizarPallets, actualizarFase, cargarUltimoAutorizado, ultimaActualizacion };
+  return { cargarPorContenedor, cargarTodos, cargarPalletsPorContenedores, guardar, cargarPorIdConContenedor, actualizarPallets, actualizarFase, cargarUltimoAutorizado, ultimaActualizacion };
 }

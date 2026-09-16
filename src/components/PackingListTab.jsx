@@ -306,8 +306,21 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   const { config: cfgSeguridad } = useConfiguracion();
   // Lotes reales creados en Recepciones (por remisión) — Fase 1 elige entre
   // estos, no se inventan a mano, para que "cajas por lote" sea confiable.
-  const { recepciones } = useRecepciones();
+  // Por defecto solo se muestran los lotes de remisiones que YA se
+  // asociaron a este contenedor específico (Recepciones → Asociar
+  // Contenedor) — así es imposible marcar por error un lote que nunca
+  // llegó a este contenedor. "Ver todos los lotes" es la válvula de escape
+  // manual si hace falta asignar antes de haber hecho esa asociación.
+  const { recepciones, asignaciones } = useRecepciones();
+  const [verTodosLotes, setVerTodosLotes] = useState(false);
   const lotesDisponibles = [...new Set(recepciones.map(r => r.lote).filter(Boolean))].sort();
+  const recepcionIdsDelContenedor = new Set(
+    asignaciones.filter(a => a.contenedorId === contenedor.id).map(a => a.recepcionId)
+  );
+  const lotesDelContenedor = [...new Set(
+    recepciones.filter(r => recepcionIdsDelContenedor.has(r.id) && r.lote).map(r => r.lote)
+  )].sort();
+  const lotesParaSelector = verTodosLotes ? lotesDisponibles : lotesDelContenedor;
   const claveRequerida = cfgSeguridad?.cfg_claves_acceso?.paso1_packing || "";
   const [paso1Ok,       setPaso1Ok]       = useState(false);
   const [claveInput,    setClaveInput]    = useState("");
@@ -2021,6 +2034,20 @@ p{text-align:justify;margin-bottom:14px}
                   </span>
                 </div>
 
+                {lotesDelContenedor.length === 0 && !verTodosLotes && (
+                  <div style={{ background:"rgba(249,168,38,0.1)", border:"1px solid rgba(249,168,38,0.3)", borderRadius:9, padding: m ? "10px 12px" : "8px 10px", marginBottom:10, fontSize: m ? 12 : 11, color:"#F9A826" }}>
+                    ⚠️ Este contenedor todavía no tiene ninguna remisión asociada en Recepciones → Asociar Contenedor, así que no hay lotes para elegir todavía.
+                    {" "}
+                    <button onClick={() => setVerTodosLotes(true)} style={{ background:"none", border:"none", color:"#a5b4fc", textDecoration:"underline", cursor:"pointer", fontSize:"inherit", fontWeight:700, padding:0 }}>Ver todos los lotes de todas maneras</button>
+                  </div>
+                )}
+                {verTodosLotes && (
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(165,180,252,0.08)", border:"1px solid rgba(165,180,252,0.25)", borderRadius:9, padding: m ? "10px 12px" : "8px 10px", marginBottom:10, fontSize: m ? 12 : 11, color:"#a5b4fc" }}>
+                    <span>👁 Viendo todos los lotes existentes, no solo los de este contenedor.</span>
+                    <button onClick={() => setVerTodosLotes(false)} style={{ background:"none", border:"none", color:"#a5b4fc", textDecoration:"underline", cursor:"pointer", fontSize:"inherit", fontWeight:700, padding:0, whiteSpace:"nowrap", marginLeft:8 }}>Volver a filtrar</button>
+                  </div>
+                )}
+
                 {selP.calibres.map((c, ci) => (
                   <div key={ci} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[c.size]?.border||"rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 14 : 10, marginBottom:10 }}>
                     {m ? (
@@ -2043,7 +2070,7 @@ p{text-align:justify;margin-bottom:14px}
                         <div><div style={lbl}>🏷️ Lote</div>
                           <SearchableSelect value={c.lote} onChange={e => setPF(selPalletIdx, ci, "lote", e.target.value)} placeholder="Buscar lote..." style={inp}>
                             <option value="">— Sin lote —</option>
-                            {lotesDisponibles.map(l => <option key={l} value={l}>{l}</option>)}
+                            {lotesParaSelector.map(l => <option key={l} value={l}>{l}</option>)}
                           </SearchableSelect>
                         </div>
                         <div>{ci === 0
@@ -2066,7 +2093,7 @@ p{text-align:justify;margin-bottom:14px}
                         <div><div style={lbl}>🏷️ Lote</div>
                           <SearchableSelect value={c.lote} onChange={e => setPF(selPalletIdx, ci, "lote", e.target.value)} placeholder="Buscar lote..." style={inp}>
                             <option value="">— Sin lote —</option>
-                            {lotesDisponibles.map(l => <option key={l} value={l}>{l}</option>)}
+                            {lotesParaSelector.map(l => <option key={l} value={l}>{l}</option>)}
                           </SearchableSelect>
                         </div>
                         <div style={{ paddingBottom:1 }}>{ci === 0

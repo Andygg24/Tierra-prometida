@@ -12,6 +12,7 @@ const rowToRecepcion = (r) => ({
   origen:     r.origen     || "",
   proveedor:  r.proveedor  || "",
   lote:       r.lote       || "",
+  cajasLote:  r.cajas_lote != null ? Number(r.cajas_lote) : null,
   supervisor: r.supervisor || "",
   horaInicio: r.hora_inicio || "",
   horaFin:    r.hora_fin    || "",
@@ -132,6 +133,16 @@ export function useRecepciones() {
     return !error;
   }, []);
 
+  // Cajas empacadas de este lote — el supervisor lo escribe a mano en
+  // Verificación de Estibas, o lo llena el botón "Calcular" (suma desde
+  // Packing List). Update suelto, igual que actualizarEstibas.
+  const actualizarCajasLote = useCallback(async (id, cajasLote) => {
+    const { error } = await supabase.from("recepciones")
+      .update({ cajas_lote: cajasLote, updated_at: new Date().toISOString() }).eq("id", id);
+    if (!error) setRecepciones(prev => prev.map(r => r.id === id ? { ...r, cajasLote } : r));
+    return !error;
+  }, []);
+
   // ── Mutaciones — asignaciones a contenedor (Asociar Contenedor) ────────
   // Una estiba puede repartirse entre varios contenedores — cada asignación
   // guarda cuántas canastillas de esa estiba fueron para ese contenedor.
@@ -148,8 +159,11 @@ export function useRecepciones() {
     };
     setAsignaciones(prev => [rowToAsignacion(row), ...prev]);
     const { error } = await supabase.from("recepciones_asignaciones").insert(row);
-    if (error) setAsignaciones(prev => prev.filter(a => a.id !== row.id));
-    return !error;
+    if (error) {
+      console.error("[recepciones_asignaciones.insert]", error.message);
+      setAsignaciones(prev => prev.filter(a => a.id !== row.id));
+    }
+    return { ok: !error, error };
   }, []);
 
   const eliminarAsignacion = useCallback(async (id) => {
@@ -162,7 +176,7 @@ export function useRecepciones() {
 
   return {
     recepciones, asignaciones, loading,
-    guardarRecepcion, eliminarRecepcion, actualizarEstibas,
+    guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote,
     guardarAsignacion, eliminarAsignacion,
   };
 }

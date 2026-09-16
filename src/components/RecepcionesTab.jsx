@@ -6,6 +6,8 @@ import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useRecepciones } from "../hooks/useRecepciones.js";
 import { useVerificacionesEstibas } from "../hooks/useVerificacionesEstibas.js";
+import { usePackingList } from "../hooks/usePackingList.js";
+import { useContenedores } from "../hooks/useContenedores.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 import { fechaLocalISO } from "../utils/dates.js";
 import { PREDIOS } from "../reportes/informesProceso.js";
@@ -643,9 +645,14 @@ async function buildTirillaEstibaWord(form, e, recepcionId) {
 </body></html>`;
 }
 
-export default function RecepcionesTab({ mob, logisticaBookings }) {
-  const bookingsLog = logisticaBookings || [];
-  const labelBookingLog = (b) => b ? (b.numeroContenedor || b.numeroBooking || `#${b.id}`) : "—";
+export default function RecepcionesTab({ mob }) {
+  // "Asociar Contenedor" y "Verificación de Estibas" apuntan al contenedor de
+  // producción (el mismo que usa Packing List, Nómina y Asistencia QR) — no
+  // al booking de Logística, que es una entidad distinta con otro id. Antes
+  // se usaba el booking por error, lo que hacía que Packing List nunca
+  // encontrara el lote de una remisión ya "asociada".
+  const { procesos: contenedoresProduccion } = useContenedores();
+  const labelContenedor = (c) => c ? (c.numContenedor || `#${c.id}`) : "—";
   const [isMobLocal, setIsMobLocal] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 680
   );
@@ -668,7 +675,8 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, guardarAsignacion, eliminarAsignacion } = useRecepciones();
+  const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, guardarAsignacion, eliminarAsignacion } = useRecepciones();
+  const { cargarPalletsPorContenedores } = usePackingList();
   const { verificaciones, guardarVerificacion, eliminarVerificacion } = useVerificacionesEstibas();
 
   const [form,       setForm]       = useState(formVacio);
@@ -1031,6 +1039,17 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const [editandoVerifId, setEditandoVerifId]       = useState(null); // id de la verificación guardada que se está editando
   const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
   const [mostrarEdicionResumen, setMostrarEdicionResumen] = useState(false); // los valores del resumen solo se vuelven editables si el usuario lo pide
+  // Cajas empacadas del lote de la recepción que se está viendo ahora mismo
+  // — el supervisor lo escribe a mano, o el botón "Calcular" lo llena
+  // sumando desde Packing List. Se resincroniza cada vez que cambia la
+  // recepción mostrada (buscarEstibaPorQr / seleccionarEstibaManual).
+  const [cajasLoteInput, setCajasLoteInput]     = useState("");
+  const [calculandoCajasLote, setCalculandoCajasLote] = useState(false);
+  const [guardandoCajasLote, setGuardandoCajasLote]   = useState(false);
+  useEffect(() => {
+    const r = resultadoEstiba?.estado === "ok" ? resultadoEstiba.recepcion : null;
+    setCajasLoteInput(r?.cajasLote != null ? String(r.cajasLote) : "");
+  }, [resultadoEstiba?.recepcion?.id]);
   const html5QrRef    = useRef(null);
   const procesandoRef = useRef(false);
   const ignoradoRef   = useRef(null);
@@ -1295,10 +1314,10 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     }).sort((a, b) => (a.recepcion?.fecha || "").localeCompare(b.recepcion?.fecha || ""));
     const totalCanastillas = filas.reduce((s, f) => s + (Number(f.cantidadCanastillas) || 0), 0);
     const totalKg = filas.reduce((s, f) => s + f.kgAsignados, 0);
-    const booking = contenedorManualId === "reserva" ? null : bookingsLog.find(b => b.id === Number(contenedorManualId));
-    const fechaContenedor = booking ? (booking.fechaAsignacion || booking.createdAt || "") : "";
-    return { filas, totalCanastillas, totalKg, fechaContenedor, booking };
-  }, [asignaciones, recepciones, contenedorManualId, bookingsLog]);
+    const contenedorInfo = contenedorManualId === "reserva" ? null : contenedoresProduccion.find(c => c.id === Number(contenedorManualId));
+    const fechaContenedor = contenedorInfo?.fecha || "";
+    return { filas, totalCanastillas, totalKg, fechaContenedor, contenedorInfo };
+  }, [asignaciones, recepciones, contenedorManualId, contenedoresProduccion]);
 
   // ══════════════ ASOCIAR CONTENEDOR (remisión completa → contenedor) ══════════════
   // Se asocia la remisión completa: cada estiba queda asignada al contenedor
@@ -1306,6 +1325,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   // de Estibas) resulta que no se usó todo, ahí se ajusta y aparece el
   // sobrante para reasignar a otro contenedor o dejar en reserva.
   const [busquedaAsoc, setBusquedaAsoc]     = useState("");
+  const [limiteHistorialAsoc, setLimiteHistorialAsoc] = useState("15"); // mismo patrón que "Ver últimas" del listado principal
   const [filtroDesdeAsoc, setFiltroDesdeAsoc] = useState("");
   const [filtroHastaAsoc, setFiltroHastaAsoc] = useState("");
   const [seleccionAsoc, setSeleccionAsoc]   = useState([]); // ids de recepciones elegidas
@@ -1316,6 +1336,44 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     asignaciones.filter(a => a.recepcionId === recepcionId && a.numeroEstiba === numeroEstiba);
   const cantidadAsignadaEstiba = (recepcionId, numeroEstiba) =>
     asignacionesPorEstiba(recepcionId, numeroEstiba).reduce((s, a) => s + (Number(a.cantidadCanastillas) || 0), 0);
+
+  // Contenedores (todos, de cualquier estiba) a los que fue esta remisión —
+  // para saber en qué packing lists buscar las cajas de su lote.
+  const contenedoresDeRecepcion = (recepcionId) => [...new Set(
+    asignaciones.filter(a => a.recepcionId === recepcionId && a.contenedorId != null).map(a => a.contenedorId)
+  )];
+
+  // Suma, en Packing List, todas las filas de calibre marcadas con el lote
+  // de esta remisión, en cualquier contenedor al que haya ido — es la misma
+  // cuenta que ya muestra el informe de planta, disponible aquí también
+  // para que el supervisor la vea (o la corrija) al verificar.
+  const calcularCajasLote = async (recepcion) => {
+    if (!recepcion.lote) return;
+    const contenedorIds = contenedoresDeRecepcion(recepcion.id);
+    if (!contenedorIds.length) {
+      alert("Esta remisión todavía no está asociada a ningún contenedor — no hay cajas empacadas que sumar todavía.");
+      return;
+    }
+    setCalculandoCajasLote(true);
+    try {
+      const { data, error } = await cargarPalletsPorContenedores(contenedorIds);
+      if (error) { alert("No se pudo calcular: " + error.message); return; }
+      let total = 0;
+      (data || []).forEach(pl => (pl.pallets || []).forEach(p => (p.calibres || []).forEach(c => {
+        if (c.lote === recepcion.lote) total += Number(c.cajas || 0);
+      })));
+      setCajasLoteInput(String(total));
+    } finally {
+      setCalculandoCajasLote(false);
+    }
+  };
+
+  const guardarCajasLote = async (recepcionId) => {
+    setGuardandoCajasLote(true);
+    const valor = cajasLoteInput.trim() === "" ? null : Number(cajasLoteInput);
+    await actualizarCajasLote(recepcionId, valor);
+    setGuardandoCajasLote(false);
+  };
 
   // Canastillas que quedaron "en reserva" (sobrante de una estiba que se dejó
   // sin contenedor) — disponibles para asignar a otro contenedor más tarde.
@@ -1367,6 +1425,13 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
     });
   }, [recepciones, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
 
+  // Igual que recepcionesMostradas del listado principal — no renderiza todo
+  // el historial de una vez, salvo que se elija "Todas".
+  const recepcionesAsocMostradas = useMemo(() => {
+    if (limiteHistorialAsoc === "todas") return recepcionesAsocFiltradas;
+    return recepcionesAsocFiltradas.slice(0, Number(limiteHistorialAsoc));
+  }, [recepcionesAsocFiltradas, limiteHistorialAsoc]);
+
   const estadoAsociacionRecepcion = (r) => {
     // Las estibas sin canastillas cargadas no cuentan: no hay nada que asociar.
     const estibasConCarga = r.estibas.filter(e => canastillasDeEstiba(e).reduce((s, c) => s + num(c.cantidad), 0) > 0);
@@ -1387,6 +1452,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const asociarRemisionesSeleccionadas = async () => {
     if (!contenedorAsocSel || seleccionAsoc.length === 0) return;
     setGuardandoAsociacion(true);
+    let hechas = 0, fallidas = 0, primerError = null;
     for (const recepcionId of seleccionAsoc) {
       const rec = recepciones.find(r => r.id === recepcionId);
       if (!rec) continue;
@@ -1394,15 +1460,21 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
         if (asignacionesPorEstiba(recepcionId, e.numero).length > 0) continue;
         const total = canastillasDeEstiba(e).reduce((s, c) => s + num(c.cantidad), 0);
         if (total <= 0) continue;
-        await guardarAsignacion({
+        const { ok, error } = await guardarAsignacion({
           recepcionId, numeroEstiba: e.numero, contenedorId: contenedorAsocSel,
           cantidadCanastillas: total, registradoPor: nombreUsuarioSesion(),
         });
+        if (ok) hechas++; else { fallidas++; primerError = primerError || error; }
       }
     }
     setGuardandoAsociacion(false);
     setSeleccionAsoc([]);
     setContenedorAsocSel("");
+    if (fallidas > 0) {
+      alert(`Se asociaron ${hechas}, pero ${fallidas} fallaron.\n\n${primerError?.message || "Error desconocido"}`);
+    } else if (hechas === 0) {
+      alert("No había nada nuevo para asociar (revisa si esas remisiones ya estaban asociadas, o si sus estibas no tienen canastillas cargadas).");
+    }
   };
 
   // Quita todas las asignaciones (a cualquier contenedor, o en reserva) de
@@ -1444,12 +1516,13 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
   const asignarSobranteAContenedor = async (recepcionId, numeroEstiba, cantidad) => {
     if (!contenedorSobranteId) return;
     setGuardandoSobrante(true);
-    const ok = await guardarAsignacion({
+    const { ok, error } = await guardarAsignacion({
       recepcionId, numeroEstiba, contenedorId: contenedorSobranteId, cantidadCanastillas: cantidad,
       registradoPor: nombreUsuarioSesion(),
     });
     setGuardandoSobrante(false);
     if (ok) { setModoSobranteEstiba(null); setContenedorSobranteId(""); }
+    else alert("No se pudo asignar el sobrante: " + (error?.message || "error desconocido"));
   };
 
   if (loading) return <LimonLoader texto="Cargando recepciones" />;
@@ -2003,7 +2076,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 <CustomSelect value={contenedorManualId} onChange={e=>setContenedorManualId(e.target.value)} style={inp}>
                   <option value="">Selecciona un contenedor...</option>
                   <option value="reserva">🗄 Reserva (sin contenedor)</option>
-                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                  {contenedoresProduccion.map(b => <option key={b.id} value={b.id}>{labelContenedor(b)}</option>)}
                 </CustomSelect>
               </div>
 
@@ -2030,7 +2103,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
               {vistaManualContenedor === "resumen" && infoContenedorManual && (
                 <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:10, padding:"10px 12px", marginBottom:12 }}>
                   <div style={{ fontSize:12, fontWeight:800, color:"white", marginBottom:8 }}>
-                    🚢 {contenedorManualId === "reserva" ? "Reserva (sin contenedor)" : labelBookingLog(infoContenedorManual.booking)}
+                    🚢 {contenedorManualId === "reserva" ? "Reserva (sin contenedor)" : labelContenedor(infoContenedorManual.contenedorInfo)}
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:8, marginBottom: infoContenedorManual.filas.length ? 10 : 0 }}>
                     <div><div style={lbl}>Fecha del contenedor</div><div style={{ fontSize:13, fontWeight:700, color:"white" }}>{infoContenedorManual.fechaContenedor || "—"}</div></div>
@@ -2153,9 +2226,33 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <div><div style={lbl}>Fecha de ingreso</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.fecha}</div></div>
                   <div><div style={lbl}>Hora</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.horaInicio || "—"}</div></div>
                   <div><div style={lbl}>Proveedor</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.proveedor || "—"}</div></div>
+                  <div><div style={lbl}>Lote</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{recepcion.lote || "— sin lote —"}</div></div>
                   <div><div style={lbl}>N° de Canastillas</div><div style={{ fontSize:13, color:"white", fontWeight:700 }}>{canastillasDeEstiba(estiba).reduce((s,c)=>s+num(c.cantidad),0)}</div></div>
-                  <div style={{ gridColumn:"1 / -1" }}><div style={lbl}>Peso Neto</div><div style={{ fontSize:14, color:"#00C9A7", fontWeight:800 }}>{kg(pesoNetoEstiba(estiba))} kg</div></div>
+                  <div><div style={lbl}>Peso Neto</div><div style={{ fontSize:14, color:"#00C9A7", fontWeight:800 }}>{kg(pesoNetoEstiba(estiba))} kg</div></div>
                 </div>
+
+                {recepcion.lote && (
+                  <div style={{ background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:9, padding:"10px 12px", marginBottom:14 }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:"#a5b4fc", textTransform:"uppercase", letterSpacing:0.4, marginBottom:8 }}>🏷️ Cajas empacadas — Lote {recepcion.lote}</div>
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                      <input
+                        type="number" min={0} value={cajasLoteInput}
+                        onChange={e => setCajasLoteInput(e.target.value)}
+                        placeholder="Cajas de este lote"
+                        style={{ ...inp, flex:"1 1 120px" }}
+                      />
+                      <button onClick={() => calcularCajasLote(recepcion)} disabled={calculandoCajasLote} style={{ ...btnSecundario, whiteSpace:"nowrap", opacity: calculandoCajasLote ? 0.6 : 1 }}>
+                        {calculandoCajasLote ? "Calculando..." : "🔄 Calcular"}
+                      </button>
+                      <button onClick={() => guardarCajasLote(recepcion.id)} disabled={guardandoCajasLote} style={{ ...btnPrimario(false, guardandoCajasLote), whiteSpace:"nowrap" }}>
+                        {guardandoCajasLote ? "Guardando..." : "💾 Guardar"}
+                      </button>
+                    </div>
+                    <div style={{ fontSize:9.5, color:"rgba(255,255,255,0.35)", marginTop:6 }}>
+                      Lo puedes escribir a mano, o dar "Calcular" para que sume, desde Packing List, todo lo empacado con este lote en los contenedores a los que fue esta remisión.
+                    </div>
+                  </div>
+                )}
 
                 {estiba.usada ? (
                   <>
@@ -2213,7 +2310,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                               <div style={{ flex:"1 1 160px", minWidth:0 }}>
                                 <CustomSelect value={contenedorSobranteId} onChange={ev=>setContenedorSobranteId(ev.target.value)} style={inp}>
                                   <option value="">Selecciona un contenedor...</option>
-                                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                                  {contenedoresProduccion.map(b => <option key={b.id} value={b.id}>{labelContenedor(b)}</option>)}
                                 </CustomSelect>
                               </div>
                               <button onClick={()=>asignarSobranteAContenedor(recepcion.id, estiba.numero, sobrante)} disabled={guardandoSobrante} style={btnPrimario(false,guardandoSobrante)}>
@@ -2231,11 +2328,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                     {(() => {
                       const totalCant   = canastillasDeEstiba(estiba).reduce((s,c)=>s+num(c.cantidad),0);
                       const asigsEstiba = asignacionesPorEstiba(recepcion.id, estiba.numero);
-                      const contenedorAsig = asigsEstiba.length === 1 ? bookingsLog.find(b=>b.id===asigsEstiba[0].contenedorId) : null;
+                      const contenedorAsig = asigsEstiba.length === 1 ? contenedoresProduccion.find(b=>b.id===asigsEstiba[0].contenedorId) : null;
                       return (
                         <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.6)", marginBottom:8 }}>
                           {asigsEstiba.length === 0 && "⚠️ Esta estiba todavía no está asociada a ningún contenedor."}
-                          {asigsEstiba.length === 1 && <>Asociada a <b style={{ color:"white" }}>{labelBookingLog(contenedorAsig)}</b> — <b style={{ color:"white" }}>{totalCant}</b> canastillas.</>}
+                          {asigsEstiba.length === 1 && <>Asociada a <b style={{ color:"white" }}>{labelContenedor(contenedorAsig)}</b> — <b style={{ color:"white" }}>{totalCant}</b> canastillas.</>}
                           {asigsEstiba.length > 1 && "Esta estiba está repartida en varios contenedores."}
                         </div>
                       );
@@ -2388,6 +2485,16 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                   <div style={lbl}>Hasta</div>
                   <input type="date" style={inp} value={filtroHastaAsoc} onChange={e=>setFiltroHastaAsoc(e.target.value)} />
                 </div>
+                <div style={{ flex:"0 1 150px" }}>
+                  <div style={lbl}>Ver últimas</div>
+                  <CustomSelect value={limiteHistorialAsoc} onChange={e=>setLimiteHistorialAsoc(e.target.value)} style={inp}>
+                    <option value="15">15</option>
+                    <option value="30">30</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="todas">Todas</option>
+                  </CustomSelect>
+                </div>
                 {(filtroDesdeAsoc || filtroHastaAsoc) && (
                   <button onClick={()=>{setFiltroDesdeAsoc("");setFiltroHastaAsoc("");}} style={btnSecundario}>✕ Limpiar</button>
                 )}
@@ -2397,6 +2504,11 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                 <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sin recepciones registradas.</div>
               ) : (
                 <div style={{ overflowX:"auto", marginBottom:14 }}>
+                  {recepcionesAsocMostradas.length < recepcionesAsocFiltradas.length && (
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>
+                      Mostrando {recepcionesAsocMostradas.length} de {recepcionesAsocFiltradas.length} — elige "Ver últimas: Todas" para verlas completas.
+                    </div>
+                  )}
                   <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                     <thead>
                       <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
@@ -2407,7 +2519,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {recepcionesAsocFiltradas.map(r => {
+                      {recepcionesAsocMostradas.map(r => {
                         const estado = estadoAsociacionRecepcion(r);
                         const estadoMeta = {
                           "asociada":    { txt:"✓ Asociada",  col:"#00C9A7" },
@@ -2437,10 +2549,10 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
               <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-end", paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
                 <div style={{ flex:"1 1 200px", minWidth:0 }}>
                   <div style={lbl}>Contenedor</div>
-                  <CustomSelect value={contenedorAsocSel} onChange={e=>setContenedorAsocSel(e.target.value)} style={inp}>
+                  <SearchableSelect value={contenedorAsocSel} onChange={e=>setContenedorAsocSel(e.target.value)} placeholder="Buscar contenedor..." style={inp}>
                     <option value="">Selecciona...</option>
-                    {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
-                  </CustomSelect>
+                    {contenedoresProduccion.map(b => <option key={b.id} value={b.id}>{labelContenedor(b)}</option>)}
+                  </SearchableSelect>
                 </div>
                 <button onClick={asociarRemisionesSeleccionadas} disabled={!contenedorAsocSel || seleccionAsoc.length===0 || guardandoAsociacion} style={btnPrimario(false, guardandoAsociacion)}>
                   {guardandoAsociacion ? "Guardando..." : `Asociar ${seleccionAsoc.length || ""} remisión(es)`}
@@ -2482,7 +2594,7 @@ export default function RecepcionesTab({ mob, logisticaBookings }) {
                               <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                                 <CustomSelect value={contenedorReasignarSel} onChange={e=>setContenedorReasignarSel(e.target.value)} style={{ ...inp, minWidth:160 }}>
                                   <option value="">Selecciona un contenedor...</option>
-                                  {bookingsLog.map(b => <option key={b.id} value={b.id}>{labelBookingLog(b)}</option>)}
+                                  {contenedoresProduccion.map(b => <option key={b.id} value={b.id}>{labelContenedor(b)}</option>)}
                                 </CustomSelect>
                                 <button onClick={()=>reasignarReservaAContenedor(a)} disabled={!contenedorReasignarSel || guardandoReasignacion} style={btnPrimario(false, guardandoReasignacion)}>
                                   {guardandoReasignacion ? "..." : "Confirmar"}
