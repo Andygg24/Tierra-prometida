@@ -417,8 +417,11 @@ function rotar(vx, vy, deg) {
   return { x: vx * Math.cos(r) - vy * Math.sin(r), y: vx * Math.sin(r) + vy * Math.cos(r) };
 }
 
-// Bandeja azul en "espina de pescado" — nace angosta junto al eje central
-// y se abre hacia afuera, como en la foto real de la calibradora.
+// Bandeja azul rectangular (cajón), no un abanico — nace junto al eje
+// central y se proyecta hacia afuera en línea recta, con un ancho casi
+// uniforme (solo un poco más angosta donde se une al eje), como en la
+// foto real. Devuelve también su propio sistema local (dir/perp/base)
+// para poder ubicar la fruta SIEMPRE dentro de su silueta.
 function bandejaPoly(base, dir, largo, wNear, wFar) {
   const perp = { x: -dir.y, y: dir.x };
   const near1 = { x: base.x + perp.x * wNear / 2, y: base.y + perp.y * wNear / 2 };
@@ -426,7 +429,22 @@ function bandejaPoly(base, dir, largo, wNear, wFar) {
   const farC = { x: base.x + dir.x * largo, y: base.y + dir.y * largo };
   const far1 = { x: farC.x + perp.x * wFar / 2, y: farC.y + perp.y * wFar / 2 };
   const far2 = { x: farC.x - perp.x * wFar / 2, y: farC.y - perp.y * wFar / 2 };
-  return { puntos: [[near1.x, near1.y], [far1.x, far1.y], [far2.x, far2.y], [near2.x, near2.y]], centro: farC };
+  return {
+    puntos: [[near1.x, near1.y], [far1.x, far1.y], [far2.x, far2.y], [near2.x, near2.y]],
+    centro: { x: (farC.x + base.x) / 2, y: (farC.y + base.y) / 2 },
+    base, dir, perp, largo, wNear, wFar,
+  };
+}
+
+// Punto dentro de una bandeja a fracción `t` de su largo (0=junto al eje,
+// 1=extremo afuera) y `s` de su ancho (-0.5..0.5) — así la fruta cae
+// siempre dentro de la silueta real, sin importar el ángulo de la bandeja.
+function puntoEnBandeja(b, t, s) {
+  const w = b.wNear + (b.wFar - b.wNear) * t;
+  return {
+    x: b.base.x + b.dir.x * b.largo * t + b.perp.x * w * s,
+    y: b.base.y + b.dir.y * b.largo * t + b.perp.y * w * s,
+  };
 }
 
 // Máquina calibradora real: eje central de cadena con bandejas azules que
@@ -459,8 +477,8 @@ function MaquinaCalibradora() {
     const t = 0.1 + ((k + 0.5) / N) * 0.8;
     tS.push(t);
     const base = enEje(t);
-    bandejas.push({ ...bandejaPoly(base, dirIzq, 54, 9, 32), t });
-    bandejas.push({ ...bandejaPoly(base, dirDer, 54, 9, 32), t });
+    bandejas.push({ ...bandejaPoly(base, dirIzq, 40, 22, 27), t });
+    bandejas.push({ ...bandejaPoly(base, dirDer, 40, 22, 27), t });
   }
   // Divisores metálicos entre bandejas consecutivas del mismo lado.
   const divisores = [];
@@ -534,9 +552,10 @@ function MaquinaCalibradora() {
         </g>
       ))}
       {bandejas.map((b, idx) => (
-        [[-7, -3], [3, 3], [8, -4], [-2, 5]].map(([ox, oy], j) => (
-          <circle key={`${idx}-${j}`} cx={b.centro.x + ox} cy={b.centro.y + oy} r="2.6" fill="#84cc16" stroke="#4d7c0f" strokeWidth="0.4" />
-        ))
+        [[0.42, -0.22], [0.58, 0.18], [0.75, -0.08], [0.68, 0.3], [0.5, 0.05]].map(([t, s], j) => {
+          const p = puntoEnBandeja(b, t, s);
+          return <circle key={`${idx}-${j}`} cx={p.x} cy={p.y} r="2.5" fill="#84cc16" stroke="#4d7c0f" strokeWidth="0.4" />;
+        })
       ))}
 
       {/* eje central de cadena */}
