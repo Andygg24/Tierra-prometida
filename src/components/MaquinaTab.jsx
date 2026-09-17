@@ -447,10 +447,30 @@ function puntoEnBandeja(b, t, s) {
   };
 }
 
-// Máquina calibradora real: eje central de cadena con bandejas azules que
-// se abren hacia los dos lados en diagonal ("espina de pescado"), como en
-// las fotos de la planta — no la plataforma genérica de antes.
-function MaquinaCalibradora() {
+// Valores por defecto de la calibradora — editables en vivo desde el botón
+// "Editar máquina" (se guardan en localStorage, por eso viven aparte).
+const CALIB_CFG_KEY = "tp_maquina_calibradora_cfg";
+const CALIB_CFG_DEFAULT = {
+  angulo: 0,       // grados respecto a perpendicular al eje — 0 = recto
+  largo: 40,       // largo de cada bandeja
+  ancho: 25,       // ancho de cada bandeja (igual en ambos extremos = rectángulo)
+  spineHalf: 88,   // medio largo del eje central
+  deskAlong: -143, // posición del puesto de control a lo largo del eje (negativo = antes)
+  deskPerp: 60,    // posición del puesto de control a un lado del eje
+};
+function cargarCalibCfg() {
+  try {
+    const raw = localStorage.getItem(CALIB_CFG_KEY);
+    return raw ? { ...CALIB_CFG_DEFAULT, ...JSON.parse(raw) } : { ...CALIB_CFG_DEFAULT };
+  } catch { return { ...CALIB_CFG_DEFAULT }; }
+}
+
+// Máquina calibradora real: eje central de cadena con bandejas azules a los
+// dos lados, como en las fotos de la planta — no la plataforma genérica de
+// antes. `cfg` viene del panel de edición (ver más abajo); si no se pasa,
+// usa los valores por defecto.
+function MaquinaCalibradora({ cfg }) {
+  const c = { ...CALIB_CFG_DEFAULT, ...cfg };
   const iF = STAGES.findIndex(s => s.key === "foto");
   const iE = STAGES.findIndex(s => s.key === "empaque");
   const iP = STAGES.findIndex(s => s.key === "pesaje");
@@ -461,7 +481,7 @@ function MaquinaCalibradora() {
   const px = -uy, py = ux;              // perpendicular
   const along = (t, w = 0) => ({ x: pE.x + ux * t + px * w, y: pE.y + uy * t + py * w });
 
-  const SPINE_HALF = 88;
+  const SPINE_HALF = c.spineHalf;
   const spineA = along(-SPINE_HALF), spineB = along(SPINE_HALF);
   const enEje = (t, w = 0) => {
     const b = { x: spineA.x + (spineB.x - spineA.x) * t, y: spineA.y + (spineB.y - spineA.y) * t };
@@ -469,16 +489,16 @@ function MaquinaCalibradora() {
   };
 
   const N = 4; // bandejas por lado (representativas de las 8 reales)
-  const dirIzq = rotar(px, py, 32);
-  const dirDer = rotar(-px, -py, -32);
+  const dirIzq = rotar(px, py, c.angulo);
+  const dirDer = rotar(-px, -py, -c.angulo);
   const bandejas = [];
   const tS = [];
   for (let k = 0; k < N; k++) {
     const t = 0.1 + ((k + 0.5) / N) * 0.8;
     tS.push(t);
     const base = enEje(t);
-    bandejas.push({ ...bandejaPoly(base, dirIzq, 40, 25, 25), t });
-    bandejas.push({ ...bandejaPoly(base, dirDer, 40, 25, 25), t });
+    bandejas.push({ ...bandejaPoly(base, dirIzq, c.largo, c.ancho, c.ancho), t });
+    bandejas.push({ ...bandejaPoly(base, dirDer, c.largo, c.ancho, c.ancho), t });
   }
   // Divisores metálicos entre bandejas consecutivas del mismo lado.
   const divisores = [];
@@ -486,7 +506,7 @@ function MaquinaCalibradora() {
     const tMid = (tS[k] + tS[k + 1]) / 2;
     [dirIzq, dirDer].forEach(dir => {
       const base = enEje(tMid);
-      divisores.push([base, { x: base.x + dir.x * 44, y: base.y + dir.y * 44 }]);
+      divisores.push([base, { x: base.x + dir.x * (c.largo + 4), y: base.y + dir.y * (c.largo + 4) }]);
     });
   }
 
@@ -506,9 +526,7 @@ function MaquinaCalibradora() {
   ];
 
   // Puesto de control: mesa + monitor inclinado + teclado + radio.
-  // El puesto de control va ANTES en el recorrido y claramente afuera de
-  // la silueta de la máquina — no encima de la tolva ni las bandejas.
-  const desk = along(-SPINE_HALF - 55, 60);
+  const desk = along(c.deskAlong, c.deskPerp);
 
   return (
     <g>
@@ -601,6 +619,15 @@ export default function MaquinaTab({ mob }) {
   const [viajero, setViajero] = useState(null); // ficha animada sobre la banda al mover a alguien
   const prevAreaRef = useRef({});
   const viajeIdRef = useRef(0);
+
+  // Modo edición: ajustar a mano la forma de la calibradora (ángulo de
+  // bandejas, posición del puesto de control, etc.) sin tener que
+  // describirlo por chat — se guarda en este navegador.
+  const [editando, setEditando] = useState(false);
+  const [calibCfg, setCalibCfg] = useState(() => cargarCalibCfg());
+  useEffect(() => {
+    try { localStorage.setItem(CALIB_CFG_KEY, JSON.stringify(calibCfg)); } catch { /* noop */ }
+  }, [calibCfg]);
 
   // Desligado de Asistencia por ahora: todos los empleados activos están
   // disponibles para ubicar a mano en la línea, sin depender de quién marcó
@@ -781,16 +808,67 @@ export default function MaquinaTab({ mob }) {
     <div onClick={() => menuAbierto && setMenuAbierto(null)}>
       <style>{CSS}</style>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: mob ? 18 : 22, fontWeight: 800, fontFamily: "'Syne',sans-serif", color: "white", letterSpacing: -0.5 }}>
-          ⚙️ Máquina — Línea de Proceso
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: mob ? 18 : 22, fontWeight: 800, fontFamily: "'Syne',sans-serif", color: "white", letterSpacing: -0.5 }}>
+            ⚙️ Máquina — Línea de Proceso
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.52)", marginTop: 2 }}>
+            {personas.length > 0
+              ? `${personas.length} empleados activos · ubícalos en la línea`
+              : "No hay empleados activos registrados en Personal"}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.52)", marginTop: 2 }}>
-          {personas.length > 0
-            ? `${personas.length} empleados activos · ubícalos en la línea`
-            : "No hay empleados activos registrados en Personal"}
-        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); setEditando(v => !v); }}
+          style={{
+            background: editando ? "rgba(132,94,247,0.18)" : "rgba(255,255,255,0.06)",
+            border: `1px solid ${editando ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+            borderRadius: 8, color: editando ? "#a78bfa" : "rgba(255,255,255,0.7)",
+            padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+          }}
+        >
+          {editando ? "✅ Salir de edición" : "✏️ Editar máquina"}
+        </button>
       </div>
+
+      {editando && (
+        <div style={{
+          background: "rgba(132,94,247,0.06)", border: "1px solid rgba(132,94,247,0.3)", borderRadius: 12,
+          padding: 14, marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+            🛠️ Ajustar la calibradora en vivo
+          </div>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: mob ? "1fr" : "repeat(3, 1fr)" }}>
+            {[
+              { key: "angulo", label: "Ángulo de bandejas (0 = recto)", min: -45, max: 45, step: 1, unidad: "°" },
+              { key: "largo", label: "Largo de bandeja", min: 25, max: 70, step: 1, unidad: "px" },
+              { key: "ancho", label: "Ancho de bandeja", min: 15, max: 40, step: 1, unidad: "px" },
+              { key: "spineHalf", label: "Longitud del eje", min: 50, max: 140, step: 2, unidad: "px" },
+              { key: "deskAlong", label: "Computador — adelante/atrás", min: -260, max: 0, step: 2, unidad: "px" },
+              { key: "deskPerp", label: "Computador — a un lado", min: 0, max: 120, step: 2, unidad: "px" },
+            ].map(campo => (
+              <div key={campo.key}>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 3 }}>
+                  {campo.label}: <b style={{ color: "white" }}>{calibCfg[campo.key]}{campo.unidad}</b>
+                </div>
+                <input
+                  type="range" min={campo.min} max={campo.max} step={campo.step} value={calibCfg[campo.key]}
+                  onChange={e => setCalibCfg(prev => ({ ...prev, [campo.key]: Number(e.target.value) }))}
+                  style={{ width: "100%" }}
+                />
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => setCalibCfg({ ...CALIB_CFG_DEFAULT })}
+            style={{ marginTop: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+          >
+            ↺ Restablecer a los valores originales
+          </button>
+        </div>
+      )}
 
       {sinAsignar.length > 0 && (
         <div style={{
@@ -824,7 +902,7 @@ export default function MaquinaTab({ mob }) {
 
             {/* Calibradora real: eje de cadena + bandejas azules en espina
                 de pescado, en vez de la plataforma genérica. */}
-            <MaquinaCalibradora />
+            <MaquinaCalibradora cfg={calibCfg} />
 
             {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
                 (cara izq/der más oscuras que la superior). El túnel y la
