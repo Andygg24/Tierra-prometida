@@ -441,45 +441,124 @@ function MaquinaCalibradora() {
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;   // a lo largo del eje (dirección del flujo)
   const px = -uy, py = ux;              // perpendicular
+  const along = (t, w = 0) => ({ x: pE.x + ux * t + px * w, y: pE.y + uy * t + py * w });
 
-  const SPINE_HALF = 68;
-  const spineA = { x: pE.x - ux * SPINE_HALF, y: pE.y - uy * SPINE_HALF };
-  const spineB = { x: pE.x + ux * SPINE_HALF, y: pE.y + uy * SPINE_HALF };
+  const SPINE_HALF = 88;
+  const spineA = along(-SPINE_HALF), spineB = along(SPINE_HALF);
+  const enEje = (t, w = 0) => {
+    const b = { x: spineA.x + (spineB.x - spineA.x) * t, y: spineA.y + (spineB.y - spineA.y) * t };
+    return { x: b.x + px * w, y: b.y + py * w };
+  };
 
-  const N = 3; // bandejas por lado (representativas de las 8 reales)
-  const dirIzq = rotar(px, py, 30);
-  const dirDer = rotar(-px, -py, -30);
+  const N = 4; // bandejas por lado (representativas de las 8 reales)
+  const dirIzq = rotar(px, py, 32);
+  const dirDer = rotar(-px, -py, -32);
   const bandejas = [];
+  const tS = [];
   for (let k = 0; k < N; k++) {
-    const t = (k + 0.5) / N;
-    const base = { x: spineA.x + (spineB.x - spineA.x) * t, y: spineA.y + (spineB.y - spineA.y) * t };
-    bandejas.push(bandejaPoly(base, dirIzq, 58, 10, 34));
-    bandejas.push(bandejaPoly(base, dirDer, 58, 10, 34));
+    const t = 0.1 + ((k + 0.5) / N) * 0.8;
+    tS.push(t);
+    const base = enEje(t);
+    bandejas.push({ ...bandejaPoly(base, dirIzq, 54, 9, 32), t });
+    bandejas.push({ ...bandejaPoly(base, dirDer, 54, 9, 32), t });
+  }
+  // Divisores metálicos entre bandejas consecutivas del mismo lado.
+  const divisores = [];
+  for (let k = 0; k < N - 1; k++) {
+    const tMid = (tS[k] + tS[k + 1]) / 2;
+    [dirIzq, dirDer].forEach(dir => {
+      const base = enEje(tMid);
+      divisores.push([base, { x: base.x + dir.x * 44, y: base.y + dir.y * 44 }]);
+    });
   }
 
-  const panel = { x: spineA.x - ux * 20 + px * 30, y: spineA.y - uy * 20 + py * 30 };
+  // Patas de soporte, elevando la máquina del piso (como la real).
+  const PATA = 28;
+  const patas = [0.08, 0.5, 0.92].map(t => {
+    const b = enEje(t);
+    return [{ x: b.x - px * 16, y: b.y - py * 16 }, { x: b.x + px * 16, y: b.y + py * 16 }];
+  });
+
+  // Tolva de entrada — embudo donde cae la fruta que viene de Fotoselección.
+  const tolva = [
+    [spineA.x - px * 20, spineA.y - py * 20],
+    [spineA.x + px * 20, spineA.y + py * 20],
+    [spineA.x - ux * 26 + px * 9, spineA.y - uy * 26 + py * 9],
+    [spineA.x - ux * 26 - px * 9, spineA.y - uy * 26 - py * 9],
+  ];
+
+  // Puesto de control: mesa + monitor inclinado + teclado + radio.
+  const desk = along(SPINE_HALF - 10, 44);
 
   return (
     <g>
-      {bandejas.map((b, idx) => (
-        <polygon key={idx} points={poly(b.puntos)} fill="#2f5fdb" stroke="#1e3a8a" strokeWidth="1.4" />
+      {/* patas de soporte */}
+      {patas.map(([p1, p2], idx) => (
+        <g key={`pata-${idx}`}>
+          <line x1={p1.x} y1={p1.y} x2={p1.x} y2={p1.y + PATA} stroke="#4b5563" strokeWidth="3.4" strokeLinecap="round" />
+          <line x1={p2.x} y1={p2.y} x2={p2.x} y2={p2.y + PATA} stroke="#4b5563" strokeWidth="3.4" strokeLinecap="round" />
+          <line x1={p1.x - 6} y1={p1.y + PATA * 0.55} x2={p2.x + 6} y2={p2.y + PATA * 0.55} stroke="#374151" strokeWidth="1.6" />
+        </g>
       ))}
-      {bandejas.map((b, idx) => {
-        // limones sueltos cerca del extremo ancho de cada bandeja
-        return [[-7, -3], [3, 3], [8, -4]].map(([ox, oy], j) => (
+
+      {/* tolva de entrada */}
+      <polygon points={poly(tolva)} fill="#8b95a3" stroke="#4b5563" strokeWidth="1.2" />
+
+      {/* pasarela angosta junto al eje, como una plataforma de acceso */}
+      <polygon
+        points={poly([
+          [spineA.x - px * 7, spineA.y - py * 7], [spineB.x - px * 7, spineB.y - py * 7],
+          [spineB.x - px * 15, spineB.y - py * 15], [spineA.x - px * 15, spineA.y - py * 15],
+        ])}
+        fill="#6b7280" stroke="#374151" strokeWidth="0.8"
+      />
+
+      {/* bandejas azules, con reborde interior y remaches en los divisores */}
+      {bandejas.map((b, idx) => (
+        <g key={idx}>
+          <polygon points={poly(b.puntos)} fill="#2f5fdb" stroke="#16296b" strokeWidth="1.6" />
+          <polygon
+            points={poly(b.puntos.map(([x, y], k) => {
+              const cx0 = (b.puntos[0][0] + b.puntos[2][0]) / 2, cy0 = (b.puntos[0][1] + b.puntos[2][1]) / 2;
+              const f = k === 0 || k === 3 ? 0.24 : 0.14;
+              return [x + (cx0 - x) * f, y + (cy0 - y) * f];
+            }))}
+            fill="none" stroke="#5c85f0" strokeWidth="1" opacity="0.8"
+          />
+        </g>
+      ))}
+      {divisores.map(([p1, p2], idx) => (
+        <g key={`div-${idx}`}>
+          <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#374151" strokeWidth="2.2" strokeLinecap="round" />
+          <circle cx={p1.x} cy={p1.y} r="1.4" fill="#9ca3af" />
+        </g>
+      ))}
+      {bandejas.map((b, idx) => (
+        [[-7, -3], [3, 3], [8, -4], [-2, 5]].map(([ox, oy], j) => (
           <circle key={`${idx}-${j}`} cx={b.centro.x + ox} cy={b.centro.y + oy} r="2.6" fill="#84cc16" stroke="#4d7c0f" strokeWidth="0.4" />
-        ));
-      })}
+        ))
+      ))}
 
-      <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#1f2937" strokeWidth="11" strokeLinecap="round" />
-      <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#4b5563" strokeWidth="4" strokeLinecap="round" strokeDasharray="4 5" />
+      {/* eje central de cadena */}
+      <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#1f2937" strokeWidth="12" strokeLinecap="round" />
+      <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#4b5563" strokeWidth="4.5" strokeLinecap="round" strokeDasharray="4 5" />
 
-      <g transform={`translate(${panel.x},${panel.y})`}>
-        <rect x="-9" y="-13" width="18" height="16" rx="1.5" fill="#1e293b" stroke="#0f172a" strokeWidth="1" />
-        <rect x="-7" y="-11" width="14" height="9" rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
-        <rect x="-6" y="-10" width="5" height="3" fill="#38BDF8" opacity="0.7">
-          <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.3s" repeatCount="indefinite" />
-        </rect>
+      {/* puesto de control: mesa, monitor, teclado y radio */}
+      <g transform={`translate(${desk.x},${desk.y})`}>
+        <rect x="-16" y="6" width="32" height="6" rx="1" fill="#6b4a2c" stroke="#4a3218" strokeWidth="1" />
+        <g transform="rotate(-12)">
+          <rect x="-11" y="-15" width="22" height="16" rx="1.5" fill="#1e293b" stroke="#0f172a" strokeWidth="1" />
+          <rect x="-9" y="-13" width="18" height="11" rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
+          <rect x="-8" y="-12" width="7" height="4" fill="#38BDF8" opacity="0.75">
+            <animate attributeName="opacity" values="0.75;0.25;0.75" dur="1.3s" repeatCount="indefinite" />
+          </rect>
+          <rect x="0" y="-12" width="7" height="4" fill="#22c55e" opacity="0.6">
+            <animate attributeName="opacity" values="0.4;0.8;0.4" dur="1.7s" repeatCount="indefinite" />
+          </rect>
+        </g>
+        <rect x="-9" y="3" width="12" height="6" rx="1" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="0.8" />
+        {[0, 1, 2].map(c => <circle key={c} cx={-6 + c * 4} cy={6} r="0.9" fill="#4b5563" />)}
+        <circle cx="8" cy="5" r="3.2" fill="#dc2626" stroke="#7f1d1d" strokeWidth="0.8" />
       </g>
     </g>
   );
