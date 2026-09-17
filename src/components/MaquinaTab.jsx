@@ -689,10 +689,10 @@ export default function MaquinaTab({ mob }) {
               const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
               return (
                 <g key={`banda-${s.key}`}>
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="10" strokeLinecap="round" />
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="6" strokeLinecap="round" />
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="7 8" opacity="0.85">
-                    <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="0.6s" repeatCount="indefinite" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="13" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="7.8" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="3.3" strokeLinecap="round" strokeDasharray="9 10.4" opacity="0.85">
+                    <animate attributeName="stroke-dashoffset" from="0" to="-39" dur="0.6s" repeatCount="indefinite" />
                   </line>
                 </g>
               );
