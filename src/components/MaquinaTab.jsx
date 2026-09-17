@@ -412,6 +412,79 @@ function TunelLavadoEncSecado() {
   );
 }
 
+function rotar(vx, vy, deg) {
+  const r = (deg * Math.PI) / 180;
+  return { x: vx * Math.cos(r) - vy * Math.sin(r), y: vx * Math.sin(r) + vy * Math.cos(r) };
+}
+
+// Bandeja azul en "espina de pescado" — nace angosta junto al eje central
+// y se abre hacia afuera, como en la foto real de la calibradora.
+function bandejaPoly(base, dir, largo, wNear, wFar) {
+  const perp = { x: -dir.y, y: dir.x };
+  const near1 = { x: base.x + perp.x * wNear / 2, y: base.y + perp.y * wNear / 2 };
+  const near2 = { x: base.x - perp.x * wNear / 2, y: base.y - perp.y * wNear / 2 };
+  const farC = { x: base.x + dir.x * largo, y: base.y + dir.y * largo };
+  const far1 = { x: farC.x + perp.x * wFar / 2, y: farC.y + perp.y * wFar / 2 };
+  const far2 = { x: farC.x - perp.x * wFar / 2, y: farC.y - perp.y * wFar / 2 };
+  return { puntos: [[near1.x, near1.y], [far1.x, far1.y], [far2.x, far2.y], [near2.x, near2.y]], centro: farC };
+}
+
+// Máquina calibradora real: eje central de cadena con bandejas azules que
+// se abren hacia los dos lados en diagonal ("espina de pescado"), como en
+// las fotos de la planta — no la plataforma genérica de antes.
+function MaquinaCalibradora() {
+  const iF = STAGES.findIndex(s => s.key === "foto");
+  const iE = STAGES.findIndex(s => s.key === "empaque");
+  const iP = STAGES.findIndex(s => s.key === "pesaje");
+  const pF = LAYOUT.puntos[iF], pE = LAYOUT.puntos[iE], pP = LAYOUT.puntos[iP];
+  const dx = pP.x - pF.x, dy = pP.y - pF.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;   // a lo largo del eje (dirección del flujo)
+  const px = -uy, py = ux;              // perpendicular
+
+  const SPINE_HALF = 68;
+  const spineA = { x: pE.x - ux * SPINE_HALF, y: pE.y - uy * SPINE_HALF };
+  const spineB = { x: pE.x + ux * SPINE_HALF, y: pE.y + uy * SPINE_HALF };
+
+  const N = 3; // bandejas por lado (representativas de las 8 reales)
+  const dirIzq = rotar(px, py, 30);
+  const dirDer = rotar(-px, -py, -30);
+  const bandejas = [];
+  for (let k = 0; k < N; k++) {
+    const t = (k + 0.5) / N;
+    const base = { x: spineA.x + (spineB.x - spineA.x) * t, y: spineA.y + (spineB.y - spineA.y) * t };
+    bandejas.push(bandejaPoly(base, dirIzq, 58, 10, 34));
+    bandejas.push(bandejaPoly(base, dirDer, 58, 10, 34));
+  }
+
+  const panel = { x: spineA.x - ux * 20 + px * 30, y: spineA.y - uy * 20 + py * 30 };
+
+  return (
+    <g>
+      {bandejas.map((b, idx) => (
+        <polygon key={idx} points={poly(b.puntos)} fill="#2f5fdb" stroke="#1e3a8a" strokeWidth="1.4" />
+      ))}
+      {bandejas.map((b, idx) => {
+        // limones sueltos cerca del extremo ancho de cada bandeja
+        return [[-7, -3], [3, 3], [8, -4]].map(([ox, oy], j) => (
+          <circle key={`${idx}-${j}`} cx={b.centro.x + ox} cy={b.centro.y + oy} r="2.6" fill="#84cc16" stroke="#4d7c0f" strokeWidth="0.4" />
+        ));
+      })}
+
+      <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#1f2937" strokeWidth="11" strokeLinecap="round" />
+      <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#4b5563" strokeWidth="4" strokeLinecap="round" strokeDasharray="4 5" />
+
+      <g transform={`translate(${panel.x},${panel.y})`}>
+        <rect x="-9" y="-13" width="18" height="16" rx="1.5" fill="#1e293b" stroke="#0f172a" strokeWidth="1" />
+        <rect x="-7" y="-11" width="14" height="9" rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
+        <rect x="-6" y="-10" width="5" height="3" fill="#38BDF8" opacity="0.7">
+          <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.3s" repeatCount="indefinite" />
+        </rect>
+      </g>
+    </g>
+  );
+}
+
 export default function MaquinaTab({ mob }) {
   const { empleados, loading: loadingPersonal } = usePersonal();
   const { areas, movimientos, loading: loadingMaquina, moverPersona } = useMaquina();
@@ -649,21 +722,27 @@ export default function MaquinaTab({ mob }) {
                 perforados, no tres bloques sueltos. */}
             <TunelLavadoEncSecado />
 
+            {/* Calibradora real: eje de cadena + bandejas azules en espina
+                de pescado, en vez de la plataforma genérica. */}
+            <MaquinaCalibradora />
+
             {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
-                (cara izq/der más oscuras que la superior). El túnel de
-                arriba ya cubre lavado/encerado/secado, así que esos tres no
-                dibujan su propio prisma — solo el detalle animado encima. */}
+                (cara izq/der más oscuras que la superior). El túnel y la
+                calibradora de arriba ya cubren lavado/encerado/secado y
+                empaque, así que esos no dibujan su propio prisma — solo el
+                detalle animado encima. */}
             {STAGES.map((s, i) => {
               const c = LAYOUT.puntos[i];
               const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
               const color = areaDb ? areaDb.color : COLOR_MAQUINA;
               const esTunel = s.tipo === "lavado" || s.tipo === "encerado" || s.tipo === "secado";
+              const esCalibradora = s.key === "empaque";
               const top   = [[c.x, c.y - PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x - PLAT_W / 2, c.y]];
               const left  = [[c.x - PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH], [c.x - PLAT_W / 2, c.y + PLAT_DEPTH]];
               const right = [[c.x, c.y + PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x + PLAT_W / 2, c.y + PLAT_DEPTH], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH]];
               return (
                 <g key={s.key}>
-                  {!esTunel && (
+                  {!esTunel && !esCalibradora && (
                     <>
                       <polygon points={poly(left)} fill={shade(color, 0.45)} />
                       <polygon points={poly(right)} fill={shade(color, 0.65)} />
