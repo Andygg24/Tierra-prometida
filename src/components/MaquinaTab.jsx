@@ -1,12 +1,40 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useId } from "react";
 import { usePersonal } from "../hooks/usePersonal.js";
 import { useMaquina } from "../hooks/useMaquina.js";
+import { useMaquinaDiseno } from "../hooks/useMaquinaDiseno.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 import LimonLoader from "./LimonLoader.jsx";
 
 const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
+
+// Antes de conectar el diseño del plano a Supabase, cada pieza vivía en el
+// localStorage de este navegador bajo estas llaves. Se dejó de leer de ahí,
+// pero lo que ya hubiera quedado guardado en este navegador sigue estando
+// — esto lo detecta para poder recuperarlo con un clic y subirlo.
+const LLAVES_RESPALDO_LOCAL = {
+  calibCfg: "tp_maquina_calibradora_cfg",
+  posCustom: "tp_maquina_posiciones_estaciones",
+  posPersonas: "tp_maquina_posiciones_personas",
+  objetos: "tp_maquina_objetos_libres",
+  rutasPersonas: "tp_maquina_rutas_personas",
+};
+function leerRespaldoLocal() {
+  try {
+    const partes = {};
+    let algo = false;
+    for (const [campo, llave] of Object.entries(LLAVES_RESPALDO_LOCAL)) {
+      const raw = localStorage.getItem(llave);
+      if (!raw) continue;
+      const val = JSON.parse(raw);
+      const vacio = Array.isArray(val) ? val.length === 0 : Object.keys(val || {}).length === 0;
+      partes[campo] = val;
+      if (!vacio) algo = true;
+    }
+    return algo ? partes : null;
+  } catch { return null; }
+}
 
 function fmtDur(ms) {
   if (ms == null || ms < 0) return "—";
@@ -64,6 +92,20 @@ function isoPoint(col, row) {
   // Espejo horizontal respecto a la versión anterior — la línea venía
   // dibujada al revés (izquierda/derecha invertidas).
   return { x: (row - col) * TILE_DX, y: (col + row) * TILE_DY };
+}
+
+// Convierte un punto en coordenadas de pantalla (clientX/Y) a coordenadas
+// internas del SVG del plano — usa la matriz real del navegador (getScreenCTM)
+// así que da la posición exacta sin importar si el plano está escalado por
+// CSS (por ejemplo en móvil). Se usa para las asas de rotar/redimensionar.
+function puntoSvg(svgEl, clientX, clientY) {
+  if (!svgEl || !svgEl.createSVGPoint) return { x: clientX, y: clientY };
+  const pt = svgEl.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const ctm = svgEl.getScreenCTM();
+  if (!ctm) return { x: clientX, y: clientY };
+  const loc = pt.matrixTransform(ctm.inverse());
+  return { x: loc.x, y: loc.y };
 }
 
 // Oscurece un color hex — para las caras laterales del prisma (más oscuras
@@ -178,6 +220,54 @@ function Trabajador({ x, y, casco = "#fbbf24", espejo = false, brazoDesde = -15,
           {objeto}
         </g>
       </g>
+    </g>
+  );
+}
+
+// Personaje que de verdad camina: piernas y brazos alternados en bucle
+// (ciclo de caminata), para ponerlo sobre un <animateMotion> y que se vea
+// una persona caminando por el plano, no solo una ficha deslizándose.
+function TrabajadorCaminando({ casco = "#fbbf24", nombre = "" }) {
+  const dur = "0.6s";
+  return (
+    <g>
+      {/* piernas — cuelgan desde la cadera y se balancean adelante/atrás,
+          una opuesta a la otra (paso normal, no un salto simétrico) */}
+      <g transform="translate(-2.3,9)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="-26;26;-26" dur={dur} repeatCount="indefinite" />
+          <line x1="0" y1="0" x2="0" y2="9" stroke="#334155" strokeWidth="2.4" strokeLinecap="round" />
+        </g>
+      </g>
+      <g transform="translate(2.3,9)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="26;-26;26" dur={dur} repeatCount="indefinite" />
+          <line x1="0" y1="0" x2="0" y2="9" stroke="#334155" strokeWidth="2.4" strokeLinecap="round" />
+        </g>
+      </g>
+      <rect x="-4" y="-7" width="8" height="16" rx="3" fill="#f1f5f9" />
+      <circle cy="-11" r="3" fill="#e0ac7c" />
+      <path d="M -3.2 -12.8 a 3.2 3.2 0 0 1 6.4 0 z" fill={casco} />
+      {/* brazos — cuelgan desde el hombro (no salen horizontales, si no
+          parece que aletea) y se balancean opuestos a la pierna de su
+          mismo lado, como al caminar de verdad */}
+      <g transform="translate(-3.6,-3)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="20;-20;20" dur={dur} repeatCount="indefinite" />
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#f1f5f9" strokeWidth="2.2" strokeLinecap="round" />
+        </g>
+      </g>
+      <g transform="translate(3.6,-3)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="-20;20;-20" dur={dur} repeatCount="indefinite" />
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#f1f5f9" strokeWidth="2.2" strokeLinecap="round" />
+        </g>
+      </g>
+      {nombre && (
+        <text y="-19" textAnchor="middle" fontSize="6.5" fontWeight="800" fill="white" stroke="#0b0b0f" strokeWidth="2.2" paintOrder="stroke" style={{ pointerEvents: "none" }}>
+          {nombre}
+        </text>
+      )}
     </g>
   );
 }
@@ -307,10 +397,15 @@ function FichaViajera({ from, to, color }) {
 const LAYOUT = (() => {
   const crudos = STAGES.map(s => isoPoint(s.col, s.row));
   const xs = crudos.map(p => p.x), ys = crudos.map(p => p.y);
-  const padX = PLAT_W / 2 + 90;
+  // padLeft se deja igual a propósito: agrandarlo correría el origen y
+  // desalinearía las posiciones ya guardadas (arrastradas a mano) en
+  // localStorage. padRight y padBottom sí se pueden crecer libremente
+  // porque no mueven el origen, solo agrandan el lienzo hacia ese lado.
+  const padLeft = PLAT_W / 2 + 90;
+  const padRight = PLAT_W / 2 + 280;
   const padTop = PLAT_H / 2 + 260;    // espacio para el rótulo + fichas de personas (hasta 8 en una estación)
-  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 40;
-  const minX = Math.min(...xs) - padX, maxX = Math.max(...xs) + padX;
+  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 220;
+  const minX = Math.min(...xs) - padLeft, maxX = Math.max(...xs) + padRight;
   const minY = Math.min(...ys) - padTop, maxY = Math.max(...ys) + padBottom;
   const puntos = crudos.map(p => ({ x: p.x - minX, y: p.y - minY }));
   const ruta = puntos.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
@@ -449,46 +544,28 @@ function puntoEnBandeja(b, t, s) {
 }
 
 // Valores por defecto de la calibradora — editables en vivo desde el botón
-// "Editar máquina" (se guardan en localStorage, por eso viven aparte).
+// "Editar máquina".
 // Posiciones personalizadas de las 12 estaciones fijas — por defecto usan
 // LAYOUT.puntos (el plano calculado), pero cualquiera se puede arrastrar y
 // desde ahí queda con su propia posición guardada, igual que los objetos
 // sueltos. Así "todo lo que está en el plano" se puede mover, no solo lo
-// que se agrega después.
-const POS_CUSTOM_KEY = "tp_maquina_posiciones_estaciones";
-function cargarPosCustom() {
-  try {
-    const raw = localStorage.getItem(POS_CUSTOM_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
+// que se agrega después. Todo el diseño (esto, posiciones de personas,
+// objetos, calibradora, rutas) se guarda en Supabase (tabla
+// `maquina_diseno`, ver useMaquinaDiseno) para que se vea igual para
+// cualquiera que entre a este módulo, no solo en este navegador.
 
-// Desplazamiento (dx,dy) de cada persona respecto a su posición automática
-// en la fila/columna de su estación — permite acomodarlas a mano en modo
-// edición sin perder el auto-acomodo por defecto (offset 0,0).
-const POS_PERSONAS_KEY = "tp_maquina_posiciones_personas";
-function cargarPosPersonas() {
-  try {
-    const raw = localStorage.getItem(POS_PERSONAS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
+// Rutas de caminata: recorrido visual (no afecta la ubicación real en
+// Supabase de Asistencia) de una persona entre varias estaciones — va de
+// la primera a la última en orden y, al llegar, se devuelve por el mismo
+// camino, en bucle.
+const VELOCIDAD_CAMINATA = 55; // px/s — a qué tan rápido recorre la ruta
 
-const CALIB_CFG_KEY = "tp_maquina_calibradora_cfg";
 const CALIB_CFG_DEFAULT = {
   angulo: 0,       // grados respecto a perpendicular al eje — 0 = recto
   largo: 40,       // largo de cada bandeja
   ancho: 25,       // ancho de cada bandeja (igual en ambos extremos = rectángulo)
   spineHalf: 88,   // medio largo del eje central
-  deskAlong: -143, // posición del puesto de control a lo largo del eje (negativo = antes)
-  deskPerp: 60,    // posición del puesto de control a un lado del eje
 };
-function cargarCalibCfg() {
-  try {
-    const raw = localStorage.getItem(CALIB_CFG_KEY);
-    return raw ? { ...CALIB_CFG_DEFAULT, ...JSON.parse(raw) } : { ...CALIB_CFG_DEFAULT };
-  } catch { return { ...CALIB_CFG_DEFAULT }; }
-}
 
 // Máquina calibradora real: eje central de cadena con bandejas azules a los
 // dos lados, como en las fotos de la planta — no la plataforma genérica de
@@ -550,9 +627,6 @@ function MaquinaCalibradora({ cfg, puntos }) {
     [spineA.x - ux * 26 - px * 9, spineA.y - uy * 26 - py * 9],
   ];
 
-  // Puesto de control: mesa + monitor inclinado + teclado + radio.
-  const desk = along(c.deskAlong, c.deskPerp);
-
   return (
     <g>
       {/* patas de soporte */}
@@ -607,24 +681,6 @@ function MaquinaCalibradora({ cfg, puntos }) {
       {/* eje central de cadena */}
       <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#1f2937" strokeWidth="12" strokeLinecap="round" />
       <line x1={spineA.x} y1={spineA.y} x2={spineB.x} y2={spineB.y} stroke="#4b5563" strokeWidth="4.5" strokeLinecap="round" strokeDasharray="4 5" />
-
-      {/* puesto de control: mesa, monitor, teclado y radio */}
-      <g transform={`translate(${desk.x},${desk.y})`}>
-        <rect x="-16" y="6" width="32" height="6" rx="1" fill="#6b4a2c" stroke="#4a3218" strokeWidth="1" />
-        <g transform="rotate(-12)">
-          <rect x="-11" y="-15" width="22" height="16" rx="1.5" fill="#1e293b" stroke="#0f172a" strokeWidth="1" />
-          <rect x="-9" y="-13" width="18" height="11" rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
-          <rect x="-8" y="-12" width="7" height="4" fill="#38BDF8" opacity="0.75">
-            <animate attributeName="opacity" values="0.75;0.25;0.75" dur="1.3s" repeatCount="indefinite" />
-          </rect>
-          <rect x="0" y="-12" width="7" height="4" fill="#22c55e" opacity="0.6">
-            <animate attributeName="opacity" values="0.4;0.8;0.4" dur="1.7s" repeatCount="indefinite" />
-          </rect>
-        </g>
-        <rect x="-9" y="3" width="12" height="6" rx="1" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="0.8" />
-        {[0, 1, 2].map(c => <circle key={c} cx={-6 + c * 4} cy={6} r="0.9" fill="#4b5563" />)}
-        <circle cx="8" cy="5" r="3.2" fill="#dc2626" stroke="#7f1d1d" strokeWidth="0.8" />
-      </g>
     </g>
   );
 }
@@ -633,29 +689,39 @@ function MaquinaCalibradora({ cfg, puntos }) {
 // Piezas sueltas que el usuario agrega y acomoda a mano dentro del plano
 // (pallets, básculas, cajas, muros, rejas, techos, sillas, canecas,
 // montacargas, estibadores, tramos de banda extra) — independientes de las
-// 7 estaciones fijas. Se guardan en este navegador.
-const OBJ_KEY = "tp_maquina_objetos_libres";
+// 7 estaciones fijas.
+// `largoDef` es una tercera medida (aparte de ancho/alto) que se dibuja como
+// un bloque de profundidad debajo del objeto — para darle una noción de
+// "largo" real (por ejemplo, cuánto se alarga un montacargas o un tramo de
+// banda), no solo su huella ancho×alto en el plano.
 const TIPOS_OBJETO = {
-  pallet:      { label: "Pallet",       icono: "🟩", anchoDef: 46, altoDef: 66 },
-  bascula:     { label: "Báscula",      icono: "⚖️", anchoDef: 34, altoDef: 34 },
-  caja:        { label: "Caja",         icono: "📦", anchoDef: 20, altoDef: 16 },
-  estiba:      { label: "Estiba vacía", icono: "🟫", anchoDef: 40, altoDef: 24 },
-  muro:        { label: "Muro",         icono: "🧱", anchoDef: 70, altoDef: 12 },
-  reja:        { label: "Reja",         icono: "🔲", anchoDef: 50, altoDef: 30 },
-  techo:       { label: "Techo",        icono: "⛺", anchoDef: 60, altoDef: 28 },
-  silla:       { label: "Silla",        icono: "🪑", anchoDef: 14, altoDef: 18 },
-  caneca:      { label: "Caneca",       icono: "🗑️", anchoDef: 14, altoDef: 18 },
-  montacargas: { label: "Montacargas",  icono: "🚜", anchoDef: 50, altoDef: 30 },
-  estibador:   { label: "Estibador",    icono: "🧍", anchoDef: 20, altoDef: 34 },
-  banda:       { label: "Banda extra",  icono: "➡️", anchoDef: 90, altoDef: 14 },
+  pallet:      { label: "Pallet",       icono: "🟩", anchoDef: 46, altoDef: 66, largoDef: 12 },
+  bascula:     { label: "Báscula",      icono: "⚖️", anchoDef: 34, altoDef: 34, largoDef: 10 },
+  caja:        { label: "Caja",         icono: "📦", anchoDef: 20, altoDef: 16, largoDef: 16 },
+  estiba:      { label: "Estiba vacía", icono: "🟫", anchoDef: 40, altoDef: 24, largoDef: 12 },
+  muro:        { label: "Muro",         icono: "🧱", anchoDef: 70, altoDef: 12, largoDef: 10 },
+  reja:        { label: "Reja",         icono: "🔲", anchoDef: 50, altoDef: 30, largoDef: 8 },
+  techo:       { label: "Techo",        icono: "⛺", anchoDef: 60, altoDef: 28, largoDef: 16 },
+  silla:       { label: "Silla",        icono: "🪑", anchoDef: 14, altoDef: 18, largoDef: 12 },
+  caneca:      { label: "Caneca",       icono: "🗑️", anchoDef: 14, altoDef: 18, largoDef: 12 },
+  montacargas: { label: "Montacargas",  icono: "🚜", anchoDef: 50, altoDef: 30, largoDef: 40 },
+  estibador:   { label: "Estibador",    icono: "🧍", anchoDef: 20, altoDef: 34, largoDef: 10 },
+  banda:       { label: "Banda extra",  icono: "➡️", anchoDef: 90, altoDef: 14, largoDef: 60 },
+  computador:  { label: "Computador",   icono: "🖥️", anchoDef: 32, altoDef: 30, largoDef: 14 },
+  armadora:    { label: "Armadora de cajas", icono: "📦", anchoDef: 74, altoDef: 40, largoDef: 30 },
+  extintor:    { label: "Extintor",     icono: "🧯", anchoDef: 12, altoDef: 22, largoDef: 10 },
+  botiquin:    { label: "Botiquín",     icono: "⛑️", anchoDef: 20, altoDef: 24, largoDef: 8 },
+  lavamanos:   { label: "Lavamanos",    icono: "🚰", anchoDef: 28, altoDef: 30, largoDef: 14 },
+  detector:    { label: "Detector de metales", icono: "🚪", anchoDef: 46, altoDef: 58, largoDef: 14 },
+  envolvedora: { label: "Envolvedora de pallets", icono: "🌀", anchoDef: 54, altoDef: 54, largoDef: 20 },
+  impresora:   { label: "Impresora de etiquetas", icono: "🖨️", anchoDef: 22, altoDef: 18, largoDef: 12 },
+  estanteria:  { label: "Estantería",   icono: "🗄️", anchoDef: 60, altoDef: 50, largoDef: 16 },
+  carreta:     { label: "Carreta/Zorra", icono: "🛒", anchoDef: 26, altoDef: 34, largoDef: 12 },
+  ventilador:  { label: "Ventilador industrial", icono: "🌬️", anchoDef: 30, altoDef: 40, largoDef: 12 },
+  cono:        { label: "Cono de seguridad", icono: "🚧", anchoDef: 14, altoDef: 20, largoDef: 8 },
+  camara:      { label: "Cámara de seguridad", icono: "📹", anchoDef: 18, altoDef: 16, largoDef: 10 },
+  reloj:       { label: "Reloj marcador", icono: "⏱️", anchoDef: 20, altoDef: 26, largoDef: 8 },
 };
-
-function cargarObjetos() {
-  try {
-    const raw = localStorage.getItem(OBJ_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
 
 // Sombra de piso compartida — le da apoyo/volumen a cualquier objeto suelto
 // en vez de sentirse "flotando" sobre el plano.
@@ -866,6 +932,259 @@ function IconoBanda({ ancho }) {
   );
 }
 
+// Puesto de control (mesa + monitor + teclado + radio) — antes venía fijo
+// dentro de la calibradora; ahora es un objeto libre más, para ubicarlo
+// donde realmente esté en la planta.
+function IconoComputador({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.4} />
+      <rect x={-ancho / 2} y={alto * 0.28} width={ancho} height={alto * 0.16} rx="1" fill="#6b4a2c" stroke="#4a3218" strokeWidth="1" />
+      <polygon points={poly([[-ancho / 2, alto * 0.28], [ancho / 2, alto * 0.28], [ancho / 2, alto * 0.44], [-ancho / 2, alto * 0.44]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <g transform="rotate(-12)">
+        <rect x={-ancho * 0.34} y={-alto * 0.46} width={ancho * 0.68} height={alto * 0.5} rx="1.5" fill="#1e293b" stroke="#0f172a" strokeWidth="1" />
+        <rect x={-ancho * 0.28} y={-alto * 0.4} width={ancho * 0.56} height={alto * 0.34} rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
+        <rect x={-ancho * 0.24} y={-alto * 0.36} width={ancho * 0.22} height={alto * 0.13} fill="#38BDF8" opacity="0.75">
+          <animate attributeName="opacity" values="0.75;0.25;0.75" dur="1.3s" repeatCount="indefinite" />
+        </rect>
+        <rect x={0} y={-alto * 0.36} width={ancho * 0.22} height={alto * 0.13} fill="#22c55e" opacity="0.6">
+          <animate attributeName="opacity" values="0.4;0.8;0.4" dur="1.7s" repeatCount="indefinite" />
+        </rect>
+      </g>
+      <rect x={-ancho * 0.28} y={alto * 0.1} width={ancho * 0.38} height={alto * 0.18} rx="1" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="0.8" />
+      {[0, 1, 2].map(c => <circle key={c} cx={-ancho * 0.19 + c * (ancho * 0.12)} cy={alto * 0.19} r={Math.max(alto * 0.03, 0.8)} fill="#4b5563" />)}
+      <circle cx={ancho * 0.25} cy={alto * 0.16} r={Math.max(alto * 0.1, 2)} fill="#dc2626" stroke="#7f1d1d" strokeWidth="0.8" />
+    </g>
+  );
+}
+
+// Máquina armadora de cajas: entra cartón plano por un lado, un brazo lo
+// va doblando (animado) sobre unos rodillos, y sale la caja ya armada por
+// el otro — con luz indicadora parpadeante como el resto del equipo.
+function IconoArmadora({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.55} />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="3" fill="#5b6572" stroke="#1f2937" strokeWidth="1.4" />
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      {/* pila de cartón plano entrando por la izquierda */}
+      {[0, 1, 2, 3].map(i => (
+        <rect key={i} x={-ancho / 2 - ancho * 0.09} y={-alto * 0.36 + i * (alto * 0.19)} width={ancho * 0.22} height={alto * 0.1} fill="#c99a5b" stroke="#7c5a29" strokeWidth="0.6" />
+      ))}
+      {/* rodillos centrales */}
+      {[0, 1].map(i => (
+        <circle key={i} cx={-ancho * 0.12 + i * (ancho * 0.2)} cy={alto * 0.2} r={alto * 0.14} fill="#9ca3af" stroke="#4b5563" strokeWidth="1" />
+      ))}
+      {/* brazo plegador, animado con un doblez de ida y vuelta */}
+      <g transform={`translate(${-ancho * 0.02},${-alto * 0.08})`}>
+        <g style={{ transformOrigin: "0px 0px" }}>
+          <rect x="0" y="-2" width={ancho * 0.24} height="4" rx="1.5" fill="#F9A826" stroke="#78350f" strokeWidth="0.7">
+            <animateTransform attributeName="transform" type="rotate" values="0;-38;0;0" keyTimes="0;0.35;0.7;1" dur="2.2s" repeatCount="indefinite" />
+          </rect>
+        </g>
+      </g>
+      {/* caja armada saliendo por la derecha */}
+      <g transform={`translate(${ancho * 0.36},${alto * 0.02})`}>
+        <rect x={-ancho * 0.11} y={-alto * 0.26} width={ancho * 0.22} height={alto * 0.5} rx="1" fill="#b3792c" stroke="#6b4416" strokeWidth="1" />
+        <polygon points={poly([[-ancho * 0.11, -alto * 0.26], [ancho * 0.11, -alto * 0.26], [ancho * 0.11, alto * 0.24], [-ancho * 0.11, alto * 0.24]])} fill="url(#mq-sheen)" pointerEvents="none" />
+        <line x1={-ancho * 0.11} y1={-alto * 0.01} x2={ancho * 0.11} y2={-alto * 0.01} stroke="#6b4416" strokeWidth="0.8" />
+        <rect x={-ancho * 0.05} y={-alto * 0.26} width={ancho * 0.1} height={alto * 0.5 * 0.3} fill="#f1e6cf" opacity="0.9" />
+      </g>
+      <circle cx={ancho * 0.42} cy={-alto * 0.36} r={Math.max(alto * 0.06, 2)} fill="#22c55e">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
+// ── Ecosistema — dotación típica de una planta de maquila/empaque ──────────
+
+function IconoExtintor({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <rect x={-ancho * 0.32} y={alto * 0.14} width={ancho * 0.64} height={alto * 0.4} rx={ancho * 0.28} fill="#dc2626" stroke="#7f1d1d" strokeWidth="1" />
+      <polygon points={poly([[-ancho * 0.32, alto * 0.14], [ancho * 0.32, alto * 0.14], [ancho * 0.32, alto * 0.3], [-ancho * 0.32, alto * 0.3]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <rect x={-ancho * 0.14} y={-alto * 0.06} width={ancho * 0.28} height={alto * 0.24} rx="1.5" fill="#374151" stroke="#1f2937" strokeWidth="0.8" />
+      <circle cy={-alto * 0.14} r={Math.max(ancho * 0.06, 1.5)} fill="#e5e7eb" stroke="#374151" strokeWidth="0.6" />
+      <path d={`M ${ancho * 0.1} ${-alto * 0.02} L ${ancho * 0.34} ${alto * 0.08}`} stroke="#1f2937" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <rect x={-ancho * 0.06} y={-alto * 0.26} width={ancho * 0.12} height={alto * 0.06} fill="#374151" />
+    </g>
+  );
+}
+
+function IconoBotiquin({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="2" fill="#f8fafc" stroke="#94a3b8" strokeWidth="1.2" />
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <rect x={-ancho * 0.09} y={-alto * 0.32} width={ancho * 0.18} height={alto * 0.64} fill="#dc2626" />
+      <rect x={-ancho * 0.32} y={-alto * 0.09} width={ancho * 0.64} height={alto * 0.18} fill="#dc2626" />
+    </g>
+  );
+}
+
+function IconoLavamanos({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <rect x={-ancho * 0.08} y={alto * 0.08} width={ancho * 0.16} height={alto * 0.4} fill="#9ca3af" stroke="#4b5563" strokeWidth="0.8" />
+      <ellipse cx="0" cy={alto * 0.08} rx={ancho / 2} ry={alto * 0.14} fill="#e5e7eb" stroke="#94a3b8" strokeWidth="1" />
+      <ellipse cx="0" cy={alto * 0.06} rx={ancho * 0.38} ry={alto * 0.09} fill="#cbd5e1" />
+      <path d={`M 0 ${-alto * 0.06} v ${-alto * 0.14} h ${ancho * 0.16}`} stroke="#6b7280" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+      <circle cx={ancho * 0.16} cy={-alto * 0.2} r={Math.max(ancho * 0.05, 1.4)} fill="#38BDF8" />
+    </g>
+  );
+}
+
+function IconoDetector({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.2} />
+      <rect x={-ancho / 2} y={-alto / 2 + alto * 0.06} width={ancho * 0.12} height={alto * 0.94} rx="2" fill="#0EA5E9" stroke="#075985" strokeWidth="1" />
+      <rect x={ancho / 2 - ancho * 0.12} y={-alto / 2 + alto * 0.06} width={ancho * 0.12} height={alto * 0.94} rx="2" fill="#0EA5E9" stroke="#075985" strokeWidth="1" />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto * 0.14} rx="3" fill="#0EA5E9" stroke="#075985" strokeWidth="1" />
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, -alto / 2 + alto * 0.14], [-ancho / 2, -alto / 2 + alto * 0.14]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      {[0, 1, 2].map(i => (
+        <rect key={i} x={-ancho * 0.02} y={-alto * 0.3 + i * (alto * 0.22)} width={ancho * 0.04} height={alto * 0.12} fill="#38BDF8" opacity="0.7">
+          <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.4s" begin={`${i * 0.2}s`} repeatCount="indefinite" />
+        </rect>
+      ))}
+    </g>
+  );
+}
+
+function IconoEnvolvedora({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.5} />
+      <ellipse cx="0" cy={alto * 0.4} rx={ancho * 0.42} ry={alto * 0.1} fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
+      <rect x={-ancho * 0.24} y={alto * 0.06} width={ancho * 0.48} height={alto * 0.36} fill="#c99a5b" stroke="#7c5a29" strokeWidth="1" />
+      {[0.14, 0.26, 0.38].map((f, i) => (
+        <line key={i} x1={-ancho * 0.24} y1={alto * 0.06 + alto * 0.36 * f} x2={ancho * 0.24} y2={alto * 0.06 + alto * 0.36 * f + alto * 0.05} stroke="rgba(255,255,255,0.55)" strokeWidth="1.6" />
+      ))}
+      <line x1={ancho * 0.3} y1={alto * 0.4} x2={ancho * 0.3} y2={-alto * 0.42} stroke="#374151" strokeWidth="2.6" strokeLinecap="round" />
+      <g transform={`translate(${ancho * 0.3},${-alto * 0.3})`}>
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="0;360" dur="1.6s" repeatCount="indefinite" />
+          <ellipse rx={ancho * 0.12} ry={alto * 0.16} fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1" />
+        </g>
+      </g>
+    </g>
+  );
+}
+
+function IconoImpresora({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.4} />
+      <rect x={-ancho / 2} y={-alto * 0.1} width={ancho} height={alto * 0.5} rx="2" fill="#e5e7eb" stroke="#6b7280" strokeWidth="1" />
+      <polygon points={poly([[-ancho / 2, -alto * 0.1], [ancho / 2, -alto * 0.1], [ancho / 2, alto * 0.1], [-ancho / 2, alto * 0.1]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <rect x={-ancho * 0.36} y={-alto * 0.32} width={ancho * 0.72} height={alto * 0.24} fill="white" stroke="#9ca3af" strokeWidth="0.8" />
+      <circle cx={ancho * 0.38} cy="0" r={Math.max(alto * 0.05, 1.4)} fill="#22c55e">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
+function IconoEstanteria({ ancho, alto }) {
+  const niveles = [0.32, 0, -0.32];
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <line x1={-ancho / 2} y1={-alto / 2} x2={-ancho / 2} y2={alto / 2} stroke="#6b7280" strokeWidth="3" />
+      <line x1={ancho / 2} y1={-alto / 2} x2={ancho / 2} y2={alto / 2} stroke="#6b7280" strokeWidth="3" />
+      {niveles.map((f, i) => (
+        <g key={i}>
+          <rect x={-ancho / 2} y={alto * f - 2} width={ancho} height="4" fill="#9ca3af" stroke="#4b5563" strokeWidth="0.6" />
+          <rect x={-ancho * 0.34} y={alto * f - alto * 0.16} width={ancho * 0.24} height={alto * 0.14} fill="#b3792c" stroke="#6b4416" strokeWidth="0.6" />
+          <rect x={ancho * 0.05} y={alto * f - alto * 0.13} width={ancho * 0.2} height={alto * 0.11} fill="#a16207" stroke="#78350f" strokeWidth="0.6" />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+function IconoCarreta({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <path d={`M ${-ancho * 0.3} ${alto * 0.3} L ${-ancho * 0.3} ${-alto * 0.4} L ${ancho * 0.1} ${-alto * 0.4}`} stroke="#374151" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+      <rect x={-ancho * 0.34} y={alto * 0.24} width={ancho * 0.5} height={alto * 0.1} fill="#6b7280" stroke="#374151" strokeWidth="0.8" />
+      <circle cx={-ancho * 0.18} cy={alto * 0.42} r={ancho * 0.14} fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx={-ancho * 0.18} cy={alto * 0.42} r={ancho * 0.05} fill="#6b7280" />
+      <rect x={-ancho * 0.34} y={-alto * 0.12} width={ancho * 0.24} height={alto * 0.32} fill="#b3792c" stroke="#6b4416" strokeWidth="0.8" />
+    </g>
+  );
+}
+
+function IconoVentilador({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.24} />
+      <line x1="0" y1={alto * 0.4} x2="0" y2={-alto * 0.1} stroke="#4b5563" strokeWidth="3" strokeLinecap="round" />
+      <ellipse cx="0" cy={alto * 0.4} rx={ancho * 0.4} ry={alto * 0.06} fill="#374151" />
+      <circle cx="0" cy={-alto * 0.18} r={ancho * 0.44} fill="#1f2937" stroke="#0b0b0f" strokeWidth="1.4" />
+      <g transform={`translate(0,${-alto * 0.18})`}>
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="0;360" dur="0.5s" repeatCount="indefinite" />
+          {[0, 90, 180, 270].map(a => (
+            <ellipse key={a} cx="0" cy="0" rx={ancho * 0.34} ry={ancho * 0.1} fill="#9ca3af" opacity="0.85" transform={`rotate(${a})`} />
+          ))}
+        </g>
+        <circle r={ancho * 0.08} fill="#4b5563" stroke="#1f2937" strokeWidth="0.8" />
+      </g>
+    </g>
+  );
+}
+
+function IconoCono({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <ellipse cx="0" cy={alto * 0.42} rx={ancho * 0.5} ry={alto * 0.1} fill="#374151" stroke="#1f2937" strokeWidth="0.8" />
+      <polygon points={poly([[-ancho * 0.42, alto * 0.4], [ancho * 0.42, alto * 0.4], [ancho * 0.1, -alto * 0.42], [-ancho * 0.1, -alto * 0.42]])} fill="#F9A826" stroke="#78350f" strokeWidth="1" />
+      <polygon points={poly([[-ancho * 0.28, alto * 0.06], [ancho * 0.28, alto * 0.06], [ancho * 0.19, -alto * 0.16], [-ancho * 0.19, -alto * 0.16]])} fill="#f8fafc" opacity="0.9" />
+      <polygon points={poly([[-ancho * 0.42, alto * 0.4], [ancho * 0.42, alto * 0.4], [ancho * 0.1, -alto * 0.42], [-ancho * 0.1, -alto * 0.42]])} fill="url(#mq-sheen)" pointerEvents="none" />
+    </g>
+  );
+}
+
+function IconoCamara({ ancho, alto }) {
+  return (
+    <g>
+      <line x1={-ancho * 0.4} y1={-alto * 0.4} x2="0" y2="0" stroke="#4b5563" strokeWidth="2.2" strokeLinecap="round" />
+      <g transform="rotate(-18)">
+        <rect x={-ancho * 0.32} y={-alto * 0.14} width={ancho * 0.64} height={alto * 0.28} rx="2" fill="#1f2937" stroke="#0b0b0f" strokeWidth="1" />
+        <circle cx={ancho * 0.26} cy="0" r={alto * 0.12} fill="#0f172a" stroke="#38BDF8" strokeWidth="1" />
+        <circle cx={ancho * 0.26} cy="0" r={alto * 0.05} fill="#38BDF8">
+          <animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+        <circle cx={-ancho * 0.2} cy={-alto * 0.08} r={Math.max(alto * 0.04, 1)} fill="#dc2626">
+          <animate attributeName="opacity" values="1;0.2;1" dur="0.9s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    </g>
+  );
+}
+
+function IconoReloj({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="3" fill="#374151" stroke="#1f2937" strokeWidth="1.2" />
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <circle cx="0" cy={-alto * 0.12} r={ancho * 0.3} fill="#f8fafc" stroke="#0b0b0f" strokeWidth="1" />
+      <line x1="0" y1={-alto * 0.12} x2="0" y2={-alto * 0.28} stroke="#0b0b0f" strokeWidth="1.4" strokeLinecap="round">
+        <animateTransform attributeName="transform" type="rotate" values={`0 0 ${-alto * 0.12};360 0 ${-alto * 0.12}`} dur="6s" repeatCount="indefinite" />
+      </line>
+      <rect x={-ancho * 0.28} y={alto * 0.2} width={ancho * 0.56} height={alto * 0.16} rx="1" fill="#111827" stroke="#38BDF8" strokeWidth="0.8" />
+    </g>
+  );
+}
+
 function IconoObjeto({ tipo, ancho, alto }) {
   switch (tipo) {
     case "pallet": return <IconoPallet ancho={ancho} alto={alto} />;
@@ -880,53 +1199,161 @@ function IconoObjeto({ tipo, ancho, alto }) {
     case "montacargas": return <IconoMontacargas ancho={ancho} alto={alto} />;
     case "estibador": return <Trabajador x={0} y={alto / 2} casco="#fbbf24" objeto={cajaChica} />;
     case "banda": return <IconoBanda ancho={ancho} alto={alto} />;
+    case "computador": return <IconoComputador ancho={ancho} alto={alto} />;
+    case "armadora": return <IconoArmadora ancho={ancho} alto={alto} />;
+    case "extintor": return <IconoExtintor ancho={ancho} alto={alto} />;
+    case "botiquin": return <IconoBotiquin ancho={ancho} alto={alto} />;
+    case "lavamanos": return <IconoLavamanos ancho={ancho} alto={alto} />;
+    case "detector": return <IconoDetector ancho={ancho} alto={alto} />;
+    case "envolvedora": return <IconoEnvolvedora ancho={ancho} alto={alto} />;
+    case "impresora": return <IconoImpresora ancho={ancho} alto={alto} />;
+    case "estanteria": return <IconoEstanteria ancho={ancho} alto={alto} />;
+    case "carreta": return <IconoCarreta ancho={ancho} alto={alto} />;
+    case "ventilador": return <IconoVentilador ancho={ancho} alto={alto} />;
+    case "cono": return <IconoCono ancho={ancho} alto={alto} />;
+    case "camara": return <IconoCamara ancho={ancho} alto={alto} />;
+    case "reloj": return <IconoReloj ancho={ancho} alto={alto} />;
     default: return null;
   }
 }
 
 // Objeto libre: se puede arrastrar con el mouse/dedo directo sobre el
 // lienzo (pointer capture, sin necesitar listeners globales). El clic lo
-// selecciona; arrastrar lo mueve; el resto de sus ajustes (ángulo, tamaño)
-// salen del panel de edición. Al acabar de crearlo (`esNuevo`), se
-// desplaza solo hasta quedar visible y destella un instante, para que no
-// se pierda si el lienzo está grande o con scroll.
-function ObjetoLibre({ obj, seleccionado, esNuevo, onSeleccionar, onMover }) {
+// selecciona; arrastrar lo mueve en cualquier dirección. En modo edición,
+// al seleccionarlo aparecen dos asas: una arriba para rotarlo (arrastrando
+// alrededor del centro) y una en la esquina inferior derecha para cambiar
+// ancho/alto arrastrándola — todo directo con el mouse, sin tener que
+// entrar al panel. El panel sigue disponible para ajustes finos por número.
+// Al acabar de crearlo (`esNuevo`), se desplaza solo hasta quedar visible y
+// destella un instante, para que no se pierda si el lienzo está grande.
+function ObjetoLibre({ obj, seleccionado, esNuevo, editando, onSeleccionar, onMover, onAjustar }) {
   const dragRef = useRef(null);
+  const rotDragRef = useRef(null);
+  const resizeDragRef = useRef(null);
+  const largoDragRef = useRef(null);
   const gRef = useRef(null);
   useEffect(() => {
     if (esNuevo && gRef.current) {
       gRef.current.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
     }
   }, [esNuevo]);
+  const escala = obj.escala || 1;
+  const rot = obj.rot || 0;
+  const largo = obj.largo ?? TIPOS_OBJETO[obj.tipo]?.largoDef ?? 16;
+  const hx = (obj.ancho / 2) * escala, hy = (obj.alto / 2) * escala;
+
+  const onLargoPointerDown = (e) => {
+    e.stopPropagation();
+    const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+    largoDragRef.current = { sx: p.x, sy: p.y, largo0: largo };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onLargoPointerMove = (e) => {
+    const d = largoDragRef.current;
+    if (!d) return;
+    const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+    const dxSvg = p.x - d.sx, dySvg = p.y - d.sy;
+    const rad = (-rot * Math.PI) / 180;
+    const localDy = (dxSvg * Math.sin(rad) + dySvg * Math.cos(rad)) / escala;
+    const nuevoLargo = Math.min(140, Math.max(4, Math.round(d.largo0 + localDy)));
+    onAjustar(obj.id, { largo: nuevoLargo });
+  };
+
+  const onRotPointerDown = (e) => {
+    e.stopPropagation();
+    const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+    rotDragRef.current = { ang0: Math.atan2(p.y - obj.y, p.x - obj.x) * 180 / Math.PI, rot0: rot };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onRotPointerMove = (e) => {
+    const d = rotDragRef.current;
+    if (!d) return;
+    const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+    const ang = Math.atan2(p.y - obj.y, p.x - obj.x) * 180 / Math.PI;
+    const nuevoRot = ((Math.round(d.rot0 + (ang - d.ang0)) % 360) + 360) % 360;
+    onAjustar(obj.id, { rot: nuevoRot });
+  };
+
+  const onResizePointerDown = (e) => {
+    e.stopPropagation();
+    const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+    resizeDragRef.current = { sx: p.x, sy: p.y, ancho0: obj.ancho, alto0: obj.alto };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onResizePointerMove = (e) => {
+    const d = resizeDragRef.current;
+    if (!d) return;
+    const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+    const dxSvg = p.x - d.sx, dySvg = p.y - d.sy;
+    const rad = (-rot * Math.PI) / 180;
+    const localDx = (dxSvg * Math.cos(rad) - dySvg * Math.sin(rad)) / escala;
+    const localDy = (dxSvg * Math.sin(rad) + dySvg * Math.cos(rad)) / escala;
+    const nuevoAncho = Math.min(160, Math.max(8, Math.round(d.ancho0 + localDx * 2)));
+    const nuevoAlto  = Math.min(160, Math.max(8, Math.round(d.alto0 + localDy * 2)));
+    onAjustar(obj.id, { ancho: nuevoAncho, alto: nuevoAlto });
+  };
+
   return (
     <g
       ref={gRef}
-      transform={`translate(${obj.x},${obj.y}) rotate(${obj.rot || 0})`}
+      transform={`translate(${obj.x},${obj.y}) rotate(${rot})`}
       style={{ cursor: "grab", touchAction: "none" }}
       onPointerDown={(e) => {
         e.stopPropagation();
         onSeleccionar(obj.id);
-        dragRef.current = { sx: e.clientX, sy: e.clientY, ox: obj.x, oy: obj.y };
+        const p0 = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+        dragRef.current = { sx: p0.x, sy: p0.y, ox: obj.x, oy: obj.y };
         e.currentTarget.setPointerCapture(e.pointerId);
       }}
       onPointerMove={(e) => {
         if (!dragRef.current) return;
-        const dx = e.clientX - dragRef.current.sx, dy = e.clientY - dragRef.current.sy;
+        const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+        const dx = p.x - dragRef.current.sx, dy = p.y - dragRef.current.sy;
         onMover(obj.id, dragRef.current.ox + dx, dragRef.current.oy + dy);
       }}
       onPointerUp={() => { dragRef.current = null; }}
       onClick={(e) => e.stopPropagation()}
     >
-      <g transform={`scale(${obj.escala || 1})`} style={{ animation: esNuevo ? "mq-pop 0.35s ease" : "none" }}>
+      <g transform={`scale(${escala})`} style={{ animation: esNuevo ? "mq-pop 0.35s ease" : "none" }}>
+        <rect
+          x={-obj.ancho / 2} y={obj.alto / 2} width={obj.ancho} height={largo}
+          fill="rgba(0,0,0,0.32)" stroke="rgba(0,0,0,0.45)" strokeWidth={0.6}
+        />
         <IconoObjeto tipo={obj.tipo} ancho={obj.ancho} alto={obj.alto} />
         {seleccionado && (
           <rect
             x={-obj.ancho / 2 - 4} y={-obj.alto / 2 - 4} width={obj.ancho + 8} height={obj.alto + 8}
-            fill="none" stroke="#845EF7" strokeWidth={1.5 / (obj.escala || 1)} strokeDasharray="4 3"
+            fill="none" stroke="#845EF7" strokeWidth={1.5 / escala} strokeDasharray="4 3"
             style={{ animation: esNuevo ? "mq-highlight 1.1s ease" : "none" }}
           />
         )}
       </g>
+      {seleccionado && editando && (
+        <>
+          <line x1={0} y1={-hy - 6} x2={0} y2={-hy - 24} stroke="#845EF7" strokeWidth={1.5} />
+          <circle
+            cx={0} cy={-hy - 30} r={7} fill="#845EF7" stroke="white" strokeWidth={1.5}
+            style={{ cursor: "grab", touchAction: "none" }}
+            onPointerDown={onRotPointerDown} onPointerMove={onRotPointerMove}
+            onPointerUp={() => { rotDragRef.current = null; }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <rect
+            x={hx - 6} y={hy - 6} width={12} height={12} rx={2} fill="#845EF7" stroke="white" strokeWidth={1.5}
+            style={{ cursor: "nwse-resize", touchAction: "none" }}
+            onPointerDown={onResizePointerDown} onPointerMove={onResizePointerMove}
+            onPointerUp={() => { resizeDragRef.current = null; }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <rect
+            x={-6} y={hy + largo * escala + 2} width={12} height={12} rx={2} fill="#845EF7" stroke="white" strokeWidth={1.5}
+            style={{ cursor: "ns-resize", touchAction: "none" }}
+            onPointerDown={onLargoPointerDown} onPointerMove={onLargoPointerMove}
+            onPointerUp={() => { largoDragRef.current = null; }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </>
+      )}
     </g>
   );
 }
@@ -988,6 +1415,17 @@ export default function MaquinaTab({ mob }) {
   const innerCanvasRef = useRef(null); // el div de tamaño LAYOUT.width/height — referencia para convertir clientX/Y a coordenadas del plano
   const panRef = useRef(null);
 
+  // Zoom: Control + rueda del mouse, acercando o alejando el plano. El
+  // lienzo interno mantiene sus coordenadas normales (LAYOUT.width/height)
+  // y se escala con CSS transform — por eso las conversiones de mouse a
+  // plano (posEnPlano, arrastrar estaciones/personas) dividen por `zoom`.
+  const [zoom, setZoom] = useState(1);
+  const onWheelZoom = (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(z => Math.min(2.2, Math.max(0.4, +(z - e.deltaY * 0.0015).toFixed(3))));
+  };
+
   // Modo "colocar": al elegir un objeto de la paleta, va pegado al mouse
   // (fantasma semitransparente) hasta que se hace clic en el plano para
   // soltarlo ahí mismo — como poner un mueble.
@@ -1003,7 +1441,7 @@ export default function MaquinaTab({ mob }) {
   const posEnPlano = (e) => {
     if (!innerCanvasRef.current) return null;
     const r = innerCanvasRef.current.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
   };
 
   const onCanvasPointerDown = (e) => {
@@ -1038,25 +1476,47 @@ export default function MaquinaTab({ mob }) {
 
   // Modo edición: ajustar a mano la forma de la calibradora (ángulo de
   // bandejas, posición del puesto de control, etc.) sin tener que
-  // describirlo por chat — se guarda en este navegador.
+  // describirlo por chat.
   const [editando, setEditando] = useState(false);
-  const [calibCfg, setCalibCfg] = useState(() => cargarCalibCfg());
-  useEffect(() => {
-    try { localStorage.setItem(CALIB_CFG_KEY, JSON.stringify(calibCfg)); } catch { /* noop */ }
-  }, [calibCfg]);
+  const { diseno, loading: loadingDiseno, guardarDiseno } = useMaquinaDiseno();
+  const [respaldoLocal, setRespaldoLocal] = useState(() => leerRespaldoLocal());
+  const [recuperando, setRecuperando] = useState(false);
+  const recuperarRespaldoLocal = async () => {
+    if (!respaldoLocal) return;
+    setRecuperando(true);
+    const ok = await guardarDiseno({
+      calibCfg: { ...CALIB_CFG_DEFAULT, ...(respaldoLocal.calibCfg || {}) },
+      posCustom: respaldoLocal.posCustom || {},
+      posPersonas: respaldoLocal.posPersonas || {},
+      objetos: respaldoLocal.objetos || [],
+      rutasPersonas: respaldoLocal.rutasPersonas || {},
+    }, nombreUsuarioSesion());
+    setRecuperando(false);
+    if (ok) {
+      Object.values(LLAVES_RESPALDO_LOCAL).forEach(llave => { try { localStorage.removeItem(llave); } catch { /* noop */ } });
+      setRespaldoLocal(null);
+    }
+  };
+  const [calibCfg, setCalibCfg] = useState(() => ({ ...CALIB_CFG_DEFAULT }));
 
   // Posiciones personalizadas de las 12 estaciones fijas — todo lo que está
   // en el plano (no solo lo que se agrega) se puede arrastrar. `puntos` es
   // la posición efectiva de cada estación: la guardada a mano, o si no hay,
   // la calculada por defecto en LAYOUT.
-  const [posCustom, setPosCustom] = useState(() => cargarPosCustom());
-  useEffect(() => {
-    try { localStorage.setItem(POS_CUSTOM_KEY, JSON.stringify(posCustom)); } catch { /* noop */ }
-  }, [posCustom]);
+  const [posCustom, setPosCustom] = useState({});
   const puntos = useMemo(
     () => LAYOUT.puntos.map((p, i) => posCustom[STAGES[i].key] || p),
     [posCustom]
   );
+  // Fruta suelta (limones) en la banda desde Recepción hasta Empaque, que es
+  // donde de verdad se calibra y se empaca — de ahí en adelante hasta
+  // Paletizado ya lo que viaja son cajas armadas, no fruta suelta.
+  const { rutaLimones, rutaCajas } = useMemo(() => {
+    const iEmp = STAGES.findIndex(s => s.key === "empaque");
+    const iPal = STAGES.findIndex(s => s.key === "paletizado");
+    const sub = (desde, hasta) => puntos.slice(desde, hasta + 1).map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
+    return { rutaLimones: sub(0, iEmp), rutaCajas: sub(iEmp, iPal) };
+  }, [puntos]);
   const moverEstacion = (key, x, y) => setPosCustom(prev => ({ ...prev, [key]: { x, y } }));
   const restablecerPosiciones = () => setPosCustom({});
 
@@ -1072,7 +1532,7 @@ export default function MaquinaTab({ mob }) {
   const onEstacionPointerMove = (e) => {
     const d = estacionDragRef.current;
     if (!d) return;
-    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    const dx = (e.clientX - d.sx) / zoom, dy = (e.clientY - d.sy) / zoom;
     moverEstacion(d.key, d.ox + dx, d.oy + dy);
   };
   const onEstacionPointerUp = () => { estacionDragRef.current = null; };
@@ -1081,10 +1541,7 @@ export default function MaquinaTab({ mob }) {
   // guarda un desplazamiento (dx,dy) respecto a su posición automática, no
   // una coordenada absoluta, para que siga viendose bien aunque cambie de
   // estación después.
-  const [posPersonas, setPosPersonas] = useState(() => cargarPosPersonas());
-  useEffect(() => {
-    try { localStorage.setItem(POS_PERSONAS_KEY, JSON.stringify(posPersonas)); } catch { /* noop */ }
-  }, [posPersonas]);
+  const [posPersonas, setPosPersonas] = useState({});
   const personaDragRef = useRef(null);
   const onPersonaPointerDown = (e, empNum, offActual) => {
     if (!editando) return;
@@ -1095,34 +1552,54 @@ export default function MaquinaTab({ mob }) {
   const onPersonaPointerMove = (e) => {
     const d = personaDragRef.current;
     if (!d) return;
-    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    const dx = (e.clientX - d.sx) / zoom, dy = (e.clientY - d.sy) / zoom;
     setPosPersonas(prev => ({ ...prev, [d.empNum]: { dx: d.ox + dx, dy: d.oy + dy } }));
   };
   const onPersonaPointerUp = () => { personaDragRef.current = null; };
   const restablecerPosPersonas = () => setPosPersonas({});
 
+  // Rutas de caminata (solo visual): cada persona puede tener una lista de
+  // estaciones a recorrer en orden. `activa` la enciende/apaga sin perder
+  // la ruta armada.
+  const [rutasPersonas, setRutasPersonas] = useState({});
+  const toggleRutaPunto = (empNum, stageKey) => {
+    setRutasPersonas(prev => {
+      const actual = prev[empNum]?.stages || [];
+      // clic sobre la última parada ya puesta = quitarla (deshacer); si no,
+      // se agrega al final del recorrido.
+      const stages = actual[actual.length - 1] === stageKey ? actual.slice(0, -1) : [...actual, stageKey];
+      return { ...prev, [empNum]: { ...prev[empNum], stages, activa: prev[empNum]?.activa && stages.length >= 2 } };
+    });
+  };
+  const limpiarRuta = (empNum) => {
+    setRutasPersonas(prev => ({ ...prev, [empNum]: { stages: [], activa: false } }));
+  };
+  const toggleActivaRuta = (empNum) => {
+    setRutasPersonas(prev => {
+      const r = prev[empNum];
+      if (!r || r.stages.length < 2) return prev;
+      return { ...prev, [empNum]: { ...r, activa: !r.activa } };
+    });
+  };
+
   // Ecosistema de objetos libres (pallets, básculas, cajas, muros, rejas,
   // techos, sillas, canecas, montacargas, estibadores, banda extra) — el
   // usuario los agrega y arrastra a su gusto dentro del plano.
-  const [objetos, setObjetos] = useState(() => cargarObjetos());
+  const [objetos, setObjetos] = useState([]);
   const [seleccionId, setSeleccionId] = useState(null);
   const [nuevoId, setNuevoId] = useState(null); // objeto recién agregado — se desplaza a la vista y destella
-  useEffect(() => {
-    try { localStorage.setItem(OBJ_KEY, JSON.stringify(objetos)); } catch { /* noop */ }
-  }, [objetos]);
   // Arranca después del id más alto ya guardado, para no chocar con
-  // objetos de una sesión anterior al recargar la página.
-  const idObjRef = useRef(objetos.reduce((max, o) => {
-    const n = parseInt(String(o.id).replace(/^o/, ""), 10);
-    return Number.isFinite(n) && n > max ? n : max;
-  }, 0));
-
+  // objetos ya guardados en Supabase, para no chocar con uno existente.
   const agregarObjeto = (tipo, x, y) => {
     const def = TIPOS_OBJETO[tipo];
-    const id = `o${++idObjRef.current}`;
+    const maxId = objetos.reduce((max, o) => {
+      const n = parseInt(String(o.id).replace(/^o/, ""), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const id = `o${maxId + 1}`;
     const nuevo = {
       id, tipo, x: x ?? LAYOUT.width / 2, y: y ?? LAYOUT.height / 2,
-      rot: 0, escala: 1, ancho: def.anchoDef, alto: def.altoDef,
+      rot: 0, escala: 1, ancho: def.anchoDef, alto: def.altoDef, largo: def.largoDef,
     };
     setObjetos(prev => [...prev, nuevo]);
     setSeleccionId(id);
@@ -1136,6 +1613,35 @@ export default function MaquinaTab({ mob }) {
     setSeleccionId(prev => (prev === id ? null : prev));
   };
   const objetoSeleccionado = objetos.find(o => o.id === seleccionId) || null;
+
+  // El diseño se edita en local mientras se arrastra (para que sea fluido)
+  // y este botón lo sube a Supabase — desde ahí sí lo ve cualquiera que
+  // entre al módulo, no solo este navegador.
+  const [guardadoMsg, setGuardadoMsg] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const guardarCambiosPlano = async () => {
+    setGuardando(true);
+    const ok = await guardarDiseno({ calibCfg, posCustom, posPersonas, objetos, rutasPersonas }, nombreUsuarioSesion());
+    setGuardando(false);
+    setGuardadoMsg(ok ? "✅ Cambios guardados — ya se ven en la web" : "⚠️ No se pudo guardar, intenta de nuevo");
+    setTimeout(() => setGuardadoMsg(""), 2800);
+  };
+
+  // Aplica el diseño cargado (o actualizado en vivo por otra persona) al
+  // estado local editable — salvo que estés editando en este momento, para
+  // no pisarte una edición en curso si a alguien más le llega a guardar
+  // algo. Es sincronizar estado local con una fuente externa (Supabase),
+  // uno de los usos válidos de useEffect, por eso se apaga el lint aquí.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (editando) return;
+    setCalibCfg({ ...CALIB_CFG_DEFAULT, ...diseno.calibCfg });
+    setPosCustom(diseno.posCustom);
+    setPosPersonas(diseno.posPersonas);
+    setObjetos(diseno.objetos);
+    setRutasPersonas(diseno.rutasPersonas);
+  }, [diseno, editando]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Desligado de Asistencia por ahora: todos los empleados activos están
   // disponibles para ubicar a mano en la línea, sin depender de quién marcó
@@ -1297,6 +1803,30 @@ export default function MaquinaTab({ mob }) {
 
   const sinAsignar = personas.filter(e => !ultimoMovPorEmp[e.num]);
 
+  // Personas con ruta de caminata activa (>=2 paradas) — se sacan de la
+  // lista fija de su estación y se dibujan aparte, caminando el recorrido.
+  const caminantes = useMemo(() => {
+    return personas
+      .map(emp => {
+        const r = rutasPersonas[emp.num];
+        if (!r?.activa || (r.stages || []).length < 2) return null;
+        const coords = r.stages.map(key => {
+          const idx = STAGES.findIndex(s => s.key === key);
+          return idx >= 0 ? puntos[idx] : null;
+        }).filter(Boolean);
+        if (coords.length < 2) return null;
+        const d = coords.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
+        let largo = 0;
+        for (let i = 1; i < coords.length; i++) largo += Math.hypot(coords[i].x - coords[i - 1].x, coords[i].y - coords[i - 1].y);
+        const dur = Math.max(2, largo / VELOCIDAD_CAMINATA);
+        const primeraStage = STAGES.find(s => s.key === r.stages[0]);
+        const color = (primeraStage && areaPorNombre[primeraStage.nombre]?.color) || "#fbbf24";
+        return { emp, d, dur, color };
+      })
+      .filter(Boolean);
+  }, [personas, rutasPersonas, puntos, areaPorNombre]);
+  const caminandoNums = useMemo(() => new Set(caminantes.map(c => c.emp.num)), [caminantes]);
+
   const resumenPorArea = useMemo(() => {
     const acc = {};
     areas.forEach(a => { acc[a.id] = { ms: 0, personas: new Set() }; });
@@ -1330,12 +1860,13 @@ export default function MaquinaTab({ mob }) {
     }
   };
 
-  if (loadingPersonal || loadingMaquina) return <LimonLoader texto="Cargando la máquina" />;
+  if (loadingPersonal || loadingMaquina || loadingDiseno) return <LimonLoader texto="Cargando la máquina" />;
 
   const chip = (emp, desde, areaActual) => {
     const desdeMs = desde ? new Date(desde).getTime() : null;
     const resaltado = !!resaltados[emp.num];
     const off = posPersonas[emp.num] || { dx: 0, dy: 0 };
+    const rutaEmp = rutasPersonas[emp.num] || { stages: [], activa: false };
     return (
       <div
         key={emp.num}
@@ -1368,16 +1899,23 @@ export default function MaquinaTab({ mob }) {
             </div>
           </div>
         )}
-        <button
-          onClick={() => setMenuAbierto(m => m === emp.num ? null : emp.num)}
-          title={emp.nombre}
-          style={{
-            width: 22, height: 22, borderRadius: "50%", background: areaActual ? areaActual.color : "rgba(255,255,255,0.15)",
-            border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: 9, fontWeight: 800, padding: 0,
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
-            animation: resaltado ? "mq-highlight 0.9s ease" : "none",
-          }}
-        >{iniciales(emp.nombre)}</button>
+        <div style={{ position: "relative", width: 22, height: 22, flexShrink: 0 }}>
+          <div style={{
+            position: "absolute", left: "50%", bottom: -4, width: 20, height: 7, transform: "translateX(-50%)",
+            borderRadius: "50%", background: "radial-gradient(ellipse, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 72%)",
+            pointerEvents: "none",
+          }} />
+          <button
+            onClick={() => setMenuAbierto(m => m === emp.num ? null : emp.num)}
+            title={emp.nombre}
+            style={{
+              width: 22, height: 22, borderRadius: "50%", background: areaActual ? areaActual.color : "rgba(255,255,255,0.15)",
+              border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: 9, fontWeight: 800, padding: 0,
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              animation: resaltado ? "mq-highlight 0.9s ease" : "none", position: "relative",
+            }}
+          >{iniciales(emp.nombre)}</button>
+        </div>
         <span style={{ fontSize: 7.5, fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 62 }}>
           {emp.nombre.split(" ")[0]}
         </span>
@@ -1402,6 +1940,60 @@ export default function MaquinaTab({ mob }) {
                 <span>{a.icono}</span>{a.nombre}{areaActual?.id === a.id ? " (aquí)" : ""}
               </button>
             ))}
+            <div style={{
+              fontSize: 9, color: "rgba(255,255,255,0.4)", padding: "8px 8px 4px", textTransform: "uppercase",
+              letterSpacing: 0.5, borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 4,
+            }}>
+              🚶 Ruta de caminata (solo visual)
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 6px" }}>
+              {areas.map(a => {
+                const stageKey = STAGES[stageIndexPorAreaId[a.id]]?.key;
+                if (!stageKey) return null;
+                const orden = (rutaEmp.stages || []).indexOf(stageKey);
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => toggleRutaPunto(emp.num, stageKey)}
+                    title={a.nombre}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 3,
+                      background: orden >= 0 ? "rgba(132,94,247,0.25)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${orden >= 0 ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+                      borderRadius: 6, color: "white", padding: "3px 6px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    {orden >= 0 && <span style={{ fontSize: 8, fontWeight: 800, color: "#a78bfa" }}>{orden + 1}</span>}
+                    {a.icono}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 6, padding: "0 8px 6px" }}>
+              <button
+                onClick={() => limpiarRuta(emp.num)}
+                disabled={!(rutaEmp.stages || []).length}
+                style={{
+                  flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6,
+                  color: (rutaEmp.stages || []).length ? "white" : "rgba(255,255,255,0.3)", padding: "5px 8px", fontSize: 10.5, fontWeight: 700,
+                  cursor: (rutaEmp.stages || []).length ? "pointer" : "default",
+                }}
+              >
+                Limpiar
+              </button>
+              <button
+                onClick={() => toggleActivaRuta(emp.num)}
+                disabled={(rutaEmp.stages || []).length < 2}
+                style={{
+                  flex: 1, background: rutaEmp.activa ? "rgba(255,107,107,0.15)" : "rgba(0,201,167,0.15)",
+                  border: `1px solid ${(rutaEmp.stages || []).length < 2 ? "rgba(255,255,255,0.15)" : rutaEmp.activa ? "#FF6B6B" : "#00C9A7"}`,
+                  borderRadius: 6, color: (rutaEmp.stages || []).length < 2 ? "rgba(255,255,255,0.3)" : rutaEmp.activa ? "#FF6B6B" : "#00C9A7",
+                  padding: "5px 8px", fontSize: 10.5, fontWeight: 700, cursor: (rutaEmp.stages || []).length < 2 ? "default" : "pointer",
+                }}
+              >
+                {rutaEmp.activa ? "⏹ Detener" : "▶ Iniciar"}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1409,8 +2001,36 @@ export default function MaquinaTab({ mob }) {
   };
 
   return (
-    <div onClick={() => { if (menuAbierto) setMenuAbierto(null); if (seleccionId) setSeleccionId(null); }}>
+    <div
+      onClick={() => { if (menuAbierto) setMenuAbierto(null); if (seleccionId) setSeleccionId(null); }}
+      style={editando ? { userSelect: "none", WebkitUserSelect: "none", MozUserSelect: "none" } : undefined}
+    >
       <style>{CSS}</style>
+
+      {respaldoLocal && (
+        <div style={{
+          background: "rgba(249,168,38,0.1)", border: "1px solid #F9A826", borderRadius: 12,
+          padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        }}>
+          <div style={{ fontSize: 20 }}>💾</div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#F9A826" }}>Hay un diseño guardado en este navegador que no se subió a la web</div>
+            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
+              Es de antes de conectar el plano a Supabase. Recupéralo para que quede en la web, igual que lo dejaste aquí.
+            </div>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); recuperarRespaldoLocal(); }}
+            disabled={recuperando}
+            style={{
+              background: "rgba(0,201,167,0.15)", border: "1px solid #00C9A7", borderRadius: 8, color: "#00C9A7",
+              padding: "7px 14px", fontSize: 11, fontWeight: 700, cursor: recuperando ? "wait" : "pointer", opacity: recuperando ? 0.6 : 1,
+            }}
+          >
+            {recuperando ? "Recuperando..." : "♻️ Recuperar y subir a la web"}
+          </button>
+        </div>
+      )}
 
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
         <div>
@@ -1435,6 +2055,19 @@ export default function MaquinaTab({ mob }) {
           >
             📈 Simulación
           </button>
+          {editando && (
+            <button
+              onClick={(e) => { e.stopPropagation(); guardarCambiosPlano(); }}
+              disabled={guardando}
+              style={{
+                background: "rgba(0,201,167,0.15)", border: "1px solid #00C9A7", borderRadius: 8,
+                color: "#00C9A7", padding: "7px 12px", fontSize: 11, fontWeight: 700,
+                cursor: guardando ? "wait" : "pointer", flexShrink: 0, opacity: guardando ? 0.6 : 1,
+              }}
+            >
+              {guardando ? "💾 Guardando..." : "💾 Guardar cambios"}
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); setEditando(v => !v); }}
             style={{
@@ -1446,6 +2079,14 @@ export default function MaquinaTab({ mob }) {
           >
             {editando ? "✅ Salir de edición" : "✏️ Editar máquina"}
           </button>
+          {guardadoMsg && (
+            <div style={{
+              width: "100%", fontSize: 11, fontWeight: 700, color: guardadoMsg.startsWith("✅") ? "#00C9A7" : "#FF6B6B",
+              marginTop: 2,
+            }}>
+              {guardadoMsg}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1577,8 +2218,6 @@ export default function MaquinaTab({ mob }) {
               { key: "largo", label: "Largo de bandeja", min: 25, max: 70, step: 1, unidad: "px" },
               { key: "ancho", label: "Ancho de bandeja", min: 15, max: 40, step: 1, unidad: "px" },
               { key: "spineHalf", label: "Longitud del eje", min: 50, max: 140, step: 2, unidad: "px" },
-              { key: "deskAlong", label: "Computador — adelante/atrás", min: -260, max: 0, step: 2, unidad: "px" },
-              { key: "deskPerp", label: "Computador — a un lado", min: 0, max: 120, step: 2, unidad: "px" },
             ].map(campo => (
               <div key={campo.key}>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 3 }}>
@@ -1643,7 +2282,7 @@ export default function MaquinaTab({ mob }) {
           <div style={{ fontSize: 9.5, color: colocando ? "#a78bfa" : "rgba(255,255,255,0.4)", marginTop: 6, fontWeight: colocando ? 700 : 400 }}>
             {colocando
               ? "Mueve el mouse sobre el plano y haz clic donde quieras soltarlo (Esc para cancelar)."
-              : "Elige un objeto y luego haz clic en el plano para colocarlo. Ya puesto, arrástralo para acomodarlo o haz clic para ajustar su tamaño/ángulo."}
+              : "Elige un objeto y luego haz clic en el plano para colocarlo. Ya puesto, arrástralo para moverlo libremente; al seleccionarlo aparecen tres asas moradas: la de arriba lo rota, la de la esquina cambia su ancho/alto, y la de abajo (sobre el bloque de sombra) ajusta su largo — todo arrastrando con el mouse. El panel de abajo sigue disponible para valores exactos."}
           </div>
 
           {objetoSeleccionado && (
@@ -1655,20 +2294,26 @@ export default function MaquinaTab({ mob }) {
                 {[
                   { key: "ancho", label: "Ancho", min: 8, max: 160, step: 1 },
                   { key: "alto", label: "Alto", min: 8, max: 160, step: 1 },
+                  { key: "largo", label: "Largo", min: 4, max: 140, step: 1 },
                   { key: "rot", label: "Rotación °", min: 0, max: 359, step: 1 },
                   { key: "escala", label: "Escala", min: 0.4, max: 2.5, step: 0.05 },
-                ].map(campo => (
-                  <div key={campo.key}>
-                    <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.55)", marginBottom: 3 }}>
-                      {campo.label}: <b style={{ color: "white" }}>{objetoSeleccionado[campo.key]}</b>
+                ].map(campo => {
+                  const valor = campo.key === "largo"
+                    ? (objetoSeleccionado.largo ?? TIPOS_OBJETO[objetoSeleccionado.tipo]?.largoDef ?? 16)
+                    : objetoSeleccionado[campo.key];
+                  return (
+                    <div key={campo.key}>
+                      <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.55)", marginBottom: 3 }}>
+                        {campo.label}: <b style={{ color: "white" }}>{valor}</b>
+                      </div>
+                      <input
+                        type="range" min={campo.min} max={campo.max} step={campo.step} value={valor}
+                        onChange={e => actualizarObjeto(objetoSeleccionado.id, { [campo.key]: Number(e.target.value) })}
+                        style={{ width: "100%" }}
+                      />
                     </div>
-                    <input
-                      type="range" min={campo.min} max={campo.max} step={campo.step} value={objetoSeleccionado[campo.key]}
-                      onChange={e => actualizarObjeto(objetoSeleccionado.id, { [campo.key]: Number(e.target.value) })}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 onClick={() => eliminarObjeto(objetoSeleccionado.id)}
@@ -1695,23 +2340,42 @@ export default function MaquinaTab({ mob }) {
         </div>
       )}
 
-      <div
-        ref={canvasScrollRef}
-        onPointerDown={onCanvasPointerDown}
-        onPointerMove={onCanvasPointerMove}
-        onPointerUp={onCanvasPointerUp}
-        onPointerLeave={onCanvasPointerUp}
-        onClick={onCanvasClick}
-        style={{
-          background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 60%), linear-gradient(180deg, #191b24, #101119)",
-          border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
-          overflow: "auto", cursor: colocando ? "crosshair" : "grab", touchAction: "none",
-        }}
-      >
-        <div ref={innerCanvasRef} style={{ position: "relative", width: LAYOUT.width, height: LAYOUT.height, margin: "0 auto" }}>
+      <div style={{ position: "relative" }}>
+        <div style={{
+          position: "absolute", top: 10, right: 10, zIndex: 30, display: "flex", alignItems: "center", gap: 6,
+          background: "rgba(10,10,16,0.85)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 20,
+          padding: "5px 10px", fontSize: 10.5, color: "rgba(255,255,255,0.75)", fontWeight: 700,
+        }}>
+          🔍 {Math.round(zoom * 100)}%
+          {zoom !== 1 && (
+            <button
+              onClick={() => setZoom(1)}
+              style={{ background: "transparent", border: "none", color: "#a78bfa", fontSize: 10.5, fontWeight: 800, cursor: "pointer", padding: 0 }}
+            >
+              restablecer
+            </button>
+          )}
+        </div>
+        <div
+          ref={canvasScrollRef}
+          onPointerDown={onCanvasPointerDown}
+          onPointerMove={onCanvasPointerMove}
+          onPointerUp={onCanvasPointerUp}
+          onPointerLeave={onCanvasPointerUp}
+          onClick={onCanvasClick}
+          onWheel={onWheelZoom}
+          style={{
+            background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 60%), linear-gradient(180deg, #191b24, #101119)",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
+            overflow: "auto", cursor: colocando ? "crosshair" : "grab", touchAction: "none",
+          }}
+        >
+        <div style={{ width: LAYOUT.width * zoom, height: LAYOUT.height * zoom, margin: "0 auto" }}>
+        <div ref={innerCanvasRef} style={{ position: "relative", width: LAYOUT.width, height: LAYOUT.height, transform: `scale(${zoom})`, transformOrigin: "top left" }}>
           <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0 }}>
             <defs>
-              <path id="mq-ruta-flujo" d={LAYOUT.ruta} fill="none" />
+              <path id="mq-ruta-limones" d={rutaLimones} fill="none" />
+              <path id="mq-ruta-cajas" d={rutaCajas} fill="none" />
               {/* Barniz de luz reutilizable: se superpone a cualquier cara de
                   color plano para que se vea con volumen/brillo, como si le
                   pegara la luz desde arriba-izquierda — en vez de un relleno
@@ -1724,6 +2388,15 @@ export default function MaquinaTab({ mob }) {
               <radialGradient id="mq-sombra-suelo" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="#000000" stopOpacity="0.4" />
                 <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+              </radialGradient>
+              {/* Textura del limón — degradado radial verde-amarillo con
+                  brillo desplazado, más una veta para que no se vea un
+                  círculo plano de un solo color. */}
+              <radialGradient id="mq-limon-grad" cx="38%" cy="32%" r="70%">
+                <stop offset="0%" stopColor="#f5f0a8" />
+                <stop offset="35%" stopColor="#e3d61f" />
+                <stop offset="75%" stopColor="#b7c221" />
+                <stop offset="100%" stopColor="#7f9c1e" />
               </radialGradient>
             </defs>
 
@@ -1837,13 +2510,40 @@ export default function MaquinaTab({ mob }) {
               );
             })}
 
-            {/* Cajas de fruta viajando por toda la banda, en bucle continuo */}
+            {/* Limones sueltos viajando por la banda desde Recepción hasta
+                Empaque — de ahí en adelante hasta Paletizado ya viajan
+                cajas armadas, no fruta suelta. */}
             {[0, 1, 2].map(k => (
-              <rect key={k} width="11" height="11" rx="2" fill="#F2C94C" stroke="#8a6d1a" strokeWidth="1">
-                <animateMotion dur="9s" repeatCount="indefinite" begin={`${-k * 3}s`} rotate="auto">
-                  <mpath href="#mq-ruta-flujo" />
+              <circle key={`limon-${k}`} r="5.5" fill="url(#mq-limon-grad)" stroke="#5b7515" strokeWidth="0.8">
+                <animateMotion dur="8s" repeatCount="indefinite" begin={`${-k * (8 / 3)}s`} rotate="auto">
+                  <mpath href="#mq-ruta-limones" />
+                </animateMotion>
+              </circle>
+            ))}
+            {/* Cajas ya armadas, desde Empaque hasta Paletizado. */}
+            {[0, 1].map(k => (
+              <rect key={`caja-${k}`} x="-6" y="-5" width="12" height="10" rx="1.5" fill="#b3792c" stroke="#6b4416" strokeWidth="1">
+                <animateMotion dur="4s" repeatCount="indefinite" begin={`${-k * 2}s`} rotate="auto">
+                  <mpath href="#mq-ruta-cajas" />
                 </animateMotion>
               </rect>
+            ))}
+
+            {/* Personas con ruta de caminata activa: recorren su ruta con
+                animateMotion — keyPoints "0;1;0" hace que vayan del primer
+                punto al último y, al llegar, se devuelvan por el mismo
+                camino, en bucle. rotate NO se usa (queda "0") para que el
+                personaje se mantenga de pie, no acostado sobre el camino. */}
+            {caminantes.map(({ emp, d, dur, color }) => (
+              <g key={`camina-${emp.num}`}>
+                <path id={`mq-ruta-camina-${emp.num}`} d={d} fill="none" />
+                <g>
+                  <animateMotion dur={`${dur}s`} repeatCount="indefinite" keyPoints="0;1;0" keyTimes="0;0.5;1" calcMode="linear" rotate="0">
+                    <mpath href={`#mq-ruta-camina-${emp.num}`} />
+                  </animateMotion>
+                  <TrabajadorCaminando casco={color} nombre={emp.nombre.split(" ")[0]} />
+                </g>
+              </g>
             ))}
           </svg>
 
@@ -1853,7 +2553,7 @@ export default function MaquinaTab({ mob }) {
           {STAGES.map((s, i) => {
             const c = puntos[i];
             const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
-            const gente = areaDb ? (porArea[areaDb.id] || []) : [];
+            const gente = areaDb ? (porArea[areaDb.id] || []).filter(({ emp }) => !caminandoNums.has(emp.num)) : [];
             const color = areaDb ? areaDb.color : COLOR_MAQUINA;
             return (
               <div key={s.key} style={{
@@ -1899,7 +2599,7 @@ export default function MaquinaTab({ mob }) {
           <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0, pointerEvents: "none" }}>
             <g style={{ pointerEvents: "auto" }}>
               {objetos.map(o => (
-                <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
+                <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} editando={editando} onSeleccionar={setSeleccionId} onMover={moverObjeto} onAjustar={actualizarObjeto} />
               ))}
             </g>
             {colocando && mousePos && (
@@ -1908,6 +2608,8 @@ export default function MaquinaTab({ mob }) {
               </g>
             )}
           </svg>
+        </div>
+        </div>
         </div>
       </div>
 
