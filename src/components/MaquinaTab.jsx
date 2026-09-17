@@ -489,8 +489,11 @@ function MaquinaCalibradora({ cfg }) {
   };
 
   const N = 4; // bandejas por lado (representativas de las 8 reales)
-  const dirIzq = rotar(px, py, c.angulo);
-  const dirDer = rotar(-px, -py, -c.angulo);
+  // Las bandejas apuntan en horizontal REAL de pantalla (no relativo al eje,
+  // que queda dibujado en diagonal por la proyección isométrica) — así el
+  // 0° del ángulo sí se ve derecho, no heredando la inclinación del eje.
+  const dirIzq = rotar(1, 0, c.angulo);
+  const dirDer = rotar(-1, 0, -c.angulo);
   const bandejas = [];
   const tS = [];
   for (let k = 0; k < N; k++) {
