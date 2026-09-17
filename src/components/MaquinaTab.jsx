@@ -317,6 +317,46 @@ const LAYOUT = (() => {
   return { puntos, width: maxX - minX, height: maxY - minY, ruta };
 })();
 
+// El túnel real de la planta hace Lavado + Encerado + Secado en una sola
+// máquina larga de acero inoxidable con paneles perforados — no en tres
+// cuerpos sueltos. Se dibuja como un solo prisma alargado que sigue la
+// misma línea (ya son 3 puntos colineales del plano), desde un poco antes
+// de Lavado hasta un poco después de Secado.
+function TunelLavadoEncSecado() {
+  const iL = STAGES.findIndex(s => s.key === "lavado");
+  const iS = STAGES.findIndex(s => s.key === "secado");
+  const pL = LAYOUT.puntos[iL], pS = LAYOUT.puntos[iS];
+  const dx = pS.x - pL.x, dy = pS.y - pL.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;   // a lo largo del túnel
+  const px = -uy, py = ux;              // perpendicular (ancho del túnel)
+  const EXT = 55, HALF_W = 46, DEPTH = 30;
+  const start = { x: pL.x - ux * EXT, y: pL.y - uy * EXT };
+  const end = { x: pS.x + ux * EXT, y: pS.y + uy * EXT };
+  const a = { x: start.x - px * HALF_W, y: start.y - py * HALF_W };
+  const b = { x: start.x + px * HALF_W, y: start.y + py * HALF_W };
+  const cc = { x: end.x + px * HALF_W, y: end.y + py * HALF_W };
+  const d = { x: end.x - px * HALF_W, y: end.y - py * HALF_W };
+  const top = [[a.x, a.y], [b.x, b.y], [cc.x, cc.y], [d.x, d.y]];
+  const left = [[a.x, a.y], [d.x, d.y], [d.x, d.y + DEPTH], [a.x, a.y + DEPTH]];
+  const right = [[b.x, b.y], [cc.x, cc.y], [cc.x, cc.y + DEPTH], [b.x, b.y + DEPTH]];
+
+  // Patrón de agujeros redondos del panel, como en la máquina real.
+  const agujeros = [];
+  for (let t = 0.1; t < 1; t += 0.09) {
+    agujeros.push({ x: b.x + (cc.x - b.x) * t, y: b.y + (cc.y - b.y) * t });
+  }
+
+  return (
+    <g>
+      <polygon points={poly(left)} fill="#3f4652" />
+      <polygon points={poly(right)} fill="#5b6572" />
+      <polygon points={poly(top)} fill="#9aa5b1" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+      {agujeros.map((p, idx) => <circle key={idx} cx={p.x} cy={p.y} r="3.2" fill="#2b3138" opacity="0.55" />)}
+    </g>
+  );
+}
+
 export default function MaquinaTab({ mob }) {
   const { empleados, loading: loadingPersonal } = usePersonal();
   const { areas, movimientos, loading: loadingMaquina, moverPersona } = useMaquina();
@@ -565,20 +605,32 @@ export default function MaquinaTab({ mob }) {
               );
             })}
 
+            {/* Túnel único de acero (Lavado -> Encerado -> Secado) — en la
+                planta real es una sola máquina larga con paneles
+                perforados, no tres bloques sueltos. */}
+            <TunelLavadoEncSecado />
+
             {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
-                (cara izq/der más oscuras que la superior) */}
+                (cara izq/der más oscuras que la superior). El túnel de
+                arriba ya cubre lavado/encerado/secado, así que esos tres no
+                dibujan su propio prisma — solo el detalle animado encima. */}
             {STAGES.map((s, i) => {
               const c = LAYOUT.puntos[i];
               const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
               const color = areaDb ? areaDb.color : COLOR_MAQUINA;
+              const esTunel = s.tipo === "lavado" || s.tipo === "encerado" || s.tipo === "secado";
               const top   = [[c.x, c.y - PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x - PLAT_W / 2, c.y]];
               const left  = [[c.x - PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH], [c.x - PLAT_W / 2, c.y + PLAT_DEPTH]];
               const right = [[c.x, c.y + PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x + PLAT_W / 2, c.y + PLAT_DEPTH], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH]];
               return (
                 <g key={s.key}>
-                  <polygon points={poly(left)} fill={shade(color, 0.45)} />
-                  <polygon points={poly(right)} fill={shade(color, 0.65)} />
-                  <polygon points={poly(top)} fill={color} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                  {!esTunel && (
+                    <>
+                      <polygon points={poly(left)} fill={shade(color, 0.45)} />
+                      <polygon points={poly(right)} fill={shade(color, 0.65)} />
+                      <polygon points={poly(top)} fill={color} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                    </>
+                  )}
                   {s.tipo === "lavado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#38BDF8" />}
                   {s.tipo === "encerado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#eab308" />}
                   {s.tipo === "secado" && <DetalleHorno cx={c.x} cy={c.y} />}
