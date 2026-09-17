@@ -55,7 +55,7 @@ const STAGES = [
   { key: "cargue",       tipo: "area",     nombre: "Cargue de Camión",      icono: "🚛", col: 0, row: 1 },
 ];
 
-const TILE_DX = 100, TILE_DY = 52;     // paso en píxeles por celda de la cuadrícula iso
+const TILE_DX = 120, TILE_DY = 62;     // paso en píxeles por celda de la cuadrícula iso (banda +20%)
 const PLAT_W = 90, PLAT_H = 48;        // tamaño del rombo (cara superior) de cada estación
 const PLAT_DEPTH = 22;                 // alto de las caras laterales del prisma
 const COLOR_MAQUINA = "#4b5563";       // gris acero para los tramos automáticos (no son "equipos")
