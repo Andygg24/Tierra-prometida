@@ -330,29 +330,80 @@ function TunelLavadoEncSecado() {
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;   // a lo largo del túnel
   const px = -uy, py = ux;              // perpendicular (ancho del túnel)
-  const EXT = 55, HALF_W = 46, DEPTH = 30;
+  const EXT = 55, HALF_W = 46, DEPTH = 34;
   const start = { x: pL.x - ux * EXT, y: pL.y - uy * EXT };
   const end = { x: pS.x + ux * EXT, y: pS.y + uy * EXT };
-  const a = { x: start.x - px * HALF_W, y: start.y - py * HALF_W };
-  const b = { x: start.x + px * HALF_W, y: start.y + py * HALF_W };
-  const cc = { x: end.x + px * HALF_W, y: end.y + py * HALF_W };
-  const d = { x: end.x - px * HALF_W, y: end.y - py * HALF_W };
+  // Punto a fracción `t` del recorrido (0=inicio, 1=fin), desplazado `w`
+  // perpendicular al ancho del túnel.
+  const along = (t, w) => ({
+    x: start.x + (end.x - start.x) * t + px * w,
+    y: start.y + (end.y - start.y) * t + py * w,
+  });
+
+  const a = along(0, -HALF_W), b = along(0, HALF_W), cc = along(1, HALF_W), d = along(1, -HALF_W);
   const top = [[a.x, a.y], [b.x, b.y], [cc.x, cc.y], [d.x, d.y]];
   const left = [[a.x, a.y], [d.x, d.y], [d.x, d.y + DEPTH], [a.x, a.y + DEPTH]];
   const right = [[b.x, b.y], [cc.x, cc.y], [cc.x, cc.y + DEPTH], [b.x, b.y + DEPTH]];
 
-  // Patrón de agujeros redondos del panel, como en la máquina real.
-  const agujeros = [];
-  for (let t = 0.1; t < 1; t += 0.09) {
-    agujeros.push({ x: b.x + (cc.x - b.x) * t, y: b.y + (cc.y - b.y) * t });
+  const nSeg = 5;
+  const costuras = Array.from({ length: nSeg - 1 }, (_, k) => {
+    const t = (k + 1) / nSeg;
+    return [along(t, -HALF_W), along(t, HALF_W)];
+  });
+  const remaches = [];
+  for (let k = 0; k <= nSeg; k++) {
+    const t = k / nSeg;
+    remaches.push(along(t, -HALF_W + 6), along(t, HALF_W - 6));
   }
+
+  // Ventana perforada solo en el último tramo, como en la máquina real.
+  const agujeros = [];
+  for (let t = 0.78; t < 0.97; t += 0.045) {
+    [-HALF_W * 0.45, 0, HALF_W * 0.45].forEach(w => agujeros.push(along(t, w)));
+  }
+
+  // Patas de soporte en los dos extremos y el centro.
+  const PATA_LARGO = 30;
+  const patas = [0.06, 0.5, 0.94].map(t => [along(t, -HALF_W + 8), along(t, HALF_W - 8)]);
+
+  // Panel de control con pantalla, cerca del inicio (como el de la foto real).
+  const panel = along(0.015, HALF_W + 5);
 
   return (
     <g>
+      {patas.map(([p1, p2], idx) => (
+        <g key={`pata-${idx}`}>
+          <line x1={p1.x} y1={p1.y + DEPTH} x2={p1.x} y2={p1.y + DEPTH + PATA_LARGO} stroke="#4b5563" strokeWidth="3.6" strokeLinecap="round" />
+          <line x1={p2.x} y1={p2.y + DEPTH} x2={p2.x} y2={p2.y + DEPTH + PATA_LARGO} stroke="#4b5563" strokeWidth="3.6" strokeLinecap="round" />
+        </g>
+      ))}
+
       <polygon points={poly(left)} fill="#3f4652" />
       <polygon points={poly(right)} fill="#5b6572" />
       <polygon points={poly(top)} fill="#9aa5b1" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
-      {agujeros.map((p, idx) => <circle key={idx} cx={p.x} cy={p.y} r="3.2" fill="#2b3138" opacity="0.55" />)}
+
+      {/* cresta central del techo */}
+      <line x1={along(0.02, 0).x} y1={along(0.02, 0).y} x2={along(0.98, 0).x} y2={along(0.98, 0).y} stroke="rgba(255,255,255,0.5)" strokeWidth="2" />
+
+      {/* costuras entre paneles + remaches */}
+      {costuras.map(([p1, p2], idx) => (
+        <line key={`costura-${idx}`} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="rgba(0,0,0,0.3)" strokeWidth="1.3" />
+      ))}
+      {remaches.map((p, idx) => <circle key={`rem-${idx}`} cx={p.x} cy={p.y} r="1.3" fill="#4b5563" />)}
+
+      {/* ventana perforada */}
+      {agujeros.map((p, idx) => <circle key={`ag-${idx}`} cx={p.x} cy={p.y} r="2.6" fill="#2b3138" opacity="0.55" />)}
+
+      {/* panel de control con pantalla y luces */}
+      <g transform={`translate(${panel.x},${panel.y})`}>
+        <rect x="-8" y="-17" width="16" height="21" rx="1.5" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="1" />
+        <rect x="-6" y="-14" width="12" height="7" rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
+        <circle cx="-4" cy="1" r="1.3" fill="#22c55e">
+          <animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite" />
+        </circle>
+        <circle cx="0" cy="1" r="1.3" fill="#eab308" />
+        <circle cx="4" cy="1" r="1.3" fill="#ef4444" />
+      </g>
     </g>
   );
 }
