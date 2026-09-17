@@ -55,7 +55,7 @@ const STAGES = [
   { key: "cargue",       tipo: "area",     nombre: "Cargue de Camión",      icono: "🚛", col: 0, row: 1 },
 ];
 
-const TILE_DX = 120, TILE_DY = 62;     // paso en píxeles por celda de la cuadrícula iso (banda +20%)
+const TILE_DX = 170, TILE_DY = 90;     // paso en píxeles por celda de la cuadrícula iso — bien separado para que las fichas de gente no se crucen entre estaciones
 const PLAT_W = 90, PLAT_H = 48;        // tamaño del rombo (cara superior) de cada estación
 const PLAT_DEPTH = 22;                 // alto de las caras laterales del prisma
 const COLOR_MAQUINA = "#4b5563";       // gris acero para los tramos automáticos (no son "equipos")
@@ -273,9 +273,9 @@ function FichaViajera({ from, to, color }) {
 const LAYOUT = (() => {
   const crudos = STAGES.map(s => isoPoint(s.col, s.row));
   const xs = crudos.map(p => p.x), ys = crudos.map(p => p.y);
-  const padX = PLAT_W / 2 + 70;
-  const padTop = PLAT_H / 2 + 120;    // espacio para el rótulo + fichas de personas
-  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 35;
+  const padX = PLAT_W / 2 + 90;
+  const padTop = PLAT_H / 2 + 260;    // espacio para el rótulo + fichas de personas (hasta 8 en una estación)
+  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 40;
   const minX = Math.min(...xs) - padX, maxX = Math.max(...xs) + padX;
   const minY = Math.min(...ys) - padTop, maxY = Math.max(...ys) + padBottom;
   const puntos = crudos.map(p => ({ x: p.x - minX, y: p.y - minY }));
@@ -576,10 +576,10 @@ export default function MaquinaTab({ mob }) {
               <div key={s.key} style={{
                 position: "absolute", left: c.x, top: c.y - PLAT_H / 2 - 8,
                 transform: "translate(-50%, -100%)", display: "flex", flexDirection: "column",
-                alignItems: "center", gap: 8, maxWidth: 210,
+                alignItems: "center", gap: 8, width: 128,
               }}>
                 {s.tipo === "area" ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 12px", alignItems: "flex-end", justifyContent: "center" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 8px", alignItems: "flex-end", justifyContent: "center" }}>
                     {!areaDb ? (
                       <div style={{ fontSize: 8.5, color: "#F9A826", textAlign: "center" }}>⚠ corre la migración SQL</div>
                     ) : gente.length === 0 ? (
