@@ -1972,15 +1972,16 @@ p{text-align:justify;margin-bottom:14px}
             </div>
 
             {resumen.filter(r => r.cajas > 0).length > 0 && (
-              <div style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding: m ? 14 : 12, marginBottom: m ? 14 : 12 }}>
+              <div style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding: m ? 14 : 12, marginBottom: m ? 14 : 12, animation:"conteoCalibreIn 1.5s cubic-bezier(0.16,1,0.3,1)", transformOrigin:"top center" }}>
+                <style>{`@keyframes conteoCalibreIn{0%{opacity:0;transform:translateY(-18px) scale(0.96);filter:blur(3px);}60%{filter:blur(0);}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0);}}@keyframes conteoCalibreCardIn{from{opacity:0;transform:translateY(10px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}`}</style>
                 <div style={{ fontSize: m ? 12 : 10, color:"#a5b4fc", marginBottom: m ? 10 : 8, fontWeight:700 }}>
                   🔢 Conteo por calibre — orden de la directiva: 2 cajas contadas a mano por calibre
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: m ? 10 : 8 }}>
-                  {resumen.filter(r => r.cajas > 0).map(r => {
+                  {resumen.filter(r => r.cajas > 0).map((r, i) => {
                     const conteo = admin.conteoCalibre?.[r.size] || {};
                     return (
-                      <div key={r.size} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[r.size]?.border || "rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 12 : 10 }}>
+                      <div key={r.size} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[r.size]?.border || "rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 12 : 10, animation:`conteoCalibreCardIn 0.9s cubic-bezier(0.16,1,0.3,1) ${0.5 + i * 0.15}s both` }}>
                         <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
                           <span style={{ background:COL_CAL[r.size]?.light, color:COL_CAL[r.size]?.bg, borderRadius:6, padding:"2px 8px", fontSize: m ? 12 : 11, fontWeight:800 }}>{r.size}</span>
                           <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Limones contados a mano</span>
