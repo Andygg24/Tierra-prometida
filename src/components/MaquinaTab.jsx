@@ -822,6 +822,32 @@ export default function MaquinaTab({ mob }) {
   const prevAreaRef = useRef({});
   const viajeIdRef = useRef(0);
 
+  // Paneo de cámara: clic y arrastra sobre el lienzo para moverte por la
+  // máquina, en vez de depender solo de las barras de scroll.
+  const canvasScrollRef = useRef(null);
+  const panRef = useRef(null);
+  const onCanvasPointerDown = (e) => {
+    if (!canvasScrollRef.current) return;
+    panRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      scrollLeft: canvasScrollRef.current.scrollLeft, scrollTop: canvasScrollRef.current.scrollTop,
+      movido: false,
+    };
+  };
+  const onCanvasPointerMove = (e) => {
+    if (!panRef.current || !canvasScrollRef.current) return;
+    const dx = e.clientX - panRef.current.startX, dy = e.clientY - panRef.current.startY;
+    if (!panRef.current.movido && Math.hypot(dx, dy) < 4) return;
+    panRef.current.movido = true;
+    canvasScrollRef.current.style.cursor = "grabbing";
+    canvasScrollRef.current.scrollLeft = panRef.current.scrollLeft - dx;
+    canvasScrollRef.current.scrollTop = panRef.current.scrollTop - dy;
+  };
+  const onCanvasPointerUp = () => {
+    panRef.current = null;
+    if (canvasScrollRef.current) canvasScrollRef.current.style.cursor = "grab";
+  };
+
   // Modo edición: ajustar a mano la forma de la calibradora (ángulo de
   // bandejas, posición del puesto de control, etc.) sin tener que
   // describirlo por chat — se guarda en este navegador.
@@ -1177,11 +1203,18 @@ export default function MaquinaTab({ mob }) {
         </div>
       )}
 
-      <div style={{
-        background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 60%), linear-gradient(180deg, #191b24, #101119)",
-        border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
-        overflow: "auto",
-      }}>
+      <div
+        ref={canvasScrollRef}
+        onPointerDown={onCanvasPointerDown}
+        onPointerMove={onCanvasPointerMove}
+        onPointerUp={onCanvasPointerUp}
+        onPointerLeave={onCanvasPointerUp}
+        style={{
+          background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 60%), linear-gradient(180deg, #191b24, #101119)",
+          border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
+          overflow: "auto", cursor: "grab", touchAction: "none",
+        }}
+      >
         <div style={{ position: "relative", width: LAYOUT.width, height: LAYOUT.height, margin: "0 auto" }}>
           <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0 }}>
             <defs>
@@ -1256,12 +1289,6 @@ export default function MaquinaTab({ mob }) {
                 </animateMotion>
               </rect>
             ))}
-
-            {/* Objetos libres del usuario (pallets, básculas, cajas, muros,
-                rejas, techos, sillas, canecas, montacargas, estibadores...) */}
-            {objetos.map(o => (
-              <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
-            ))}
           </svg>
 
           {/* Rótulo + personas de cada etapa, ancladas justo encima de su
@@ -1308,6 +1335,18 @@ export default function MaquinaTab({ mob }) {
           })}
 
           {viajero && <FichaViajera from={viajero.from} to={viajero.to} color={viajero.color} />}
+
+          {/* Objetos libres del usuario, en su propia capa POR ENCIMA de todo
+              (incluidas las etiquetas/chips en HTML de arriba) — si no,
+              quedaban tapados por esos fondos opacos al nacer en el centro
+              del plano. */}
+          <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0, pointerEvents: "none" }}>
+            <g style={{ pointerEvents: "auto" }}>
+              {objetos.map(o => (
+                <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
+              ))}
+            </g>
+          </svg>
         </div>
       </div>
 
