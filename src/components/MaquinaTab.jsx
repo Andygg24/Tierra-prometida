@@ -463,6 +463,17 @@ function cargarPosCustom() {
   } catch { return {}; }
 }
 
+// Desplazamiento (dx,dy) de cada persona respecto a su posición automática
+// en la fila/columna de su estación — permite acomodarlas a mano en modo
+// edición sin perder el auto-acomodo por defecto (offset 0,0).
+const POS_PERSONAS_KEY = "tp_maquina_posiciones_personas";
+function cargarPosPersonas() {
+  try {
+    const raw = localStorage.getItem(POS_PERSONAS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
 const CALIB_CFG_KEY = "tp_maquina_calibradora_cfg";
 const CALIB_CFG_DEFAULT = {
   angulo: 0,       // grados respecto a perpendicular al eje — 0 = recto
@@ -1066,6 +1077,30 @@ export default function MaquinaTab({ mob }) {
   };
   const onEstacionPointerUp = () => { estacionDragRef.current = null; };
 
+  // Arrastrar a una persona dentro de su estación (solo en modo edición) —
+  // guarda un desplazamiento (dx,dy) respecto a su posición automática, no
+  // una coordenada absoluta, para que siga viendose bien aunque cambie de
+  // estación después.
+  const [posPersonas, setPosPersonas] = useState(() => cargarPosPersonas());
+  useEffect(() => {
+    try { localStorage.setItem(POS_PERSONAS_KEY, JSON.stringify(posPersonas)); } catch { /* noop */ }
+  }, [posPersonas]);
+  const personaDragRef = useRef(null);
+  const onPersonaPointerDown = (e, empNum, offActual) => {
+    if (!editando) return;
+    e.stopPropagation();
+    personaDragRef.current = { empNum, sx: e.clientX, sy: e.clientY, ox: offActual.dx, oy: offActual.dy };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPersonaPointerMove = (e) => {
+    const d = personaDragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    setPosPersonas(prev => ({ ...prev, [d.empNum]: { dx: d.ox + dx, dy: d.oy + dy } }));
+  };
+  const onPersonaPointerUp = () => { personaDragRef.current = null; };
+  const restablecerPosPersonas = () => setPosPersonas({});
+
   // Ecosistema de objetos libres (pallets, básculas, cajas, muros, rejas,
   // techos, sillas, canecas, montacargas, estibadores, banda extra) — el
   // usuario los agrega y arrastra a su gusto dentro del plano.
@@ -1300,12 +1335,20 @@ export default function MaquinaTab({ mob }) {
   const chip = (emp, desde, areaActual) => {
     const desdeMs = desde ? new Date(desde).getTime() : null;
     const resaltado = !!resaltados[emp.num];
+    const off = posPersonas[emp.num] || { dx: 0, dy: 0 };
     return (
       <div
         key={emp.num}
-        style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}
+        style={{
+          position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+          transform: (off.dx || off.dy) ? `translate(${off.dx}px, ${off.dy}px)` : undefined,
+          cursor: editando ? "grab" : "default", touchAction: editando ? "none" : "auto",
+        }}
         onMouseEnter={() => setHoverNum(emp.num)}
         onMouseLeave={() => setHoverNum(v => (v === emp.num ? null : v))}
+        onPointerDown={(e) => onPersonaPointerDown(e, emp.num, off)}
+        onPointerMove={onPersonaPointerMove}
+        onPointerUp={onPersonaPointerUp}
       >
         {hoverNum === emp.num && menuAbierto !== emp.num && (
           <div style={{
@@ -1560,14 +1603,22 @@ export default function MaquinaTab({ mob }) {
             🧲 Estaciones del plano
           </div>
           <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
-            Todas las estaciones (incluido el túnel y la calibradora, arrastrando su punto) se pueden mover directo con el mouse — no hace falta estar en este panel para hacerlo.
+            Todas las estaciones (incluido el túnel y la calibradora, arrastrando su punto) se pueden mover directo con el mouse — no hace falta estar en este panel para hacerlo. Con "Editar máquina" activo, las personas dentro de cada estación también se pueden arrastrar para acomodarlas.
           </div>
-          <button
-            onClick={restablecerPosiciones}
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-          >
-            ↺ Restablecer posiciones de las estaciones
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={restablecerPosiciones}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+            >
+              ↺ Restablecer posiciones de las estaciones
+            </button>
+            <button
+              onClick={restablecerPosPersonas}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+            >
+              ↺ Restablecer posiciones de las personas
+            </button>
+          </div>
 
           <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
             🧩 Agregar objetos al plano
