@@ -761,11 +761,20 @@ function IconoObjeto({ tipo, ancho, alto }) {
 // Objeto libre: se puede arrastrar con el mouse/dedo directo sobre el
 // lienzo (pointer capture, sin necesitar listeners globales). El clic lo
 // selecciona; arrastrar lo mueve; el resto de sus ajustes (ángulo, tamaño)
-// salen del panel de edición.
-function ObjetoLibre({ obj, seleccionado, onSeleccionar, onMover }) {
+// salen del panel de edición. Al acabar de crearlo (`esNuevo`), se
+// desplaza solo hasta quedar visible y destella un instante, para que no
+// se pierda si el lienzo está grande o con scroll.
+function ObjetoLibre({ obj, seleccionado, esNuevo, onSeleccionar, onMover }) {
   const dragRef = useRef(null);
+  const gRef = useRef(null);
+  useEffect(() => {
+    if (esNuevo && gRef.current) {
+      gRef.current.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    }
+  }, [esNuevo]);
   return (
     <g
+      ref={gRef}
       transform={`translate(${obj.x},${obj.y}) rotate(${obj.rot || 0})`}
       style={{ cursor: "grab", touchAction: "none" }}
       onPointerDown={(e) => {
@@ -782,12 +791,13 @@ function ObjetoLibre({ obj, seleccionado, onSeleccionar, onMover }) {
       onPointerUp={() => { dragRef.current = null; }}
       onClick={(e) => e.stopPropagation()}
     >
-      <g transform={`scale(${obj.escala || 1})`}>
+      <g transform={`scale(${obj.escala || 1})`} style={{ animation: esNuevo ? "mq-pop 0.35s ease" : "none" }}>
         <IconoObjeto tipo={obj.tipo} ancho={obj.ancho} alto={obj.alto} />
         {seleccionado && (
           <rect
             x={-obj.ancho / 2 - 4} y={-obj.alto / 2 - 4} width={obj.ancho + 8} height={obj.alto + 8}
             fill="none" stroke="#845EF7" strokeWidth={1.5 / (obj.escala || 1)} strokeDasharray="4 3"
+            style={{ animation: esNuevo ? "mq-highlight 1.1s ease" : "none" }}
           />
         )}
       </g>
@@ -826,6 +836,7 @@ export default function MaquinaTab({ mob }) {
   // usuario los agrega y arrastra a su gusto dentro del plano.
   const [objetos, setObjetos] = useState(() => cargarObjetos());
   const [seleccionId, setSeleccionId] = useState(null);
+  const [nuevoId, setNuevoId] = useState(null); // objeto recién agregado — se desplaza a la vista y destella
   useEffect(() => {
     try { localStorage.setItem(OBJ_KEY, JSON.stringify(objetos)); } catch { /* noop */ }
   }, [objetos]);
@@ -845,6 +856,8 @@ export default function MaquinaTab({ mob }) {
     };
     setObjetos(prev => [...prev, nuevo]);
     setSeleccionId(id);
+    setNuevoId(id);
+    setTimeout(() => setNuevoId(prev => (prev === id ? null : prev)), 1200);
   };
   const moverObjeto = (id, x, y) => setObjetos(prev => prev.map(o => o.id === id ? { ...o, x, y } : o));
   const actualizarObjeto = (id, cambios) => setObjetos(prev => prev.map(o => o.id === id ? { ...o, ...cambios } : o));
@@ -1247,7 +1260,7 @@ export default function MaquinaTab({ mob }) {
             {/* Objetos libres del usuario (pallets, básculas, cajas, muros,
                 rejas, techos, sillas, canecas, montacargas, estibadores...) */}
             {objetos.map(o => (
-              <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
+              <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
             ))}
           </svg>
 
