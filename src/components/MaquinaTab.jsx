@@ -187,12 +187,25 @@ const cajaChica = (
 );
 const limonChico = <circle cx="7.5" cy="-2" r="2.6" fill="#84cc16" />;
 
-// Fase 1 — dos personas: una llena/levanta la estiba, otra la recibe y pasa.
+// Fase 1 — dos personas bajan canastillas del camión y las apilan; otra
+// pesa la estiba ya armada en una báscula grande. El camión se dibuja
+// aparte (DetalleCamion) en el mismo offset (cx+110, cy-58) — estas dos
+// personas quedan justo a su lado, bajando la carga.
 function TareaRecepcion({ cx, cy, casco }) {
+  const tx = cx + 110, ty = cy - 58;
   return (
-    <g transform={`translate(${cx},${cy})`}>
-      <Trabajador x={-15} y={2} casco={casco} brazoDesde={-25} brazoHasta={30} dur="1.5s" objeto={cajaChica} />
-      <Trabajador x={13} y={2} casco={casco} espejo brazoDesde={-30} brazoHasta={25} dur="1.5s" retraso="0.5s" objeto={cajaChica} />
+    <g>
+      <Trabajador x={tx - 30} y={ty + 27} casco={casco} brazoDesde={-50} brazoHasta={5} dur="1.3s" objeto={cajaChica} />
+      <Trabajador x={tx - 8} y={ty + 31} casco={casco} espejo brazoDesde={-10} brazoHasta={40} dur="1.3s" retraso="0.4s" objeto={cajaChica} />
+
+      {/* báscula grande de piso, con una persona pesando la estiba */}
+      <g transform={`translate(${cx - 48},${cy + 4})`}>
+        <rect x="-17" y="7" width="34" height="7" rx="2" fill="#374151" stroke="#1f2937" strokeWidth="1" />
+        <rect x="-3" y="-8" width="6" height="16" fill="#9ca3af" />
+        <rect x="-8" y="-15" width="16" height="8" rx="1.5" fill="#0f172a" stroke="#38BDF8" strokeWidth="1" />
+        <rect x="-10" y="-2" width="20" height="9" rx="1" fill="#a16207" stroke="#78350f" strokeWidth="0.8" />
+      </g>
+      <Trabajador x={cx - 20} y={cy + 6} casco={casco} espejo brazoDesde={-20} brazoHasta={20} dur="1.6s" />
     </g>
   );
 }
