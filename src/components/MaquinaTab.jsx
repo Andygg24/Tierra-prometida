@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { usePersonal } from "../hooks/usePersonal.js";
 import { useMaquina } from "../hooks/useMaquina.js";
 import { registrarActividad } from "../hooks/useActividad.js";
@@ -805,6 +805,40 @@ function ObjetoLibre({ obj, seleccionado, esNuevo, onSeleccionar, onMover }) {
   );
 }
 
+// ── Motor de simulación (estilo FlexSim, simplificado) ─────────────────────
+// Simulación de eventos por pasos de tiempo: cada estación procesa unidades
+// según su tiempo de proceso y su capacidad (cuántas puede tener ocupadas a
+// la vez — usa la `capacidad` real de personal en las estaciones con gente,
+// y "sin límite" en los tramos automáticos, que no forman cola en la vida
+// real). Si llegan más unidades de las que caben, se acumulan en cola —
+// eso es literalmente cómo se ve un cuello de botella.
+const SIM_CFG_KEY = "tp_maquina_sim_cfg";
+const SIM_TIEMPOS_DEFAULT = {
+  recepcion: 60, alimentacion: 20, seleccion: 15, lavado: 25, encerado: 20, secado: 30,
+  foto: 10, empaque: 25, pesaje: 10, paletizado: 40, patio: 5, cargue: 35,
+};
+const SIM_CAPACIDAD_AUTOMATICO = 999; // tramos automáticos: banda/túnel continuos, no forman cola
+const SIM_VELOCIDADES = [1, 5, 20, 60];
+
+function cargarSimCfg() {
+  const base = { tiempos: { ...SIM_TIEMPOS_DEFAULT }, ritmoLlegadaSeg: 50, velocidad: 20 };
+  try {
+    const raw = localStorage.getItem(SIM_CFG_KEY);
+    if (!raw) return base;
+    const guardado = JSON.parse(raw);
+    return { ...base, ...guardado, tiempos: { ...base.tiempos, ...(guardado.tiempos || {}) } };
+  } catch { return base; }
+}
+
+function estacionSimVacia() {
+  return { ocupados: [], cola: [], procesados: 0, tiempoOcupado: 0 };
+}
+
+function fmtRelojSim(seg) {
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = Math.floor(seg % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 export default function MaquinaTab({ mob }) {
   const { empleados, loading: loadingPersonal } = usePersonal();
   const { areas, movimientos, loading: loadingMaquina, moverPersona } = useMaquina();
@@ -943,6 +977,94 @@ export default function MaquinaTab({ mob }) {
     });
     return m;
   }, [areaPorNombre]);
+
+  // ── Simulación de flujo (estilo FlexSim) ──────────────────────────────
+  const [simPanelAbierto, setSimPanelAbierto] = useState(false);
+  const [simActiva, setSimActiva] = useState(false);
+  const [simCfg, setSimCfg] = useState(() => cargarSimCfg());
+  const [simSnapshot, setSimSnapshot] = useState(null);
+  useEffect(() => {
+    try { localStorage.setItem(SIM_CFG_KEY, JSON.stringify(simCfg)); } catch { /* noop */ }
+  }, [simCfg]);
+
+  const capacidadSim = useCallback((stageKey) => {
+    const s = STAGES.find(x => x.key === stageKey);
+    if (s.tipo !== "area") return SIM_CAPACIDAD_AUTOMATICO;
+    return areaPorNombre[s.nombre]?.capacidad || 1;
+  }, [areaPorNombre]);
+
+  const simRef = useRef(null);
+  if (simRef.current === null) {
+    simRef.current = {
+      reloj: 0, siguienteId: 1, proximaLlegadaEn: simCfg.ritmoLlegadaSeg,
+      estaciones: Object.fromEntries(STAGES.map(s => [s.key, estacionSimVacia()])),
+    };
+  }
+
+  const clonarSimSnapshot = useCallback(() => {
+    const st = simRef.current;
+    return {
+      reloj: st.reloj,
+      estaciones: Object.fromEntries(Object.entries(st.estaciones).map(([k, v]) => [
+        k, { ocupados: v.ocupados.length, cola: v.cola.length, procesados: v.procesados, tiempoOcupado: v.tiempoOcupado },
+      ])),
+    };
+  }, []);
+
+  const reiniciarSim = useCallback(() => {
+    simRef.current = {
+      reloj: 0, siguienteId: 1, proximaLlegadaEn: simCfg.ritmoLlegadaSeg,
+      estaciones: Object.fromEntries(STAGES.map(s => [s.key, estacionSimVacia()])),
+    };
+    setSimSnapshot(clonarSimSnapshot());
+  }, [simCfg.ritmoLlegadaSeg, clonarSimSnapshot]);
+
+  const avanzarSim = useCallback((dtSeg) => {
+    const st = simRef.current;
+    st.reloj += dtSeg;
+
+    const primeraKey = STAGES[0].key;
+    while (st.reloj >= st.proximaLlegadaEn) {
+      st.estaciones[primeraKey].cola.push(st.siguienteId++);
+      st.proximaLlegadaEn += Math.max(1, simCfg.ritmoLlegadaSeg);
+    }
+
+    STAGES.forEach((s, i) => {
+      const est = st.estaciones[s.key];
+      const terminados = est.ocupados.filter(o => o.finEn <= st.reloj);
+      if (terminados.length) est.ocupados = est.ocupados.filter(o => o.finEn > st.reloj);
+      terminados.forEach(o => {
+        est.procesados++;
+        const siguiente = STAGES[i + 1];
+        if (siguiente) st.estaciones[siguiente.key].cola.push(o.id);
+      });
+      const cap = capacidadSim(s.key);
+      while (est.cola.length > 0 && est.ocupados.length < cap) {
+        const id = est.cola.shift();
+        const dur = Math.max(1, simCfg.tiempos[s.key] ?? 20);
+        est.ocupados.push({ id, finEn: st.reloj + dur });
+      }
+      est.tiempoOcupado += est.ocupados.length * dtSeg;
+    });
+  }, [simCfg, capacidadSim]);
+
+  useEffect(() => {
+    if (!simActiva) return;
+    const REAL_MS = 200;
+    const id = setInterval(() => {
+      avanzarSim((REAL_MS / 1000) * simCfg.velocidad);
+      setSimSnapshot(clonarSimSnapshot());
+    }, REAL_MS);
+    return () => clearInterval(id);
+  }, [simActiva, simCfg.velocidad, avanzarSim, clonarSimSnapshot]);
+
+  const simUltimaKey = STAGES[STAGES.length - 1].key;
+  const simThroughputHora = simSnapshot && simSnapshot.reloj > 0
+    ? (simSnapshot.estaciones[simUltimaKey].procesados / simSnapshot.reloj) * 3600
+    : 0;
+  const simWipTotal = simSnapshot
+    ? Object.values(simSnapshot.estaciones).reduce((s, e) => s + e.ocupados + e.cola, 0)
+    : 0;
 
   const ultimoMovPorEmp = useMemo(() => {
     const m = {};
@@ -1111,18 +1233,145 @@ export default function MaquinaTab({ mob }) {
               : "No hay empleados activos registrados en Personal"}
           </div>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); setEditando(v => !v); }}
-          style={{
-            background: editando ? "rgba(132,94,247,0.18)" : "rgba(255,255,255,0.06)",
-            border: `1px solid ${editando ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
-            borderRadius: 8, color: editando ? "#a78bfa" : "rgba(255,255,255,0.7)",
-            padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", flexShrink: 0,
-          }}
-        >
-          {editando ? "✅ Salir de edición" : "✏️ Editar máquina"}
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSimPanelAbierto(v => !v); }}
+            style={{
+              background: simPanelAbierto ? "rgba(34,211,238,0.18)" : "rgba(255,255,255,0.06)",
+              border: `1px solid ${simPanelAbierto ? "#22D3EE" : "rgba(255,255,255,0.15)"}`,
+              borderRadius: 8, color: simPanelAbierto ? "#67e8f9" : "rgba(255,255,255,0.7)",
+              padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            📈 Simulación
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditando(v => !v); }}
+            style={{
+              background: editando ? "rgba(132,94,247,0.18)" : "rgba(255,255,255,0.06)",
+              border: `1px solid ${editando ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+              borderRadius: 8, color: editando ? "#a78bfa" : "rgba(255,255,255,0.7)",
+              padding: "7px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            {editando ? "✅ Salir de edición" : "✏️ Editar máquina"}
+          </button>
+        </div>
       </div>
+
+      {simPanelAbierto && (
+        <div style={{
+          background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.3)", borderRadius: 12,
+          padding: 14, marginBottom: 16,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "#67e8f9", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              📈 Simulación de flujo — reloj {fmtRelojSim(simSnapshot?.reloj || 0)}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={() => setSimActiva(v => !v)}
+                style={{
+                  background: simActiva ? "rgba(255,107,107,0.15)" : "rgba(0,201,167,0.15)",
+                  border: `1px solid ${simActiva ? "#FF6B6B" : "#00C9A7"}`, borderRadius: 8,
+                  color: simActiva ? "#FF6B6B" : "#00C9A7", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                {simActiva ? "⏸️ Pausar" : "▶️ Correr"}
+              </button>
+              <button
+                onClick={reiniciarSim}
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+              >
+                🔄 Reiniciar
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {SIM_VELOCIDADES.map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setSimCfg(prev => ({ ...prev, velocidad: v }))}
+                    style={{
+                      background: simCfg.velocidad === v ? "#22D3EE" : "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6,
+                      color: simCfg.velocidad === v ? "#0b1a1d" : "rgba(255,255,255,0.7)",
+                      padding: "5px 9px", fontSize: 10.5, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    {v}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4, 1fr)", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>Throughput</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: "#67e8f9" }}>{simThroughputHora.toFixed(1)}</div>
+              <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)" }}>unidades/hora simulada</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>En proceso ahora (WIP)</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: "white" }}>{simWipTotal}</div>
+              <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)" }}>unidades en el sistema</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>Ritmo de llegada</div>
+              <input
+                type="range" min="10" max="120" step="5" value={simCfg.ritmoLlegadaSeg}
+                onChange={e => setSimCfg(prev => ({ ...prev, ritmoLlegadaSeg: Number(e.target.value) }))}
+                style={{ width: "100%" }}
+              />
+              <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.5)" }}>1 unidad cada {simCfg.ritmoLlegadaSeg}s</div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            Tiempo de proceso por estación (segundos) y estado en vivo
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
+              <thead>
+                <tr style={{ color: "rgba(255,255,255,0.5)", textAlign: "left" }}>
+                  <th style={{ padding: "4px 6px" }}>Estación</th>
+                  <th style={{ padding: "4px 6px" }}>Tiempo (s)</th>
+                  <th style={{ padding: "4px 6px" }}>Ocupado</th>
+                  <th style={{ padding: "4px 6px" }}>En cola</th>
+                  <th style={{ padding: "4px 6px" }}>Procesados</th>
+                  <th style={{ padding: "4px 6px" }}>Utilización</th>
+                </tr>
+              </thead>
+              <tbody>
+                {STAGES.map(s => {
+                  const est = simSnapshot?.estaciones[s.key];
+                  const cap = capacidadSim(s.key);
+                  const util = est && simSnapshot.reloj > 0 && cap < SIM_CAPACIDAD_AUTOMATICO
+                    ? Math.min(100, (est.tiempoOcupado / (cap * simSnapshot.reloj)) * 100) : null;
+                  const esCuello = util != null && util > 85;
+                  return (
+                    <tr key={s.key} style={{ borderTop: "1px solid rgba(255,255,255,0.08)", color: "white" }}>
+                      <td style={{ padding: "4px 6px" }}>{s.icono} {s.nombre}</td>
+                      <td style={{ padding: "4px 6px" }}>
+                        <input
+                          type="number" min="1" max="600" value={simCfg.tiempos[s.key] ?? 20}
+                          onChange={e => setSimCfg(prev => ({ ...prev, tiempos: { ...prev.tiempos, [s.key]: Math.max(1, Number(e.target.value) || 1) } }))}
+                          style={{ width: 52, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 5, color: "white", padding: "2px 5px", fontSize: 10.5 }}
+                        />
+                      </td>
+                      <td style={{ padding: "4px 6px" }}>{est ? `${est.ocupados}${cap < SIM_CAPACIDAD_AUTOMATICO ? `/${cap}` : ""}` : "—"}</td>
+                      <td style={{ padding: "4px 6px", color: est?.cola > 0 ? "#F9A826" : "white", fontWeight: est?.cola > 0 ? 700 : 400 }}>{est?.cola ?? 0}</td>
+                      <td style={{ padding: "4px 6px" }}>{est?.procesados ?? 0}</td>
+                      <td style={{ padding: "4px 6px", color: esCuello ? "#FF6B6B" : "rgba(255,255,255,0.7)", fontWeight: esCuello ? 700 : 400 }}>
+                        {util != null ? `${util.toFixed(0)}%${esCuello ? " ⚠️ cuello de botella" : ""}` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {editando && (
         <div style={{
@@ -1292,6 +1541,19 @@ export default function MaquinaTab({ mob }) {
                   {s.tipo === "foto" && <DetalleCamara cx={c.x} cy={c.y} />}
                   {s.key === "recepcion" && <DetalleCamion cx={c.x + 110} cy={c.y - 58} />}
                   {s.tipo === "area" && (porArea[areaDb?.id] || []).length > 0 && <DetalleTarea tarea={s.key} cx={c.x} cy={c.y} casco={color} />}
+                  {simPanelAbierto && simSnapshot?.estaciones[s.key] && (
+                    <g transform={`translate(${c.x - PLAT_W / 2 - 16},${c.y})`}>
+                      {Array.from({ length: Math.min(simSnapshot.estaciones[s.key].ocupados, 6) }).map((_, idx) => (
+                        <circle key={`o${idx}`} cx="0" cy={-idx * 9} r="3.4" fill="#22D3EE" stroke="#0b1a1d" strokeWidth="0.8" />
+                      ))}
+                      {Array.from({ length: Math.min(simSnapshot.estaciones[s.key].cola, 6) }).map((_, idx) => (
+                        <circle key={`c${idx}`} cx="0" cy={9 + idx * 9} r="3" fill="#F9A826" opacity="0.75" />
+                      ))}
+                      {simSnapshot.estaciones[s.key].cola > 6 && (
+                        <text x="0" y={9 + 6 * 9 + 10} fontSize="8" fill="#F9A826" textAnchor="middle">+{simSnapshot.estaciones[s.key].cola - 6}</text>
+                      )}
+                    </g>
+                  )}
                 </g>
               );
             })}
