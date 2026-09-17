@@ -55,13 +55,19 @@ const STAGES = [
   { key: "cargue",       tipo: "area",     nombre: "Cargue de Camión",      icono: "🚛", col: 0, row: 1 },
 ];
 
-const TILE_DX = 100, TILE_DY = 52;     // paso en píxeles por celda de la cuadrícula iso
+const SPACING_X = 160;                 // separación horizontal entre estaciones de una misma fila
+const LANE_GAP  = 300;                 // separación vertical entre la fila de ida y la de vuelta
 const PLAT_W = 90, PLAT_H = 48;        // tamaño del rombo (cara superior) de cada estación
 const PLAT_DEPTH = 22;                 // alto de las caras laterales del prisma
 const COLOR_MAQUINA = "#4b5563";       // gris acero para los tramos automáticos (no son "equipos")
 
-function isoPoint(col, row) {
-  return { x: (col - row) * TILE_DX, y: (col + row) * TILE_DY };
+// Cada estación sigue dibujándose como un bloque isométrico (con su rombo
+// y caras laterales, efecto 3D), pero la fila 0 y la fila 1 se acomodan una
+// encima de la otra en línea recta — no en diagonal — para que la forma de
+// la máquina (la "N"/"U") se lea de frente, mirando hacia el usuario, en
+// vez de perderse en el ángulo isométrico.
+function gridPoint(col, row) {
+  return { x: col * SPACING_X, y: row * LANE_GAP };
 }
 
 // Oscurece un color hex — para las caras laterales del prisma (más oscuras
@@ -156,11 +162,14 @@ function FichaViajera({ from, to, color }) {
 // Posiciones fijas de las 12 etapas — no dependen de los datos, así que se
 // calculan una sola vez fuera del componente.
 const LAYOUT = (() => {
-  const crudos = STAGES.map(s => isoPoint(s.col, s.row));
+  const crudos = STAGES.map(s => gridPoint(s.col, s.row));
   const xs = crudos.map(p => p.x), ys = crudos.map(p => p.y);
-  const padX = PLAT_W / 2 + 70;
-  const padTop = PLAT_H / 2 + 120;    // espacio para el rótulo + fichas de personas
-  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 35;
+  const padX = PLAT_W / 2 + 90;
+  // La fila 0 cuelga sus fichas hacia arriba y la fila 1 hacia abajo (cada
+  // una se aleja de la otra fila), así que el espacio grande va arriba y
+  // abajo del todo — no hace falta tanto entre las dos filas.
+  const padTop = PLAT_H / 2 + 210;
+  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 360;
   const minX = Math.min(...xs) - padX, maxX = Math.max(...xs) + padX;
   const minY = Math.min(...ys) - padTop, maxY = Math.max(...ys) + padBottom;
   const puntos = crudos.map(p => ({ x: p.x - minX, y: p.y - minY }));
@@ -446,45 +455,53 @@ export default function MaquinaTab({ mob }) {
             ))}
           </svg>
 
-          {/* Rótulo + personas de cada etapa, ancladas justo encima de su
-              plataforma (position absolute + translate -100% = el borde
-              inferior de este bloque queda fijo aunque crezca hacia arriba) */}
+          {/* Rótulo + personas de cada etapa. La fila 0 cuelga hacia arriba
+              (lejos de la fila 1) y la fila 1 hacia abajo (lejos de la fila
+              0) — así nunca chocan entre sí sin importar cuánta gente haya. */}
           {STAGES.map((s, i) => {
             const c = LAYOUT.puntos[i];
             const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
             const gente = areaDb ? (porArea[areaDb.id] || []) : [];
             const color = areaDb ? areaDb.color : COLOR_MAQUINA;
+            const haciaArriba = s.row === 0;
+
+            const etiqueta = (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,16,0.85)",
+                border: `1px solid ${color}55`, borderRadius: 20, padding: "3px 10px 3px 6px", whiteSpace: "nowrap",
+              }}>
+                <span style={{ fontSize: 13 }}>{s.icono}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: "white" }}>{s.nombre}</span>
+                {areaDb && (
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: "white", background: color, borderRadius: 20, padding: "0px 6px" }}>
+                    {gente.length}{areaDb.capacidad ? `/${areaDb.capacidad}` : ""}
+                  </span>
+                )}
+              </div>
+            );
+
+            const gentePersonas = s.tipo === "area" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+                {!areaDb ? (
+                  <div style={{ fontSize: 8.5, color: "#F9A826", textAlign: "center" }}>⚠ corre la migración SQL</div>
+                ) : gente.length === 0 ? (
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>Sin nadie aquí</div>
+                ) : (
+                  gente.map(({ emp, desde }) => chip(emp, desde, areaDb))
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>automático</div>
+            );
+
             return (
               <div key={s.key} style={{
-                position: "absolute", left: c.x, top: c.y - PLAT_H / 2 - 8,
-                transform: "translate(-50%, -100%)", display: "flex", flexDirection: "column",
-                alignItems: "center", gap: 6, maxWidth: 150,
+                position: "absolute", left: c.x,
+                top: haciaArriba ? c.y - PLAT_H / 2 - 8 : c.y + PLAT_H / 2 + PLAT_DEPTH + 8,
+                transform: haciaArriba ? "translate(-50%, -100%)" : "translate(-50%, 0)",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 6, maxWidth: 150,
               }}>
-                {s.tipo === "area" ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                    {!areaDb ? (
-                      <div style={{ fontSize: 8.5, color: "#F9A826", textAlign: "center" }}>⚠ corre la migración SQL</div>
-                    ) : gente.length === 0 ? (
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>Sin nadie aquí</div>
-                    ) : (
-                      gente.map(({ emp, desde }) => chip(emp, desde, areaDb))
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>automático</div>
-                )}
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,16,0.85)",
-                  border: `1px solid ${color}55`, borderRadius: 20, padding: "3px 10px 3px 6px", whiteSpace: "nowrap",
-                }}>
-                  <span style={{ fontSize: 13 }}>{s.icono}</span>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: "white" }}>{s.nombre}</span>
-                  {areaDb && (
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: "white", background: color, borderRadius: 20, padding: "0px 6px" }}>
-                      {gente.length}{areaDb.capacidad ? `/${areaDb.capacidad}` : ""}
-                    </span>
-                  )}
-                </div>
+                {haciaArriba ? <>{gentePersonas}{etiqueta}</> : <>{etiqueta}{gentePersonas}</>}
               </div>
             );
           })}
