@@ -180,6 +180,27 @@ export async function generarInformePlantaHtml({ pallets, admin, contenedor, tot
       }).join("")}
     </div>` : "";
 
+  // ── Conteo manual de 2 cajas por calibre — dato pedido por la directiva,
+  // aparte del total de cajas que ya arma cada pallet.
+  const conteoCalibre = admin.conteoCalibre || {};
+  const calibresConConteo = Object.keys(conteoCalibre).filter(s => conteoCalibre[s]?.caja1 || conteoCalibre[s]?.caja2);
+  const seccionConteoCalibre = calibresConConteo.length ? `
+    <h2>🔢 Conteo manual por calibre (2 cajas)</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+      ${calibresConConteo.sort((a, b) => Number(a) - Number(b)).map(s => {
+        const c1 = Number(conteoCalibre[s]?.caja1) || 0;
+        const c2 = Number(conteoCalibre[s]?.caja2) || 0;
+        const ambas = conteoCalibre[s]?.caja1 && conteoCalibre[s]?.caja2;
+        const promedio = ambas ? Math.round((c1 + c2) / 2) : null;
+        const col = COL_CAL[s]?.bg || "#94a3b8";
+        return `<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;min-width:150px;">
+          <div style="font-weight:800;color:${col};margin-bottom:4px;">${s}</div>
+          <div style="font-size:11px;color:#475569;">Caja 1: <b>${c1 || "—"}</b> &middot; Caja 2: <b>${c2 || "—"}</b></div>
+          ${promedio !== null ? `<div style="font-size:12px;color:#4338ca;font-weight:700;margin-top:2px;">Promedio: ${promedio} limones/caja</div>` : ""}
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
   const pallCards = pallets.map(p => {
     const sum   = palletSum(p);
     const ok    = sum === cpp;
@@ -371,6 +392,8 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
     </div>
 
     ${seccionLotes}
+
+    ${seccionConteoCalibre}
 
     <h2>🧱 Distribución por pallet (${pallets.length})</h2>
     <div class="pallet-grid">${pallCards}</div>

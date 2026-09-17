@@ -22,7 +22,7 @@ const COL_CAL_VACIO = { bg:"#94a3b8", light:"rgba(148,163,184,0.12)", border:"rg
 // ── Guardado por paso — cada paso solo escribe sus propios campos de
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
-const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral"];
+const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral", "conteoCalibre"];
 const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "trailer", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "firmaConductor", "firmaSupervisor"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
@@ -424,10 +424,22 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     // ICA general de Paso 1: aplica a todos los pallets salvo que un pallet
     // tenga su propio Registro ICA (ver "Registro ICA" por calibre, que lo pisa).
     icaGeneral:"",
+    // Conteo manual de 2 cajas por calibre: { "230": { caja1, caja2 }, ... }
+    conteoCalibre:{},
     ...adminDesdeContenedor(contenedor),
   };
   const [admin, setAdmin] = useState(adminInicial);
   const sa = (k, v) => setAdmin(a => ({ ...a, [k]: v }));
+  // Conteo manual de 2 cajas por calibre (Paso 1) — dato pedido por la
+  // directiva, aparte del total de cajas que ya arma cada pallet.
+  const setConteoCalibre = (size, campo, valor) =>
+    setAdmin(a => ({
+      ...a,
+      conteoCalibre: {
+        ...(a.conteoCalibre || {}),
+        [size]: { ...(a.conteoCalibre?.[size] || {}), [campo]: valor },
+      },
+    }));
   const setPalletCert    = (i, f, v) =>
     setAdmin(a => ({ ...a, palletCerts: a.palletCerts.map((c, ci) => ci !== i ? c : { ...c, [f]: v }) }));
   const addPalletCert    = ()  =>
@@ -1958,6 +1970,37 @@ p{text-align:justify;margin-bottom:14px}
                 </div>
               ))}
             </div>
+
+            {resumen.filter(r => r.cajas > 0).length > 0 && (
+              <div style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding: m ? 14 : 12, marginBottom: m ? 14 : 12 }}>
+                <div style={{ fontSize: m ? 12 : 10, color:"#a5b4fc", marginBottom: m ? 10 : 8, fontWeight:700 }}>
+                  🔢 Conteo por calibre — orden de la directiva: 2 cajas contadas a mano por calibre
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns: m ? "1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: m ? 10 : 8 }}>
+                  {resumen.filter(r => r.cajas > 0).map(r => {
+                    const conteo = admin.conteoCalibre?.[r.size] || {};
+                    return (
+                      <div key={r.size} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${COL_CAL[r.size]?.border || "rgba(255,255,255,0.1)"}`, borderRadius:10, padding: m ? 12 : 10 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                          <span style={{ background:COL_CAL[r.size]?.light, color:COL_CAL[r.size]?.bg, borderRadius:6, padding:"2px 8px", fontSize: m ? 12 : 11, fontWeight:800 }}>{r.size}</span>
+                          <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Limones contados a mano</span>
+                        </div>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                          <div>
+                            <div style={lbl}>Caja 1</div>
+                            <input type="number" min={0} inputMode="numeric" value={conteo.caja1 ?? ""} onChange={e => setConteoCalibre(r.size, "caja1", e.target.value)} placeholder="0" style={inp} />
+                          </div>
+                          <div>
+                            <div style={lbl}>Caja 2</div>
+                            <input type="number" min={0} inputMode="numeric" value={conteo.caja2 ?? ""} onChange={e => setConteoCalibre(r.size, "caja2", e.target.value)} placeholder="0" style={inp} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div style={{ background:"rgba(0,0,0,0.2)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:12, padding: m ? 10 : 12, marginBottom: m ? 14 : 12 }}>
               <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.35)", marginBottom: m ? 10 : 8, fontWeight:600 }}>
