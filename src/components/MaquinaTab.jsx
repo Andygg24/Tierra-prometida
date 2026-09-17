@@ -506,9 +506,9 @@ function MaquinaCalibradora() {
   ];
 
   // Puesto de control: mesa + monitor inclinado + teclado + radio.
-  // El puesto de control va ANTES en el recorrido (cerca de donde entra la
-  // fruta desde Fotoselección), no al final.
-  const desk = along(-SPINE_HALF + 26, 46);
+  // El puesto de control va ANTES en el recorrido y claramente afuera de
+  // la silueta de la máquina — no encima de la tolva ni las bandejas.
+  const desk = along(-SPINE_HALF - 55, 60);
 
   return (
     <g>
@@ -538,9 +538,9 @@ function MaquinaCalibradora() {
         <g key={idx}>
           <polygon points={poly(b.puntos)} fill="#2f5fdb" stroke="#16296b" strokeWidth="1.6" />
           <polygon
-            points={poly(b.puntos.map(([x, y], k) => {
+            points={poly(b.puntos.map(([x, y]) => {
               const cx0 = (b.puntos[0][0] + b.puntos[2][0]) / 2, cy0 = (b.puntos[0][1] + b.puntos[2][1]) / 2;
-              const f = k === 0 || k === 3 ? 0.24 : 0.14;
+              const f = 0.16; // mismo factor en las 4 esquinas — reborde parejo, sin torcerse
               return [x + (cx0 - x) * f, y + (cy0 - y) * f];
             }))}
             fill="none" stroke="#5c85f0" strokeWidth="1" opacity="0.8"
