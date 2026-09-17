@@ -396,6 +396,7 @@ async function generarInformeGeneralHTML(recs, desde, hasta, tipo) {
   const totalNeto    = recs.reduce((a, r) => a + num(r.total), 0);
   const totalEstibas = recs.reduce((a, r) => a + (r.estibas?.length || 0), 0);
   const totalCanastillas = recs.reduce((a, r) => a + (r.estibas || []).reduce((s, e) => s + canastillasDeEstiba(e).reduce((x, c) => x + num(c.cantidad), 0), 0), 0);
+  const totalCanastillasKg = kilosNetosEntre23(totalNeto);
   const promedio      = recs.length ? totalNeto / recs.length : 0;
 
   const filas = recs.map(r => `
@@ -408,6 +409,7 @@ async function generarInformeGeneralHTML(recs, desde, hasta, tipo) {
       <td>${esc(r.supervisor) || "—"}</td>
       <td style="text-align:center">${r.estibas?.length || 0}</td>
       <td style="text-align:right;font-weight:700;color:${t.mid}">${kg(r.total)}</td>
+      <td style="text-align:right;font-weight:700;color:#845EF7">${kg(kilosNetosEntre23(r.total))}</td>
     </tr>`).join("");
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -429,7 +431,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:#1e2b1e;background:#f4f7f3;fo
 
 .content{padding:28px 34px 8px}
 
-.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:26px;margin-top:-16px;position:relative}
 .card{background:#fbfdfb;border:1px solid #e2ede2;border-radius:12px;padding:14px 10px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.05)}
 .card-ic{font-size:16px;margin-bottom:2px}
 .card-val{font-size:18px;font-weight:800;color:${t.mid};line-height:1.15}
@@ -477,19 +479,20 @@ tfoot td{background:${t.totalboxBg};font-weight:800;border-top:2px solid ${t.mid
       <div class="card"><div class="card-ic">📦</div><div class="card-val">${totalCanastillas.toLocaleString("es-CO")}</div><div class="card-lbl">Canastillas totales</div></div>
       <div class="card"><div class="card-ic">⚖️</div><div class="card-val">${totalNeto.toLocaleString("es-CO",{maximumFractionDigits:1})}</div><div class="card-lbl">Kg netos totales</div></div>
       <div class="card"><div class="card-ic">📊</div><div class="card-val">${kg(promedio)}</div><div class="card-lbl">Kg promedio</div></div>
+      <div class="card"><div class="card-ic">🧺</div><div class="card-val" style="color:#845EF7">${kg(totalCanastillasKg)}</div><div class="card-lbl">Canastillas en kilos</div></div>
     </div>
 
     <h2>📋 Detalle de ${nombrePlural.toLowerCase()}</h2>
     <table>
       <thead>
         <tr>
-          <th>Remisión</th><th>Fecha</th><th>Placa</th><th>Proveedor</th><th>Lote</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th>
+          <th>Remisión</th><th>Fecha</th><th>Placa</th><th>Proveedor</th><th>Lote</th><th>Supervisor</th><th style="text-align:center">Estibas</th><th style="text-align:right">Peso neto</th><th style="text-align:right">Canastillas en kg</th>
         </tr>
       </thead>
       <tbody>
-        ${filas || `<tr><td colspan="7" style="text-align:center;color:#999;padding:16px">Sin ${nombrePlural.toLowerCase()} en el rango seleccionado</td></tr>`}
+        ${filas || `<tr><td colspan="9" style="text-align:center;color:#999;padding:16px">Sin ${nombrePlural.toLowerCase()} en el rango seleccionado</td></tr>`}
       </tbody>
-      ${recs.length ? `<tfoot><tr><td colspan="6" style="text-align:right">TOTAL · Promedio ${kg(promedio)} kg/recepción</td><td style="text-align:right;color:${t.mid}">${kg(totalNeto)} kg</td></tr></tfoot>` : ""}
+      ${recs.length ? `<tfoot><tr><td colspan="7" style="text-align:right">TOTAL · Promedio ${kg(promedio)} kg/recepción</td><td style="text-align:right;color:${t.mid}">${kg(totalNeto)} kg</td><td style="text-align:right;color:#845EF7">${kg(totalCanastillasKg)} kg</td></tr></tfoot>` : ""}
     </table>
 
   </div>
