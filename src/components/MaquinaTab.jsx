@@ -135,6 +135,27 @@ function DetalleCamara({ cx, cy }) {
   );
 }
 
+// Camión de reparto estacionado junto a Recepción, descargando — con humo
+// de escape sutil para que no se sienta estático.
+function DetalleCamion({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <ellipse cx="0" cy="19" rx="36" ry="5" fill="rgba(0,0,0,0.35)" />
+      <rect x="-34" y="-19" width="46" height="28" rx="2" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="1.2" />
+      <rect x="-34" y="-19" width="46" height="8" fill="#cbd5e1" />
+      <path d="M 12 -15 h 13 a 5 5 0 0 1 5 5 v 10 a 2 2 0 0 1 -2 2 h -16 z" fill="#1d4ed8" stroke="#1e3a8a" strokeWidth="1.2" />
+      <rect x="17" y="-11" width="8" height="7" rx="1" fill="#bfdbfe" />
+      <circle cx="-20" cy="10" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx="-2" cy="10" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx="22" cy="10" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx="31" cy="-17" r="2" fill="#cbd5e1" opacity="0.7">
+        <animate attributeName="cy" values="-17;-28;-17" dur="2.2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.7;0;0.7" dur="2.2s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
 // ── Gente física trabajando en cada estación ────────────────────────────
 // Figurita de operario (casco + camisa + cabeza + piernas) con un brazo
 // animado — se reutiliza en todas las escenas de abajo, cada una con su
@@ -549,6 +570,7 @@ export default function MaquinaTab({ mob }) {
                   {s.tipo === "encerado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#eab308" />}
                   {s.tipo === "secado" && <DetalleHorno cx={c.x} cy={c.y} />}
                   {s.tipo === "foto" && <DetalleCamara cx={c.x} cy={c.y} />}
+                  {s.key === "recepcion" && <DetalleCamion cx={c.x + 110} cy={c.y - 58} />}
                   {s.tipo === "area" && (porArea[areaDb?.id] || []).length > 0 && <DetalleTarea tarea={s.key} cx={c.x} cy={c.y} casco={color} />}
                 </g>
               );
