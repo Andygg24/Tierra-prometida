@@ -330,9 +330,13 @@ function TunelLavadoEncSecado() {
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;   // a lo largo del túnel
   const px = -uy, py = ux;              // perpendicular (ancho del túnel)
-  const EXT = 55, HALF_W = 46, DEPTH = 34;
-  const start = { x: pL.x - ux * EXT, y: pL.y - uy * EXT };
-  const end = { x: pS.x + ux * EXT, y: pS.y + uy * EXT };
+  const HALF_W = 46, DEPTH = 34;
+  // Solo se extiende antes de Lavado (para que se vea como si la fruta
+  // entrara al túnel) — del lado de Secado NO se pasa del punto real, así
+  // la banda hacia Fotoselección queda claramente después del túnel, no
+  // tapada por él.
+  const start = { x: pL.x - ux * 55, y: pL.y - uy * 55 };
+  const end = { x: pS.x, y: pS.y };
   // Punto a fracción `t` del recorrido (0=inicio, 1=fin), desplazado `w`
   // perpendicular al ancho del túnel.
   const along = (t, w) => ({
@@ -640,22 +644,6 @@ export default function MaquinaTab({ mob }) {
               <path id="mq-ruta-flujo" d={LAYOUT.ruta} fill="none" />
             </defs>
 
-            {/* Banda transportadora — conecta cada etapa con la siguiente,
-                incluido el giro en U entre Secado y Fotoselección */}
-            {STAGES.map((s, i) => {
-              if (i === 0) return null;
-              const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
-              return (
-                <g key={`banda-${s.key}`}>
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="10" strokeLinecap="round" />
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="6" strokeLinecap="round" />
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="7 8" opacity="0.85">
-                    <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="0.6s" repeatCount="indefinite" />
-                  </line>
-                </g>
-              );
-            })}
-
             {/* Túnel único de acero (Lavado -> Encerado -> Secado) — en la
                 planta real es una sola máquina larga con paneles
                 perforados, no tres bloques sueltos. */}
@@ -688,6 +676,24 @@ export default function MaquinaTab({ mob }) {
                   {s.tipo === "foto" && <DetalleCamara cx={c.x} cy={c.y} />}
                   {s.key === "recepcion" && <DetalleCamion cx={c.x + 110} cy={c.y - 58} />}
                   {s.tipo === "area" && (porArea[areaDb?.id] || []).length > 0 && <DetalleTarea tarea={s.key} cx={c.x} cy={c.y} casco={color} />}
+                </g>
+              );
+            })}
+
+            {/* Banda transportadora — conecta cada etapa con la siguiente,
+                incluido el giro en U entre Secado y Fotoselección. Se dibuja
+                despues del túnel y las plataformas para que siempre quede
+                visible por encima (nunca tapada por el cuerpo de la máquina). */}
+            {STAGES.map((s, i) => {
+              if (i === 0) return null;
+              const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
+              return (
+                <g key={`banda-${s.key}`}>
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="10" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="6" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="7 8" opacity="0.85">
+                    <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="0.6s" repeatCount="indefinite" />
+                  </line>
                 </g>
               );
             })}
