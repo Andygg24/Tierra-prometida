@@ -43,7 +43,7 @@ export function useRecepciones() {
     let cancelled = false;
     async function fetchAll() {
       const [{ data, error }, { data: asigs, error: e2 }] = await Promise.all([
-        supabase.from("recepciones").select("*")
+        supabase.from("recepciones_lista").select("*")
           .order("fecha", { ascending: false }).order("id", { ascending: false }),
         supabase.from("recepciones_asignaciones").select("*"),
       ]);
@@ -62,7 +62,7 @@ export function useRecepciones() {
   useEffect(() => {
     const ch = supabase.channel(`recepciones-changes-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "recepciones" }, () => {
-        supabase.from("recepciones").select("*")
+        supabase.from("recepciones_lista").select("*")
           .order("fecha", { ascending: false }).order("id", { ascending: false })
           .then(({ data }) => data && setRecepciones(data.map(rowToRecepcion)));
       })
@@ -101,7 +101,7 @@ export function useRecepciones() {
       setRecepciones(prev => prev.map(r => r.id === id ? rowToRecepcion({ ...row, id }) : r));
       const { error } = await supabase.from("recepciones").update(row).eq("id", id);
       if (error) {
-        supabase.from("recepciones").select("*")
+        supabase.from("recepciones_lista").select("*")
           .order("fecha", { ascending: false }).order("id", { ascending: false })
           .then(({ data }) => data && setRecepciones(data.map(rowToRecepcion)));
       }
@@ -174,9 +174,19 @@ export function useRecepciones() {
     return !error;
   }, [asignaciones]);
 
+  // La lista carga desde recepciones_lista (sin fotos, para no repetir el
+  // timeout por payload gigante). Para editar una recepción puntual hace
+  // falta la fila completa (con fotoPesoBruto y fotos_comparacion_proveedor)
+  // — se trae aparte, por id, que al ser una sola fila es rápido.
+  const obtenerRecepcionCompleta = useCallback(async (id) => {
+    const { data, error } = await supabase.from("recepciones").select("*").eq("id", id).single();
+    if (error) { console.error("[recepciones] obtenerRecepcionCompleta", error.message); return null; }
+    return rowToRecepcion(data);
+  }, []);
+
   return {
     recepciones, asignaciones, loading,
     guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote,
-    guardarAsignacion, eliminarAsignacion,
+    guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta,
   };
 }

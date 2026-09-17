@@ -678,7 +678,7 @@ export default function RecepcionesTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, guardarAsignacion, eliminarAsignacion } = useRecepciones();
+  const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta } = useRecepciones();
   const { cargarPalletsPorContenedores } = usePackingList();
   const { verificaciones, guardarVerificacion, eliminarVerificacion } = useVerificacionesEstibas();
 
@@ -904,15 +904,19 @@ export default function RecepcionesTab({ mob }) {
 
   const cancelarEdicion = () => { setForm(formVacio()); setEditId(null); };
 
-  const editarRecepcion = (r) => {
+  const editarRecepcion = async (r) => {
+    // La lista carga sin fotos (para no repetir el timeout de Recepciones);
+    // al editar se trae esta fila puntual completa, con fotos incluidas.
+    const completa = await obtenerRecepcionCompleta(r.id);
+    const src = completa || r;
     setForm({
-      remision: r.remision, fecha: r.fecha, tipo: r.tipo,
-      placa: r.placa, conductor: r.conductor, cedulaConductor: r.cedulaConductor || "", origen: r.origen || "",
-      proveedor: r.proveedor, lote: r.lote || "", supervisor: r.supervisor,
-      horaInicio: r.horaInicio, horaFin: r.horaFin, observaciones: r.observaciones || "",
-      fotosComparacionProveedor: r.fotosComparacionProveedor || [],
-      estibas: r.estibas.length
-        ? r.estibas.map(e => ({
+      remision: src.remision, fecha: src.fecha, tipo: src.tipo,
+      placa: src.placa, conductor: src.conductor, cedulaConductor: src.cedulaConductor || "", origen: src.origen || "",
+      proveedor: src.proveedor, lote: src.lote || "", supervisor: src.supervisor,
+      horaInicio: src.horaInicio, horaFin: src.horaFin, observaciones: src.observaciones || "",
+      fotosComparacionProveedor: src.fotosComparacionProveedor || [],
+      estibas: src.estibas.length
+        ? src.estibas.map(e => ({
             numero: e.numero, pesoBruto: e.pesoBruto, fotoPesoBruto: e.fotoPesoBruto || "", estibaPlastica: e.estibaPlastica,
             pesoEstiba: e.pesoEstiba, canastillas: canastillasDeEstiba(e),
             usada: !!e.usada, usadaPor: e.usadaPor || "", usadaEn: e.usadaEn || "",
