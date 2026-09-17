@@ -603,6 +603,198 @@ function MaquinaCalibradora({ cfg }) {
   );
 }
 
+// ── Ecosistema de objetos libres ───────────────────────────────────────────
+// Piezas sueltas que el usuario agrega y acomoda a mano dentro del plano
+// (pallets, básculas, cajas, muros, rejas, techos, sillas, canecas,
+// montacargas, estibadores, tramos de banda extra) — independientes de las
+// 7 estaciones fijas. Se guardan en este navegador.
+const OBJ_KEY = "tp_maquina_objetos_libres";
+const TIPOS_OBJETO = {
+  pallet:      { label: "Pallet",       icono: "🟩", anchoDef: 46, altoDef: 66 },
+  bascula:     { label: "Báscula",      icono: "⚖️", anchoDef: 34, altoDef: 34 },
+  caja:        { label: "Caja",         icono: "📦", anchoDef: 20, altoDef: 16 },
+  estiba:      { label: "Estiba vacía", icono: "🟫", anchoDef: 40, altoDef: 24 },
+  muro:        { label: "Muro",         icono: "🧱", anchoDef: 70, altoDef: 12 },
+  reja:        { label: "Reja",         icono: "🔲", anchoDef: 50, altoDef: 30 },
+  techo:       { label: "Techo",        icono: "⛺", anchoDef: 60, altoDef: 28 },
+  silla:       { label: "Silla",        icono: "🪑", anchoDef: 14, altoDef: 18 },
+  caneca:      { label: "Caneca",       icono: "🗑️", anchoDef: 14, altoDef: 18 },
+  montacargas: { label: "Montacargas",  icono: "🚜", anchoDef: 50, altoDef: 30 },
+  estibador:   { label: "Estibador",    icono: "🧍", anchoDef: 20, altoDef: 34 },
+  banda:       { label: "Banda extra",  icono: "➡️", anchoDef: 90, altoDef: 14 },
+};
+
+function cargarObjetos() {
+  try {
+    const raw = localStorage.getItem(OBJ_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function IconoPallet({ ancho, alto }) {
+  const nFilas = 4;
+  const filaAlto = (alto - 8) / nFilas;
+  return (
+    <g>
+      <rect x={-ancho / 2} y={alto / 2 - 6} width={ancho} height="6" fill="#a16207" stroke="#78350f" strokeWidth="1" />
+      {Array.from({ length: nFilas }).map((_, i) => (
+        <rect key={i} x={-ancho / 2 + 1} y={alto / 2 - 6 - (i + 1) * filaAlto} width={ancho - 2} height={filaAlto - 1.5} fill="#15803d" stroke="#14532d" strokeWidth="0.8" />
+      ))}
+      {[0.25, 0.55, 0.85].map((f, i) => (
+        <line key={i} x1={-ancho / 2} y1={alto / 2 - 6 - alto * f} x2={ancho / 2} y2={alto / 2 - 6 - alto * f} stroke="#111827" strokeWidth="1.8" />
+      ))}
+    </g>
+  );
+}
+function IconoBascula({ ancho, alto }) {
+  return (
+    <g>
+      <rect x={-ancho / 2} y={alto / 2 - 6} width={ancho} height="6" rx="1.5" fill="#374151" stroke="#1f2937" strokeWidth="1" />
+      <rect x="-2" y={-alto / 2 + 4} width="4" height={alto - 16} fill="#9ca3af" />
+      <rect x={-ancho * 0.28} y={-alto / 2} width={ancho * 0.56} height={alto * 0.22} rx="1.5" fill="#0f172a" stroke="#38BDF8" strokeWidth="1" />
+    </g>
+  );
+}
+function IconoCaja({ ancho, alto }) {
+  return (
+    <g>
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="1.5" fill="#a16207" stroke="#78350f" strokeWidth="1" />
+      <line x1={-ancho / 2} y1="0" x2={ancho / 2} y2="0" stroke="#78350f" strokeWidth="1" />
+      <line x1="0" y1={-alto / 2} x2="0" y2="0" stroke="#78350f" strokeWidth="1" />
+    </g>
+  );
+}
+function IconoEstiba({ ancho, alto }) {
+  const tablas = 5;
+  return (
+    <g>
+      {Array.from({ length: tablas }).map((_, i) => (
+        <rect key={i} x={-ancho / 2 + i * (ancho / tablas)} y={-alto / 2} width={ancho / tablas - 2} height={alto} fill="#a16207" stroke="#78350f" strokeWidth="0.8" />
+      ))}
+    </g>
+  );
+}
+function IconoMuro({ ancho, alto }) {
+  const nLineas = Math.max(2, Math.round(alto / 8));
+  return (
+    <g>
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="#9a5b3f" stroke="#6b3d29" strokeWidth="1" />
+      {Array.from({ length: nLineas }).map((_, i) => (
+        <line key={i} x1={-ancho / 2} y1={-alto / 2 + (i + 1) * (alto / (nLineas + 1))} x2={ancho / 2} y2={-alto / 2 + (i + 1) * (alto / (nLineas + 1))} stroke="#6b3d29" strokeWidth="0.6" />
+      ))}
+    </g>
+  );
+}
+function IconoReja({ ancho, alto }) {
+  const barras = Math.max(3, Math.round(ancho / 8));
+  return (
+    <g>
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="none" stroke="#6b7280" strokeWidth="1.4" />
+      {Array.from({ length: barras }).map((_, i) => (
+        <line key={i} x1={-ancho / 2 + i * (ancho / (barras - 1 || 1))} y1={-alto / 2} x2={-ancho / 2 + i * (ancho / (barras - 1 || 1))} y2={alto / 2} stroke="#6b7280" strokeWidth="1.2" />
+      ))}
+    </g>
+  );
+}
+function IconoTecho({ ancho, alto }) {
+  return <polygon points={`${-ancho / 2},${alto / 2} ${ancho / 2},${alto / 2} ${ancho / 2 - 8},${-alto / 2} ${-ancho / 2 + 8},${-alto / 2}`} fill="#4b5563" stroke="#1f2937" strokeWidth="1.2" />;
+}
+function IconoSilla({ ancho, alto }) {
+  return (
+    <g>
+      <rect x={-ancho / 2} y={alto * 0.1} width={ancho} height={alto * 0.15} fill="#78350f" />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho * 0.12} height={alto} fill="#78350f" />
+      <line x1={-ancho / 2} y1={alto / 2 - 2} x2={-ancho / 2} y2={alto / 2 + 6} stroke="#451a03" strokeWidth="2" />
+      <line x1={ancho / 2 - 2} y1={alto / 2 - 2} x2={ancho / 2 - 2} y2={alto / 2 + 6} stroke="#451a03" strokeWidth="2" />
+    </g>
+  );
+}
+function IconoCaneca({ ancho, alto }) {
+  return (
+    <g>
+      <ellipse cx="0" cy={-alto / 2} rx={ancho / 2} ry={ancho / 6} fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
+      <path d={`M ${-ancho / 2},${-alto / 2} L ${-ancho * 0.4},${alto / 2} A ${ancho * 0.4} ${ancho / 8} 0 0 0 ${ancho * 0.4} ${alto / 2} L ${ancho / 2},${-alto / 2}`} fill="#374151" stroke="#1f2937" strokeWidth="1" />
+    </g>
+  );
+}
+function IconoMontacargas({ ancho, alto }) {
+  return (
+    <g>
+      <rect x={-ancho * 0.15} y={-alto * 0.5} width={ancho * 0.5} height={alto * 0.55} rx="2" fill="#F9A826" stroke="#78350f" strokeWidth="1" />
+      <rect x={-ancho / 2} y={alto * 0.05} width={ancho * 0.32} height={alto * 0.08} fill="#374151" />
+      <line x1={ancho * 0.3} y1={-alto * 0.55} x2={ancho * 0.3} y2={alto * 0.2} stroke="#374151" strokeWidth="2.4" />
+      <circle cx={-ancho * 0.25} cy={alto * 0.42} r={alto * 0.14} fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx={ancho * 0.25} cy={alto * 0.42} r={alto * 0.14} fill="#111827" stroke="#374151" strokeWidth="1" />
+    </g>
+  );
+}
+function IconoBanda({ ancho }) {
+  return (
+    <g>
+      <line x1={-ancho / 2} y1="0" x2={ancho / 2} y2="0" stroke="rgba(255,255,255,0.12)" strokeWidth="13" strokeLinecap="round" />
+      <line x1={-ancho / 2} y1="0" x2={ancho / 2} y2="0" stroke="#2a2e3a" strokeWidth="7.8" strokeLinecap="round" />
+      <line x1={-ancho / 2} y1="0" x2={ancho / 2} y2="0" stroke="#38BDF8" strokeWidth="3.3" strokeLinecap="round" strokeDasharray="9 10.4" opacity="0.85">
+        <animate attributeName="stroke-dashoffset" from="0" to="-39" dur="0.6s" repeatCount="indefinite" />
+      </line>
+    </g>
+  );
+}
+
+function IconoObjeto({ tipo, ancho, alto }) {
+  switch (tipo) {
+    case "pallet": return <IconoPallet ancho={ancho} alto={alto} />;
+    case "bascula": return <IconoBascula ancho={ancho} alto={alto} />;
+    case "caja": return <IconoCaja ancho={ancho} alto={alto} />;
+    case "estiba": return <IconoEstiba ancho={ancho} alto={alto} />;
+    case "muro": return <IconoMuro ancho={ancho} alto={alto} />;
+    case "reja": return <IconoReja ancho={ancho} alto={alto} />;
+    case "techo": return <IconoTecho ancho={ancho} alto={alto} />;
+    case "silla": return <IconoSilla ancho={ancho} alto={alto} />;
+    case "caneca": return <IconoCaneca ancho={ancho} alto={alto} />;
+    case "montacargas": return <IconoMontacargas ancho={ancho} alto={alto} />;
+    case "estibador": return <Trabajador x={0} y={alto / 2} casco="#fbbf24" objeto={cajaChica} />;
+    case "banda": return <IconoBanda ancho={ancho} alto={alto} />;
+    default: return null;
+  }
+}
+
+// Objeto libre: se puede arrastrar con el mouse/dedo directo sobre el
+// lienzo (pointer capture, sin necesitar listeners globales). El clic lo
+// selecciona; arrastrar lo mueve; el resto de sus ajustes (ángulo, tamaño)
+// salen del panel de edición.
+function ObjetoLibre({ obj, seleccionado, onSeleccionar, onMover }) {
+  const dragRef = useRef(null);
+  return (
+    <g
+      transform={`translate(${obj.x},${obj.y}) rotate(${obj.rot || 0})`}
+      style={{ cursor: "grab", touchAction: "none" }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onSeleccionar(obj.id);
+        dragRef.current = { sx: e.clientX, sy: e.clientY, ox: obj.x, oy: obj.y };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (!dragRef.current) return;
+        const dx = e.clientX - dragRef.current.sx, dy = e.clientY - dragRef.current.sy;
+        onMover(obj.id, dragRef.current.ox + dx, dragRef.current.oy + dy);
+      }}
+      onPointerUp={() => { dragRef.current = null; }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <g transform={`scale(${obj.escala || 1})`}>
+        <IconoObjeto tipo={obj.tipo} ancho={obj.ancho} alto={obj.alto} />
+        {seleccionado && (
+          <rect
+            x={-obj.ancho / 2 - 4} y={-obj.alto / 2 - 4} width={obj.ancho + 8} height={obj.alto + 8}
+            fill="none" stroke="#845EF7" strokeWidth={1.5 / (obj.escala || 1)} strokeDasharray="4 3"
+          />
+        )}
+      </g>
+    </g>
+  );
+}
+
 export default function MaquinaTab({ mob }) {
   const { empleados, loading: loadingPersonal } = usePersonal();
   const { areas, movimientos, loading: loadingMaquina, moverPersona } = useMaquina();
@@ -628,6 +820,39 @@ export default function MaquinaTab({ mob }) {
   useEffect(() => {
     try { localStorage.setItem(CALIB_CFG_KEY, JSON.stringify(calibCfg)); } catch { /* noop */ }
   }, [calibCfg]);
+
+  // Ecosistema de objetos libres (pallets, básculas, cajas, muros, rejas,
+  // techos, sillas, canecas, montacargas, estibadores, banda extra) — el
+  // usuario los agrega y arrastra a su gusto dentro del plano.
+  const [objetos, setObjetos] = useState(() => cargarObjetos());
+  const [seleccionId, setSeleccionId] = useState(null);
+  useEffect(() => {
+    try { localStorage.setItem(OBJ_KEY, JSON.stringify(objetos)); } catch { /* noop */ }
+  }, [objetos]);
+  // Arranca después del id más alto ya guardado, para no chocar con
+  // objetos de una sesión anterior al recargar la página.
+  const idObjRef = useRef(objetos.reduce((max, o) => {
+    const n = parseInt(String(o.id).replace(/^o/, ""), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0));
+
+  const agregarObjeto = (tipo) => {
+    const def = TIPOS_OBJETO[tipo];
+    const id = `o${++idObjRef.current}`;
+    const nuevo = {
+      id, tipo, x: LAYOUT.width / 2, y: LAYOUT.height / 2,
+      rot: 0, escala: 1, ancho: def.anchoDef, alto: def.altoDef,
+    };
+    setObjetos(prev => [...prev, nuevo]);
+    setSeleccionId(id);
+  };
+  const moverObjeto = (id, x, y) => setObjetos(prev => prev.map(o => o.id === id ? { ...o, x, y } : o));
+  const actualizarObjeto = (id, cambios) => setObjetos(prev => prev.map(o => o.id === id ? { ...o, ...cambios } : o));
+  const eliminarObjeto = (id) => {
+    setObjetos(prev => prev.filter(o => o.id !== id));
+    setSeleccionId(prev => (prev === id ? null : prev));
+  };
+  const objetoSeleccionado = objetos.find(o => o.id === seleccionId) || null;
 
   // Desligado de Asistencia por ahora: todos los empleados activos están
   // disponibles para ubicar a mano en la línea, sin depender de quién marcó
@@ -805,7 +1030,7 @@ export default function MaquinaTab({ mob }) {
   };
 
   return (
-    <div onClick={() => menuAbierto && setMenuAbierto(null)}>
+    <div onClick={() => { if (menuAbierto) setMenuAbierto(null); if (seleccionId) setSeleccionId(null); }}>
       <style>{CSS}</style>
 
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
@@ -867,6 +1092,61 @@ export default function MaquinaTab({ mob }) {
           >
             ↺ Restablecer a los valores originales
           </button>
+
+          <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
+            🧩 Agregar objetos al plano
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {Object.entries(TIPOS_OBJETO).map(([tipo, def]) => (
+              <button
+                key={tipo}
+                onClick={() => agregarObjeto(tipo)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "white",
+                  padding: "6px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <span>{def.icono}</span>+ {def.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
+            Arrástralos directo sobre el plano para acomodarlos. Haz clic en uno para ajustar su tamaño, ángulo o borrarlo.
+          </div>
+
+          {objetoSeleccionado && (
+            <div style={{ marginTop: 12, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 10, color: "white", fontWeight: 800, marginBottom: 8 }}>
+                {TIPOS_OBJETO[objetoSeleccionado.tipo]?.icono} {TIPOS_OBJETO[objetoSeleccionado.tipo]?.label} seleccionado
+              </div>
+              <div style={{ display: "grid", gap: 10, gridTemplateColumns: mob ? "1fr" : "repeat(4, 1fr)" }}>
+                {[
+                  { key: "ancho", label: "Ancho", min: 8, max: 160, step: 1 },
+                  { key: "alto", label: "Alto", min: 8, max: 160, step: 1 },
+                  { key: "rot", label: "Rotación °", min: 0, max: 359, step: 1 },
+                  { key: "escala", label: "Escala", min: 0.4, max: 2.5, step: 0.05 },
+                ].map(campo => (
+                  <div key={campo.key}>
+                    <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.55)", marginBottom: 3 }}>
+                      {campo.label}: <b style={{ color: "white" }}>{objetoSeleccionado[campo.key]}</b>
+                    </div>
+                    <input
+                      type="range" min={campo.min} max={campo.max} step={campo.step} value={objetoSeleccionado[campo.key]}
+                      onChange={e => actualizarObjeto(objetoSeleccionado.id, { [campo.key]: Number(e.target.value) })}
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => eliminarObjeto(objetoSeleccionado.id)}
+                style={{ marginTop: 10, background: "rgba(255,107,107,0.12)", border: "1px solid #FF6B6B40", borderRadius: 8, color: "#FF6B6B", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+              >
+                🗑 Eliminar este objeto
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -962,6 +1242,12 @@ export default function MaquinaTab({ mob }) {
                   <mpath href="#mq-ruta-flujo" />
                 </animateMotion>
               </rect>
+            ))}
+
+            {/* Objetos libres del usuario (pallets, básculas, cajas, muros,
+                rejas, techos, sillas, canecas, montacargas, estibadores...) */}
+            {objetos.map(o => (
+              <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
             ))}
           </svg>
 
