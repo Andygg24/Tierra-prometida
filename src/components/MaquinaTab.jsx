@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useId } from "react";
 import { usePersonal } from "../hooks/usePersonal.js";
 import { useMaquina } from "../hooks/useMaquina.js";
 import { registrarActividad } from "../hooks/useActividad.js";
@@ -385,6 +385,7 @@ function TunelLavadoEncSecado() {
       <polygon points={poly(left)} fill="#3f4652" />
       <polygon points={poly(right)} fill="#5b6572" />
       <polygon points={poly(top)} fill="#9aa5b1" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+      <polygon points={poly(top)} fill="url(#mq-sheen)" pointerEvents="none" />
 
       {/* cresta central del techo */}
       <line x1={along(0.02, 0).x} y1={along(0.02, 0).y} x2={along(0.98, 0).x} y2={along(0.98, 0).y} stroke="rgba(255,255,255,0.5)" strokeWidth="2" />
@@ -555,6 +556,7 @@ function MaquinaCalibradora({ cfg }) {
       {bandejas.map((b, idx) => (
         <g key={idx}>
           <polygon points={poly(b.puntos)} fill="#2f5fdb" stroke="#16296b" strokeWidth="1.6" />
+          <polygon points={poly(b.puntos)} fill="url(#mq-sheen)" pointerEvents="none" />
           <polygon
             points={poly(b.puntos.map(([x, y]) => {
               const cx0 = (b.puntos[0][0] + b.puntos[2][0]) / 2, cy0 = (b.puntos[0][1] + b.puntos[2][1]) / 2;
@@ -631,17 +633,42 @@ function cargarObjetos() {
   } catch { return []; }
 }
 
+// Sombra de piso compartida — le da apoyo/volumen a cualquier objeto suelto
+// en vez de sentirse "flotando" sobre el plano.
+function SombraPiso({ ancho, alto }) {
+  return <ellipse cx="0" cy={alto / 2 + 3} rx={ancho * 0.55} ry={Math.max(4, ancho * 0.15)} fill="url(#mq-sombra-suelo)" />;
+}
+
 function IconoPallet({ ancho, alto }) {
   const nFilas = 4;
-  const filaAlto = (alto - 8) / nFilas;
+  const filaAlto = (alto - 9) / nFilas;
   return (
     <g>
-      <rect x={-ancho / 2} y={alto / 2 - 6} width={ancho} height="6" fill="#a16207" stroke="#78350f" strokeWidth="1" />
-      {Array.from({ length: nFilas }).map((_, i) => (
-        <rect key={i} x={-ancho / 2 + 1} y={alto / 2 - 6 - (i + 1) * filaAlto} width={ancho - 2} height={filaAlto - 1.5} fill="#15803d" stroke="#14532d" strokeWidth="0.8" />
+      <SombraPiso ancho={ancho} alto={alto} />
+      {/* tablas de la estiba, con separación y veta */}
+      {[0, 1, 2].map(i => (
+        <rect key={i} x={-ancho / 2 + i * (ancho / 3)} y={alto / 2 - 7} width={ancho / 3 - 1.5} height="7" fill="#a16207" stroke="#5c3a0a" strokeWidth="0.8" />
       ))}
-      {[0.25, 0.55, 0.85].map((f, i) => (
-        <line key={i} x1={-ancho / 2} y1={alto / 2 - 6 - alto * f} x2={ancho / 2} y2={alto / 2 - 6 - alto * f} stroke="#111827" strokeWidth="1.8" />
+      {/* filas de cajas, cada una en dos mitades con costura al centro */}
+      {Array.from({ length: nFilas }).map((_, i) => {
+        const y0 = alto / 2 - 9 - (i + 1) * filaAlto;
+        return (
+          <g key={i}>
+            <rect x={-ancho / 2 + 1} y={y0} width={ancho / 2 - 2} height={filaAlto - 1.6} fill="#16803d" stroke="#0f4023" strokeWidth="0.8" />
+            <rect x={1} y={y0} width={ancho / 2 - 2} height={filaAlto - 1.6} fill="#15803d" stroke="#0f4023" strokeWidth="0.8" />
+            <rect x={-ancho * 0.2} y={y0 + filaAlto * 0.25} width={ancho * 0.4} height={Math.max(2, filaAlto * 0.32)} fill="#eef7e6" opacity="0.85" rx="0.6" />
+            <ellipse cx={-ancho / 4} cy={y0 + filaAlto / 2} rx="2" ry="1.1" fill="#0f4023" opacity="0.6" />
+            <ellipse cx={ancho / 4} cy={y0 + filaAlto / 2} rx="2" ry="1.1" fill="#0f4023" opacity="0.6" />
+            <polygon points={poly([[-ancho / 2 + 1, y0], [ancho / 2 - 1, y0], [ancho / 2 - 1, y0 + filaAlto - 1.6], [-ancho / 2 + 1, y0 + filaAlto - 1.6]])} fill="url(#mq-sheen)" pointerEvents="none" />
+          </g>
+        );
+      })}
+      {/* zunchos negros con brillo metálico */}
+      {[0.22, 0.5, 0.8].map((f, i) => (
+        <g key={i}>
+          <line x1={-ancho / 2} y1={alto / 2 - 9 - alto * f} x2={ancho / 2} y2={alto / 2 - 9 - alto * f} stroke="#0b0b0f" strokeWidth="2.2" />
+          <line x1={-ancho / 2} y1={alto / 2 - 10 - alto * f} x2={ancho / 2} y2={alto / 2 - 10 - alto * f} stroke="#4b5563" strokeWidth="0.7" opacity="0.7" />
+        </g>
       ))}
     </g>
   );
@@ -649,18 +676,25 @@ function IconoPallet({ ancho, alto }) {
 function IconoBascula({ ancho, alto }) {
   return (
     <g>
-      <rect x={-ancho / 2} y={alto / 2 - 6} width={ancho} height="6" rx="1.5" fill="#374151" stroke="#1f2937" strokeWidth="1" />
-      <rect x="-2" y={-alto / 2 + 4} width="4" height={alto - 16} fill="#9ca3af" />
-      <rect x={-ancho * 0.28} y={-alto / 2} width={ancho * 0.56} height={alto * 0.22} rx="1.5" fill="#0f172a" stroke="#38BDF8" strokeWidth="1" />
+      <SombraPiso ancho={ancho} alto={alto} />
+      <rect x={-ancho / 2} y={alto / 2 - 7} width={ancho} height="7" rx="1.5" fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
+      {[0.25, 0.5, 0.75].map((f, i) => <line key={i} x1={-ancho / 2 + ancho * f} y1={alto / 2 - 7} x2={-ancho / 2 + ancho * f} y2={alto / 2} stroke="#1f2937" strokeWidth="0.8" opacity="0.6" />)}
+      <polygon points={poly([[-ancho / 2, alto / 2 - 7], [ancho / 2, alto / 2 - 7], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <rect x="-2.2" y={-alto / 2 + 5} width="4.4" height={alto - 17} fill="#9ca3af" stroke="#6b7280" strokeWidth="0.5" />
+      <rect x={-ancho * 0.3} y={-alto / 2} width={ancho * 0.6} height={alto * 0.24} rx="1.5" fill="#0f172a" stroke="#38BDF8" strokeWidth="1" />
+      <text x="0" y={-alto / 2 + alto * 0.17} fontSize={Math.max(5, alto * 0.14)} fill="#38BDF8" textAnchor="middle" fontWeight="700">00.0</text>
     </g>
   );
 }
 function IconoCaja({ ancho, alto }) {
   return (
     <g>
-      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="1.5" fill="#a16207" stroke="#78350f" strokeWidth="1" />
-      <line x1={-ancho / 2} y1="0" x2={ancho / 2} y2="0" stroke="#78350f" strokeWidth="1" />
-      <line x1="0" y1={-alto / 2} x2="0" y2="0" stroke="#78350f" strokeWidth="1" />
+      <SombraPiso ancho={ancho} alto={alto} />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="1" fill="#b3792c" stroke="#6b4416" strokeWidth="1" />
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <line x1={-ancho / 2} y1={-alto * 0.1} x2={ancho / 2} y2={-alto * 0.1} stroke="#6b4416" strokeWidth="0.9" />
+      <path d={`M -2 ${-alto / 2} L 0 ${-alto * 0.1} L 2 ${-alto / 2}`} fill="none" stroke="#6b4416" strokeWidth="0.7" />
+      <rect x={-ancho * 0.28} y={alto * 0.02} width={ancho * 0.56} height={alto * 0.28} fill="#f1e6cf" opacity="0.9" rx="0.5" />
     </g>
   );
 }
@@ -668,63 +702,131 @@ function IconoEstiba({ ancho, alto }) {
   const tablas = 5;
   return (
     <g>
-      {Array.from({ length: tablas }).map((_, i) => (
-        <rect key={i} x={-ancho / 2 + i * (ancho / tablas)} y={-alto / 2} width={ancho / tablas - 2} height={alto} fill="#a16207" stroke="#78350f" strokeWidth="0.8" />
-      ))}
+      <SombraPiso ancho={ancho} alto={alto} />
+      {Array.from({ length: tablas }).map((_, i) => {
+        const x0 = -ancho / 2 + i * (ancho / tablas);
+        const w = ancho / tablas - 2.4;
+        return (
+          <g key={i}>
+            <rect x={x0} y={-alto / 2} width={w} height={alto} fill="#a16207" stroke="#5c3a0a" strokeWidth="0.8" />
+            <line x1={x0 + w * 0.3} y1={-alto / 2 + 2} x2={x0 + w * 0.3} y2={alto / 2 - 2} stroke="#5c3a0a" strokeWidth="0.5" opacity="0.55" />
+            <polygon points={poly([[x0, -alto / 2], [x0 + w, -alto / 2], [x0 + w, alto / 2], [x0, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+          </g>
+        );
+      })}
     </g>
   );
 }
 function IconoMuro({ ancho, alto }) {
-  const nLineas = Math.max(2, Math.round(alto / 8));
+  const filaH = 7;
+  const nFilas = Math.max(2, Math.round(alto / filaH));
   return (
     <g>
-      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="#9a5b3f" stroke="#6b3d29" strokeWidth="1" />
-      {Array.from({ length: nLineas }).map((_, i) => (
-        <line key={i} x1={-ancho / 2} y1={-alto / 2 + (i + 1) * (alto / (nLineas + 1))} x2={ancho / 2} y2={-alto / 2 + (i + 1) * (alto / (nLineas + 1))} stroke="#6b3d29" strokeWidth="0.6" />
-      ))}
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="#9a5b3f" stroke="#5c3623" strokeWidth="1" />
+      {Array.from({ length: nFilas }).map((_, fila) => {
+        const y = -alto / 2 + fila * filaH;
+        const offset = fila % 2 === 0 ? 0 : ancho / 8;
+        const ladrillos = [];
+        for (let x = -ancho / 2 - ancho / 8 + offset; x < ancho / 2; x += ancho / 4) {
+          ladrillos.push(x);
+        }
+        return (
+          <g key={fila}>
+            <line x1={-ancho / 2} y1={y} x2={ancho / 2} y2={y} stroke="#5c3623" strokeWidth="0.7" />
+            {ladrillos.map((x, i) => <line key={i} x1={x} y1={y} x2={x} y2={y + filaH} stroke="#5c3623" strokeWidth="0.6" />)}
+          </g>
+        );
+      })}
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
     </g>
   );
 }
 function IconoReja({ ancho, alto }) {
-  const barras = Math.max(3, Math.round(ancho / 8));
+  // id único por instancia — si no, dos rejas en el plano compartirían el
+  // mismo <clipPath> y una de las dos quedaría sin recortar bien.
+  const clipId = `mq-reja-clip-${useId()}`;
+  const postes = Math.max(2, Math.round(ancho / 22));
+  const diag = [];
+  for (let x = -ancho / 2; x < ancho / 2 + alto; x += 9) diag.push(x);
   return (
     <g>
-      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="none" stroke="#6b7280" strokeWidth="1.4" />
-      {Array.from({ length: barras }).map((_, i) => (
-        <line key={i} x1={-ancho / 2 + i * (ancho / (barras - 1 || 1))} y1={-alto / 2} x2={-ancho / 2 + i * (ancho / (barras - 1 || 1))} y2={alto / 2} stroke="#6b7280" strokeWidth="1.2" />
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="none" stroke="#94a3b8" strokeWidth="1.6" />
+      <clipPath id={clipId}><rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} /></clipPath>
+      <g clipPath={`url(#${clipId})`} opacity="0.85">
+        {diag.map((x, i) => (
+          <g key={i}>
+            <line x1={x - alto} y1={-alto / 2} x2={x} y2={alto / 2} stroke="#64748b" strokeWidth="0.9" />
+            <line x1={x} y1={-alto / 2} x2={x - alto} y2={alto / 2} stroke="#64748b" strokeWidth="0.9" />
+          </g>
+        ))}
+      </g>
+      {Array.from({ length: postes + 1 }).map((_, i) => (
+        <rect key={i} x={-ancho / 2 + i * (ancho / postes) - 1.4} y={-alto / 2 - 3} width="2.8" height={alto + 6} fill="#94a3b8" stroke="#475569" strokeWidth="0.6" />
       ))}
     </g>
   );
 }
 function IconoTecho({ ancho, alto }) {
-  return <polygon points={`${-ancho / 2},${alto / 2} ${ancho / 2},${alto / 2} ${ancho / 2 - 8},${-alto / 2} ${-ancho / 2 + 8},${-alto / 2}`} fill="#4b5563" stroke="#1f2937" strokeWidth="1.2" />;
+  const cresta = 8;
+  const nCanales = Math.max(4, Math.round(ancho / 7));
+  return (
+    <g>
+      <polygon points={`${-ancho / 2},${alto / 2} ${ancho / 2},${alto / 2} ${ancho / 2 - cresta},${-alto / 2} ${-ancho / 2 + cresta},${-alto / 2}`} fill="#5b6572" stroke="#1f2937" strokeWidth="1.2" />
+      {Array.from({ length: nCanales }).map((_, i) => {
+        const t = (i + 0.5) / nCanales;
+        const xTop = -ancho / 2 + cresta + t * (ancho - 2 * cresta);
+        const xBot = -ancho / 2 + t * ancho;
+        return <line key={i} x1={xTop} y1={-alto / 2} x2={xBot} y2={alto / 2} stroke="#374151" strokeWidth="0.7" opacity="0.65" />;
+      })}
+      <line x1={-ancho / 2 + cresta} y1={-alto / 2} x2={ancho / 2 - cresta} y2={-alto / 2} stroke="#e2e8f0" strokeWidth="1.4" opacity="0.6" />
+      <polygon points={`${-ancho / 2},${alto / 2} ${ancho / 2},${alto / 2} ${ancho / 2 - cresta},${-alto / 2} ${-ancho / 2 + cresta},${-alto / 2}`} fill="url(#mq-sheen)" pointerEvents="none" />
+    </g>
+  );
 }
 function IconoSilla({ ancho, alto }) {
   return (
     <g>
-      <rect x={-ancho / 2} y={alto * 0.1} width={ancho} height={alto * 0.15} fill="#78350f" />
-      <rect x={-ancho / 2} y={-alto / 2} width={ancho * 0.12} height={alto} fill="#78350f" />
-      <line x1={-ancho / 2} y1={alto / 2 - 2} x2={-ancho / 2} y2={alto / 2 + 6} stroke="#451a03" strokeWidth="2" />
-      <line x1={ancho / 2 - 2} y1={alto / 2 - 2} x2={ancho / 2 - 2} y2={alto / 2 + 6} stroke="#451a03" strokeWidth="2" />
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <rect x={-ancho / 2} y={alto * 0.08} width={ancho} height={alto * 0.14} rx="1.5" fill="#92400e" stroke="#451a03" strokeWidth="0.8" />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho * 0.13} height={alto * 0.62} rx="1.5" fill="#92400e" stroke="#451a03" strokeWidth="0.8" />
+      {[0.15, 0.35].map((f, i) => <line key={i} x1={-ancho / 2 + ancho * 0.02} y1={-alto / 2 + alto * f} x2={-ancho / 2 + ancho * 0.11} y2={-alto / 2 + alto * f} stroke="#451a03" strokeWidth="1" opacity="0.7" />)}
+      {[[-ancho / 2 + 1.5, alto / 2 - 1], [ancho / 2 - 3, alto / 2 - 1]].map(([x, y], i) => (
+        <line key={i} x1={x} y1={y} x2={x} y2={y + 7} stroke="#3b1a04" strokeWidth="2.2" strokeLinecap="round" />
+      ))}
     </g>
   );
 }
 function IconoCaneca({ ancho, alto }) {
   return (
     <g>
-      <ellipse cx="0" cy={-alto / 2} rx={ancho / 2} ry={ancho / 6} fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
-      <path d={`M ${-ancho / 2},${-alto / 2} L ${-ancho * 0.4},${alto / 2} A ${ancho * 0.4} ${ancho / 8} 0 0 0 ${ancho * 0.4} ${alto / 2} L ${ancho / 2},${-alto / 2}`} fill="#374151" stroke="#1f2937" strokeWidth="1" />
+      <SombraPiso ancho={ancho} alto={alto * 0.3} />
+      <path d={`M ${-ancho / 2},${-alto / 2 + 3} L ${-ancho * 0.4},${alto / 2} A ${ancho * 0.4} ${ancho / 8} 0 0 0 ${ancho * 0.4} ${alto / 2} L ${ancho / 2},${-alto / 2 + 3}`} fill="#374151" stroke="#1f2937" strokeWidth="1" />
+      {[0.3, 0.6].map((f, i) => (
+        <line key={i} x1={-ancho / 2 + ancho * f} y1={-alto / 2 + 6} x2={-ancho * 0.4 + ancho * 0.8 * f} y2={alto / 2 - 3} stroke="#1f2937" strokeWidth="0.6" opacity="0.6" />
+      ))}
+      <ellipse cx="0" cy={-alto / 2 + 3} rx={ancho / 2} ry={ancho / 6} fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
+      <ellipse cx="0" cy={-alto / 2} rx={ancho * 0.42} ry={ancho / 8} fill="#6b7280" stroke="#1f2937" strokeWidth="0.8" />
     </g>
   );
 }
 function IconoMontacargas({ ancho, alto }) {
   return (
     <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.5} />
       <rect x={-ancho * 0.15} y={-alto * 0.5} width={ancho * 0.5} height={alto * 0.55} rx="2" fill="#F9A826" stroke="#78350f" strokeWidth="1" />
+      <polygon points={poly([[-ancho * 0.15, -alto * 0.5], [ancho * 0.35, -alto * 0.5], [ancho * 0.35, alto * 0.05], [-ancho * 0.15, alto * 0.05]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      <rect x={-ancho * 0.08} y={-alto * 0.42} width={ancho * 0.28} height={alto * 0.22} rx="1.5" fill="#bae6fd" opacity="0.8" stroke="#78350f" strokeWidth="0.6" />
+      <circle cx={ancho * 0.32} cy={-alto * 0.5 - 2} r="2.4" fill="#F9A826" stroke="#78350f" strokeWidth="0.8">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
+      </circle>
       <rect x={-ancho / 2} y={alto * 0.05} width={ancho * 0.32} height={alto * 0.08} fill="#374151" />
-      <line x1={ancho * 0.3} y1={-alto * 0.55} x2={ancho * 0.3} y2={alto * 0.2} stroke="#374151" strokeWidth="2.4" />
+      <line x1={ancho * 0.32} y1={-alto * 0.55} x2={ancho * 0.32} y2={alto * 0.22} stroke="#1f2937" strokeWidth="3" />
+      <line x1={ancho * 0.32} y1={-alto * 0.55} x2={ancho * 0.32} y2={alto * 0.22} stroke="#9ca3af" strokeWidth="0.8" />
       <circle cx={-ancho * 0.25} cy={alto * 0.42} r={alto * 0.14} fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx={-ancho * 0.25} cy={alto * 0.42} r={alto * 0.05} fill="#6b7280" />
       <circle cx={ancho * 0.25} cy={alto * 0.42} r={alto * 0.14} fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx={ancho * 0.25} cy={alto * 0.42} r={alto * 0.05} fill="#6b7280" />
     </g>
   );
 }
@@ -1501,6 +1603,19 @@ export default function MaquinaTab({ mob }) {
           <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0 }}>
             <defs>
               <path id="mq-ruta-flujo" d={LAYOUT.ruta} fill="none" />
+              {/* Barniz de luz reutilizable: se superpone a cualquier cara de
+                  color plano para que se vea con volumen/brillo, como si le
+                  pegara la luz desde arriba-izquierda — en vez de un relleno
+                  liso de caricatura. */}
+              <linearGradient id="mq-sheen" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.4" />
+                <stop offset="45%" stopColor="#ffffff" stopOpacity="0" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.22" />
+              </linearGradient>
+              <radialGradient id="mq-sombra-suelo" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#000000" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+              </radialGradient>
             </defs>
 
             {/* Túnel único de acero (Lavado -> Encerado -> Secado) — en la
@@ -1533,6 +1648,7 @@ export default function MaquinaTab({ mob }) {
                       <polygon points={poly(left)} fill={shade(color, 0.45)} />
                       <polygon points={poly(right)} fill={shade(color, 0.65)} />
                       <polygon points={poly(top)} fill={color} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                      <polygon points={poly(top)} fill="url(#mq-sheen)" pointerEvents="none" />
                     </>
                   )}
                   {s.tipo === "lavado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#38BDF8" />}
