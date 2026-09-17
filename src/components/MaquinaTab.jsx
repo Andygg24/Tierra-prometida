@@ -331,15 +331,6 @@ export default function MaquinaTab({ mob }) {
     return m;
   }, [movimientos]);
 
-  const primerMovPorEmp = useMemo(() => {
-    const m = {};
-    movimientos.forEach(mv => {
-      const prev = m[mv.empNum];
-      if (!prev || new Date(mv.hora) < new Date(prev.hora)) m[mv.empNum] = mv;
-    });
-    return m;
-  }, [movimientos]);
-
   const movimientosPorEmp = useMemo(() => {
     const m = {};
     movimientos.forEach(mv => { (m[mv.empNum] ??= []).push(mv); });
@@ -413,42 +404,37 @@ export default function MaquinaTab({ mob }) {
     }
   };
 
-  const inicioTurno = (emp) => primerMovPorEmp[emp.num]?.hora || null;
-
   if (loadingPersonal || loadingMaquina) return <LimonLoader texto="Cargando la máquina" />;
 
   const chip = (emp, desde, areaActual) => {
     const desdeMs = desde ? new Date(desde).getTime() : null;
-    const turnoMs = (() => {
-      const ini = inicioTurno(emp);
-      return ini ? now - new Date(ini).getTime() : null;
-    })();
     const resaltado = !!resaltados[emp.num];
     return (
-      <div key={emp.num} style={{ position: "relative" }}>
+      <div key={emp.num} style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+        {desdeMs != null && (
+          <div style={{
+            fontSize: 6.5, fontWeight: 700, color: "rgba(255,255,255,0.8)", background: "rgba(0,0,0,0.55)",
+            borderRadius: 5, padding: "0px 4px", whiteSpace: "nowrap", lineHeight: 1.6,
+          }}>
+            ⏱ {fmtDur(now - desdeMs)}
+          </div>
+        )}
         <button
           onClick={() => setMenuAbierto(m => m === emp.num ? null : emp.num)}
+          title={emp.nombre}
           style={{
-            display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "6px 10px 6px 6px",
-            cursor: "pointer", textAlign: "left", animation: resaltado ? "mq-highlight 0.9s ease" : "none",
+            width: 22, height: 22, borderRadius: "50%", background: areaActual ? areaActual.color : "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.35)", color: "white", fontSize: 9, fontWeight: 800, padding: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
+            animation: resaltado ? "mq-highlight 0.9s ease" : "none",
           }}
-        >
-          <span style={{
-            width: 26, height: 26, borderRadius: "50%", background: areaActual ? areaActual.color : "rgba(255,255,255,0.15)",
-            color: "white", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>{iniciales(emp.nombre)}</span>
-          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 96 }}>{emp.nombre}</span>
-            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>
-              {desdeMs != null ? `⏱ ${fmtDur(now - desdeMs)}` : "sin ubicar"}
-              {turnoMs != null ? ` · turno ${fmtDur(turnoMs)}` : ""}
-            </span>
-          </span>
-        </button>
+        >{iniciales(emp.nombre)}</button>
+        <span style={{ fontSize: 7.5, fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 62 }}>
+          {emp.nombre.split(" ")[0]}
+        </span>
         {menuAbierto === emp.num && (
           <div style={{
-            position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 20,
+            position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", marginTop: 4, zIndex: 20,
             background: "#1b1b26", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10,
             padding: 6, minWidth: 170, boxShadow: "0 10px 30px rgba(0,0,0,0.4)", animation: "mq-pop 0.15s ease",
           }}>
