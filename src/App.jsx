@@ -17,6 +17,7 @@ import CanastillasTab from "./components/CanastillasTab.jsx";
 import PedidosTab from "./components/PedidosTab.jsx";
 import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import AsistenciaTab from "./components/AsistenciaTab.jsx";
+import MaquinaTab from "./components/MaquinaTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml, generarInformeRendimientoHtml,
@@ -52,6 +53,7 @@ const ICONO_ACCION_LOG = {
   nueva_recepcion: "🍋", editar_recepcion: "✏️",
   guardar_paso1: "📦", guardar_paso2: "🚛",
   informe_planta: "📦", informe_cargue: "🚛",
+  mover_area: "🔀",
 };
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
@@ -6090,6 +6092,7 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
     { icon:"📅", label:"Asistencia",   color:"#4ECDC4", id:"asistencia"   },
     { icon:"🚢", label:"Contenedores", color:"#6366F1", id:"contenedores" },
     { icon:"🍋", label:"Recepción",    color:"#00C9A7", id:"recepciones"  },
+    { icon:"⚙️", label:"Máquina",      color:"#00C9A7", id:"maquina"      },
     { icon:"📊", label:"Informes",     color:"#FF6B6B", id:"informes"     },
     { icon:"🚢", label:"Exportación",  color:"#0EA5E9", id:"documentos"   },
   ];
@@ -6502,7 +6505,7 @@ function ConfigForm({ config, guardar, usuario }) {
   const secH = { fontWeight:700, fontSize:13, marginBottom:14, color:"rgba(255,255,255,0.92)" };
 
   const ROL_COLORS = { Owner:"#F9A826", Administrador:"#845EF7", Administración:"#845EF7", Supervisor:"#0EA5E9", Operario:"#00C9A7" };
-  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Inventario","Nómina","Informes","Asistencia","Exportación","Logística","Control Expo","Caja Menor","Configuración"];
+  const MOD_NAMES  = ["Inicio","Estadísticas","Personal","Contenedores","Recepción","Máquina","Inventario","Nómina","Informes","Asistencia","Exportación","Logística","Control Expo","Caja Menor","Configuración"];
   // "Actividad" solo se agrega al final si el rol es Administrador o superior
   // — así los índices 0-9 del resto de pestañas nunca se mueven.
   const TABS = [
@@ -7280,6 +7283,7 @@ const MODULES = [
   { id:"personal",      icon:"👥", title:"Personal",      color:"#a78bfa", demo:{ type:"personal_live" },     capabilities:["Base de datos 50+ empleados","Búsqueda y filtros","Agregar empleados","Broadcast WhatsApp","Editar fichas","Documentos: CC, PPT, Venezuela"] },
   { id:"contenedores",  icon:"🚢", title:"Contenedores",  color:"#6366F1", demo:{ type:"contenedores_live" }, capabilities:["Registro por fecha y proceso","N° contenedor y proveedor","Tipo de caja Del Monte / Princesses","Supervisores a cargo","Empresa, placa y trailer","Informe descargable"] },
   { id:"recepciones",   icon:"🍋", title:"Recepción",     color:"#00C9A7", demo:{ type:"recepciones_live" },  capabilities:["Entrada y salida de fruta","Remisión, placa, conductor y proveedor","Estibas por remisión con peso bruto/neto","Descuento de peso de estiba y canastilla","Total de peso neto calculado","Historial editable"] },
+  { id:"maquina",       icon:"⚙️", title:"Máquina",       color:"#00C9A7", demo:{ type:"maquina_live" },       capabilities:["Plano isométrico de la línea en vivo","Quién está en cada estación ahora mismo","Ubicar y mover personas manualmente","Cronómetro de tiempo en la estación actual","Resumen de tiempo acumulado por área"] },
   { id:"inventario",    icon:"📦", title:"Inventario",    color:"#845EF7", demo:{ type:"inventario_live" },   capabilities:["39 productos y herramientas reales","Control de entradas y salidas","Alertas de stock bajo","Costos por contenedor","Notas y observaciones","Historial de movimientos"] },
   { id:"nomina",        icon:"💰", title:"Nómina",        color:"#F9A826", demo:{ type:"nomina_live" },       capabilities:["$180.000 por contenedor","Salario mínimo cajas $1.750.000","Descargue 2 quincenas $1.000.000 c/u","Pago Nequi y Bancolombia directo","Turnos día y noche editables","Reporte completo descargable"] },
   { id:"informes",      icon:"📊", title:"Informes",      color:"#FF6B6B", demo:{ type:"informes_live" },     capabilities:["Sube Word, PDF, HTML o CSV","Guardado permanente en la nube","Para operarios y supervisores","Descargar o eliminar cualquier archivo"] },
@@ -7590,6 +7594,7 @@ export default function App() {
     if (demo.type === "asistencia_live")  return <AsistenciaTab />;
     if (demo.type === "contenedores_live") return <ContenedoresDemo logisticaBookings={logisticaApp.bookings} />;
     if (demo.type === "recepciones_live") return <RecepcionesTab mob={isMobile} />;
+    if (demo.type === "maquina_live")     return <MaquinaTab mob={isMobile} />;
     if (demo.type === "logistica_live")   return <LogisticaTab mob={isMobile} logistica={logisticaApp} />;
     if (demo.type === "control_expo_live") return <ControlExpoTab mob={isMobile} />;
     if (demo.type === "caja_menor_live")   return <CajaMenorTab mob={isMobile} />;
