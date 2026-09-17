@@ -1682,14 +1682,15 @@ export default function MaquinaTab({ mob }) {
                 seguir viéndose por encima (las demás la tapan). */}
             <MaquinaCalibradora cfg={calibCfg} puntos={puntos} />
 
-            {/* Banda transportadora — conecta cada etapa con la siguiente,
-                incluido el giro en U entre Secado y Fotoselección. Se dibuja
-                aquí (antes del túnel y las plataformas) para que ESOS la
-                tapen donde pasan por encima — entra por un lado de la
-                máquina y sale por el otro, en vez de atravesarla visible.
-                Solo queda visible sobre la calibradora, que se dibujó arriba. */}
+            {/* Banda transportadora — conecta cada etapa con la siguiente.
+                Se dibuja aquí (antes del túnel y las plataformas) para que
+                ESOS la tapen donde pasan por encima — entra por un lado de
+                la máquina y sale por el otro, en vez de atravesarla visible.
+                El tramo de Secado -> Fotoselección (el giro en U) se dibuja
+                aparte, DESPUÉS del túnel, para que quede claramente después
+                de Secado y nunca tapado por el borde del túnel. */}
             {STAGES.map((s, i) => {
-              if (i === 0) return null;
+              if (i === 0 || s.key === "foto") return null;
               const p0 = puntos[i - 1], p1 = puntos[i];
               return (
                 <g key={`banda-${s.key}`}>
@@ -1707,6 +1708,24 @@ export default function MaquinaTab({ mob }) {
                 perforados, no tres bloques sueltos. Va después de la banda
                 para taparla donde pasa por debajo (entra/sale por los lados). */}
             <TunelLavadoEncSecado puntos={puntos} />
+
+            {/* Banda de unión Secado -> Fotoselección — se dibuja después
+                del túnel a propósito, para que quede visible justo DESPUÉS
+                de Secado (nunca antes, tapada por el borde del túnel). */}
+            {(() => {
+              const iSecado = STAGES.findIndex(s => s.key === "secado");
+              const iFoto = STAGES.findIndex(s => s.key === "foto");
+              const p0 = puntos[iSecado], p1 = puntos[iFoto];
+              return (
+                <g>
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="13" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="7.8" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="3.3" strokeLinecap="round" strokeDasharray="9 10.4" opacity="0.85">
+                    <animate attributeName="stroke-dashoffset" from="0" to="-39" dur="0.6s" repeatCount="indefinite" />
+                  </line>
+                </g>
+              );
+            })()}
 
             {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
                 (cara izq/der más oscuras que la superior). El túnel y la
