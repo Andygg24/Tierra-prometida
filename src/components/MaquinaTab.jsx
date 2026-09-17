@@ -322,10 +322,10 @@ const LAYOUT = (() => {
 // cuerpos sueltos. Se dibuja como un solo prisma alargado que sigue la
 // misma línea (ya son 3 puntos colineales del plano), desde un poco antes
 // de Lavado hasta un poco después de Secado.
-function TunelLavadoEncSecado() {
+function TunelLavadoEncSecado({ puntos }) {
   const iL = STAGES.findIndex(s => s.key === "lavado");
   const iS = STAGES.findIndex(s => s.key === "secado");
-  const pL = LAYOUT.puntos[iL], pS = LAYOUT.puntos[iS];
+  const pL = puntos[iL], pS = puntos[iS];
   const dx = pS.x - pL.x, dy = pS.y - pL.y;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;   // a lo largo del túnel
@@ -450,6 +450,19 @@ function puntoEnBandeja(b, t, s) {
 
 // Valores por defecto de la calibradora — editables en vivo desde el botón
 // "Editar máquina" (se guardan en localStorage, por eso viven aparte).
+// Posiciones personalizadas de las 12 estaciones fijas — por defecto usan
+// LAYOUT.puntos (el plano calculado), pero cualquiera se puede arrastrar y
+// desde ahí queda con su propia posición guardada, igual que los objetos
+// sueltos. Así "todo lo que está en el plano" se puede mover, no solo lo
+// que se agrega después.
+const POS_CUSTOM_KEY = "tp_maquina_posiciones_estaciones";
+function cargarPosCustom() {
+  try {
+    const raw = localStorage.getItem(POS_CUSTOM_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
 const CALIB_CFG_KEY = "tp_maquina_calibradora_cfg";
 const CALIB_CFG_DEFAULT = {
   angulo: 0,       // grados respecto a perpendicular al eje — 0 = recto
@@ -470,12 +483,12 @@ function cargarCalibCfg() {
 // dos lados, como en las fotos de la planta — no la plataforma genérica de
 // antes. `cfg` viene del panel de edición (ver más abajo); si no se pasa,
 // usa los valores por defecto.
-function MaquinaCalibradora({ cfg }) {
+function MaquinaCalibradora({ cfg, puntos }) {
   const c = { ...CALIB_CFG_DEFAULT, ...cfg };
   const iF = STAGES.findIndex(s => s.key === "foto");
   const iE = STAGES.findIndex(s => s.key === "empaque");
   const iP = STAGES.findIndex(s => s.key === "pesaje");
-  const pF = LAYOUT.puntos[iF], pE = LAYOUT.puntos[iE], pP = LAYOUT.puntos[iP];
+  const pF = puntos[iF], pE = puntos[iE], pP = puntos[iP];
   const dx = pP.x - pF.x, dy = pP.y - pF.y;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;   // a lo largo del eje (dirección del flujo)
@@ -1021,6 +1034,38 @@ export default function MaquinaTab({ mob }) {
     try { localStorage.setItem(CALIB_CFG_KEY, JSON.stringify(calibCfg)); } catch { /* noop */ }
   }, [calibCfg]);
 
+  // Posiciones personalizadas de las 12 estaciones fijas — todo lo que está
+  // en el plano (no solo lo que se agrega) se puede arrastrar. `puntos` es
+  // la posición efectiva de cada estación: la guardada a mano, o si no hay,
+  // la calculada por defecto en LAYOUT.
+  const [posCustom, setPosCustom] = useState(() => cargarPosCustom());
+  useEffect(() => {
+    try { localStorage.setItem(POS_CUSTOM_KEY, JSON.stringify(posCustom)); } catch { /* noop */ }
+  }, [posCustom]);
+  const puntos = useMemo(
+    () => LAYOUT.puntos.map((p, i) => posCustom[STAGES[i].key] || p),
+    [posCustom]
+  );
+  const moverEstacion = (key, x, y) => setPosCustom(prev => ({ ...prev, [key]: { x, y } }));
+  const restablecerPosiciones = () => setPosCustom({});
+
+  // Arrastrar una estación (plataforma, túnel o calibradora, según a qué
+  // punto corresponda) directo sobre el plano — mismo patrón de pointer
+  // capture que los objetos sueltos.
+  const estacionDragRef = useRef(null);
+  const onEstacionPointerDown = (e, key, p) => {
+    e.stopPropagation();
+    estacionDragRef.current = { key, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onEstacionPointerMove = (e) => {
+    const d = estacionDragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    moverEstacion(d.key, d.ox + dx, d.oy + dy);
+  };
+  const onEstacionPointerUp = () => { estacionDragRef.current = null; };
+
   // Ecosistema de objetos libres (pallets, básculas, cajas, muros, rejas,
   // techos, sillas, canecas, montacargas, estibadores, banda extra) — el
   // usuario los agrega y arrastra a su gusto dentro del plano.
@@ -1235,8 +1280,8 @@ export default function MaquinaTab({ mob }) {
     const fromIdx = stageIndexPorAreaId[ultimoMovPorEmp[emp.num]?.areaId] ?? -1;
     const toIdx = stageIndexPorAreaId[area.id] ?? -1;
     if (toIdx >= 0) {
-      const toP = LAYOUT.puntos[toIdx];
-      const fromP = fromIdx >= 0 ? LAYOUT.puntos[fromIdx] : { x: LAYOUT.puntos[0].x - 80, y: LAYOUT.puntos[0].y - 55 };
+      const toP = puntos[toIdx];
+      const fromP = fromIdx >= 0 ? puntos[fromIdx] : { x: puntos[0].x - 80, y: puntos[0].y - 55 };
       const viajeId = ++viajeIdRef.current;
       setViajero({ id: viajeId, from: fromP, to: toP, color: area.color });
       setTimeout(() => setViajero(v => (v?.id === viajeId ? null : v)), 1000);
@@ -1512,6 +1557,19 @@ export default function MaquinaTab({ mob }) {
           </button>
 
           <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
+            🧲 Estaciones del plano
+          </div>
+          <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
+            Todas las estaciones (incluido el túnel y la calibradora, arrastrando su punto) se pueden mover directo con el mouse — no hace falta estar en este panel para hacerlo.
+          </div>
+          <button
+            onClick={restablecerPosiciones}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+          >
+            ↺ Restablecer posiciones de las estaciones
+          </button>
+
+          <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
             🧩 Agregar objetos al plano
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1622,7 +1680,7 @@ export default function MaquinaTab({ mob }) {
                 de pescado, en vez de la plataforma genérica. Va ANTES de la
                 banda a propósito: es la única estación donde la banda debe
                 seguir viéndose por encima (las demás la tapan). */}
-            <MaquinaCalibradora cfg={calibCfg} />
+            <MaquinaCalibradora cfg={calibCfg} puntos={puntos} />
 
             {/* Banda transportadora — conecta cada etapa con la siguiente,
                 incluido el giro en U entre Secado y Fotoselección. Se dibuja
@@ -1632,7 +1690,7 @@ export default function MaquinaTab({ mob }) {
                 Solo queda visible sobre la calibradora, que se dibujó arriba. */}
             {STAGES.map((s, i) => {
               if (i === 0) return null;
-              const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
+              const p0 = puntos[i - 1], p1 = puntos[i];
               return (
                 <g key={`banda-${s.key}`}>
                   <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="13" strokeLinecap="round" />
@@ -1648,7 +1706,7 @@ export default function MaquinaTab({ mob }) {
                 planta real es una sola máquina larga con paneles
                 perforados, no tres bloques sueltos. Va después de la banda
                 para taparla donde pasa por debajo (entra/sale por los lados). */}
-            <TunelLavadoEncSecado />
+            <TunelLavadoEncSecado puntos={puntos} />
 
             {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
                 (cara izq/der más oscuras que la superior). El túnel y la
@@ -1656,7 +1714,7 @@ export default function MaquinaTab({ mob }) {
                 empaque, así que esos no dibujan su propio prisma — solo el
                 detalle animado encima. */}
             {STAGES.map((s, i) => {
-              const c = LAYOUT.puntos[i];
+              const c = puntos[i];
               const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
               const color = areaDb ? areaDb.color : COLOR_MAQUINA;
               const esTunel = s.tipo === "lavado" || s.tipo === "encerado" || s.tipo === "secado";
@@ -1665,7 +1723,13 @@ export default function MaquinaTab({ mob }) {
               const left  = [[c.x - PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH], [c.x - PLAT_W / 2, c.y + PLAT_DEPTH]];
               const right = [[c.x, c.y + PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x + PLAT_W / 2, c.y + PLAT_DEPTH], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH]];
               return (
-                <g key={s.key}>
+                <g
+                  key={s.key}
+                  onPointerDown={(e) => onEstacionPointerDown(e, s.key, c)}
+                  onPointerMove={onEstacionPointerMove}
+                  onPointerUp={onEstacionPointerUp}
+                  style={{ cursor: "grab", touchAction: "none" }}
+                >
                   {!esTunel && !esCalibradora && (
                     <>
                       <polygon points={poly(left)} fill={shade(color, 0.45)} />
@@ -1673,6 +1737,12 @@ export default function MaquinaTab({ mob }) {
                       <polygon points={poly(top)} fill={color} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
                       <polygon points={poly(top)} fill="url(#mq-sheen)" pointerEvents="none" />
                     </>
+                  )}
+                  {(esTunel || esCalibradora) && (
+                    // El túnel/calibradora dibujan su propio cuerpo aparte —
+                    // esta área invisible es solo para poder agarrar y
+                    // arrastrar el punto de la estación desde aquí también.
+                    <circle cx={c.x} cy={c.y} r={PLAT_W / 2} fill="transparent" pointerEvents="all" />
                   )}
                   {s.tipo === "lavado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#38BDF8" />}
                   {s.tipo === "encerado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#eab308" />}
@@ -1711,7 +1781,7 @@ export default function MaquinaTab({ mob }) {
               plataforma (position absolute + translate -100% = el borde
               inferior de este bloque queda fijo aunque crezca hacia arriba) */}
           {STAGES.map((s, i) => {
-            const c = LAYOUT.puntos[i];
+            const c = puntos[i];
             const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
             const gente = areaDb ? (porArea[areaDb.id] || []) : [];
             const color = areaDb ? areaDb.color : COLOR_MAQUINA;
