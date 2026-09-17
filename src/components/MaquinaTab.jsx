@@ -135,6 +135,111 @@ function DetalleCamara({ cx, cy }) {
   );
 }
 
+// ── Tareas de la gente en cada estación — un mini-ícono animado por encima
+// de la plataforma que muestra qué está haciendo el equipo ahí, además de
+// los chips (que son para gestionar quién está y moverlo de estación).
+function TareaRecepcion({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <rect x="-7" y="4" width="14" height="9" rx="1.5" fill="none" stroke="#e2e8f0" strokeWidth="1.2" />
+      <rect x="-7" y="-22" width="14" height="11" rx="2" fill="#a16207" stroke="#78350f" strokeWidth="1">
+        <animate attributeName="y" values="-22;3;3" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="1;1;0" dur="1.5s" repeatCount="indefinite" />
+      </rect>
+    </g>
+  );
+}
+
+function TareaAlimentacion({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <g transform="translate(-6,-4)">
+        <rect x="-6" y="-6" width="12" height="10" rx="1.5" fill="#1d4ed8" stroke="#1e3a8a" strokeWidth="1" />
+        <animateTransform attributeName="transform" type="rotate" values="0;-40;0" dur="1.4s" repeatCount="indefinite" additive="sum" />
+      </g>
+      {[0, 1, 2].map(i => (
+        <circle key={i} r="2" fill="#84cc16">
+          <animate attributeName="cx" values="-4;6;14" dur="1.4s" repeatCount="indefinite" begin={`${i * 0.18}s`} />
+          <animate attributeName="cy" values="-6;2;8" dur="1.4s" repeatCount="indefinite" begin={`${i * 0.18}s`} />
+          <animate attributeName="opacity" values="1;1;0" dur="1.4s" repeatCount="indefinite" begin={`${i * 0.18}s`} />
+        </circle>
+      ))}
+    </g>
+  );
+}
+
+function TareaSeleccion({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <circle cx="-8" cy="-6" r="3" fill="#84cc16" />
+      <circle cx="8" cy="-6" r="3" fill="#ef4444" />
+      <g>
+        <circle r="6" fill="none" stroke="#e2e8f0" strokeWidth="2" />
+        <line x1="4" y1="4" x2="9" y2="9" stroke="#e2e8f0" strokeWidth="2" />
+        <animateTransform attributeName="transform" type="translate" values="-8,-6;8,-6;-8,-6" dur="2s" repeatCount="indefinite" />
+      </g>
+    </g>
+  );
+}
+
+function TareaEmpaque({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <rect x="-10" y="2" width="20" height="12" rx="2" fill="none" stroke="#d6d3d1" strokeWidth="1.5" />
+      <circle r="3.4" fill="#84cc16">
+        <animate attributeName="cy" values="-16;7;7" dur="1.2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="1;1;0" dur="1.2s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
+function TareaPesaje({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <line x1="-11" y1="5" x2="11" y2="5" stroke="#e2e8f0" strokeWidth="2" />
+      <g>
+        <line x1="0" y1="5" x2="0" y2="-9" stroke="#e2e8f0" strokeWidth="2" />
+        <circle cx="0" cy="-9" r="2" fill="#e2e8f0" />
+        <animateTransform attributeName="transform" type="rotate" values="-9 0 5;9 0 5;-9 0 5" dur="1.4s" repeatCount="indefinite" />
+      </g>
+    </g>
+  );
+}
+
+function TareaPaletizado({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <rect x="-9" y="-9" width="18" height="18" rx="2" fill="none" stroke="#d6d3d1" strokeWidth="1.5" />
+      <rect y="-2" width="0" height="3" fill="#facc15">
+        <animate attributeName="width" values="0;22;22;0" dur="1.6s" repeatCount="indefinite" />
+        <animate attributeName="x" values="-11;-11;-11;-11" dur="1.6s" repeatCount="indefinite" />
+      </rect>
+    </g>
+  );
+}
+
+function TareaCargue({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <rect x="5" y="-15" width="15" height="17" rx="1.5" fill="#374151" stroke="#111827" strokeWidth="1" />
+      <rect width="9" height="9" rx="1.5" fill="#a16207">
+        <animate attributeName="x" values="-16;4;4" dur="1.3s" repeatCount="indefinite" />
+        <animate attributeName="y" values="1;-11;-11" dur="1.3s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="1;1;0" dur="1.3s" repeatCount="indefinite" />
+      </rect>
+    </g>
+  );
+}
+
+function DetalleTarea({ tarea, cx, cy }) {
+  const Comp = {
+    recepcion: TareaRecepcion, alimentacion: TareaAlimentacion, seleccion: TareaSeleccion,
+    empaque: TareaEmpaque, pesaje: TareaPesaje, paletizado: TareaPaletizado, cargue: TareaCargue,
+  }[tarea];
+  return Comp ? <Comp cx={cx} cy={cy} /> : null;
+}
+
 // Ficha que viaja por la banda cuando alguien cambia de estación — arranca
 // en la posición de origen y en el siguiente frame se anima hacia el
 // destino (así el navegador sí anima el cambio, no lo salta).
@@ -434,6 +539,7 @@ export default function MaquinaTab({ mob }) {
                   {s.tipo === "encerado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#eab308" />}
                   {s.tipo === "secado" && <DetalleHorno cx={c.x} cy={c.y} />}
                   {s.tipo === "foto" && <DetalleCamara cx={c.x} cy={c.y} />}
+                  {s.tipo === "area" && (porArea[areaDb?.id] || []).length > 0 && <DetalleTarea tarea={s.key} cx={c.x} cy={c.y} />}
                 </g>
               );
             })}
