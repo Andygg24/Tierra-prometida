@@ -825,9 +825,29 @@ export default function MaquinaTab({ mob }) {
   // Paneo de cámara: clic y arrastra sobre el lienzo para moverte por la
   // máquina, en vez de depender solo de las barras de scroll.
   const canvasScrollRef = useRef(null);
+  const innerCanvasRef = useRef(null); // el div de tamaño LAYOUT.width/height — referencia para convertir clientX/Y a coordenadas del plano
   const panRef = useRef(null);
+
+  // Modo "colocar": al elegir un objeto de la paleta, va pegado al mouse
+  // (fantasma semitransparente) hasta que se hace clic en el plano para
+  // soltarlo ahí mismo — como poner un mueble.
+  const [colocando, setColocando] = useState(null);
+  const [mousePos, setMousePos] = useState(null);
+  useEffect(() => {
+    if (!colocando) return;
+    const onKey = (e) => { if (e.key === "Escape") { setColocando(null); setMousePos(null); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [colocando]);
+
+  const posEnPlano = (e) => {
+    if (!innerCanvasRef.current) return null;
+    const r = innerCanvasRef.current.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+
   const onCanvasPointerDown = (e) => {
-    if (!canvasScrollRef.current) return;
+    if (colocando || !canvasScrollRef.current) return; // en modo colocar, el clic suelta el objeto, no panea
     panRef.current = {
       startX: e.clientX, startY: e.clientY,
       scrollLeft: canvasScrollRef.current.scrollLeft, scrollTop: canvasScrollRef.current.scrollTop,
@@ -835,6 +855,7 @@ export default function MaquinaTab({ mob }) {
     };
   };
   const onCanvasPointerMove = (e) => {
+    if (colocando) { setMousePos(posEnPlano(e)); return; }
     if (!panRef.current || !canvasScrollRef.current) return;
     const dx = e.clientX - panRef.current.startX, dy = e.clientY - panRef.current.startY;
     if (!panRef.current.movido && Math.hypot(dx, dy) < 4) return;
@@ -843,9 +864,16 @@ export default function MaquinaTab({ mob }) {
     canvasScrollRef.current.scrollLeft = panRef.current.scrollLeft - dx;
     canvasScrollRef.current.scrollTop = panRef.current.scrollTop - dy;
   };
+  const onCanvasClick = (e) => {
+    if (!colocando) return;
+    const p = posEnPlano(e);
+    if (p) agregarObjeto(colocando, p.x, p.y);
+    setColocando(null);
+    setMousePos(null);
+  };
   const onCanvasPointerUp = () => {
     panRef.current = null;
-    if (canvasScrollRef.current) canvasScrollRef.current.style.cursor = "grab";
+    if (canvasScrollRef.current) canvasScrollRef.current.style.cursor = colocando ? "crosshair" : "grab";
   };
 
   // Modo edición: ajustar a mano la forma de la calibradora (ángulo de
@@ -873,11 +901,11 @@ export default function MaquinaTab({ mob }) {
     return Number.isFinite(n) && n > max ? n : max;
   }, 0));
 
-  const agregarObjeto = (tipo) => {
+  const agregarObjeto = (tipo, x, y) => {
     const def = TIPOS_OBJETO[tipo];
     const id = `o${++idObjRef.current}`;
     const nuevo = {
-      id, tipo, x: LAYOUT.width / 2, y: LAYOUT.height / 2,
+      id, tipo, x: x ?? LAYOUT.width / 2, y: y ?? LAYOUT.height / 2,
       rot: 0, escala: 1, ancho: def.anchoDef, alto: def.altoDef,
     };
     setObjetos(prev => [...prev, nuevo]);
@@ -1139,10 +1167,12 @@ export default function MaquinaTab({ mob }) {
             {Object.entries(TIPOS_OBJETO).map(([tipo, def]) => (
               <button
                 key={tipo}
-                onClick={() => agregarObjeto(tipo)}
+                onClick={() => setColocando(prev => (prev === tipo ? null : tipo))}
                 style={{
-                  display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "white",
+                  display: "flex", alignItems: "center", gap: 5,
+                  background: colocando === tipo ? "rgba(132,94,247,0.25)" : "rgba(255,255,255,0.06)",
+                  border: `1px solid ${colocando === tipo ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+                  borderRadius: 8, color: "white",
                   padding: "6px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
                 }}
               >
@@ -1150,8 +1180,10 @@ export default function MaquinaTab({ mob }) {
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
-            Arrástralos directo sobre el plano para acomodarlos. Haz clic en uno para ajustar su tamaño, ángulo o borrarlo.
+          <div style={{ fontSize: 9.5, color: colocando ? "#a78bfa" : "rgba(255,255,255,0.4)", marginTop: 6, fontWeight: colocando ? 700 : 400 }}>
+            {colocando
+              ? "Mueve el mouse sobre el plano y haz clic donde quieras soltarlo (Esc para cancelar)."
+              : "Elige un objeto y luego haz clic en el plano para colocarlo. Ya puesto, arrástralo para acomodarlo o haz clic para ajustar su tamaño/ángulo."}
           </div>
 
           {objetoSeleccionado && (
@@ -1209,13 +1241,14 @@ export default function MaquinaTab({ mob }) {
         onPointerMove={onCanvasPointerMove}
         onPointerUp={onCanvasPointerUp}
         onPointerLeave={onCanvasPointerUp}
+        onClick={onCanvasClick}
         style={{
           background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 60%), linear-gradient(180deg, #191b24, #101119)",
           border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
-          overflow: "auto", cursor: "grab", touchAction: "none",
+          overflow: "auto", cursor: colocando ? "crosshair" : "grab", touchAction: "none",
         }}
       >
-        <div style={{ position: "relative", width: LAYOUT.width, height: LAYOUT.height, margin: "0 auto" }}>
+        <div ref={innerCanvasRef} style={{ position: "relative", width: LAYOUT.width, height: LAYOUT.height, margin: "0 auto" }}>
           <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0 }}>
             <defs>
               <path id="mq-ruta-flujo" d={LAYOUT.ruta} fill="none" />
@@ -1346,6 +1379,11 @@ export default function MaquinaTab({ mob }) {
                 <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} onSeleccionar={setSeleccionId} onMover={moverObjeto} />
               ))}
             </g>
+            {colocando && mousePos && (
+              <g transform={`translate(${mousePos.x},${mousePos.y})`} style={{ opacity: 0.55 }}>
+                <IconoObjeto tipo={colocando} ancho={TIPOS_OBJETO[colocando].anchoDef} alto={TIPOS_OBJETO[colocando].altoDef} />
+              </g>
+            )}
           </svg>
         </div>
       </div>
