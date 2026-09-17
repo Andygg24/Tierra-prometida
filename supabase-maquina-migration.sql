@@ -1,42 +1,50 @@
 -- Migración: módulo "Máquina" — línea de proceso en tiempo real
--- - `maquina_areas`: estaciones reales de la línea (según las fotos de la
---   planta), en el orden en que la fruta las recorre. Incluye una foto de
---   referencia de cada zona (carpeta /maquina) para que el módulo se vea
---   como la planta real, no como un diagrama genérico.
+-- Actualizado con el proceso real de 12 fases descrito por el usuario:
+-- Recepción -> Alimentación -> Selección -> [Lavado -> Encerado -> Secado ->
+-- Fotoselección, automáticos] -> Empaque y Calibración -> Pesaje ->
+-- Paletizado -> [Patio de Pallets] -> Cargue de Camión.
+-- Solo las fases con personal asignable son filas de `maquina_areas`; las
+-- fases 100% automáticas (lavado, encerado, secado, fotoselección) se
+-- dibujan en el plano pero no son estaciones donde se ubique gente.
+--
+-- - `maquina_areas`: estaciones reales donde se ubica personal, con la
+--   capacidad esperada de personas (según lo descrito) para comparar
+--   contra la ocupación real del día.
 -- - `maquina_movimientos`: bitácora de "esta persona entró a esta área a
---   esta hora" (mismo patrón que asistencia_eventos). La ubicación actual
---   de alguien y su "tiempo en esta área" salen del último registro del día;
---   el histórico completo sirve para el resumen de tiempo acumulado por área.
+--   esta hora" (mismo patrón que asistencia_eventos).
 -- Ejecutar en Supabase SQL Editor (seguro de correr más de una vez)
 
 CREATE TABLE IF NOT EXISTS maquina_areas (
-  id     bigint PRIMARY KEY DEFAULT (extract(epoch from now())*1000)::bigint,
-  nombre text NOT NULL,
-  orden  integer NOT NULL DEFAULT 0,
-  icono  text NOT NULL DEFAULT '⚙️',
-  color  text NOT NULL DEFAULT '#00C9A7',
-  foto   text,
-  activo boolean NOT NULL DEFAULT true
+  id        bigint PRIMARY KEY DEFAULT (extract(epoch from now())*1000)::bigint,
+  nombre    text NOT NULL,
+  orden     integer NOT NULL DEFAULT 0,
+  icono     text NOT NULL DEFAULT '⚙️',
+  color     text NOT NULL DEFAULT '#00C9A7',
+  foto      text,
+  capacidad integer,
+  activo    boolean NOT NULL DEFAULT true
 );
 
 ALTER TABLE maquina_areas ADD COLUMN IF NOT EXISTS foto text;
+ALTER TABLE maquina_areas ADD COLUMN IF NOT EXISTS capacidad integer;
 
--- Reemplaza cualquier semilla anterior (4 áreas genéricas) por las 6 zonas
--- reales de la planta, en el orden real del proceso.
-INSERT INTO maquina_areas (id, nombre, orden, icono, color, foto) VALUES
-  (1, 'Recepción',                 1, '🚚', '#00C9A7', '/maquina/recepcion.jpg'),
-  (2, 'Selección',                 2, '🍋', '#4ECDC4', '/maquina/seleccion.jpg'),
-  (3, 'Lavado y Encerado',         3, '💧', '#0EA5E9', '/maquina/lavado.jpg'),
-  (4, 'Armado de Cajas',           4, '📦', '#845EF7', '/maquina/armado-cajas.jpg'),
-  (5, 'Calibración y Paletizado',  5, '⚖️', '#6366F1', '/maquina/calibracion-paletizado.jpg'),
-  (6, 'Cuarto Frío',               6, '❄️', '#38BDF8', '/maquina/cuarto-frio.jpg')
+-- Reemplaza cualquier semilla anterior por las 7 estaciones reales con
+-- personal, en el orden real del proceso.
+INSERT INTO maquina_areas (id, nombre, orden, icono, color, capacidad) VALUES
+  (1, 'Recepción',                1, '🚚', '#00C9A7', 4),
+  (2, 'Alimentación',             2, '🍋', '#4ECDC4', 2),
+  (3, 'Selección',                3, '🔍', '#0EA5E9', 2),
+  (4, 'Empaque y Calibración',    4, '📦', '#845EF7', 8),
+  (5, 'Pesaje',                   5, '⚖️', '#6366F1', 2),
+  (6, 'Paletizado',               6, '🏗️', '#A78BFA', 4),
+  (7, 'Cargue de Camión',         7, '🚛', '#22D3EE', 3)
 ON CONFLICT (id) DO UPDATE SET
   nombre = EXCLUDED.nombre, orden = EXCLUDED.orden, icono = EXCLUDED.icono,
-  color = EXCLUDED.color, foto = EXCLUDED.foto, activo = true;
+  color = EXCLUDED.color, capacidad = EXCLUDED.capacidad, foto = NULL, activo = true;
 
--- Si quedó alguna área vieja (id fuera de 1-6) de una versión anterior, se
--- desactiva en vez de borrarla (por si ya hay movimientos apuntando a ella).
-UPDATE maquina_areas SET activo = false WHERE id NOT IN (1,2,3,4,5,6);
+-- Cualquier área vieja de una versión anterior (id fuera de 1-7) se
+-- desactiva en vez de borrarse (por si ya hay movimientos apuntando a ella).
+UPDATE maquina_areas SET activo = false WHERE id NOT IN (1,2,3,4,5,6,7);
 
 CREATE TABLE IF NOT EXISTS maquina_movimientos (
   id             bigint PRIMARY KEY,
@@ -62,4 +70,4 @@ ALTER TABLE maquina_movimientos REPLICA IDENTITY FULL;
 -- Verificar
 SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'maquina_areas'       ORDER BY ordinal_position;
 SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'maquina_movimientos'  ORDER BY ordinal_position;
-SELECT id, nombre, orden, icono, color, foto FROM maquina_areas ORDER BY orden;
+SELECT id, nombre, orden, icono, color, capacidad FROM maquina_areas WHERE activo ORDER BY orden;

@@ -5,7 +5,8 @@ const hoyISO = () => new Date().toISOString().split("T")[0];
 
 const rowToArea = (r) => ({
   id: r.id, nombre: r.nombre, orden: r.orden || 0,
-  icono: r.icono || "⚙️", color: r.color || "#00C9A7", foto: r.foto || "",
+  icono: r.icono || "⚙️", color: r.color || "#00C9A7",
+  capacidad: r.capacidad ?? null,
   activo: r.activo !== false,
 });
 

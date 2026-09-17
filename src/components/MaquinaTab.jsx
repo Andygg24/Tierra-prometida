@@ -28,29 +28,44 @@ const CSS = `
 @keyframes mq-pop { from { opacity:0; transform: translateY(-6px) scale(0.92); } to { opacity:1; transform: translateY(0) scale(1); } }
 `;
 
-// ── Plano isométrico de la línea ──────────────────────────────────────────
-// Cada estación es un "grid step" (col,row) proyectado a píxeles con la
-// fórmula isométrica clásica 2:1. La ruta dobla en L (mitad en columnas,
-// mitad en filas) para que se vea como una línea real con un giro, no una
-// fila plana — inspirado en el molde "Nuevo modelo.jpeg".
-const TILE_DX = 65, TILE_DY = 34;      // paso en píxeles por celda de la cuadrícula iso
-const PLAT_W = 110, PLAT_H = 58;       // tamaño del rombo (cara superior) de cada estación
-const PLAT_DEPTH = 26;                 // alto de las caras laterales del prisma
+// ── Plano isométrico de la línea real ──────────────────────────────────────
+// El recorrido real (según lo descrito): Recepción -> Alimentación ->
+// Selección -> Lavado -> Encerado -> Secado -> [giro en U] ->
+// Fotoselección -> Empaque y Calibración -> Pesaje -> Paletizado ->
+// Patio de Pallets -> Cargue de Camión. La máquina tiene forma de "U"/"N":
+// la primera mitad va en una fila, dobla, y la segunda mitad vuelve en
+// paralelo — por eso la fila 0 y la fila 1 de la cuadrícula isométrica.
+//
+// Solo los tipo:"area" corresponden a filas reales de `maquina_areas` (ahí
+// se ubica gente). Los demás son tramos 100% automáticos de la máquina:
+// se dibujan con su propio detalle animado (rodillos, aspersor, horno,
+// cámara) pero no aceptan personas.
+const STAGES = [
+  { key: "recepcion",    tipo: "area",     nombre: "Recepción",             icono: "🚚", col: 0, row: 0 },
+  { key: "alimentacion", tipo: "area",     nombre: "Alimentación",          icono: "🍋", col: 1, row: 0 },
+  { key: "seleccion",    tipo: "area",     nombre: "Selección",             icono: "🔍", col: 2, row: 0 },
+  { key: "lavado",       tipo: "lavado",   nombre: "Lavado",                icono: "💧", col: 3, row: 0 },
+  { key: "encerado",     tipo: "encerado", nombre: "Encerado",              icono: "🟡", col: 4, row: 0 },
+  { key: "secado",       tipo: "secado",   nombre: "Secado",                icono: "🔥", col: 5, row: 0 },
+  { key: "foto",         tipo: "foto",     nombre: "Fotoselección",         icono: "📸", col: 5, row: 1 },
+  { key: "empaque",      tipo: "area",     nombre: "Empaque y Calibración", icono: "📦", col: 4, row: 1 },
+  { key: "pesaje",       tipo: "area",     nombre: "Pesaje",                icono: "⚖️", col: 3, row: 1 },
+  { key: "paletizado",   tipo: "area",     nombre: "Paletizado",            icono: "🏗️", col: 2, row: 1 },
+  { key: "patio",        tipo: "patio",    nombre: "Patio de Pallets",      icono: "🟫", col: 1, row: 1 },
+  { key: "cargue",       tipo: "area",     nombre: "Cargue de Camión",      icono: "🚛", col: 0, row: 1 },
+];
 
-function generarRutaIso(n) {
-  const primerTramo = Math.max(1, Math.ceil(n / 2));
-  const pts = [];
-  for (let i = 0; i < primerTramo; i++) pts.push([i, 0]);
-  for (let i = 1; i <= n - primerTramo; i++) pts.push([primerTramo - 1, i]);
-  return pts;
-}
+const TILE_DX = 100, TILE_DY = 52;     // paso en píxeles por celda de la cuadrícula iso
+const PLAT_W = 90, PLAT_H = 48;        // tamaño del rombo (cara superior) de cada estación
+const PLAT_DEPTH = 22;                 // alto de las caras laterales del prisma
+const COLOR_MAQUINA = "#4b5563";       // gris acero para los tramos automáticos (no son "equipos")
 
 function isoPoint(col, row) {
   return { x: (col - row) * TILE_DX, y: (col + row) * TILE_DY };
 }
 
-// Oscurece/aclara un color hex — para las caras laterales del prisma
-// (más oscuras que la cara superior, como un cubo iluminado desde arriba).
+// Oscurece un color hex — para las caras laterales del prisma (más oscuras
+// que la cara superior, como un cubo iluminado desde arriba).
 function shade(hex, factor) {
   const h = (hex || "#666666").replace("#", "");
   const full = h.length === 3 ? h.split("").map(c => c + c).join("") : h;
@@ -62,6 +77,61 @@ function shade(hex, factor) {
 }
 
 function poly(pts) { return pts.map(p => `${p[0]},${p[1]}`).join(" "); }
+
+// Rodillos giratorios + aspersor goteando — Lavado y Encerado.
+function DetalleRodillos({ cx, cy, tinte = "#38BDF8" }) {
+  const offsets = [-24, 0, 24];
+  return (
+    <g>
+      {offsets.map((dx, i) => (
+        <g key={`r${i}`} transform={`translate(${cx + dx},${cy + 2})`}>
+          <circle r="8" fill="#cbd5e1" stroke="#475569" strokeWidth="1.5" />
+          <g>
+            <line x1="0" y1="0" x2="7" y2="0" stroke="#475569" strokeWidth="1.5" />
+            <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="0.7s" repeatCount="indefinite" />
+          </g>
+        </g>
+      ))}
+      {offsets.map((dx, i) => (
+        <circle key={`g${i}`} cx={cx + dx} cy={cy - 15} r="2.4" fill={tinte}>
+          <animate attributeName="cy" values={`${cy - 15};${cy - 1};${cy - 15}`} dur="1.1s" repeatCount="indefinite" begin={`${i * 0.2}s`} />
+          <animate attributeName="opacity" values="1;0.15;1" dur="1.1s" repeatCount="indefinite" begin={`${i * 0.2}s`} />
+        </circle>
+      ))}
+    </g>
+  );
+}
+
+// Horno que seca y endurece la cera — brillo pulsante.
+function DetalleHorno({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <circle r="11" fill="#f97316" opacity="0.45">
+        <animate attributeName="r" values="9;13;9" dur="1s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.3;0.6;0.3" dur="1s" repeatCount="indefinite" />
+      </circle>
+      <circle r="5.5" fill="#fde68a">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="0.6s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
+// Cabina de fotoselección — lente que destella periódicamente.
+function DetalleCamara({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <circle r="7.5" fill="#0f172a" stroke="#38BDF8" strokeWidth="1.5" />
+      <circle r="3.4" fill="#38BDF8">
+        <animate attributeName="opacity" values="1;1;0.1;1;1" dur="1.6s" repeatCount="indefinite" />
+      </circle>
+      <circle r="7.5" fill="none" stroke="#fff" strokeWidth="2" opacity="0">
+        <animate attributeName="opacity" values="0;0;0.9;0" dur="1.6s" repeatCount="indefinite" />
+        <animate attributeName="r" values="7.5;7.5;14;14" dur="1.6s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
 
 // Ficha que viaja por la banda cuando alguien cambia de estación — arranca
 // en la posición de origen y en el siguiente frame se anima hacia el
@@ -83,6 +153,21 @@ function FichaViajera({ from, to, color }) {
   );
 }
 
+// Posiciones fijas de las 12 etapas — no dependen de los datos, así que se
+// calculan una sola vez fuera del componente.
+const LAYOUT = (() => {
+  const crudos = STAGES.map(s => isoPoint(s.col, s.row));
+  const xs = crudos.map(p => p.x), ys = crudos.map(p => p.y);
+  const padX = PLAT_W / 2 + 70;
+  const padTop = PLAT_H / 2 + 120;    // espacio para el rótulo + fichas de personas
+  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 35;
+  const minX = Math.min(...xs) - padX, maxX = Math.max(...xs) + padX;
+  const minY = Math.min(...ys) - padTop, maxY = Math.max(...ys) + padBottom;
+  const puntos = crudos.map(p => ({ x: p.x - minX, y: p.y - minY }));
+  const ruta = puntos.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
+  return { puntos, width: maxX - minX, height: maxY - minY, ruta };
+})();
+
 export default function MaquinaTab({ mob }) {
   const { empleados, loading: loadingPersonal } = usePersonal();
   const { areas, movimientos, loading: loadingMaquina, moverPersona } = useMaquina();
@@ -103,6 +188,24 @@ export default function MaquinaTab({ mob }) {
   // disponibles para ubicar a mano en la línea, sin depender de quién marcó
   // presente en el registro diario.
   const personas = empleados;
+
+  const areaPorNombre = useMemo(() => {
+    const m = {};
+    areas.forEach(a => { m[a.nombre] = a; });
+    return m;
+  }, [areas]);
+
+  // Índice de la etapa (0-11) donde vive cada área real de la base de datos
+  // — así sabemos en qué punto del plano dibujar a cada persona.
+  const stageIndexPorAreaId = useMemo(() => {
+    const m = {};
+    STAGES.forEach((s, i) => {
+      if (s.tipo !== "area") return;
+      const a = areaPorNombre[s.nombre];
+      if (a) m[a.id] = i;
+    });
+    return m;
+  }, [areaPorNombre]);
 
   const ultimoMovPorEmp = useMemo(() => {
     const m = {};
@@ -175,30 +278,13 @@ export default function MaquinaTab({ mob }) {
     return acc;
   }, [movimientosPorEmp, areas, now]);
 
-  // Posición en píxeles de cada estación (índice = mismo orden que `areas`,
-  // que ya viene ordenado por `orden` desde la base de datos).
-  const layout = useMemo(() => {
-    const n = areas.length;
-    if (!n) return null;
-    const ruta = generarRutaIso(n);
-    const crudos = ruta.map(([c, r]) => isoPoint(c, r));
-    const xs = crudos.map(p => p.x), ys = crudos.map(p => p.y);
-    const padX = PLAT_W / 2 + 55;
-    const padTop = PLAT_H / 2 + 110;   // espacio para el rótulo + fichas de personas
-    const padBottom = PLAT_H / 2 + PLAT_DEPTH + 30;
-    const minX = Math.min(...xs) - padX, maxX = Math.max(...xs) + padX;
-    const minY = Math.min(...ys) - padTop, maxY = Math.max(...ys) + padBottom;
-    const puntos = crudos.map(p => ({ x: p.x - minX, y: p.y - minY }));
-    return { puntos, width: maxX - minX, height: maxY - minY };
-  }, [areas.length]);
-
   const mover = async (emp, area) => {
     setMenuAbierto(null);
-    const fromIdx = areas.findIndex(a => a.id === ultimoMovPorEmp[emp.num]?.areaId);
-    const toIdx = areas.findIndex(a => a.id === area.id);
-    if (toIdx >= 0 && layout) {
-      const toP = layout.puntos[toIdx];
-      const fromP = fromIdx >= 0 ? layout.puntos[fromIdx] : { x: layout.puntos[0].x - 70, y: layout.puntos[0].y - 50 };
+    const fromIdx = stageIndexPorAreaId[ultimoMovPorEmp[emp.num]?.areaId] ?? -1;
+    const toIdx = stageIndexPorAreaId[area.id] ?? -1;
+    if (toIdx >= 0) {
+      const toP = LAYOUT.puntos[toIdx];
+      const fromP = fromIdx >= 0 ? LAYOUT.puntos[fromIdx] : { x: LAYOUT.puntos[0].x - 80, y: LAYOUT.puntos[0].y - 55 };
       const viajeId = ++viajeIdRef.current;
       setViajero({ id: viajeId, from: fromP, to: toP, color: area.color });
       setTimeout(() => setViajero(v => (v?.id === viajeId ? null : v)), 1000);
@@ -238,7 +324,7 @@ export default function MaquinaTab({ mob }) {
             color: "white", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>{iniciales(emp.nombre)}</span>
           <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{emp.nombre}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 96 }}>{emp.nombre}</span>
             <span style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>
               {desdeMs != null ? `⏱ ${fmtDur(now - desdeMs)}` : "sin ubicar"}
               {turnoMs != null ? ` · turno ${fmtDur(turnoMs)}` : ""}
@@ -249,7 +335,7 @@ export default function MaquinaTab({ mob }) {
           <div style={{
             position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 20,
             background: "#1b1b26", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10,
-            padding: 6, minWidth: 150, boxShadow: "0 10px 30px rgba(0,0,0,0.4)", animation: "mq-pop 0.15s ease",
+            padding: 6, minWidth: 170, boxShadow: "0 10px 30px rgba(0,0,0,0.4)", animation: "mq-pop 0.15s ease",
           }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", padding: "2px 8px 6px", textTransform: "uppercase", letterSpacing: 0.5 }}>Mover a...</div>
             {areas.map(a => (
@@ -306,75 +392,105 @@ export default function MaquinaTab({ mob }) {
         border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
         overflow: "auto",
       }}>
-        {layout && (
-          <div style={{ position: "relative", width: layout.width, height: layout.height, margin: "0 auto" }}>
-            <svg width={layout.width} height={layout.height} style={{ display: "block", position: "absolute", inset: 0 }}>
-              {/* Banda transportadora — conecta cada estación con la siguiente */}
-              {areas.map((a, i) => {
-                if (i === 0) return null;
-                const p0 = layout.puntos[i - 1], p1 = layout.puntos[i];
-                return (
-                  <g key={`banda-${a.id}`}>
-                    <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="10" strokeLinecap="round" />
-                    <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="6" strokeLinecap="round" />
-                    <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="7 8" opacity="0.85">
-                      <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="0.6s" repeatCount="indefinite" />
-                    </line>
-                  </g>
-                );
-              })}
+        <div style={{ position: "relative", width: LAYOUT.width, height: LAYOUT.height, margin: "0 auto" }}>
+          <svg width={LAYOUT.width} height={LAYOUT.height} style={{ display: "block", position: "absolute", inset: 0 }}>
+            <defs>
+              <path id="mq-ruta-flujo" d={LAYOUT.ruta} fill="none" />
+            </defs>
 
-              {/* Plataformas: prisma isométrico por estación (cara izq/der más
-                  oscuras que la superior, como un cubo iluminado desde arriba) */}
-              {areas.map((a, i) => {
-                const c = layout.puntos[i];
-                const top    = [[c.x, c.y - PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x - PLAT_W / 2, c.y]];
-                const left   = [[c.x - PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH], [c.x - PLAT_W / 2, c.y + PLAT_DEPTH]];
-                const right  = [[c.x, c.y + PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x + PLAT_W / 2, c.y + PLAT_DEPTH], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH]];
-                return (
-                  <g key={a.id}>
-                    <polygon points={poly(left)} fill={shade(a.color, 0.45)} />
-                    <polygon points={poly(right)} fill={shade(a.color, 0.65)} />
-                    <polygon points={poly(top)} fill={a.color} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-                  </g>
-                );
-              })}
-            </svg>
-
-            {/* Rótulo + personas de cada estación, ancladas justo encima de
-                su plataforma (position absolute + translate -100% = el borde
-                inferior de este bloque queda fijo aunque crezca hacia arriba) */}
-            {areas.map((a, i) => {
-              const c = layout.puntos[i];
-              const gente = porArea[a.id] || [];
+            {/* Banda transportadora — conecta cada etapa con la siguiente,
+                incluido el giro en U entre Secado y Fotoselección */}
+            {STAGES.map((s, i) => {
+              if (i === 0) return null;
+              const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
               return (
-                <div key={a.id} style={{
-                  position: "absolute", left: c.x, top: c.y - PLAT_H / 2 - 8,
-                  transform: "translate(-50%, -100%)", display: "flex", flexDirection: "column",
-                  alignItems: "center", gap: 6, maxWidth: 170,
-                }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                    {gente.length === 0 ? (
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>Sin nadie aquí</div>
-                    ) : (
-                      gente.map(({ emp, desde }) => chip(emp, desde, a))
-                    )}
-                  </div>
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,16,0.85)",
-                    border: `1px solid ${a.color}55`, borderRadius: 20, padding: "3px 10px 3px 6px", whiteSpace: "nowrap",
-                  }}>
-                    <span style={{ fontSize: 13 }}>{a.icono}</span>
-                    <span style={{ fontSize: 10.5, fontWeight: 800, color: "white" }}>{a.nombre}</span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: "white", background: a.color, borderRadius: 20, padding: "0px 6px" }}>{gente.length}</span>
-                  </div>
-                </div>
+                <g key={`banda-${s.key}`}>
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="10" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="6" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="7 8" opacity="0.85">
+                    <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="0.6s" repeatCount="indefinite" />
+                  </line>
+                </g>
               );
             })}
 
-            {viajero && <FichaViajera from={viajero.from} to={viajero.to} color={viajero.color} />}
-          </div>
-        )}
+            {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
+                (cara izq/der más oscuras que la superior) */}
+            {STAGES.map((s, i) => {
+              const c = LAYOUT.puntos[i];
+              const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
+              const color = areaDb ? areaDb.color : COLOR_MAQUINA;
+              const top   = [[c.x, c.y - PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x - PLAT_W / 2, c.y]];
+              const left  = [[c.x - PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH], [c.x - PLAT_W / 2, c.y + PLAT_DEPTH]];
+              const right = [[c.x, c.y + PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x + PLAT_W / 2, c.y + PLAT_DEPTH], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH]];
+              return (
+                <g key={s.key}>
+                  <polygon points={poly(left)} fill={shade(color, 0.45)} />
+                  <polygon points={poly(right)} fill={shade(color, 0.65)} />
+                  <polygon points={poly(top)} fill={color} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                  {s.tipo === "lavado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#38BDF8" />}
+                  {s.tipo === "encerado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#eab308" />}
+                  {s.tipo === "secado" && <DetalleHorno cx={c.x} cy={c.y} />}
+                  {s.tipo === "foto" && <DetalleCamara cx={c.x} cy={c.y} />}
+                </g>
+              );
+            })}
+
+            {/* Cajas de fruta viajando por toda la banda, en bucle continuo */}
+            {[0, 1, 2].map(k => (
+              <rect key={k} width="11" height="11" rx="2" fill="#F2C94C" stroke="#8a6d1a" strokeWidth="1">
+                <animateMotion dur="9s" repeatCount="indefinite" begin={`${-k * 3}s`} rotate="auto">
+                  <mpath href="#mq-ruta-flujo" />
+                </animateMotion>
+              </rect>
+            ))}
+          </svg>
+
+          {/* Rótulo + personas de cada etapa, ancladas justo encima de su
+              plataforma (position absolute + translate -100% = el borde
+              inferior de este bloque queda fijo aunque crezca hacia arriba) */}
+          {STAGES.map((s, i) => {
+            const c = LAYOUT.puntos[i];
+            const areaDb = s.tipo === "area" ? areaPorNombre[s.nombre] : null;
+            const gente = areaDb ? (porArea[areaDb.id] || []) : [];
+            const color = areaDb ? areaDb.color : COLOR_MAQUINA;
+            return (
+              <div key={s.key} style={{
+                position: "absolute", left: c.x, top: c.y - PLAT_H / 2 - 8,
+                transform: "translate(-50%, -100%)", display: "flex", flexDirection: "column",
+                alignItems: "center", gap: 6, maxWidth: 150,
+              }}>
+                {s.tipo === "area" ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+                    {!areaDb ? (
+                      <div style={{ fontSize: 8.5, color: "#F9A826", textAlign: "center" }}>⚠ corre la migración SQL</div>
+                    ) : gente.length === 0 ? (
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>Sin nadie aquí</div>
+                    ) : (
+                      gente.map(({ emp, desde }) => chip(emp, desde, areaDb))
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>automático</div>
+                )}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 5, background: "rgba(10,10,16,0.85)",
+                  border: `1px solid ${color}55`, borderRadius: 20, padding: "3px 10px 3px 6px", whiteSpace: "nowrap",
+                }}>
+                  <span style={{ fontSize: 13 }}>{s.icono}</span>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "white" }}>{s.nombre}</span>
+                  {areaDb && (
+                    <span style={{ fontSize: 9.5, fontWeight: 700, color: "white", background: color, borderRadius: 20, padding: "0px 6px" }}>
+                      {gente.length}{areaDb.capacidad ? `/${areaDb.capacidad}` : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {viajero && <FichaViajera from={viajero.from} to={viajero.to} color={viajero.color} />}
+        </div>
       </div>
 
       {areas.length > 0 && (
