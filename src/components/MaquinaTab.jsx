@@ -576,10 +576,10 @@ export default function MaquinaTab({ mob }) {
               <div key={s.key} style={{
                 position: "absolute", left: c.x, top: c.y - PLAT_H / 2 - 8,
                 transform: "translate(-50%, -100%)", display: "flex", flexDirection: "column",
-                alignItems: "center", gap: 6, maxWidth: 150,
+                alignItems: "center", gap: 8, maxWidth: 210,
               }}>
                 {s.tipo === "area" ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 12px", alignItems: "flex-end", justifyContent: "center" }}>
                     {!areaDb ? (
                       <div style={{ fontSize: 8.5, color: "#F9A826", textAlign: "center" }}>⚠ corre la migración SQL</div>
                     ) : gente.length === 0 ? (
