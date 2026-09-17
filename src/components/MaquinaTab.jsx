@@ -294,6 +294,7 @@ export default function MaquinaTab({ mob }) {
   }, []);
 
   const [menuAbierto, setMenuAbierto] = useState(null); // num del empleado con el selector de área abierto
+  const [hoverNum, setHoverNum] = useState(null); // num del empleado con el widget de estadísticas visible (hover)
   const [resaltados, setResaltados] = useState({});
   const [viajero, setViajero] = useState(null); // ficha animada sobre la banda al mover a alguien
   const prevAreaRef = useRef({});
@@ -410,13 +411,28 @@ export default function MaquinaTab({ mob }) {
     const desdeMs = desde ? new Date(desde).getTime() : null;
     const resaltado = !!resaltados[emp.num];
     return (
-      <div key={emp.num} style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-        {desdeMs != null && (
+      <div
+        key={emp.num}
+        style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}
+        onMouseEnter={() => setHoverNum(emp.num)}
+        onMouseLeave={() => setHoverNum(v => (v === emp.num ? null : v))}
+      >
+        {hoverNum === emp.num && menuAbierto !== emp.num && (
           <div style={{
-            fontSize: 6.5, fontWeight: 700, color: "rgba(255,255,255,0.8)", background: "rgba(0,0,0,0.55)",
-            borderRadius: 5, padding: "0px 4px", whiteSpace: "nowrap", lineHeight: 1.6,
+            position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)", marginBottom: 6, zIndex: 15,
+            background: "#1b1b26", border: `1px solid ${areaActual ? areaActual.color : "#666"}55`, borderRadius: 10,
+            padding: "8px 11px", minWidth: 140, boxShadow: "0 10px 24px rgba(0,0,0,0.45)",
+            pointerEvents: "none", animation: "mq-pop 0.15s ease",
           }}>
-            ⏱ {fmtDur(now - desdeMs)}
+            <div style={{ fontSize: 11, fontWeight: 800, color: "white", whiteSpace: "nowrap" }}>{emp.nombre}</div>
+            {areaActual ? (
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: areaActual.color, marginTop: 3 }}>{areaActual.icono} {areaActual.nombre}</div>
+            ) : (
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "#F9A826", marginTop: 3 }}>⚠ sin ubicar</div>
+            )}
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.55)", marginTop: 3 }}>
+              {desdeMs != null ? `⏱ ${fmtDur(now - desdeMs)} en esta estación` : "esperando ubicación"}
+            </div>
           </div>
         )}
         <button
