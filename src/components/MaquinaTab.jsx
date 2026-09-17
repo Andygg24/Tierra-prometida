@@ -477,8 +477,8 @@ function MaquinaCalibradora() {
     const t = 0.1 + ((k + 0.5) / N) * 0.8;
     tS.push(t);
     const base = enEje(t);
-    bandejas.push({ ...bandejaPoly(base, dirIzq, 40, 22, 27), t });
-    bandejas.push({ ...bandejaPoly(base, dirDer, 40, 22, 27), t });
+    bandejas.push({ ...bandejaPoly(base, dirIzq, 40, 25, 25), t });
+    bandejas.push({ ...bandejaPoly(base, dirDer, 40, 25, 25), t });
   }
   // Divisores metálicos entre bandejas consecutivas del mismo lado.
   const divisores = [];
@@ -506,7 +506,9 @@ function MaquinaCalibradora() {
   ];
 
   // Puesto de control: mesa + monitor inclinado + teclado + radio.
-  const desk = along(SPINE_HALF - 10, 44);
+  // El puesto de control va ANTES en el recorrido (cerca de donde entra la
+  // fruta desde Fotoselección), no al final.
+  const desk = along(-SPINE_HALF + 26, 46);
 
   return (
     <g>
