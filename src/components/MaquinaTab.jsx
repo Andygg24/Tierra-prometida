@@ -1618,14 +1618,37 @@ export default function MaquinaTab({ mob }) {
               </radialGradient>
             </defs>
 
+            {/* Calibradora real: eje de cadena + bandejas azules en espina
+                de pescado, en vez de la plataforma genérica. Va ANTES de la
+                banda a propósito: es la única estación donde la banda debe
+                seguir viéndose por encima (las demás la tapan). */}
+            <MaquinaCalibradora cfg={calibCfg} />
+
+            {/* Banda transportadora — conecta cada etapa con la siguiente,
+                incluido el giro en U entre Secado y Fotoselección. Se dibuja
+                aquí (antes del túnel y las plataformas) para que ESOS la
+                tapen donde pasan por encima — entra por un lado de la
+                máquina y sale por el otro, en vez de atravesarla visible.
+                Solo queda visible sobre la calibradora, que se dibujó arriba. */}
+            {STAGES.map((s, i) => {
+              if (i === 0) return null;
+              const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
+              return (
+                <g key={`banda-${s.key}`}>
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="13" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="7.8" strokeLinecap="round" />
+                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="3.3" strokeLinecap="round" strokeDasharray="9 10.4" opacity="0.85">
+                    <animate attributeName="stroke-dashoffset" from="0" to="-39" dur="0.6s" repeatCount="indefinite" />
+                  </line>
+                </g>
+              );
+            })}
+
             {/* Túnel único de acero (Lavado -> Encerado -> Secado) — en la
                 planta real es una sola máquina larga con paneles
-                perforados, no tres bloques sueltos. */}
+                perforados, no tres bloques sueltos. Va después de la banda
+                para taparla donde pasa por debajo (entra/sale por los lados). */}
             <TunelLavadoEncSecado />
-
-            {/* Calibradora real: eje de cadena + bandejas azules en espina
-                de pescado, en vez de la plataforma genérica. */}
-            <MaquinaCalibradora cfg={calibCfg} />
 
             {/* Plataformas / cuerpos de máquina: prisma isométrico por etapa
                 (cara izq/der más oscuras que la superior). El túnel y la
@@ -1670,24 +1693,6 @@ export default function MaquinaTab({ mob }) {
                       )}
                     </g>
                   )}
-                </g>
-              );
-            })}
-
-            {/* Banda transportadora — conecta cada etapa con la siguiente,
-                incluido el giro en U entre Secado y Fotoselección. Se dibuja
-                despues del túnel y las plataformas para que siempre quede
-                visible por encima (nunca tapada por el cuerpo de la máquina). */}
-            {STAGES.map((s, i) => {
-              if (i === 0) return null;
-              const p0 = LAYOUT.puntos[i - 1], p1 = LAYOUT.puntos[i];
-              return (
-                <g key={`banda-${s.key}`}>
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="rgba(255,255,255,0.12)" strokeWidth="13" strokeLinecap="round" />
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#2a2e3a" strokeWidth="7.8" strokeLinecap="round" />
-                  <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#38BDF8" strokeWidth="3.3" strokeLinecap="round" strokeDasharray="9 10.4" opacity="0.85">
-                    <animate attributeName="stroke-dashoffset" from="0" to="-39" dur="0.6s" repeatCount="indefinite" />
-                  </line>
                 </g>
               );
             })}
