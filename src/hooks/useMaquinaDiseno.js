@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase.js";
 
-const VACIO = { calibCfg: {}, posCustom: {}, posPersonas: {}, objetos: [], rutasPersonas: {} };
+const VACIO = { calibCfg: {}, posCustom: {}, posPersonas: {}, objetos: [], rutasPersonas: {}, maquinasCfg: {}, puntosCustom: [] };
 
 const rowToDiseno = (r) => ({
   calibCfg: r?.calib_cfg || {},
@@ -9,6 +9,8 @@ const rowToDiseno = (r) => ({
   posPersonas: r?.pos_personas || {},
   objetos: r?.objetos || [],
   rutasPersonas: r?.rutas_personas || {},
+  maquinasCfg: r?.maquinas_cfg || {},
+  puntosCustom: r?.puntos_custom || [],
 });
 
 // El diseño del plano de Máquina (posiciones, objetos, calibradora, rutas
@@ -46,6 +48,8 @@ export function useMaquinaDiseno() {
       pos_personas: parcial.posPersonas,
       objetos: parcial.objetos,
       rutas_personas: parcial.rutasPersonas,
+      maquinas_cfg: parcial.maquinasCfg,
+      puntos_custom: parcial.puntosCustom,
       actualizado_por: registradoPor || null,
       updated_at: new Date().toISOString(),
     };
@@ -56,7 +60,8 @@ export function useMaquinaDiseno() {
     // después de guardar.
     setDiseno({
       calibCfg: parcial.calibCfg, posCustom: parcial.posCustom, posPersonas: parcial.posPersonas,
-      objetos: parcial.objetos, rutasPersonas: parcial.rutasPersonas,
+      objetos: parcial.objetos, rutasPersonas: parcial.rutasPersonas, maquinasCfg: parcial.maquinasCfg,
+      puntosCustom: parcial.puntosCustom,
     });
     return true;
   }, []);

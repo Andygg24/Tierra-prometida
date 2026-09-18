@@ -177,21 +177,84 @@ function DetalleCamara({ cx, cy }) {
   );
 }
 
+// Báscula industrial de piso, de verdad — plataforma de placa antideslizante
+// a ras de piso, columna con pantalla digital y luces de estado, no el
+// rectángulo de alambre que había antes.
+function DetalleBascula({ cx, cy }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <ellipse cx="0" cy="15" rx="24" ry="6" fill="rgba(0,0,0,0.3)" />
+      <polygon points={poly([[-22, 6], [0, -3], [22, 6], [0, 15]])} fill="#6b7280" stroke="#374151" strokeWidth="1.2" />
+      <polygon points={poly([[-22, 6], [0, -3], [22, 6], [0, 15]])} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.6" />
+      {[-11, 0, 11].map((o, i) => (
+        <line key={i} x1={-11 + o * 0.5} y1={7 + i * 0} x2={11 + o * 0.5} y2={7} stroke="#374151" strokeWidth="0.6" opacity="0.5" />
+      ))}
+      <line x1="16" y1="2" x2="16" y2="-24" stroke="#4b5563" strokeWidth="3" strokeLinecap="round" />
+      <rect x="6" y="-34" width="20" height="16" rx="2" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="1" />
+      <rect x="8" y="-31" width="16" height="8" rx="1" fill="#0f172a" stroke="#38BDF8" strokeWidth="0.8" />
+      <text x="16" y="-25.5" fontSize="5.5" fill="#38BDF8" textAnchor="middle" fontWeight="700">
+        00.0
+        <animate attributeName="opacity" values="1;0.4;1" dur="2.2s" repeatCount="indefinite" />
+      </text>
+      <circle cx="10" cy="-20" r="1.1" fill="#22c55e">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1.1s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="22" cy="-20" r="1.1" fill="#eab308" />
+    </g>
+  );
+}
+
+// Torres de canastillas paletizadas — el patio de acopio real (foto de
+// referencia): varias pilas de distinta altura sobre estibas de madera,
+// no un cuadro de color vacío.
+function DetallePatio({ cx, cy }) {
+  const alto = 64;
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      {[-25, 0, 25].map((x, i) => {
+        const niveles = [7, 10, 8][i];
+        return (
+          <g key={i} transform={`translate(${x},0)`}>
+            <rect x={-13} y={alto / 2 - 2} width={26} height={5} fill="#a16207" stroke="#5c3a0a" strokeWidth="0.6" />
+            <IconoPilaCanastillas ancho={20} alto={alto} niveles={niveles} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 // Camión de reparto estacionado junto a Recepción, descargando — con humo
 // de escape sutil para que no se sienta estático.
+// Camión de estacas con toldo de lona — como el que entra de verdad a la
+// planta (foto de referencia): lona negra curva por encima, baranda de
+// tablones de madera atrás, visto desde el ángulo en que se abre para
+// descargar en el andén.
 function DetalleCamion({ cx, cy }) {
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <ellipse cx="0" cy="19" rx="36" ry="5" fill="rgba(0,0,0,0.35)" />
-      <rect x="-34" y="-19" width="46" height="28" rx="2" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="1.2" />
-      <rect x="-34" y="-19" width="46" height="8" fill="#cbd5e1" />
-      <path d="M 12 -15 h 13 a 5 5 0 0 1 5 5 v 10 a 2 2 0 0 1 -2 2 h -16 z" fill="#1d4ed8" stroke="#1e3a8a" strokeWidth="1.2" />
-      <rect x="17" y="-11" width="8" height="7" rx="1" fill="#bfdbfe" />
-      <circle cx="-20" cy="10" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
-      <circle cx="-2" cy="10" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
-      <circle cx="22" cy="10" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
-      <circle cx="31" cy="-17" r="2" fill="#cbd5e1" opacity="0.7">
-        <animate attributeName="cy" values="-17;-28;-17" dur="2.2s" repeatCount="indefinite" />
+      <ellipse cx="0" cy="19" rx="38" ry="5" fill="rgba(0,0,0,0.35)" />
+      {/* platón / chasis */}
+      <rect x="-36" y="2" width="50" height="9" rx="1" fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
+      {/* baranda de tablones de madera, como en la tolva real */}
+      {[0, 1, 2, 3].map(i => (
+        <rect key={i} x="-34" y={-9 + i * 3.6} width="30" height="2.6" fill="#8a5a2e" stroke="#5c3a1a" strokeWidth="0.5" />
+      ))}
+      {/* toldo/lona negra, curva por arriba (perfil de "carpa") */}
+      <path
+        d="M -34 -9 L -34 -20 Q -34 -26 -26 -26 L 8 -26 Q 16 -26 16 -20 L 16 2 L -34 2 Z"
+        fill="#1f2937" stroke="#0b0b0f" strokeWidth="1.2"
+      />
+      <path d="M -30 -25 Q -10 -28 12 -25" fill="none" stroke="#374151" strokeWidth="1" opacity="0.6" />
+      <polygon points={poly([[-34, -20], [16, -20], [16, 2], [-34, 2]])} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.5" />
+      {/* cabina */}
+      <path d="M 16 -13 h 12 a 5 5 0 0 1 5 5 v 8 a 2 2 0 0 1 -2 2 h -15 z" fill="#1d4ed8" stroke="#1e3a8a" strokeWidth="1.2" />
+      <rect x="20" y="-9" width="8" height="7" rx="1" fill="#bfdbfe" />
+      <circle cx="-20" cy="12" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx="0" cy="12" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx="26" cy="12" r="5.5" fill="#111827" stroke="#374151" strokeWidth="1" />
+      <circle cx="34" cy="-24" r="2" fill="#cbd5e1" opacity="0.7">
+        <animate attributeName="cy" values="-24;-34;-24" dur="2.2s" repeatCount="indefinite" />
         <animate attributeName="opacity" values="0.7;0;0.7" dur="2.2s" repeatCount="indefinite" />
       </circle>
     </g>
@@ -300,22 +363,62 @@ function TareaRecepcion({ cx, cy, casco }) {
   );
 }
 
-// Fase 2 — dos personas cogen canastillas y las echan a la máquina.
+// Montoncito de limones — usado en tolva/selección, cada uno con su propia
+// textura (mq-limon-grad) en vez de un círculo verde plano.
+function ManchaLimones({ n, radio, alto = 0.4 }) {
+  const pts = Array.from({ length: n }, (_, i) => {
+    const ang = ((i * 61) % 360) * (Math.PI / 180);
+    const r = radio * Math.sqrt((i * 29 % 100) / 100);
+    return { x: Math.cos(ang) * r, y: Math.sin(ang) * r * alto };
+  });
+  return (
+    <>
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={2.6 + (i % 3) * 0.35} fill="url(#mq-limon-grad)" stroke="#5b7515" strokeWidth="0.4" />
+      ))}
+    </>
+  );
+}
+
+// Fase 2 — tolva de acero donde cae la fruta de las canastillas, con el
+// montón de limones adentro (foto real: la tolva se ve llena a rebosar
+// antes de repartirse en la banda) — dos personas la van llenando.
 function TareaAlimentacion({ cx, cy, casco }) {
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <Trabajador x={-10} y={2} casco={casco} brazoDesde={-10} brazoHasta={55} dur="1.2s" objeto={cajaChica} />
-      <Trabajador x={11} y={2} casco={casco} espejo brazoDesde={-10} brazoHasta={55} dur="1.2s" retraso="0.3s" objeto={cajaChica} />
+      <polygon points={poly([[-27, -9], [27, -9], [17, 11], [-17, 11]])} fill="#8b95a3" stroke="#4b5563" strokeWidth="1.2" />
+      <polygon points={poly([[-27, -9], [27, -9], [17, 11], [-17, 11]])} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.6" />
+      <g transform="translate(0,-2)"><ManchaLimones n={18} radio={17} /></g>
+      <Trabajador x={-26} y={9} casco={casco} brazoDesde={-42} brazoHasta={8} dur="1.3s" objeto={cajaChica} />
+      <Trabajador x={26} y={9} casco={casco} espejo brazoDesde={-8} brazoHasta={42} dur="1.3s" retraso="0.3s" objeto={cajaChica} />
     </g>
   );
 }
 
-// Fase 2b — dos personas seleccionando fruta buena/mala sobre la banda.
+// Fase 2b — banda azul angosta con limones sueltos rodando de a uno (no
+// amontonados) y un rodillo cepillo animado al inicio, como en la foto
+// real, con dos personas descartando la fruta mala a los lados.
 function TareaSeleccion({ cx, cy, casco }) {
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <Trabajador x={-10} y={2} casco={casco} brazoDesde={-5} brazoHasta={35} dur="1s" objeto={limonChico} />
-      <Trabajador x={11} y={2} casco={casco} espejo brazoDesde={-5} brazoHasta={35} dur="1s" retraso="0.4s" objeto={limonChico} />
+      <rect x="-32" y="-5" width="64" height="11" rx="2" fill="#2563eb" stroke="#1e3a8a" strokeWidth="1" />
+      <rect x="-32" y="-5" width="64" height="11" rx="2" fill="url(#mq-sheen)" pointerEvents="none" opacity="0.5" />
+      {[-26, -17, -7, 4, 14, 24].map((x, i) => (
+        <circle key={i} cx={x} cy={i % 2 === 0 ? -1.4 : 1.2} r="2.4" fill="url(#mq-limon-grad)" stroke="#5b7515" strokeWidth="0.4" />
+      ))}
+      {[0, 1].map(i => (
+        <g key={i} transform={`translate(${-36 + i * 6},0)`}>
+          <g>
+            <animateTransform attributeName="transform" type="rotate" values="0;360" dur="0.4s" repeatCount="indefinite" />
+            <circle r="3.6" fill="#3b82f6" stroke="#1e40af" strokeWidth="0.7" />
+            {[0, 60, 120, 180, 240, 300].map(a => (
+              <line key={a} x1="0" y1="0" x2={Math.cos((a * Math.PI) / 180) * 3.8} y2={Math.sin((a * Math.PI) / 180) * 3.8} stroke="#1e3a8a" strokeWidth="0.6" />
+            ))}
+          </g>
+        </g>
+      ))}
+      <Trabajador x={-16} y={10} casco={casco} brazoDesde={-5} brazoHasta={35} dur="1s" objeto={limonChico} />
+      <Trabajador x={16} y={10} casco={casco} espejo brazoDesde={-5} brazoHasta={35} dur="1s" retraso="0.4s" objeto={limonChico} />
     </g>
   );
 }
@@ -330,22 +433,27 @@ function TareaEmpaque({ cx, cy, casco }) {
   );
 }
 
-// Fase 9 — persona pesando la caja ya empacada.
+// Fase 9 — persona pesando la caja ya empacada. La báscula real (grande, con
+// pantalla) va aparte como DetalleBascula, siempre visible en la estación.
 function TareaPesaje({ cx, cy, casco }) {
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <line x1="-9" y1="8" x2="9" y2="8" stroke="#94a3b8" strokeWidth="1.6" />
-      <rect x="-6" y="3" width="12" height="5" rx="1" fill="none" stroke="#94a3b8" strokeWidth="1.3" />
       <Trabajador x={12} y={2} casco={casco} espejo brazoDesde={-25} brazoHasta={15} dur="1.3s" objeto={cajaChica} />
     </g>
   );
 }
 
 // Fase 10 — persona envolviendo la estiba con zunchos.
+// Pallet con cajas verdes apiladas y estacas de madera en las esquinas —
+// así se ve de verdad en el paletizado (foto de referencia), no una caja
+// suelta sin marcar.
 function TareaPaletizado({ cx, cy, casco }) {
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <rect x="-8" y="-6" width="16" height="16" rx="1.5" fill="none" stroke="#d6d3d1" strokeWidth="1.3" />
+      <rect x="-9" y="6" width="18" height="3" fill="#a16207" stroke="#5c3a0a" strokeWidth="0.6" />
+      {[-8, 7].map((x, i) => <line key={i} x1={x} y1="6" x2={x} y2="-16" stroke="#8a5a2e" strokeWidth="1.4" strokeLinecap="round" />)}
+      <rect x="-8" y="-6" width="16" height="12" rx="1" fill="#c9843f" stroke="#7c5322" strokeWidth="1" />
+      <rect x="-8" y="-6" width="16" height="2.4" fill="#22c55e" opacity="0.85" />
       <rect x="-10" y="-1" width="0" height="2.6" fill="#facc15">
         <animate attributeName="width" values="0;20;20;0" dur="1.6s" repeatCount="indefinite" />
       </rect>
@@ -363,6 +471,45 @@ function TareaCargue({ cx, cy, casco }) {
     </g>
   );
 }
+
+// Persona agachada recogiendo limones sueltos del piso hacia una canastilla
+// — para puntos personalizados tipo "recolección".
+function TareaRecogerLimon({ cx, cy, casco }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <g transform="translate(-8,6)"><ManchaLimones n={7} radio={9} /></g>
+      <rect x="6" y="2" width="12" height="8" rx="1" fill="#6b7280" stroke="#374151" strokeWidth="0.8" />
+      <Trabajador x={0} y={4} casco={casco} brazoDesde={26} brazoHasta={-24} dur="1.1s" objeto={limonChico} />
+    </g>
+  );
+}
+
+// Persona armando/doblando una caja de cartón — para el punto de la
+// armadora de cajas u otro punto personalizado de empaque.
+function TareaArmarCajas({ cx, cy, casco }) {
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <rect x="-9" y="-3" width="18" height="12" rx="1" fill="#b3792c" stroke="#6b4416" strokeWidth="1" />
+      <rect x="-9" y="-3" width="18" height="12" rx="1" fill="url(#mq-sheen)" pointerEvents="none" opacity="0.4" />
+      <line x1="-9" y1="3" x2="9" y2="3" stroke="#6b4416" strokeWidth="0.8" />
+      <Trabajador x={14} y={4} casco={casco} espejo brazoDesde={-32} brazoHasta={12} dur="1s" objeto={null} />
+    </g>
+  );
+}
+
+// Animaciones disponibles para un punto personalizado — el usuario elige
+// una al crear el punto, o ninguna (solo el punto titilante con su nombre).
+const ANIMACIONES_PUNTO = {
+  ninguna: null,
+  limon: TareaRecogerLimon,
+  cajas: TareaArmarCajas,
+  paletizado: TareaPaletizado,
+  pesaje: TareaPesaje,
+};
+const ANIMACIONES_PUNTO_LABEL = {
+  ninguna: "Sin animación", limon: "🍋 Recogiendo limón", cajas: "📦 Armando cajas",
+  paletizado: "🏗️ Paletizando", pesaje: "⚖️ Pesando",
+};
 
 function DetalleTarea({ tarea, cx, cy, casco }) {
   const Comp = {
@@ -399,12 +546,13 @@ const LAYOUT = (() => {
   const xs = crudos.map(p => p.x), ys = crudos.map(p => p.y);
   // padLeft se deja igual a propósito: agrandarlo correría el origen y
   // desalinearía las posiciones ya guardadas (arrastradas a mano) en
-  // localStorage. padRight y padBottom sí se pueden crecer libremente
-  // porque no mueven el origen, solo agrandan el lienzo hacia ese lado.
+  // Supabase, para todos. padRight y padBottom sí se pueden crecer
+  // libremente porque no mueven el origen, solo agrandan el lienzo hacia
+  // ese lado.
   const padLeft = PLAT_W / 2 + 90;
-  const padRight = PLAT_W / 2 + 280;
+  const padRight = PLAT_W / 2 + 520;
   const padTop = PLAT_H / 2 + 260;    // espacio para el rótulo + fichas de personas (hasta 8 en una estación)
-  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 220;
+  const padBottom = PLAT_H / 2 + PLAT_DEPTH + 420;
   const minX = Math.min(...xs) - padLeft, maxX = Math.max(...xs) + padRight;
   const minY = Math.min(...ys) - padTop, maxY = Math.max(...ys) + padBottom;
   const puntos = crudos.map(p => ({ x: p.x - minX, y: p.y - minY }));
@@ -455,10 +603,18 @@ function TunelLavadoEncSecado({ puntos }) {
     remaches.push(along(t, -HALF_W + 6), along(t, HALF_W - 6));
   }
 
-  // Ventana perforada solo en el último tramo, como en la máquina real.
+  // Ventana perforada solo en el último tramo, como en la máquina real —
+  // agujeros de tamaño variado y algo regados, no una grilla pareja, para
+  // que se vea como el patrón real (racimo de círculos, no puntos iguales).
   const agujeros = [];
-  for (let t = 0.78; t < 0.97; t += 0.045) {
-    [-HALF_W * 0.45, 0, HALF_W * 0.45].forEach(w => agujeros.push(along(t, w)));
+  let semilla = 0;
+  for (let t = 0.72; t < 0.98; t += 0.03) {
+    [-HALF_W * 0.5, -HALF_W * 0.12, HALF_W * 0.24, HALF_W * 0.55].forEach(w => {
+      semilla++;
+      const jitter = ((semilla * 53) % 9) - 4;
+      const r = 1.3 + ((semilla * 37) % 6) * 0.45;
+      agujeros.push({ p: along(t, w + jitter), r });
+    });
   }
 
   // Patas de soporte en los dos extremos y el centro.
@@ -492,7 +648,7 @@ function TunelLavadoEncSecado({ puntos }) {
       {remaches.map((p, idx) => <circle key={`rem-${idx}`} cx={p.x} cy={p.y} r="1.3" fill="#4b5563" />)}
 
       {/* ventana perforada */}
-      {agujeros.map((p, idx) => <circle key={`ag-${idx}`} cx={p.x} cy={p.y} r="2.6" fill="#2b3138" opacity="0.55" />)}
+      {agujeros.map((a, idx) => <circle key={`ag-${idx}`} cx={a.p.x} cy={a.p.y} r={a.r} fill="#2b3138" opacity="0.55" />)}
 
       {/* panel de control con pantalla y luces */}
       <g transform={`translate(${panel.x},${panel.y})`}>
@@ -504,6 +660,118 @@ function TunelLavadoEncSecado({ puntos }) {
         <circle cx="0" cy="1" r="1.3" fill="#eab308" />
         <circle cx="4" cy="1" r="1.3" fill="#ef4444" />
       </g>
+    </g>
+  );
+}
+
+// Elevador de canasta: tolva de acero abajo (donde cae la fruta de
+// Recepción) y un cajón inclinado que la sube hasta Selección, con los
+// limones viajando en fila por dentro — así entra de verdad la fruta a la
+// línea, no aparece flotando de la nada.
+function MaquinaAlimentacion({ puntos, flip = false }) {
+  const iA = STAGES.findIndex(s => s.key === "alimentacion");
+  const iS = STAGES.findIndex(s => s.key === "seleccion");
+  const pA = puntos[iA], pS = puntos[iS];
+  // Eje = dirección real de Alimentación hacia Selección (el siguiente
+  // punto real, no un atajo Recepción->Selección) — así la descarga siempre
+  // queda apuntando hacia Selección, sin importar cómo se hayan movido las
+  // estaciones a mano. `flip` la invierte a mano si aun así queda al revés.
+  const signo = flip ? -1 : 1;
+  const dx = (pS.x - pA.x) * signo, dy = (pS.y - pA.y) * signo;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  const px = -uy, py = ux;
+  const along = (t, w = 0) => ({ x: pA.x + ux * t + px * w, y: pA.y + uy * t + py * w });
+
+  const HALF = 52, SUBIDA = 32, HW = 13, DEPTH = 15;
+  const baseC = along(-HALF, 0);
+  const topRaw = along(HALF, 0);
+  const topC = { x: topRaw.x, y: topRaw.y - SUBIDA };
+  const a1 = { x: baseC.x - px * HW, y: baseC.y - py * HW };
+  const a2 = { x: baseC.x + px * HW, y: baseC.y + py * HW };
+  const b1 = { x: topC.x - px * HW * 0.68, y: topC.y - py * HW * 0.68 };
+  const b2 = { x: topC.x + px * HW * 0.68, y: topC.y + py * HW * 0.68 };
+
+  const tolva = [
+    [a1.x - px * 11, a1.y - py * 11], [a2.x + px * 11, a2.y + py * 11],
+    [a2.x, a2.y + 15], [a1.x, a1.y + 15],
+  ];
+
+  return (
+    <g>
+      <line x1={baseC.x} y1={baseC.y + 6} x2={baseC.x} y2={baseC.y + 6 + 26} stroke="#4b5563" strokeWidth="3.2" strokeLinecap="round" />
+      <line x1={topC.x} y1={topC.y + 6} x2={topC.x} y2={topC.y + 6 + 26} stroke="#4b5563" strokeWidth="3.2" strokeLinecap="round" />
+
+      <polygon points={poly(tolva)} fill="#8b95a3" stroke="#4b5563" strokeWidth="1.2" />
+      <polygon points={poly(tolva)} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.5" />
+      <g transform={`translate(${baseC.x},${baseC.y + 3})`}><ManchaLimones n={11} radio={12} /></g>
+
+      <polygon points={poly([[a1.x, a1.y + DEPTH], [a2.x, a2.y + DEPTH], [b2.x, b2.y + DEPTH * 0.35], [b1.x, b1.y + DEPTH * 0.35]])} fill="#3f4652" />
+      <polygon points={poly([[a1.x, a1.y], [a2.x, a2.y], [b2.x, b2.y], [b1.x, b1.y]])} fill="#9ca3af" stroke="#4b5563" strokeWidth="1.3" />
+      <polygon points={poly([[a1.x, a1.y], [a2.x, a2.y], [b2.x, b2.y], [b1.x, b1.y]])} fill="url(#mq-sheen)" pointerEvents="none" />
+
+      <path id="mq-ruta-elevador" d={`M ${baseC.x} ${baseC.y} L ${topC.x} ${topC.y}`} fill="none" />
+      {[0, 1, 2, 3].map(k => (
+        <circle key={k} r="3" fill="url(#mq-limon-grad)" stroke="#5b7515" strokeWidth="0.5">
+          <animateMotion dur="2.2s" repeatCount="indefinite" begin={`${-k * 0.55}s`}>
+            <mpath href="#mq-ruta-elevador" />
+          </animateMotion>
+        </circle>
+      ))}
+      <circle cx={topC.x} cy={topC.y} r="4.2" fill="#6b7280" stroke="#374151" strokeWidth="1" />
+    </g>
+  );
+}
+
+// Mesa de rodillos de selección: los dos primeros son cepillos azules (como
+// en la foto, a la salida del lavado/alimentación) y el resto son rodillos
+// de acero girando parejo, con limones sueltos repartidos encima — no una
+// banda plana, una mesa real de rodillos.
+function MaquinaSeleccion({ puntos, flip = false }) {
+  const iAl = STAGES.findIndex(s => s.key === "alimentacion");
+  const iSe = STAGES.findIndex(s => s.key === "seleccion");
+  const iLa = STAGES.findIndex(s => s.key === "lavado");
+  const pAl = puntos[iAl], pSe = puntos[iSe], pLa = puntos[iLa];
+  const signo = flip ? -1 : 1;
+  const dx = (pLa.x - pAl.x) * signo, dy = (pLa.y - pAl.y) * signo;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  const px = -uy, py = ux;
+  const along = (t, w = 0) => ({ x: pSe.x + ux * t + px * w, y: pSe.y + uy * t + py * w });
+
+  const HALF_L = 58, HALF_W = 30, DEPTH = 14;
+  const a = along(-HALF_L, -HALF_W), b = along(-HALF_L, HALF_W), c = along(HALF_L, HALF_W), d = along(HALF_L, -HALF_W);
+  const N = 9;
+  const rodillos = Array.from({ length: N }, (_, i) => {
+    const t = -HALF_L + 10 + (i * (HALF_L * 2 - 20)) / (N - 1);
+    return { p1: along(t, -HALF_W + 4), p2: along(t, HALF_W - 4) };
+  });
+
+  return (
+    <g>
+      {[-HALF_L + 10, 0, HALF_L - 10].map((t, i) => {
+        const p = along(t, HALF_W - 6);
+        return <line key={i} x1={p.x} y1={p.y + DEPTH} x2={p.x} y2={p.y + DEPTH + 26} stroke="#4b5563" strokeWidth="3.4" strokeLinecap="round" />;
+      })}
+
+      <polygon points={poly([[a.x, a.y + DEPTH], [b.x, b.y + DEPTH], [c.x, c.y + DEPTH], [d.x, d.y + DEPTH]])} fill="#3f4652" />
+      <polygon points={poly([[a.x, a.y], [b.x, b.y], [c.x, c.y], [d.x, d.y]])} fill="#5b6572" stroke="#1f2937" strokeWidth="1.3" />
+
+      {rodillos.map((r, i) => (
+        <g key={i}>
+          <line x1={r.p1.x} y1={r.p1.y} x2={r.p2.x} y2={r.p2.y} stroke={i < 2 ? "#3b82f6" : "#9ca3af"} strokeWidth="5" strokeLinecap="round" />
+          <line x1={r.p1.x} y1={r.p1.y} x2={r.p2.x} y2={r.p2.y} stroke={i < 2 ? "#1e40af" : "#6b7280"} strokeWidth="5" strokeLinecap="round" strokeDasharray="2.4 3.2" opacity="0.75">
+            <animate attributeName="stroke-dashoffset" from="0" to="-11.2" dur="0.35s" repeatCount="indefinite" />
+          </line>
+        </g>
+      ))}
+      <polygon points={poly([[a.x, a.y], [b.x, b.y], [c.x, c.y], [d.x, d.y]])} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.35" />
+
+      {rodillos.slice(2).map((r, i) => {
+        const t = 0.3 + (i % 3) * 0.22;
+        const p = { x: r.p1.x + (r.p2.x - r.p1.x) * t, y: r.p1.y + (r.p2.y - r.p1.y) * t };
+        return <circle key={i} cx={p.x} cy={p.y - 2.6} r="2.6" fill="url(#mq-limon-grad)" stroke="#5b7515" strokeWidth="0.4" />;
+      })}
     </g>
   );
 }
@@ -721,6 +989,12 @@ const TIPOS_OBJETO = {
   cono:        { label: "Cono de seguridad", icono: "🚧", anchoDef: 14, altoDef: 20, largoDef: 8 },
   camara:      { label: "Cámara de seguridad", icono: "📹", anchoDef: 18, altoDef: 16, largoDef: 10 },
   reloj:       { label: "Reloj marcador", icono: "⏱️", anchoDef: 20, altoDef: 26, largoDef: 8 },
+  canastilla:  { label: "Canastilla",   icono: "🧺", anchoDef: 26, altoDef: 20, largoDef: 10 },
+  pila8:       { label: "Pila de canastillas (8)",  icono: "🧺", anchoDef: 26, altoDef: 88,  largoDef: 20 },
+  pila15:      { label: "Pila de canastillas (15)", icono: "🧺", anchoDef: 26, altoDef: 150, largoDef: 20 },
+  rotulo:      { label: "Texto / rótulo de área", icono: "🔤", anchoDef: 90, altoDef: 22, largoDef: 2, texto: true },
+  puerta:      { label: "Puerta",       icono: "🚪", anchoDef: 34, altoDef: 60, largoDef: 6 },
+  banco:       { label: "Banco de metal", icono: "🪑", anchoDef: 50, altoDef: 16, largoDef: 14 },
 };
 
 // Sombra de piso compartida — le da apoyo/volumen a cualquier objeto suelto
@@ -781,6 +1055,13 @@ function IconoCaja({ ancho, alto }) {
     <g>
       <SombraPiso ancho={ancho} alto={alto} />
       <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="1" fill="#b3792c" stroke="#6b4416" strokeWidth="1" />
+      {/* ondulado del cartón corrugado — sin esto se ve plástico, no caja */}
+      {Array.from({ length: Math.max(3, Math.round(alto / 4)) }).map((_, i) => (
+        <line
+          key={i} x1={-ancho / 2 + 1.2} y1={-alto / 2 + 2 + i * 4} x2={ancho / 2 - 1.2} y2={-alto / 2 + 2 + i * 4}
+          stroke="#8a5a20" strokeWidth="0.6" opacity="0.4"
+        />
+      ))}
       <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
       <line x1={-ancho / 2} y1={-alto * 0.1} x2={ancho / 2} y2={-alto * 0.1} stroke="#6b4416" strokeWidth="0.9" />
       <path d={`M -2 ${-alto / 2} L 0 ${-alto * 0.1} L 2 ${-alto / 2}`} fill="none" stroke="#6b4416" strokeWidth="0.7" />
@@ -962,11 +1243,36 @@ function IconoComputador({ ancho, alto }) {
 // va doblando (animado) sobre unos rodillos, y sale la caja ya armada por
 // el otro — con luz indicadora parpadeante como el resto del equipo.
 function IconoArmadora({ ancho, alto }) {
+  const clipId = `mq-armadora-clip-${useId()}`;
   return (
     <g>
       <SombraPiso ancho={ancho} alto={alto * 0.55} />
-      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="3" fill="#5b6572" stroke="#1f2937" strokeWidth="1.4" />
+      <clipPath id={clipId}><rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="3" /></clipPath>
+      {/* carcasa blanco/crema con franja de peligro amarillo-negra arriba —
+          así es la armadora real, no una lámina gris genérica */}
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="3" fill="#e8e6df" stroke="#9a978c" strokeWidth="1.4" />
+      <g clipPath={`url(#${clipId})`}>
+        {Array.from({ length: Math.ceil(ancho / 5) + 4 }).map((_, i) => (
+          <rect
+            key={i} x={-ancho / 2 - alto * 0.1 + i * 5} y={-alto / 2} width="3" height={Math.max(4, alto * 0.1)}
+            fill={i % 2 === 0 ? "#111827" : "#F9A826"} transform="skewX(-30)"
+          />
+        ))}
+      </g>
       <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" />
+      {/* rejilla de ventilación lateral, como el panel calado real */}
+      <g clipPath={`url(#${clipId})`}>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <rect key={i} x={ancho * 0.16 + i * (ancho * 0.05)} y={-alto * 0.02} width={ancho * 0.022} height={alto * 0.4} fill="#9a978c" opacity="0.7" />
+        ))}
+      </g>
+      {/* brillo de acero que recorre la carcasa — máquina en marcha, no
+          una lámina plana quieta */}
+      <g clipPath={`url(#${clipId})`}>
+        <rect x={-ancho} y={-alto / 2} width={ancho * 0.3} height={alto} fill="url(#mq-metal-sheen)" pointerEvents="none">
+          <animate attributeName="x" values={`${-ancho};${ancho}`} dur="3.2s" repeatCount="indefinite" />
+        </rect>
+      </g>
       {/* pila de cartón plano entrando por la izquierda */}
       {[0, 1, 2, 3].map(i => (
         <rect key={i} x={-ancho / 2 - ancho * 0.09} y={-alto * 0.36 + i * (alto * 0.19)} width={ancho * 0.22} height={alto * 0.1} fill="#c99a5b" stroke="#7c5a29" strokeWidth="0.6" />
@@ -1185,7 +1491,86 @@ function IconoReloj({ ancho, alto }) {
   );
 }
 
-function IconoObjeto({ tipo, ancho, alto }) {
+// Canastilla gris apilable (las mismas de Recepciones) y sus pilas — cada
+// "piso" es una canastilla completa, con la rejilla de ventilación típica y
+// un tono ligeramente distinto por nivel para que se note que son piezas
+// apiladas, no un bloque sólido.
+function IconoPilaCanastillas({ ancho, alto, niveles = 1 }) {
+  const h = alto / niveles;
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={h * 0.5} />
+      {Array.from({ length: niveles }).map((_, i) => {
+        const y0 = alto / 2 - (i + 1) * h;
+        const y1 = y0 + h - 1.4;
+        const tono = i % 2 === 0 ? "#9ca3af" : "#a7adb6";
+        return (
+          <g key={i}>
+            <rect x={-ancho / 2} y={y0} width={ancho} height={h - 1.4} rx="1.2" fill={tono} stroke="#4b5563" strokeWidth="0.7" />
+            {[0.25, 0.5, 0.75].map((f, j) => (
+              <line key={j} x1={-ancho / 2 + ancho * f} y1={y0 + 1} x2={-ancho / 2 + ancho * f} y2={y1 - 1} stroke="#4b5563" strokeWidth="0.5" opacity="0.55" />
+            ))}
+            <line x1={-ancho / 2 + 1} y1={y0 + (h - 1.4) * 0.42} x2={ancho / 2 - 1} y2={y0 + (h - 1.4) * 0.42} stroke="#4b5563" strokeWidth="0.5" opacity="0.45" />
+            <rect x={-ancho / 2} y={y0} width={ancho} height={Math.max(1.4, h * 0.14)} fill="#6b7280" opacity="0.6" />
+            <polygon points={poly([[-ancho / 2, y0], [ancho / 2, y0], [ancho / 2, y1], [-ancho / 2, y1]])} fill="url(#mq-sheen)" pointerEvents="none" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+// Rótulo de texto libre — para escribir en el plano el nombre de una zona
+// ("Cuarto Frío", "Zona de descargue", etc.) sin tener que describirlo con
+// un ícono. Contorno oscuro (paintOrder=stroke) para que se lea encima de
+// cualquier fondo, claro u oscuro.
+function IconoRotulo({ texto = "Área", color = "#ffffff", alto = 22 }) {
+  const fontSize = Math.max(9, alto * 0.62);
+  return (
+    <text
+      textAnchor="middle" dominantBaseline="middle"
+      fontSize={fontSize} fontWeight="800" fill={color}
+      stroke="#0b0b0f" strokeWidth={fontSize * 0.16} paintOrder="stroke"
+      style={{ pointerEvents: "none", fontFamily: "'Syne', sans-serif" }}
+    >
+      {texto}
+    </text>
+  );
+}
+
+// Puerta metálica — marco + hoja con manija, vista de frente (elevación),
+// para muros de bodega, oficinas o el cuarto frío.
+function IconoPuerta({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.2} />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} fill="#374151" stroke="#111827" strokeWidth="1.4" />
+      <rect x={-ancho / 2 + 3} y={-alto / 2 + 3} width={ancho - 6} height={alto - 6} rx="1" fill="#4b5563" stroke="#1f2937" strokeWidth="1" />
+      <rect x={-ancho / 2 + 3} y={-alto / 2 + 3} width={ancho - 6} height={alto - 6} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.5" />
+      <line x1={-ancho / 2 + 3} y1={0} x2={ancho / 2 - 3} y2={0} stroke="#1f2937" strokeWidth="0.8" opacity="0.6" />
+      <circle cx={ancho / 2 - 9} cy={3} r={Math.max(ancho * 0.05, 1.6)} fill="#e5e7eb" stroke="#9ca3af" strokeWidth="0.6" />
+    </g>
+  );
+}
+
+// Banco largo de metal (tipo vestier/comedor) — tablón con patas en A.
+function IconoBanco({ ancho, alto }) {
+  return (
+    <g>
+      <SombraPiso ancho={ancho} alto={alto * 0.5} />
+      {[-ancho * 0.36, ancho * 0.36].map((x, i) => (
+        <g key={i}>
+          <line x1={x - 6} y1={alto / 2} x2={x + 3} y2={-alto * 0.1} stroke="#6b7280" strokeWidth="2.4" strokeLinecap="round" />
+          <line x1={x + 6} y1={alto / 2} x2={x - 3} y2={-alto * 0.1} stroke="#6b7280" strokeWidth="2.4" strokeLinecap="round" />
+        </g>
+      ))}
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto * 0.42} rx="1.5" fill="#9ca3af" stroke="#4b5563" strokeWidth="1" />
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto * 0.42} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.6" />
+    </g>
+  );
+}
+
+function IconoObjeto({ tipo, ancho, alto, texto, color }) {
   switch (tipo) {
     case "pallet": return <IconoPallet ancho={ancho} alto={alto} />;
     case "bascula": return <IconoBascula ancho={ancho} alto={alto} />;
@@ -1213,6 +1598,12 @@ function IconoObjeto({ tipo, ancho, alto }) {
     case "cono": return <IconoCono ancho={ancho} alto={alto} />;
     case "camara": return <IconoCamara ancho={ancho} alto={alto} />;
     case "reloj": return <IconoReloj ancho={ancho} alto={alto} />;
+    case "canastilla": return <IconoPilaCanastillas ancho={ancho} alto={alto} niveles={1} />;
+    case "pila8": return <IconoPilaCanastillas ancho={ancho} alto={alto} niveles={8} />;
+    case "pila15": return <IconoPilaCanastillas ancho={ancho} alto={alto} niveles={15} />;
+    case "rotulo": return <IconoRotulo texto={texto} color={color} alto={alto} />;
+    case "puerta": return <IconoPuerta ancho={ancho} alto={alto} />;
+    case "banco": return <IconoBanco ancho={ancho} alto={alto} />;
     default: return null;
   }
 }
@@ -1319,7 +1710,7 @@ function ObjetoLibre({ obj, seleccionado, esNuevo, editando, onSeleccionar, onMo
           x={-obj.ancho / 2} y={obj.alto / 2} width={obj.ancho} height={largo}
           fill="rgba(0,0,0,0.32)" stroke="rgba(0,0,0,0.45)" strokeWidth={0.6}
         />
-        <IconoObjeto tipo={obj.tipo} ancho={obj.ancho} alto={obj.alto} />
+        <IconoObjeto tipo={obj.tipo} ancho={obj.ancho} alto={obj.alto} texto={obj.texto} color={obj.color} />
         {seleccionado && (
           <rect
             x={-obj.ancho / 2 - 4} y={-obj.alto / 2 - 4} width={obj.ancho + 8} height={obj.alto + 8}
@@ -1354,6 +1745,55 @@ function ObjetoLibre({ obj, seleccionado, esNuevo, editando, onSeleccionar, onMo
           />
         </>
       )}
+    </g>
+  );
+}
+
+// Punto personalizado: parada nueva que el usuario crea en el plano — un
+// círculo titilante con su nombre, arrastrable igual que un objeto libre, y
+// con la animación elegida (si tiene) reproduciéndose siempre. Funciona
+// como una estación más para armar rutas de caminata.
+function PuntoCustomMarker({ punto, seleccionado, esNuevo, onSeleccionar, onMover }) {
+  const dragRef = useRef(null);
+  const gRef = useRef(null);
+  useEffect(() => {
+    if (esNuevo && gRef.current) {
+      gRef.current.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    }
+  }, [esNuevo]);
+  const Anim = ANIMACIONES_PUNTO[punto.animacion];
+  const color = punto.color || "#845EF7";
+  return (
+    <g
+      ref={gRef}
+      transform={`translate(${punto.x},${punto.y})`}
+      style={{ cursor: "grab", touchAction: "none" }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onSeleccionar(punto.id);
+        const p0 = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+        dragRef.current = { sx: p0.x, sy: p0.y, ox: punto.x, oy: punto.y };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (!dragRef.current) return;
+        const p = puntoSvg(e.currentTarget.ownerSVGElement, e.clientX, e.clientY);
+        const dx = p.x - dragRef.current.sx, dy = p.y - dragRef.current.sy;
+        onMover(punto.id, dragRef.current.ox + dx, dragRef.current.oy + dy);
+      }}
+      onPointerUp={() => { dragRef.current = null; }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {Anim && <Anim cx={0} cy={18} casco={color} />}
+      <circle r="6" fill={color} stroke="white" strokeWidth="1.5" style={{ animation: esNuevo ? "mq-pop 0.35s ease" : "none" }} />
+      <circle r="6" fill="none" stroke={color} strokeWidth="2">
+        <animate attributeName="r" values="6;15;6" dur="1.6s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.85;0;0.85" dur="1.6s" repeatCount="indefinite" />
+      </circle>
+      {seleccionado && <circle r="10" fill="none" stroke="#845EF7" strokeWidth="1.5" strokeDasharray="3 2" />}
+      <text y="-14" textAnchor="middle" fontSize="9" fontWeight="800" fill="white" stroke="#0b0b0f" strokeWidth="2" paintOrder="stroke" style={{ pointerEvents: "none" }}>
+        {punto.nombre}
+      </text>
     </g>
   );
 }
@@ -1465,7 +1905,10 @@ export default function MaquinaTab({ mob }) {
   const onCanvasClick = (e) => {
     if (!colocando) return;
     const p = posEnPlano(e);
-    if (p) agregarObjeto(colocando, p.x, p.y);
+    if (p) {
+      if (colocando === "__punto__") agregarPuntoCustom(p.x, p.y);
+      else agregarObjeto(colocando, p.x, p.y);
+    }
     setColocando(null);
     setMousePos(null);
   };
@@ -1490,6 +1933,8 @@ export default function MaquinaTab({ mob }) {
       posPersonas: respaldoLocal.posPersonas || {},
       objetos: respaldoLocal.objetos || [],
       rutasPersonas: respaldoLocal.rutasPersonas || {},
+      maquinasCfg: {},
+      puntosCustom: [],
     }, nombreUsuarioSesion());
     setRecuperando(false);
     if (ok) {
@@ -1498,6 +1943,12 @@ export default function MaquinaTab({ mob }) {
     }
   };
   const [calibCfg, setCalibCfg] = useState(() => ({ ...CALIB_CFG_DEFAULT }));
+
+  // Dirección de las máquinas que se orientan solas según la estación
+  // vecina (Alimentación, Selección) — si el cálculo automático queda
+  // apuntando al revés, esto lo corrige a mano.
+  const [maquinasCfg, setMaquinasCfg] = useState({});
+  const toggleFlipMaquina = (key) => setMaquinasCfg(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Posiciones personalizadas de las 12 estaciones fijas — todo lo que está
   // en el plano (no solo lo que se agrega) se puede arrastrar. `puntos` es
@@ -1588,23 +2039,26 @@ export default function MaquinaTab({ mob }) {
   const [objetos, setObjetos] = useState([]);
   const [seleccionId, setSeleccionId] = useState(null);
   const [nuevoId, setNuevoId] = useState(null); // objeto recién agregado — se desplaza a la vista y destella
-  // Arranca después del id más alto ya guardado, para no chocar con
-  // objetos ya guardados en Supabase, para no chocar con uno existente.
-  const agregarObjeto = (tipo, x, y) => {
-    const def = TIPOS_OBJETO[tipo];
+  // Siguiente id libre — arranca después del más alto ya guardado en
+  // Supabase, para no chocar con uno existente.
+  const siguienteIdObjeto = () => {
     const maxId = objetos.reduce((max, o) => {
       const n = parseInt(String(o.id).replace(/^o/, ""), 10);
       return Number.isFinite(n) && n > max ? n : max;
     }, 0);
-    const id = `o${maxId + 1}`;
+    return `o${maxId + 1}`;
+  };
+  const agregarObjeto = (tipo, x, y) => {
+    const def = TIPOS_OBJETO[tipo];
     const nuevo = {
-      id, tipo, x: x ?? LAYOUT.width / 2, y: y ?? LAYOUT.height / 2,
+      id: siguienteIdObjeto(), tipo, x: x ?? LAYOUT.width / 2, y: y ?? LAYOUT.height / 2,
       rot: 0, escala: 1, ancho: def.anchoDef, alto: def.altoDef, largo: def.largoDef,
+      ...(def.texto ? { texto: "Área", color: "#ffffff" } : {}),
     };
     setObjetos(prev => [...prev, nuevo]);
-    setSeleccionId(id);
-    setNuevoId(id);
-    setTimeout(() => setNuevoId(prev => (prev === id ? null : prev)), 1200);
+    setSeleccionId(nuevo.id);
+    setNuevoId(nuevo.id);
+    setTimeout(() => setNuevoId(prev => (prev === nuevo.id ? null : prev)), 1200);
   };
   const moverObjeto = (id, x, y) => setObjetos(prev => prev.map(o => o.id === id ? { ...o, x, y } : o));
   const actualizarObjeto = (id, cambios) => setObjetos(prev => prev.map(o => o.id === id ? { ...o, ...cambios } : o));
@@ -1614,6 +2068,72 @@ export default function MaquinaTab({ mob }) {
   };
   const objetoSeleccionado = objetos.find(o => o.id === seleccionId) || null;
 
+  // Puntos personalizados: paradas nuevas que el usuario crea en el plano
+  // (ej. la armadora de cajas) — llevan un punto titilante con su nombre y,
+  // opcionalmente, una animación de la actividad que pasa ahí. Funcionan
+  // como cualquier estación fija: entran a la lista de paradas para armar
+  // rutas de caminata.
+  const [puntosCustom, setPuntosCustom] = useState([]);
+  const [seleccionPuntoId, setSeleccionPuntoId] = useState(null);
+  const [nuevoPuntoId, setNuevoPuntoId] = useState(null);
+  const agregarPuntoCustom = (x, y) => {
+    const maxId = puntosCustom.reduce((max, p) => {
+      const n = parseInt(String(p.id).replace(/^p/, ""), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const id = `p${maxId + 1}`;
+    const nuevo = { id, nombre: "Nuevo punto", x, y, color: "#845EF7", animacion: "ninguna" };
+    setPuntosCustom(prev => [...prev, nuevo]);
+    setSeleccionPuntoId(id);
+    setNuevoPuntoId(id);
+    setTimeout(() => setNuevoPuntoId(prev => (prev === id ? null : prev)), 1200);
+  };
+  const moverPuntoCustom = (id, x, y) => setPuntosCustom(prev => prev.map(p => p.id === id ? { ...p, x, y } : p));
+  const actualizarPuntoCustom = (id, cambios) => setPuntosCustom(prev => prev.map(p => p.id === id ? { ...p, ...cambios } : p));
+  const eliminarPuntoCustom = (id) => {
+    setPuntosCustom(prev => prev.filter(p => p.id !== id));
+    setSeleccionPuntoId(prev => (prev === id ? null : prev));
+  };
+  const puntoCustomSeleccionado = puntosCustom.find(p => p.id === seleccionPuntoId) || null;
+
+  // Copiar/pegar un objeto — el pegado sale corrido un poco del original
+  // para que se note que es una copia nueva, y se puede pegar varias veces
+  // seguidas (cada una corrida un poco más).
+  const [portapapeles, setPortapapeles] = useState(null);
+  const copiarObjeto = (id) => {
+    const o = objetos.find(o => o.id === id);
+    if (o) setPortapapeles({ tipo: o.tipo, ancho: o.ancho, alto: o.alto, largo: o.largo, rot: o.rot, escala: o.escala, x: o.x, y: o.y });
+  };
+  const pegarObjeto = () => {
+    if (!portapapeles) return;
+    const x = portapapeles.x + 24, y = portapapeles.y + 24;
+    const maxId = objetos.reduce((max, o) => {
+      const n = parseInt(String(o.id).replace(/^o/, ""), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const nuevo = {
+      id: `o${maxId + 1}`, tipo: portapapeles.tipo, x, y,
+      rot: portapapeles.rot, escala: portapapeles.escala,
+      ancho: portapapeles.ancho, alto: portapapeles.alto, largo: portapapeles.largo,
+    };
+    setObjetos(prev => [...prev, nuevo]);
+    setSeleccionId(nuevo.id);
+    setNuevoId(nuevo.id);
+    setTimeout(() => setNuevoId(v => (v === nuevo.id ? null : v)), 1200);
+    setPortapapeles({ ...portapapeles, x, y });
+  };
+  useEffect(() => {
+    if (!editando) return;
+    const onKey = (e) => {
+      const enCampo = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+      if (enCampo) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && seleccionId) { copiarObjeto(seleccionId); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") { e.preventDefault(); pegarObjeto(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editando, seleccionId, copiarObjeto, pegarObjeto]);
+
   // El diseño se edita en local mientras se arrastra (para que sea fluido)
   // y este botón lo sube a Supabase — desde ahí sí lo ve cualquiera que
   // entre al módulo, no solo este navegador.
@@ -1621,7 +2141,7 @@ export default function MaquinaTab({ mob }) {
   const [guardando, setGuardando] = useState(false);
   const guardarCambiosPlano = async () => {
     setGuardando(true);
-    const ok = await guardarDiseno({ calibCfg, posCustom, posPersonas, objetos, rutasPersonas }, nombreUsuarioSesion());
+    const ok = await guardarDiseno({ calibCfg, posCustom, posPersonas, objetos, rutasPersonas, maquinasCfg, puntosCustom }, nombreUsuarioSesion());
     setGuardando(false);
     setGuardadoMsg(ok ? "✅ Cambios guardados — ya se ven en la web" : "⚠️ No se pudo guardar, intenta de nuevo");
     setTimeout(() => setGuardadoMsg(""), 2800);
@@ -1640,6 +2160,8 @@ export default function MaquinaTab({ mob }) {
     setPosPersonas(diseno.posPersonas);
     setObjetos(diseno.objetos);
     setRutasPersonas(diseno.rutasPersonas);
+    setMaquinasCfg(diseno.maquinasCfg || {});
+    setPuntosCustom(diseno.puntosCustom || []);
   }, [diseno, editando]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -1805,26 +2327,32 @@ export default function MaquinaTab({ mob }) {
 
   // Personas con ruta de caminata activa (>=2 paradas) — se sacan de la
   // lista fija de su estación y se dibujan aparte, caminando el recorrido.
+  // Cada parada puede ser una de las 12 estaciones fijas o un punto
+  // personalizado creado a mano — se resuelve a su coordenada según cuál sea.
   const caminantes = useMemo(() => {
+    const coordDeParada = (key) => {
+      const idx = STAGES.findIndex(s => s.key === key);
+      if (idx >= 0) return puntos[idx];
+      const pc = puntosCustom.find(p => p.id === key);
+      return pc ? { x: pc.x, y: pc.y } : null;
+    };
     return personas
       .map(emp => {
         const r = rutasPersonas[emp.num];
         if (!r?.activa || (r.stages || []).length < 2) return null;
-        const coords = r.stages.map(key => {
-          const idx = STAGES.findIndex(s => s.key === key);
-          return idx >= 0 ? puntos[idx] : null;
-        }).filter(Boolean);
+        const coords = r.stages.map(coordDeParada).filter(Boolean);
         if (coords.length < 2) return null;
         const d = coords.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
         let largo = 0;
         for (let i = 1; i < coords.length; i++) largo += Math.hypot(coords[i].x - coords[i - 1].x, coords[i].y - coords[i - 1].y);
         const dur = Math.max(2, largo / VELOCIDAD_CAMINATA);
         const primeraStage = STAGES.find(s => s.key === r.stages[0]);
-        const color = (primeraStage && areaPorNombre[primeraStage.nombre]?.color) || "#fbbf24";
+        const primerPunto = puntosCustom.find(p => p.id === r.stages[0]);
+        const color = (primeraStage && areaPorNombre[primeraStage.nombre]?.color) || primerPunto?.color || "#fbbf24";
         return { emp, d, dur, color };
       })
       .filter(Boolean);
-  }, [personas, rutasPersonas, puntos, areaPorNombre]);
+  }, [personas, rutasPersonas, puntos, areaPorNombre, puntosCustom]);
   const caminandoNums = useMemo(() => new Set(caminantes.map(c => c.emp.num)), [caminantes]);
 
   const resumenPorArea = useMemo(() => {
@@ -1968,6 +2496,25 @@ export default function MaquinaTab({ mob }) {
                   </button>
                 );
               })}
+              {puntosCustom.map(p => {
+                const orden = (rutaEmp.stages || []).indexOf(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => toggleRutaPunto(emp.num, p.id)}
+                    title={p.nombre}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 3,
+                      background: orden >= 0 ? "rgba(132,94,247,0.25)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${orden >= 0 ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+                      borderRadius: 6, color: "white", padding: "3px 6px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    {orden >= 0 && <span style={{ fontSize: 8, fontWeight: 800, color: "#a78bfa" }}>{orden + 1}</span>}
+                    📍 {p.nombre}
+                  </button>
+                );
+              })}
             </div>
             <div style={{ display: "flex", gap: 6, padding: "0 8px 6px" }}>
               <button
@@ -2002,7 +2549,7 @@ export default function MaquinaTab({ mob }) {
 
   return (
     <div
-      onClick={() => { if (menuAbierto) setMenuAbierto(null); if (seleccionId) setSeleccionId(null); }}
+      onClick={() => { if (menuAbierto) setMenuAbierto(null); if (seleccionId) setSeleccionId(null); if (seleccionPuntoId) setSeleccionPuntoId(null); }}
       style={editando ? { userSelect: "none", WebkitUserSelect: "none", MozUserSelect: "none" } : undefined}
     >
       <style>{CSS}</style>
@@ -2260,6 +2807,103 @@ export default function MaquinaTab({ mob }) {
           </div>
 
           <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
+            🔄 Dirección de las máquinas
+          </div>
+          <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
+            El elevador de Alimentación y la mesa de rodillos de Selección se orientan solos según la estación vecina — si alguno queda apuntando al revés, corrígelo aquí.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[
+              { key: "alimentacionFlip", label: "Elevador de Alimentación" },
+              { key: "seleccionFlip", label: "Mesa de rodillos de Selección" },
+            ].map(m => (
+              <button
+                key={m.key}
+                onClick={() => toggleFlipMaquina(m.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: maquinasCfg[m.key] ? "rgba(132,94,247,0.25)" : "rgba(255,255,255,0.06)",
+                  border: `1px solid ${maquinasCfg[m.key] ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+                  borderRadius: 8, color: "white", padding: "6px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                🔄 {m.label} {maquinasCfg[m.key] ? "(invertida)" : ""}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
+            📍 Puntos personalizados
+          </div>
+          <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
+            Crea paradas nuevas en el plano (ej. la armadora de cajas) — quedan con un punto titilante y su nombre, y funcionan como cualquier estación: los trabajadores pueden caminar hasta ahí.
+          </div>
+          <button
+            onClick={() => setColocando(prev => (prev === "__punto__" ? null : "__punto__"))}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: colocando === "__punto__" ? "rgba(132,94,247,0.25)" : "rgba(255,255,255,0.06)",
+              border: `1px solid ${colocando === "__punto__" ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+              borderRadius: 8, color: "white", padding: "6px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            📍 + Nuevo punto
+          </button>
+
+          {puntoCustomSeleccionado && (
+            <div style={{ marginTop: 12, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 10, color: "white", fontWeight: 800, marginBottom: 8 }}>
+                📍 Punto seleccionado
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="text" value={puntoCustomSeleccionado.nombre} placeholder="Nombre del punto..."
+                  onChange={e => actualizarPuntoCustom(puntoCustomSeleccionado.id, { nombre: e.target.value })}
+                  style={{
+                    flex: 1, minWidth: 160, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: 8, color: "white", padding: "7px 10px", fontSize: 12,
+                  }}
+                />
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["#845EF7", "#00C9A7", "#F9A826", "#FF6B6B", "#38BDF8", "#fbbf24"].map(c => (
+                    <button
+                      key={c}
+                      onClick={() => actualizarPuntoCustom(puntoCustomSeleccionado.id, { color: c })}
+                      title={c}
+                      style={{
+                        width: 20, height: 20, borderRadius: "50%", background: c, cursor: "pointer",
+                        border: (puntoCustomSeleccionado.color || "#845EF7") === c ? "2px solid white" : "1px solid rgba(255,255,255,0.3)",
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>Animación en este punto</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                {Object.keys(ANIMACIONES_PUNTO).map(key => (
+                  <button
+                    key={key}
+                    onClick={() => actualizarPuntoCustom(puntoCustomSeleccionado.id, { animacion: key })}
+                    style={{
+                      background: puntoCustomSeleccionado.animacion === key ? "rgba(132,94,247,0.25)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${puntoCustomSeleccionado.animacion === key ? "#845EF7" : "rgba(255,255,255,0.15)"}`,
+                      borderRadius: 8, color: "white", padding: "5px 10px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    {ANIMACIONES_PUNTO_LABEL[key]}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => eliminarPuntoCustom(puntoCustomSeleccionado.id)}
+                style={{ background: "rgba(255,107,107,0.12)", border: "1px solid #FF6B6B40", borderRadius: 8, color: "#FF6B6B", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+              >
+                🗑 Eliminar este punto
+              </button>
+            </div>
+          )}
+
+          <div style={{ fontSize: 10, color: "#a78bfa", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "16px 0 10px" }}>
             🧩 Agregar objetos al plano
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -2285,11 +2929,49 @@ export default function MaquinaTab({ mob }) {
               : "Elige un objeto y luego haz clic en el plano para colocarlo. Ya puesto, arrástralo para moverlo libremente; al seleccionarlo aparecen tres asas moradas: la de arriba lo rota, la de la esquina cambia su ancho/alto, y la de abajo (sobre el bloque de sombra) ajusta su largo — todo arrastrando con el mouse. El panel de abajo sigue disponible para valores exactos."}
           </div>
 
+          {portapapeles && (
+            <button
+              onClick={pegarObjeto}
+              style={{
+                marginTop: 8, display: "flex", alignItems: "center", gap: 5,
+                background: "rgba(132,94,247,0.18)", border: "1px solid #845EF7", borderRadius: 8, color: "#a78bfa",
+                padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              📌 Pegar {TIPOS_OBJETO[portapapeles.tipo]?.icono} {TIPOS_OBJETO[portapapeles.tipo]?.label} <span style={{ opacity: 0.6, fontWeight: 500 }}>(Ctrl+V)</span>
+            </button>
+          )}
+
           {objetoSeleccionado && (
             <div style={{ marginTop: 12, background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 12 }}>
               <div style={{ fontSize: 10, color: "white", fontWeight: 800, marginBottom: 8 }}>
                 {TIPOS_OBJETO[objetoSeleccionado.tipo]?.icono} {TIPOS_OBJETO[objetoSeleccionado.tipo]?.label} seleccionado
               </div>
+              {TIPOS_OBJETO[objetoSeleccionado.tipo]?.texto && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    type="text" value={objetoSeleccionado.texto || ""} placeholder="Escribe el nombre del área..."
+                    onChange={e => actualizarObjeto(objetoSeleccionado.id, { texto: e.target.value })}
+                    style={{
+                      flex: 1, minWidth: 160, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: 8, color: "white", padding: "7px 10px", fontSize: 12,
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["#ffffff", "#845EF7", "#00C9A7", "#F9A826", "#FF6B6B", "#38BDF8"].map(c => (
+                      <button
+                        key={c}
+                        onClick={() => actualizarObjeto(objetoSeleccionado.id, { color: c })}
+                        title={c}
+                        style={{
+                          width: 20, height: 20, borderRadius: "50%", background: c, cursor: "pointer",
+                          border: (objetoSeleccionado.color || "#ffffff") === c ? "2px solid white" : "1px solid rgba(255,255,255,0.3)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "grid", gap: 10, gridTemplateColumns: mob ? "1fr" : "repeat(4, 1fr)" }}>
                 {[
                   { key: "ancho", label: "Ancho", min: 8, max: 160, step: 1 },
@@ -2315,12 +2997,21 @@ export default function MaquinaTab({ mob }) {
                   );
                 })}
               </div>
-              <button
-                onClick={() => eliminarObjeto(objetoSeleccionado.id)}
-                style={{ marginTop: 10, background: "rgba(255,107,107,0.12)", border: "1px solid #FF6B6B40", borderRadius: 8, color: "#FF6B6B", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-              >
-                🗑 Eliminar este objeto
-              </button>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button
+                  onClick={() => copiarObjeto(objetoSeleccionado.id)}
+                  title="Ctrl+C"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "white", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                >
+                  📋 Copiar
+                </button>
+                <button
+                  onClick={() => eliminarObjeto(objetoSeleccionado.id)}
+                  style={{ background: "rgba(255,107,107,0.12)", border: "1px solid #FF6B6B40", borderRadius: 8, color: "#FF6B6B", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                >
+                  🗑 Eliminar este objeto
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -2365,7 +3056,12 @@ export default function MaquinaTab({ mob }) {
           onClick={onCanvasClick}
           onWheel={onWheelZoom}
           style={{
-            background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 60%), linear-gradient(180deg, #191b24, #101119)",
+            background: `
+              radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06), transparent 62%),
+              repeating-linear-gradient(0deg, rgba(255,255,255,0.028) 0px, rgba(255,255,255,0.028) 1px, transparent 1px, transparent 42px),
+              repeating-linear-gradient(90deg, rgba(255,255,255,0.028) 0px, rgba(255,255,255,0.028) 1px, transparent 1px, transparent 42px),
+              linear-gradient(180deg, #191b24, #101119)
+            `,
             border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: mob ? "10px" : 16,
             overflow: "auto", cursor: colocando ? "crosshair" : "grab", touchAction: "none",
           }}
@@ -2398,7 +3094,84 @@ export default function MaquinaTab({ mob }) {
                 <stop offset="75%" stopColor="#b7c221" />
                 <stop offset="100%" stopColor="#7f9c1e" />
               </radialGradient>
+              {/* Cono de luz de las lámparas de techo — ambiente de nave
+                  industrial, no solo objetos flotando en el vacío. */}
+              <radialGradient id="mq-luz-glow" cx="50%" cy="0%" r="75%">
+                <stop offset="0%" stopColor="#fff8e0" stopOpacity="0.16" />
+                <stop offset="100%" stopColor="#fff8e0" stopOpacity="0" />
+              </radialGradient>
+              {/* Barniz "metálico" — más angosto y contrastado que mq-sheen,
+                  para las carcasas de máquinas grandes (más look de acero
+                  cepillado que de plástico). */}
+              <linearGradient id="mq-metal-sheen" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+                <stop offset="46%" stopColor="#ffffff" stopOpacity="0.32" />
+                <stop offset="54%" stopColor="#ffffff" stopOpacity="0.32" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+              </linearGradient>
+              {/* Pared de ladrillo a la vista — la misma de las fotos reales
+                  de la planta (aparejo a soga, con la junta de mortero). */}
+              <pattern id="mq-ladrillo" width="30" height="15" patternUnits="userSpaceOnUse">
+                <rect width="30" height="15" fill="#7a3f2c" />
+                <rect x="0.6" y="0.6" width="13.8" height="6.2" rx="0.5" fill="#a4573b" />
+                <rect x="15.6" y="0.6" width="13.8" height="6.2" rx="0.5" fill="#9c5136" />
+                <rect x="-6.9" y="8.1" width="13.8" height="6.2" rx="0.5" fill="#9e5337" />
+                <rect x="8.1" y="8.1" width="13.8" height="6.2" rx="0.5" fill="#a4573b" />
+                <rect x="23.1" y="8.1" width="13.8" height="6.2" rx="0.5" fill="#985034" />
+              </pattern>
+              {/* Techo de lámina acanalada, con las cerchas metálicas. */}
+              <pattern id="mq-techo-metal" width="16" height="10" patternUnits="userSpaceOnUse">
+                <rect width="16" height="10" fill="#334255" />
+                <rect x="0" width="8" height="10" fill="#3d4f66" />
+              </pattern>
+              {/* Para que la pared de fondo se apague hacia abajo en vez de
+                  cortar en seco — así no se ve como una franja pegada
+                  encima de la máquina, sino como una pared que se pierde
+                  en la distancia. */}
+              <linearGradient id="mq-fondo-fade" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#101119" stopOpacity="0" />
+                <stop offset="100%" stopColor="#101119" stopOpacity="1" />
+              </linearGradient>
+              {/* Paredes blancas laterales — se pierden hacia el centro del
+                  plano para no taparse con la máquina, solo enmarcan los
+                  costados como en las fotos (zócalo/pared pintada). */}
+              <linearGradient id="mq-pared-izq" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#d8d3c4" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#d8d3c4" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="mq-pared-der" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#d8d3c4" stopOpacity="0" />
+                <stop offset="100%" stopColor="#d8d3c4" stopOpacity="0.5" />
+              </linearGradient>
             </defs>
+
+            {/* Fondo de nave real: solo una insinuación de techo y pared de
+                ladrillo arriba del todo, bien tenue y apagada hacia abajo
+                (mq-fondo-fade) para que se pierda en la oscuridad del fondo
+                en vez de quedar como una franja pegada encima de la
+                máquina — ambienta sin invadir el espacio de los equipos. */}
+            <rect x="0" y="0" width={LAYOUT.width} height={LAYOUT.height * 0.07} fill="url(#mq-techo-metal)" opacity="0.55" />
+            {[0.08, 0.3, 0.52, 0.74, 0.96].map((f, i) => (
+              <line key={`cercha-${i}`} x1={LAYOUT.width * f} y1="-4" x2={LAYOUT.width * f - 22} y2={LAYOUT.height * 0.07} stroke="#1f2937" strokeWidth="1.8" opacity="0.35" />
+            ))}
+            <rect x="0" y={LAYOUT.height * 0.07} width={LAYOUT.width} height={LAYOUT.height * 0.1} fill="url(#mq-ladrillo)" opacity="0.22" />
+            <rect x="0" y={LAYOUT.height * 0.07} width={LAYOUT.width} height={LAYOUT.height * 0.16} fill="url(#mq-fondo-fade)" />
+            <rect x="0" y={LAYOUT.height * 0.39} width={LAYOUT.width} height={LAYOUT.height * 0.09} fill="#d8d3c4" opacity="0.14" />
+            <rect x="0" y="0" width={LAYOUT.width * 0.14} height={LAYOUT.height} fill="url(#mq-pared-izq)" pointerEvents="none" />
+            <rect x={LAYOUT.width * 0.86} y="0" width={LAYOUT.width * 0.14} height={LAYOUT.height} fill="url(#mq-pared-der)" pointerEvents="none" />
+
+            {/* Lámparas de techo con su cono de luz — ambientan la nave
+                antes de dibujar la máquina encima. */}
+            {[0.18, 0.5, 0.82].map((f, i) => (
+              <g key={`luz-${i}`} transform={`translate(${LAYOUT.width * f},0)`}>
+                <ellipse cx="0" cy="0" rx={LAYOUT.width * 0.22} ry={LAYOUT.height * 0.5} fill="url(#mq-luz-glow)" pointerEvents="none" />
+                <rect x="-16" y="0" width="32" height="5" rx="1.5" fill="#2a2e3a" stroke="#0b0b0f" strokeWidth="1" />
+                <line x1="0" y1="5" x2="0" y2="14" stroke="#4b5563" strokeWidth="1.4" />
+                <ellipse cx="0" cy="16" rx="9" ry="3" fill="#fff8e0" opacity="0.55">
+                  <animate attributeName="opacity" values="0.55;0.8;0.55" dur={`${3 + i}s`} repeatCount="indefinite" />
+                </ellipse>
+              </g>
+            ))}
 
             {/* Calibradora real: eje de cadena + bandejas azules en espina
                 de pescado, en vez de la plataforma genérica. Va ANTES de la
@@ -2433,6 +3206,13 @@ export default function MaquinaTab({ mob }) {
                 para taparla donde pasa por debajo (entra/sale por los lados). */}
             <TunelLavadoEncSecado puntos={puntos} />
 
+            {/* Elevador de Alimentación y mesa de rodillos de Selección —
+                máquinas reales (con tolva, cajón inclinado y rodillos que
+                giran), no la banda genérica. Van después de la banda por lo
+                mismo que el túnel: para taparla donde pasan por encima. */}
+            <MaquinaAlimentacion puntos={puntos} flip={!!maquinasCfg.alimentacionFlip} />
+            <MaquinaSeleccion puntos={puntos} flip={!!maquinasCfg.seleccionFlip} />
+
             {/* Banda de unión Secado -> Fotoselección — se dibuja después
                 del túnel a propósito, para que quede visible justo DESPUÉS
                 de Secado (nunca antes, tapada por el borde del túnel). */}
@@ -2462,6 +3242,7 @@ export default function MaquinaTab({ mob }) {
               const color = areaDb ? areaDb.color : COLOR_MAQUINA;
               const esTunel = s.tipo === "lavado" || s.tipo === "encerado" || s.tipo === "secado";
               const esCalibradora = s.key === "empaque";
+              const esMaquinaPropia = esTunel || esCalibradora || s.key === "alimentacion" || s.key === "seleccion";
               const top   = [[c.x, c.y - PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x - PLAT_W / 2, c.y]];
               const left  = [[c.x - PLAT_W / 2, c.y], [c.x, c.y + PLAT_H / 2], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH], [c.x - PLAT_W / 2, c.y + PLAT_DEPTH]];
               const right = [[c.x, c.y + PLAT_H / 2], [c.x + PLAT_W / 2, c.y], [c.x + PLAT_W / 2, c.y + PLAT_DEPTH], [c.x, c.y + PLAT_H / 2 + PLAT_DEPTH]];
@@ -2473,7 +3254,7 @@ export default function MaquinaTab({ mob }) {
                   onPointerUp={onEstacionPointerUp}
                   style={{ cursor: "grab", touchAction: "none" }}
                 >
-                  {!esTunel && !esCalibradora && (
+                  {!esMaquinaPropia && (
                     <>
                       <polygon points={poly(left)} fill={shade(color, 0.45)} />
                       <polygon points={poly(right)} fill={shade(color, 0.65)} />
@@ -2481,10 +3262,10 @@ export default function MaquinaTab({ mob }) {
                       <polygon points={poly(top)} fill="url(#mq-sheen)" pointerEvents="none" />
                     </>
                   )}
-                  {(esTunel || esCalibradora) && (
-                    // El túnel/calibradora dibujan su propio cuerpo aparte —
-                    // esta área invisible es solo para poder agarrar y
-                    // arrastrar el punto de la estación desde aquí también.
+                  {esMaquinaPropia && (
+                    // Estas estaciones dibujan su propio cuerpo aparte (más
+                    // arriba) — esta área invisible es solo para poder
+                    // agarrar y arrastrar el punto de la estación.
                     <circle cx={c.x} cy={c.y} r={PLAT_W / 2} fill="transparent" pointerEvents="all" />
                   )}
                   {s.tipo === "lavado" && <DetalleRodillos cx={c.x} cy={c.y} tinte="#38BDF8" />}
@@ -2492,6 +3273,9 @@ export default function MaquinaTab({ mob }) {
                   {s.tipo === "secado" && <DetalleHorno cx={c.x} cy={c.y} />}
                   {s.tipo === "foto" && <DetalleCamara cx={c.x} cy={c.y} />}
                   {s.key === "recepcion" && <DetalleCamion cx={c.x + 110} cy={c.y - 58} />}
+                  {s.key === "cargue" && <DetalleCamion cx={c.x - 110} cy={c.y - 58} />}
+                  {s.key === "pesaje" && <DetalleBascula cx={c.x} cy={c.y - 4} />}
+                  {s.tipo === "patio" && <DetallePatio cx={c.x} cy={c.y - 6} />}
                   {s.tipo === "area" && (porArea[areaDb?.id] || []).length > 0 && <DetalleTarea tarea={s.key} cx={c.x} cy={c.y} casco={color} />}
                   {simPanelAbierto && simSnapshot?.estaciones[s.key] && (
                     <g transform={`translate(${c.x - PLAT_W / 2 - 16},${c.y})`}>
@@ -2545,6 +3329,21 @@ export default function MaquinaTab({ mob }) {
                 </g>
               </g>
             ))}
+
+            {/* Motas de polvo flotando en el aire — el último detalle que le
+                falta a una nave industrial real, además de las máquinas. */}
+            {Array.from({ length: 10 }).map((_, i) => {
+              const cx0 = (LAYOUT.width * ((i * 137) % 100)) / 100;
+              const cy0 = (LAYOUT.height * ((i * 271 + 40) % 100)) / 100;
+              const dur = 9 + (i % 5) * 2.3;
+              return (
+                <circle key={`mota-${i}`} r={1 + (i % 3) * 0.5} fill="#fff8e0" opacity="0" pointerEvents="none">
+                  <animate attributeName="cx" values={`${cx0};${cx0 + 30};${cx0 - 22};${cx0}`} dur={`${dur}s`} repeatCount="indefinite" />
+                  <animate attributeName="cy" values={`${cy0};${cy0 - 40};${cy0 + 26};${cy0}`} dur={`${dur}s`} repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0;0.35;0.35;0" dur={`${dur}s`} repeatCount="indefinite" />
+                </circle>
+              );
+            })}
           </svg>
 
           {/* Rótulo + personas de cada etapa, ancladas justo encima de su
@@ -2601,10 +3400,19 @@ export default function MaquinaTab({ mob }) {
               {objetos.map(o => (
                 <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} editando={editando} onSeleccionar={setSeleccionId} onMover={moverObjeto} onAjustar={actualizarObjeto} />
               ))}
+              {puntosCustom.map(p => (
+                <PuntoCustomMarker key={p.id} punto={p} seleccionado={p.id === seleccionPuntoId} esNuevo={p.id === nuevoPuntoId} onSeleccionar={setSeleccionPuntoId} onMover={moverPuntoCustom} />
+              ))}
             </g>
-            {colocando && mousePos && (
+            {colocando && mousePos && colocando !== "__punto__" && (
               <g transform={`translate(${mousePos.x},${mousePos.y})`} style={{ opacity: 0.55 }}>
-                <IconoObjeto tipo={colocando} ancho={TIPOS_OBJETO[colocando].anchoDef} alto={TIPOS_OBJETO[colocando].altoDef} />
+                <IconoObjeto tipo={colocando} ancho={TIPOS_OBJETO[colocando].anchoDef} alto={TIPOS_OBJETO[colocando].altoDef} texto={TIPOS_OBJETO[colocando].texto ? "Área" : undefined} color="#ffffff" />
+              </g>
+            )}
+            {colocando === "__punto__" && mousePos && (
+              <g transform={`translate(${mousePos.x},${mousePos.y})`} style={{ opacity: 0.6 }}>
+                <circle r="6" fill="#845EF7" stroke="white" strokeWidth="1.5" />
+                <circle r="12" fill="none" stroke="#845EF7" strokeWidth="1.5" strokeDasharray="3 2" />
               </g>
             )}
           </svg>
