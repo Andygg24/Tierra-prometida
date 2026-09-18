@@ -9,33 +9,6 @@ const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
 
-// Antes de conectar el diseño del plano a Supabase, cada pieza vivía en el
-// localStorage de este navegador bajo estas llaves. Se dejó de leer de ahí,
-// pero lo que ya hubiera quedado guardado en este navegador sigue estando
-// — esto lo detecta para poder recuperarlo con un clic y subirlo.
-const LLAVES_RESPALDO_LOCAL = {
-  calibCfg: "tp_maquina_calibradora_cfg",
-  posCustom: "tp_maquina_posiciones_estaciones",
-  posPersonas: "tp_maquina_posiciones_personas",
-  objetos: "tp_maquina_objetos_libres",
-  rutasPersonas: "tp_maquina_rutas_personas",
-};
-function leerRespaldoLocal() {
-  try {
-    const partes = {};
-    let algo = false;
-    for (const [campo, llave] of Object.entries(LLAVES_RESPALDO_LOCAL)) {
-      const raw = localStorage.getItem(llave);
-      if (!raw) continue;
-      const val = JSON.parse(raw);
-      const vacio = Array.isArray(val) ? val.length === 0 : Object.keys(val || {}).length === 0;
-      partes[campo] = val;
-      if (!vacio) algo = true;
-    }
-    return algo ? partes : null;
-  } catch { return null; }
-}
-
 function fmtDur(ms) {
   if (ms == null || ms < 0) return "—";
   const s = Math.floor(ms / 1000);
@@ -831,8 +804,8 @@ const VELOCIDAD_CAMINATA = 55; // px/s — a qué tan rápido recorre la ruta
 const CALIB_CFG_DEFAULT = {
   angulo: 0,       // grados respecto a perpendicular al eje — 0 = recto
   largo: 40,       // largo de cada bandeja
-  ancho: 25,       // ancho de cada bandeja (igual en ambos extremos = rectángulo)
-  spineHalf: 88,   // medio largo del eje central
+  ancho: 20,       // ancho de cada bandeja (igual en ambos extremos = rectángulo)
+  spineHalf: 140,  // medio largo del eje central — con 8 bandejas por lado necesita más espacio que con 4
 };
 
 // Máquina calibradora real: eje central de cadena con bandejas azules a los
@@ -858,7 +831,7 @@ function MaquinaCalibradora({ cfg, puntos }) {
     return { x: b.x + px * w, y: b.y + py * w };
   };
 
-  const N = 4; // bandejas por lado (representativas de las 8 reales)
+  const N = 8; // bandejas por lado — las 8 reales, no una versión resumida
   const dirIzq = rotar(px, py, c.angulo);
   const dirDer = rotar(-px, -py, -c.angulo);
   const bandejas = [];
@@ -1753,7 +1726,7 @@ function ObjetoLibre({ obj, seleccionado, esNuevo, editando, onSeleccionar, onMo
 // círculo titilante con su nombre, arrastrable igual que un objeto libre, y
 // con la animación elegida (si tiene) reproduciéndose siempre. Funciona
 // como una estación más para armar rutas de caminata.
-function PuntoCustomMarker({ punto, seleccionado, esNuevo, onSeleccionar, onMover }) {
+function PuntoCustomMarker({ punto, seleccionado, esNuevo, empNombre, onSeleccionar, onMover }) {
   const dragRef = useRef(null);
   const gRef = useRef(null);
   useEffect(() => {
@@ -1794,6 +1767,11 @@ function PuntoCustomMarker({ punto, seleccionado, esNuevo, onSeleccionar, onMove
       <text y="-14" textAnchor="middle" fontSize="9" fontWeight="800" fill="white" stroke="#0b0b0f" strokeWidth="2" paintOrder="stroke" style={{ pointerEvents: "none" }}>
         {punto.nombre}
       </text>
+      {empNombre && (
+        <text y="-24" textAnchor="middle" fontSize="7.5" fontWeight="700" fill={color} stroke="#0b0b0f" strokeWidth="2" paintOrder="stroke" style={{ pointerEvents: "none" }}>
+          {empNombre.split(" ")[0]}
+        </text>
+      )}
     </g>
   );
 }
@@ -1922,26 +1900,6 @@ export default function MaquinaTab({ mob }) {
   // describirlo por chat.
   const [editando, setEditando] = useState(false);
   const { diseno, loading: loadingDiseno, guardarDiseno } = useMaquinaDiseno();
-  const [respaldoLocal, setRespaldoLocal] = useState(() => leerRespaldoLocal());
-  const [recuperando, setRecuperando] = useState(false);
-  const recuperarRespaldoLocal = async () => {
-    if (!respaldoLocal) return;
-    setRecuperando(true);
-    const ok = await guardarDiseno({
-      calibCfg: { ...CALIB_CFG_DEFAULT, ...(respaldoLocal.calibCfg || {}) },
-      posCustom: respaldoLocal.posCustom || {},
-      posPersonas: respaldoLocal.posPersonas || {},
-      objetos: respaldoLocal.objetos || [],
-      rutasPersonas: respaldoLocal.rutasPersonas || {},
-      maquinasCfg: {},
-      puntosCustom: [],
-    }, nombreUsuarioSesion());
-    setRecuperando(false);
-    if (ok) {
-      Object.values(LLAVES_RESPALDO_LOCAL).forEach(llave => { try { localStorage.removeItem(llave); } catch { /* noop */ } });
-      setRespaldoLocal(null);
-    }
-  };
   const [calibCfg, setCalibCfg] = useState(() => ({ ...CALIB_CFG_DEFAULT }));
 
   // Dirección de las máquinas que se orientan solas según la estación
@@ -2554,31 +2512,6 @@ export default function MaquinaTab({ mob }) {
     >
       <style>{CSS}</style>
 
-      {respaldoLocal && (
-        <div style={{
-          background: "rgba(249,168,38,0.1)", border: "1px solid #F9A826", borderRadius: 12,
-          padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-        }}>
-          <div style={{ fontSize: 20 }}>💾</div>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#F9A826" }}>Hay un diseño guardado en este navegador que no se subió a la web</div>
-            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
-              Es de antes de conectar el plano a Supabase. Recupéralo para que quede en la web, igual que lo dejaste aquí.
-            </div>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); recuperarRespaldoLocal(); }}
-            disabled={recuperando}
-            style={{
-              background: "rgba(0,201,167,0.15)", border: "1px solid #00C9A7", borderRadius: 8, color: "#00C9A7",
-              padding: "7px 14px", fontSize: 11, fontWeight: 700, cursor: recuperando ? "wait" : "pointer", opacity: recuperando ? 0.6 : 1,
-            }}
-          >
-            {recuperando ? "Recuperando..." : "♻️ Recuperar y subir a la web"}
-          </button>
-        </div>
-      )}
-
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: mob ? 18 : 22, fontWeight: 800, fontFamily: "'Syne',sans-serif", color: "white", letterSpacing: -0.5 }}>
@@ -2764,7 +2697,7 @@ export default function MaquinaTab({ mob }) {
               { key: "angulo", label: "Ángulo de bandejas (0 = recto)", min: -45, max: 45, step: 1, unidad: "°" },
               { key: "largo", label: "Largo de bandeja", min: 25, max: 70, step: 1, unidad: "px" },
               { key: "ancho", label: "Ancho de bandeja", min: 15, max: 40, step: 1, unidad: "px" },
-              { key: "spineHalf", label: "Longitud del eje", min: 50, max: 140, step: 2, unidad: "px" },
+              { key: "spineHalf", label: "Longitud del eje", min: 50, max: 200, step: 2, unidad: "px" },
             ].map(campo => (
               <div key={campo.key}>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginBottom: 3 }}>
@@ -2894,6 +2827,20 @@ export default function MaquinaTab({ mob }) {
                   </button>
                 ))}
               </div>
+              <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>Asignar un trabajador a este punto</div>
+              <select
+                value={puntoCustomSeleccionado.empNum || ""}
+                onChange={e => actualizarPuntoCustom(puntoCustomSeleccionado.id, { empNum: e.target.value || null })}
+                style={{
+                  width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: 8, color: "white", padding: "7px 10px", fontSize: 12, marginBottom: 10,
+                }}
+              >
+                <option value="" style={{ color: "#111" }}>Sin asignar</option>
+                {personas.map(e => (
+                  <option key={e.num} value={e.num} style={{ color: "#111" }}>{e.nombre}</option>
+                ))}
+              </select>
               <button
                 onClick={() => eliminarPuntoCustom(puntoCustomSeleccionado.id)}
                 style={{ background: "rgba(255,107,107,0.12)", border: "1px solid #FF6B6B40", borderRadius: 8, color: "#FF6B6B", padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
@@ -3157,8 +3104,8 @@ export default function MaquinaTab({ mob }) {
             <rect x="0" y={LAYOUT.height * 0.07} width={LAYOUT.width} height={LAYOUT.height * 0.1} fill="url(#mq-ladrillo)" opacity="0.22" />
             <rect x="0" y={LAYOUT.height * 0.07} width={LAYOUT.width} height={LAYOUT.height * 0.16} fill="url(#mq-fondo-fade)" />
             <rect x="0" y={LAYOUT.height * 0.39} width={LAYOUT.width} height={LAYOUT.height * 0.09} fill="#d8d3c4" opacity="0.14" />
-            <rect x="0" y="0" width={LAYOUT.width * 0.14} height={LAYOUT.height} fill="url(#mq-pared-izq)" pointerEvents="none" />
-            <rect x={LAYOUT.width * 0.86} y="0" width={LAYOUT.width * 0.14} height={LAYOUT.height} fill="url(#mq-pared-der)" pointerEvents="none" />
+            <rect x="0" y="0" width={LAYOUT.width * 0.045} height={LAYOUT.height} fill="url(#mq-pared-izq)" pointerEvents="none" />
+            <rect x={LAYOUT.width * 0.955} y="0" width={LAYOUT.width * 0.045} height={LAYOUT.height} fill="url(#mq-pared-der)" pointerEvents="none" />
 
             {/* Lámparas de techo con su cono de luz — ambientan la nave
                 antes de dibujar la máquina encima. */}
@@ -3401,7 +3348,11 @@ export default function MaquinaTab({ mob }) {
                 <ObjetoLibre key={o.id} obj={o} seleccionado={o.id === seleccionId} esNuevo={o.id === nuevoId} editando={editando} onSeleccionar={setSeleccionId} onMover={moverObjeto} onAjustar={actualizarObjeto} />
               ))}
               {puntosCustom.map(p => (
-                <PuntoCustomMarker key={p.id} punto={p} seleccionado={p.id === seleccionPuntoId} esNuevo={p.id === nuevoPuntoId} onSeleccionar={setSeleccionPuntoId} onMover={moverPuntoCustom} />
+                <PuntoCustomMarker
+                  key={p.id} punto={p} seleccionado={p.id === seleccionPuntoId} esNuevo={p.id === nuevoPuntoId}
+                  empNombre={p.empNum ? personas.find(e => e.num === p.empNum)?.nombre : null}
+                  onSeleccionar={setSeleccionPuntoId} onMover={moverPuntoCustom}
+                />
               ))}
             </g>
             {colocando && mousePos && colocando !== "__punto__" && (
