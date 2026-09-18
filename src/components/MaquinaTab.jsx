@@ -968,6 +968,7 @@ const TIPOS_OBJETO = {
   rotulo:      { label: "Texto / rótulo de área", icono: "🔤", anchoDef: 90, altoDef: 22, largoDef: 2, texto: true },
   puerta:      { label: "Puerta",       icono: "🚪", anchoDef: 34, altoDef: 60, largoDef: 6 },
   banco:       { label: "Banco de metal", icono: "🪑", anchoDef: 50, altoDef: 16, largoDef: 14 },
+  cuartoFrio:  { label: "Cuarto Frío",  icono: "🧊", anchoDef: 90, altoDef: 70, largoDef: 90 },
 };
 
 // Sombra de piso compartida — le da apoyo/volumen a cualquier objeto suelto
@@ -1313,6 +1314,11 @@ function IconoLavamanos({ ancho, alto }) {
       <ellipse cx="0" cy={alto * 0.06} rx={ancho * 0.38} ry={alto * 0.09} fill="#cbd5e1" />
       <path d={`M 0 ${-alto * 0.06} v ${-alto * 0.14} h ${ancho * 0.16}`} stroke="#6b7280" strokeWidth="2.2" strokeLinecap="round" fill="none" />
       <circle cx={ancho * 0.16} cy={-alto * 0.2} r={Math.max(ancho * 0.05, 1.4)} fill="#38BDF8" />
+      {/* gota cayendo del grifo a la poceta, en bucle */}
+      <circle cx={ancho * 0.16} cy={-alto * 0.16} r={Math.max(ancho * 0.03, 0.9)} fill="#38BDF8" opacity="0">
+        <animate attributeName="cy" values={`${-alto * 0.16};${alto * 0.05}`} dur="1.3s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0;0.9;0.9;0" keyTimes="0;0.15;0.85;1" dur="1.3s" repeatCount="indefinite" />
+      </circle>
     </g>
   );
 }
@@ -1526,6 +1532,51 @@ function IconoPuerta({ ancho, alto }) {
   );
 }
 
+// Caseta de cuarto frío — estructura construida dentro de la planta, no un
+// objeto suelto: paneles tipo sandwich, unidad condensadora en el techo y
+// puerta aislada, para distinguirla del resto del mobiliario del plano.
+function IconoCuartoFrio({ ancho, alto }) {
+  const nPaneles     = Math.max(3, Math.round(ancho / 16));
+  const puertaAncho  = Math.min(ancho * 0.3, 26);
+  const puertaAlto   = alto * 0.6;
+  const fsEmoji      = Math.max(9, alto * 0.16);
+  const fsLabel      = Math.max(5.5, alto * 0.085);
+  return (
+    <g>
+      <rect x={-ancho / 2} y={-alto / 2} width={ancho} height={alto} rx="2" fill="#e2e8f0" stroke="#475569" strokeWidth="1.6" />
+      {Array.from({ length: nPaneles - 1 }).map((_, i) => {
+        const x = -ancho / 2 + (i + 1) * (ancho / nPaneles);
+        return <line key={i} x1={x} y1={-alto / 2 + 2} x2={x} y2={alto / 2 - 2} stroke="#94a3b8" strokeWidth="0.7" opacity="0.65" />;
+      })}
+      <polygon points={poly([[-ancho / 2, -alto / 2], [ancho / 2, -alto / 2], [ancho / 2, alto / 2], [-ancho / 2, alto / 2]])} fill="url(#mq-sheen)" pointerEvents="none" opacity="0.5" />
+      {/* unidad condensadora en el techo, con ventilador girando de verdad */}
+      <rect x={ancho * 0.14} y={-alto / 2 - 9} width={ancho * 0.3} height="9" rx="1.5" fill="#64748b" stroke="#334155" strokeWidth="1" />
+      <circle cx={ancho * 0.29} cy={-alto / 2 - 4.5} r="3" fill="#334155" stroke="#cbd5e1" strokeWidth="0.6" />
+      <g transform={`translate(${ancho * 0.29},${-alto / 2 - 4.5})`}>
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="0;360" dur="0.9s" repeatCount="indefinite" />
+          <line x1="-2.2" y1="0" x2="2.2" y2="0" stroke="#cbd5e1" strokeWidth="0.6" />
+          <line x1="0" y1="-2.2" x2="0" y2="2.2" stroke="#cbd5e1" strokeWidth="0.6" />
+        </g>
+      </g>
+      {/* puerta aislada */}
+      <rect x={-puertaAncho / 2} y={alto / 2 - puertaAlto} width={puertaAncho} height={puertaAlto} fill="#93c5fd" stroke="#1e3a8a" strokeWidth="1.3" />
+      <circle cx={puertaAncho / 2 - 3.5} cy={alto / 2 - puertaAlto / 2} r="1.5" fill="#1e3a8a" />
+      {/* neblina fría escapando por debajo de la puerta, como en un cuarto frío real */}
+      {[-1, 1].map((dir, i) => (
+        <ellipse key={dir} cx="0" cy={alto / 2 - 1.5} rx="1.5" ry="1.3" fill="#e0f2fe" opacity="0">
+          <animate attributeName="cx" values={`0;${dir * puertaAncho * 1.1};${dir * puertaAncho * 1.7}`} dur="2.2s" begin={`${i * 0.7}s`} repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0;0.6;0" dur="2.2s" begin={`${i * 0.7}s`} repeatCount="indefinite" />
+          <animate attributeName="rx" values="1.5;4;5.5" dur="2.2s" begin={`${i * 0.7}s`} repeatCount="indefinite" />
+        </ellipse>
+      ))}
+      {/* rótulo */}
+      <text x="0" y={-alto * 0.28} fontSize={fsEmoji} textAnchor="middle">❄️</text>
+      <text x="0" y={-alto * 0.28 + fsEmoji * 0.85} fontSize={fsLabel} fill="#1e3a8a" fontWeight="800" textAnchor="middle" letterSpacing="0.2">CUARTO FRÍO</text>
+    </g>
+  );
+}
+
 // Banco largo de metal (tipo vestier/comedor) — tablón con patas en A.
 function IconoBanco({ ancho, alto }) {
   return (
@@ -1577,6 +1628,7 @@ function IconoObjeto({ tipo, ancho, alto, texto, color }) {
     case "rotulo": return <IconoRotulo texto={texto} color={color} alto={alto} />;
     case "puerta": return <IconoPuerta ancho={ancho} alto={alto} />;
     case "banco": return <IconoBanco ancho={ancho} alto={alto} />;
+    case "cuartoFrio": return <IconoCuartoFrio ancho={ancho} alto={alto} />;
     default: return null;
   }
 }
