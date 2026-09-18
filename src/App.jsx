@@ -2703,7 +2703,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const KG_DEL_MONTE = 16.8;
   const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
-  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosIngresados: "", kilosNoProcesados: "", kilosProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosIngresados: "", kilosNoProcesados: "", kilosProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", pesoDelMonte: "16.8", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
   const calFormDef   = { nombre: "", tipo: "cajas", cantidad: "", marca: "Del Monte" };
   const parseProveedores = (str) => {
     if (!str) return [];
@@ -4277,7 +4277,7 @@ ${seccionesScoped.map((s, i) => `
         // Es la porción del kg procesado que no terminó ni en caja ni en la
         // devolución registrada — lo que se perdió en el proceso.
         const calcRend = (r) => {
-          const kgDM  = r.cajasDelMonte * KG_DEL_MONTE;
+          const kgDM  = r.cajasDelMonte * (r.pesoDelMonte || KG_DEL_MONTE);
           const kgPri = r.cajasPrincess * KG_PRINCESS;
           const kgEmp = kgDM + kgPri;
           const proc  = r.kilosProcesados;
@@ -4298,15 +4298,17 @@ ${seccionesScoped.map((s, i) => `
             kilosDevueltos:  acc.kilosDevueltos  + r.kilosDevueltos,
             kilosPrimeraDevueltos: acc.kilosPrimeraDevueltos + (r.kilosPrimeraDevueltos || 0),
             kgEmp:           acc.kgEmp           + c.kgEmp,
+            kgDM:            acc.kgDM            + c.kgDM,
+            kgPri:           acc.kgPri           + c.kgPri,
             cajasDelMonte:   acc.cajasDelMonte   + r.cajasDelMonte,
             cajasPrincess:   acc.cajasPrincess   + r.cajasPrincess,
           };
-        }, { kilosIngresados: 0, kilosNoProcesados: 0, kilosProcesados: 0, kilosDevueltos: 0, kilosPrimeraDevueltos: 0, kgEmp: 0, cajasDelMonte: 0, cajasPrincess: 0 });
+        }, { kilosIngresados: 0, kilosNoProcesados: 0, kilosProcesados: 0, kilosDevueltos: 0, kilosPrimeraDevueltos: 0, kgEmp: 0, kgDM: 0, kgPri: 0, cajasDelMonte: 0, cajasPrincess: 0 });
 
         const rendDMTotal  = totales.kilosProcesados > 0
-          ? ((totales.cajasDelMonte * KG_DEL_MONTE) / totales.kilosProcesados) * 100 : 0;
+          ? (totales.kgDM  / totales.kilosProcesados) * 100 : 0;
         const rendPriTotal = totales.kilosProcesados > 0
-          ? ((totales.cajasPrincess * KG_PRINCESS)  / totales.kilosProcesados) * 100 : 0;
+          ? (totales.kgPri / totales.kilosProcesados) * 100 : 0;
         const mermaKgTotal = totales.kilosProcesados - totales.kgEmp - totales.kilosDevueltos;
         const mermaTotal = totales.kilosProcesados > 0
           ? (mermaKgTotal / totales.kilosProcesados) * 100 : 0;
@@ -4321,7 +4323,7 @@ ${seccionesScoped.map((s, i) => `
           const recs = rendsDelCont.filter(r => r.proveedor === pv);
           const kgProc = recs.reduce((s,r) => s + r.kilosProcesados, 0);
           const kgDev  = recs.reduce((s,r) => s + r.kilosDevueltos,  0);
-          const kgDM   = recs.reduce((s,r) => s + r.cajasDelMonte * KG_DEL_MONTE, 0);
+          const kgDM   = recs.reduce((s,r) => s + r.cajasDelMonte * (r.pesoDelMonte || KG_DEL_MONTE), 0);
           const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * KG_PRINCESS,  0);
           const kgEmp  = kgDM + kgPri;
           const rdto    = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
@@ -4358,7 +4360,7 @@ ${seccionesScoped.map((s, i) => `
 
         const abrirFormRend = (r = null) => {
           if (r) {
-            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosIngresados: r.kilosIngresados || "", kilosNoProcesados: r.kilosNoProcesados || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosIngresados: r.kilosIngresados || "", kilosNoProcesados: r.kilosNoProcesados || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, pesoDelMonte: String(r.pesoDelMonte || 16.8), cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
             setEditRendId(r.id);
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
@@ -4465,7 +4467,7 @@ ${seccionesScoped.map((s, i) => `
                     {card("Merma", `${mermaTotal.toFixed(1)}%`, colorMerma(mermaTotal), `${mermaKgTotal.toLocaleString("es-CO", { maximumFractionDigits: 1 })} kg · procesado − empacado − devuelto`)}
                     {totales.kilosPrimeraDevueltos > 0 && card("Kilos de limón de primera devueltos", `${totales.kilosPrimeraDevueltos.toLocaleString("es-CO")} kg`, "white", "procesados y aptos, devueltos por espacio")}
                     {totales.cajasDelMonte > 0 && card("Rdto. Del Monte", `${rendDMTotal.toFixed(1)}%`, "#818CF8",
-                      `${totales.cajasDelMonte} cajas · ${(totales.cajasDelMonte * KG_DEL_MONTE).toFixed(0)} kg`)}
+                      `${totales.cajasDelMonte} cajas · ${totales.kgDM.toFixed(0)} kg`)}
                     {totales.cajasPrincess > 0 && card("Rdto. Princesses", `${rendPriTotal.toFixed(1)}%`, "#C084FC",
                       `${totales.cajasPrincess} cajas · ${(totales.cajasPrincess * KG_PRINCESS).toFixed(0)} kg`)}
                   </div>
@@ -4544,8 +4546,14 @@ ${seccionesScoped.map((s, i) => `
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
-                        <div style={lbl}>Cajas Del Monte (16.8 kg)</div>
-                        <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={inp} />
+                        <div style={lbl}>Cajas Del Monte</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input type="number" min="0" value={formRend.cajasDelMonte} onChange={e => setFormRend(f => ({ ...f, cajasDelMonte: e.target.value }))} placeholder="0" style={{ ...inp, flex: 1 }} />
+                          <CustomSelect value={formRend.pesoDelMonte} onChange={e => setFormRend(f => ({ ...f, pesoDelMonte: e.target.value }))} style={{ ...inp, width: 92, flexShrink: 0 }}>
+                            <option value="16.8">16.8 kg</option>
+                            <option value="16.5">16.5 kg</option>
+                          </CustomSelect>
+                        </div>
                       </div>
                       <div>
                         <div style={lbl}>Cajas Princesses (15.7 kg)</div>
@@ -4555,7 +4563,7 @@ ${seccionesScoped.map((s, i) => `
 
                     {/* Preview en tiempo real — kg empacados + rdto % + rdto por calibre */}
                     {(() => {
-                      const kgDM  = Number(formRend.cajasDelMonte || 0) * KG_DEL_MONTE;
+                      const kgDM  = Number(formRend.cajasDelMonte || 0) * (Number(formRend.pesoDelMonte) || KG_DEL_MONTE);
                       const kgPri = Number(formRend.cajasPrincess || 0) * KG_PRINCESS;
                       const kgEmp = kgDM + kgPri;
                       const proc  = Math.max((Number(formRend.kilosIngresados) || 0) - (Number(formRend.kilosNoProcesados) || 0), 0);
@@ -4605,7 +4613,7 @@ ${seccionesScoped.map((s, i) => `
                               <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(129,140,248,0.8)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>📐 Rdto. por calibre</div>
                               <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : `repeat(${Math.min(formRend.calibres.length, 4)}, 1fr)`, gap: 6 }}>
                                 {formRend.calibres.map((cal, i) => {
-                                  const calKg  = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
+                                  const calKg  = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (Number(formRend.pesoDelMonte) || KG_DEL_MONTE) : KG_PRINCESS) : Number(cal.cantidad);
                                   const pctPro = proc > 0 ? (calKg / proc) * 100 : 0;
                                   const pctEmp = kgEmp > 0 ? (calKg / kgEmp) * 100 : 0;
                                   return (
@@ -4663,7 +4671,7 @@ ${seccionesScoped.map((s, i) => `
                       {formRend.calibres.length > 0 && (
                         <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                           {formRend.calibres.map((c, i) => {
-                            const kg = c.tipo === "cajas" ? c.cantidad * (c.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(c.cantidad);
+                            const kg = c.tipo === "cajas" ? c.cantidad * (c.marca === "Del Monte" ? (Number(formRend.pesoDelMonte) || KG_DEL_MONTE) : KG_PRINCESS) : Number(c.cantidad);
                             return (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "5px 8px" }}>
                                 <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", minWidth: 40 }}>{c.nombre}</span>
@@ -4787,7 +4795,7 @@ ${seccionesScoped.map((s, i) => `
                           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)", marginTop: 1 }}>{c.mermaKg.toLocaleString("es-CO", { maximumFractionDigits: 1 })} kg</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Del Monte ({r.cajasDelMonte} cajas)</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.42)" }}>Del Monte ({r.cajasDelMonte} cajas · {r.pesoDelMonte || KG_DEL_MONTE} kg)</div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#818CF8" }}>{c.rendDM.toFixed(1)}%</div>
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
@@ -4815,7 +4823,7 @@ ${seccionesScoped.map((s, i) => `
                           <div style={{ fontSize: 9, color: "rgba(129,140,248,0.7)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>📐 Calibres</div>
                           <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 4 }}>
                             {r.calibres.map((cal, i) => {
-                              const calKg  = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? KG_DEL_MONTE : KG_PRINCESS) : Number(cal.cantidad);
+                              const calKg  = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (r.pesoDelMonte || KG_DEL_MONTE) : KG_PRINCESS) : Number(cal.cantidad);
                               const pctPro = r.kilosProcesados > 0 ? (calKg / r.kilosProcesados) * 100 : 0;
                               const pctEmp = c.kgEmp > 0 ? (calKg / c.kgEmp) * 100 : 0;
                               return (
