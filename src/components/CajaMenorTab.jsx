@@ -137,7 +137,17 @@ export default function CajaMenorTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { facturas, abonos, loading, guardarFactura, eliminarFactura, guardarAbono, eliminarAbono } = useCajaMenor();
+  // La lista de facturas NO carga todo el historial: por defecto trae las
+  // últimas N, y si se elige un rango de fechas o se busca, la consulta se
+  // hace en la base con ese filtro. El saldo y los proveedores salen de
+  // `resumenFacturas` (todas las facturas, sin fotos), no de la lista.
+  const [busqueda, setBusqueda]       = useState("");
+  const [filtroDesde, setFiltroDesde] = useState("");
+  const [filtroHasta, setFiltroHasta] = useState("");
+  const [limiteFacturas, setLimiteFacturas] = useState("15");
+
+  const { facturas, resumenFacturas, abonos, loading, refrescando, errorCarga, saldoConfiable, recargar, guardarFactura, eliminarFactura, guardarAbono, eliminarAbono } =
+    useCajaMenor({ ultimas: Number(limiteFacturas), desde: filtroDesde, hasta: filtroHasta, busqueda });
   const { terceros, loading: loadingTerceros, guardarTercero, toggleActivo, eliminarTercero } = useTerceros();
 
   const [tabCM, setTabCM] = useState(0);
@@ -164,7 +174,6 @@ export default function CajaMenorTab({ mob }) {
   const [guardando, setGuardando]   = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState("");
-  const [busqueda, setBusqueda]     = useState("");
   const [subiendoFoto, setSubiendoFoto] = useState(false);
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
@@ -173,14 +182,14 @@ export default function CajaMenorTab({ mob }) {
   // y NIT (compras repetidas al mismo proveedor) sin tener que digitarlos de nuevo.
   const proveedoresPorNombre = useMemo(() => {
     const mapa = new Map();
-    facturas.forEach(f => { if (f.nombre && !mapa.has(f.nombre)) mapa.set(f.nombre, f.nit || ""); });
+    resumenFacturas.forEach(f => { if (f.nombre && !mapa.has(f.nombre)) mapa.set(f.nombre, f.nit || ""); });
     return mapa;
-  }, [facturas]);
+  }, [resumenFacturas]);
   const proveedoresPorNit = useMemo(() => {
     const mapa = new Map();
-    facturas.forEach(f => { if (f.nit && !mapa.has(f.nit)) mapa.set(f.nit, f.nombre || ""); });
+    resumenFacturas.forEach(f => { if (f.nit && !mapa.has(f.nit)) mapa.set(f.nit, f.nombre || ""); });
     return mapa;
-  }, [facturas]);
+  }, [resumenFacturas]);
 
   // Terceros activos del catálogo — para ofrecerlos como autocompletado en el
   // formulario de Facturas, además de la heurística sobre facturas anteriores.
@@ -295,23 +304,25 @@ export default function CajaMenorTab({ mob }) {
   const facturasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     const filtradas = facturas.filter(f => {
+      if (filtroDesde && (!f.fecha || f.fecha < filtroDesde)) return false;
+      if (filtroHasta && (!f.fecha || f.fecha > filtroHasta)) return false;
       if (!q) return true;
       return [f.concepto, f.nombre, f.nit, f.numeroDocumento].some(v => (v || "").toLowerCase().includes(q));
     });
     return ordenarPorFechaDesc(filtradas);
-  }, [facturas, busqueda]);
+  }, [facturas, busqueda, filtroDesde, filtroHasta]);
 
   const totalFacturasFiltradas = useMemo(
     () => facturasFiltradas.reduce((a, f) => a + (Number(f.monto) || 0), 0),
     [facturasFiltradas]
   );
 
-  // ── Saldo de Caja (siempre sobre el total, no sobre lo filtrado por búsqueda) ──
+  // ── Saldo de Caja (siempre sobre TODAS las facturas y abonos, no sobre lo que muestre la lista) ──
   const saldoCaja = useMemo(() => {
     const totalAbonos   = abonos.reduce((a, x) => a + (Number(x.monto) || 0), 0);
-    const totalFacturas = facturas.reduce((a, x) => a + (Number(x.monto) || 0), 0);
+    const totalFacturas = resumenFacturas.reduce((a, x) => a + (Number(x.monto) || 0), 0);
     return { totalAbonos, totalFacturas, saldo: totalAbonos - totalFacturas };
-  }, [abonos, facturas]);
+  }, [abonos, resumenFacturas]);
 
   // ══════════════ ABONOS: lista / detalle ══════════════
   const [abonoSel, setAbonoSel]         = useState(null); // null = lista | "new" | id
@@ -430,7 +441,7 @@ export default function CajaMenorTab({ mob }) {
     setImportandoTerceros(true);
     const existentes = new Set(terceros.map(t => t.nombre.trim().toLowerCase()));
     const nuevos = new Map();
-    facturas.forEach(f => {
+    resumenFacturas.forEach(f => {
       const nombre = (f.nombre || "").trim();
       if (!nombre) return;
       const key = nombre.toLowerCase();
@@ -467,6 +478,12 @@ export default function CajaMenorTab({ mob }) {
   return (
     <div>
       {/* ── Saldo de Caja ── */}
+      {errorCarga && (
+        <div style={{ fontSize: 12, color: "#ff8a8a", background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.3)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span>{saldoConfiable ? "No se pudo cargar completa la lista de facturas" : "No se pudieron cargar todos los datos — el saldo puede estar incompleto"} ({errorCarga}).</span>
+          <button onClick={recargar} style={btnSecundario}>↻ Reintentar</button>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
         <div style={{ ...cardS, textAlign: "center" }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: "#00C9A7" }}>{fmtCOP(saldoCaja.totalAbonos)}</div>
@@ -506,11 +523,38 @@ export default function CajaMenorTab({ mob }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>🧾 Facturas de Caja Menor</div>
               <button onClick={nuevaFactura} style={btnPrimario(false, false)}>+ Nueva Factura</button>
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-              <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar por concepto, nombre, NIT o N° de documento..." style={{ ...inp, flex: 1, minWidth: 160 }} />
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="🔍 Buscar por concepto, nombre, NIT o N° de documento..." style={{ ...inp, flex: "1 1 200px", minWidth: 160 }} />
+              <div style={{ flex: m ? "1 1 45%" : "0 1 150px" }}>
+                <div style={lbl}>Desde</div>
+                <input type="date" style={inp} value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)} />
+              </div>
+              <div style={{ flex: m ? "1 1 45%" : "0 1 150px" }}>
+                <div style={lbl}>Hasta</div>
+                <input type="date" style={inp} value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} />
+              </div>
+              {!(filtroDesde || filtroHasta || busqueda.trim()) && (
+                <div style={{ flex: m ? "1 1 100%" : "0 1 130px" }}>
+                  <div style={lbl}>Ver últimas</div>
+                  <CustomSelect value={limiteFacturas} onChange={e => setLimiteFacturas(e.target.value)} style={inp}>
+                    <option value="15">15</option>
+                    <option value="30">30</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </CustomSelect>
+                </div>
+              )}
+              {(filtroDesde || filtroHasta) && (
+                <button onClick={() => { setFiltroDesde(""); setFiltroHasta(""); }} style={{ ...btnSecundario, height: m ? 44 : 32 }}>✕ Limpiar</button>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>
+              {refrescando ? "Cargando… " : ""}{busqueda.trim() ? "Resultados de la búsqueda (hasta 50)." : filtroDesde || filtroHasta ? "Mostrando el rango de fechas elegido." : `Mostrando las últimas ${limiteFacturas} facturas — busca o elige un rango de fechas para ver más. El saldo de arriba incluye todas.`}
             </div>
             {facturasFiltradas.length === 0 ? (
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>Sin facturas registradas todavía.</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", padding: "12px 0" }}>
+                {refrescando ? "Cargando…" : (busqueda.trim() || filtroDesde || filtroHasta ? "Ninguna factura coincide con lo buscado." : "Sin facturas registradas todavía.")}
+              </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -540,7 +584,7 @@ export default function CajaMenorTab({ mob }) {
                   </tbody>
                   <tfoot>
                     <tr style={{ borderTop: "2px solid rgba(255,255,255,0.12)" }}>
-                      <td colSpan={4} style={{ padding: "8px 6px", fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>Total gastado ({facturasFiltradas.length})</td>
+                      <td colSpan={4} style={{ padding: "8px 6px", fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>Total de las {facturasFiltradas.length} mostradas</td>
                       <td style={{ padding: "8px 6px", fontWeight: 800, color: "#F9A826" }}>{fmtCOP(totalFacturasFiltradas)}</td>
                       <td></td>
                     </tr>

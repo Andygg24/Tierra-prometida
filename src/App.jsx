@@ -5948,7 +5948,9 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
 
   // ── Datos para el widget de bienvenida diario ──
   const { procesos: procesosBienvenida }     = useContenedores();
-  const { recepciones: recepcionesBienvenida } = useRecepciones();
+  const { recepciones: recepcionesBienvenida } = useRecepciones({
+    desde: fechaLocalISO(new Date(hora.getTime() - 86400000)), hasta: fechaLocalISO(hora), conAsignaciones: false,
+  });
   const { bookings: bookingsBienvenida }     = useLogistica();
   const { config: cfgBienvenida }            = useConfiguracion();
   const { cargarUltimoAutorizado }           = usePackingList();

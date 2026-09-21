@@ -466,7 +466,7 @@ tfoot td{background:${t.totalboxBg};font-weight:800;border-top:2px solid ${t.mid
       ${logoSrc ? `<img src="${logoSrc}" />` : ""}
     </div>
     <div class="chips">
-      <span class="chip">📅 ${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : "Todas las fechas"}</span>
+      <span class="chip">📅 ${desde || hasta ? `${fmt(desde) || "Inicio"} — ${fmt(hasta) || "Hoy"}` : `Últimas ${recs.length} registradas`}</span>
       <span class="chip">${tipo === "salida" ? "⬆️" : "⬇️"} ${recs.length} ${nombrePlural.toLowerCase()}</span>
     </div>
   </div>
@@ -678,7 +678,14 @@ export default function RecepcionesTab({ mob }) {
   }, []);
   const m = mob || isMobLocal;
 
-  const { recepciones, asignaciones, loading, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta } = useRecepciones();
+  // El historial NO carga todo: por defecto trae las últimas N de cada tipo, y
+  // si se elige un rango de fechas la consulta se hace en la base con ese rango.
+  const [filtroDesde, setFiltroDesde] = useState("");
+  const [filtroHasta, setFiltroHasta] = useState("");
+  const [limiteHistorial, setLimiteHistorial] = useState("5"); // últimas N de cada tipo cuando no hay rango de fechas
+
+  const { recepciones, conocidas: recepcionesConocidas, asignaciones, loading, refrescando, errorCarga, recargar, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta, cargarRecepcionPorId } =
+    useRecepciones({ ultimas: Number(limiteHistorial), desde: filtroDesde, hasta: filtroHasta });
   const { cargarPalletsPorContenedores } = usePackingList();
   const { verificaciones, guardarVerificacion, eliminarVerificacion } = useVerificacionesEstibas();
 
@@ -690,10 +697,7 @@ export default function RecepcionesTab({ mob }) {
   const [subiendoFotoIdx, setSubiendoFotoIdx] = useState(null); // idx de la estiba cuya foto de peso se está procesando
   const [imagenAmpliada, setImagenAmpliada]   = useState(null); // url de la foto de peso en vista ampliada
   const [subiendoFotoComparacion, setSubiendoFotoComparacion] = useState(false); // foto(s) del cuaderno del proveedor
-  const [filtroDesde, setFiltroDesde] = useState("");
-  const [filtroHasta, setFiltroHasta] = useState("");
-  const [limiteHistorial, setLimiteHistorial] = useState("15"); // cuántas recepciones se listan a la vez, para no cargar todo el historial de una — "todas" las muestra completas
-  const [tipoTab,     setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
+  const [tipoTab,    setTipoTab]     = useState("entrada"); // pestaña del historial: entradas o salidas por separado
   const [seccion,     setSeccion]     = useState("form"); // "stats" muestra las tarjetas KPI, ocultas por defecto; formulario e historial siempre visibles
   const [tabRec,      setTabRec]      = useState(0); // 0 = Recepciones, 1 = Verificación de Estibas
 
@@ -854,7 +858,7 @@ export default function RecepcionesTab({ mob }) {
     if (!e?.usada) return;
     if (!window.confirm(`¿Desmarcar la estiba #${e.numero} como usada? Quedará disponible para usarla o asociarla a otro contenedor.`)) return;
     setDesmarcandoUsada(idx);
-    const recepcion = recepciones.find(r => r.id === editId);
+    const recepcion = recepcionesConocidas.find(r => r.id === editId);
     if (recepcion) {
       const nuevasEstibas = recepcion.estibas.map(re => re.numero !== e.numero ? re : { ...re, usada: false, usadaPor: "", usadaEn: "" });
       await actualizarEstibas(editId, nuevasEstibas);
@@ -872,7 +876,7 @@ export default function RecepcionesTab({ mob }) {
     if (!usadasCount) return;
     if (!window.confirm(`¿Desmarcar las ${usadasCount} estiba(s) usada(s) de esta recepción? Todas quedarán disponibles de nuevo. Esta acción no se puede deshacer.`)) return;
     setDesmarcandoUsada("todas");
-    const recepcion = recepciones.find(r => r.id === editId);
+    const recepcion = recepcionesConocidas.find(r => r.id === editId);
     if (recepcion) {
       const nuevasEstibas = recepcion.estibas.map(re => re.usada ? { ...re, usada: false, usadaPor: "", usadaEn: "" } : re);
       await actualizarEstibas(editId, nuevasEstibas);
@@ -894,7 +898,7 @@ export default function RecepcionesTab({ mob }) {
       porRecepcion.get(recepcionId).add(numeroEstiba);
     });
     for (const [recepcionId, numeros] of porRecepcion) {
-      const recepcion = recepciones.find(r => r.id === recepcionId);
+      const recepcion = recepcionesConocidas.find(r => r.id === recepcionId);
       if (!recepcion) continue;
       if (!recepcion.estibas.some(e => numeros.has(e.numero) && e.usada)) continue;
       const nuevasEstibas = recepcion.estibas.map(e => numeros.has(e.numero) ? { ...e, usada: false, usadaPor: "", usadaEn: "" } : e);
@@ -908,7 +912,13 @@ export default function RecepcionesTab({ mob }) {
     // La lista carga sin fotos (para no repetir el timeout de Recepciones);
     // al editar se trae esta fila puntual completa, con fotos incluidas.
     const completa = await obtenerRecepcionCompleta(r.id);
-    const src = completa || r;
+    if (!completa) {
+      // Sin la fila completa el formulario quedaría sin fotos, y al guardar
+      // se borrarían las de la recepción — mejor no abrirla.
+      window.alert("No se pudo cargar la recepción completa (con sus fotos). Intenta de nuevo en unos segundos.");
+      return;
+    }
+    const src = completa;
     setForm({
       remision: src.remision, fecha: src.fecha, tipo: src.tipo,
       placa: src.placa, conductor: src.conductor, cedulaConductor: src.cedulaConductor || "", origen: src.origen || "",
@@ -942,18 +952,14 @@ export default function RecepcionesTab({ mob }) {
     });
   }, [recepciones, filtroDesde, filtroHasta, tipoTab]);
 
-  // Lo que realmente se pinta en la tabla — recorta a las últimas N para no
-  // renderizar todo el historial de una vez. El informe general y los totales
-  // sí usan recepcionesFiltradas completo, sin este recorte.
-  const recepcionesMostradas = useMemo(() => {
-    if (limiteHistorial === "todas") return recepcionesFiltradas;
-    return recepcionesFiltradas.slice(0, Number(limiteHistorial));
-  }, [recepcionesFiltradas, limiteHistorial]);
+  // Lo que se pinta en la tabla: el hook ya trae solo las últimas N de cada
+  // tipo, o el rango de fechas elegido — no hay que recortar más aquí.
+  const recepcionesMostradas = recepcionesFiltradas;
 
   const verInformeGeneral = async () => {
     const html = await generarInformeGeneralHTML(recepcionesFiltradas, filtroDesde, filtroHasta, tipoTab);
     const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-    const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : "todas";
+    const sufijo = filtroDesde || filtroHasta ? `${filtroDesde || "inicio"}_a_${filtroHasta || "hoy"}` : `ultimas_${recepcionesFiltradas.length}`;
     const nombreTipo = tipoTab === "salida" ? "Salidas" : "Entradas";
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `Informe_General_${nombreTipo}_${sufijo}.html` }; });
   };
@@ -1069,8 +1075,11 @@ export default function RecepcionesTab({ mob }) {
   };
   useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => { /* ya se había detenido */ }); }, []);
 
-  const buscarEstibaPorQr = (recepcionIdRaw, numeroRaw) => {
-    const recepcion = recepciones.find(r => r.id === Number(recepcionIdRaw));
+  const buscarEstibaPorQr = async (recepcionIdRaw, numeroRaw) => {
+    // La tirilla puede ser de una recepción vieja que no está cargada en la
+    // lista — si no está, se trae por id.
+    const recepcion = recepcionesConocidas.find(r => r.id === Number(recepcionIdRaw))
+      || await cargarRecepcionPorId(recepcionIdRaw);
     const estiba = recepcion?.estibas?.find(e => e.numero === Number(numeroRaw));
     setResultadoEstiba(recepcion && estiba ? { estado: "ok", recepcion, estiba } : { estado: "no-encontrado" });
   };
@@ -1087,7 +1096,7 @@ export default function RecepcionesTab({ mob }) {
     procesandoRef.current = true;
     playBeep();
     await detenerCamaraEstiba();
-    buscarEstibaPorQr(partes[1], partes[2]);
+    await buscarEstibaPorQr(partes[1], partes[2]);
     procesandoRef.current = false;
   };
 
@@ -1271,7 +1280,7 @@ export default function RecepcionesTab({ mob }) {
     const vistas = new Set();
     const lista = [];
     asignaciones.filter(match).forEach(a => {
-      const recepcion = recepciones.find(r => r.id === a.recepcionId);
+      const recepcion = recepcionesConocidas.find(r => r.id === a.recepcionId);
       const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba);
       if (!recepcion || !estiba || estiba.usada) return;
       const clave = `${recepcion.id}-${estiba.numero}`;
@@ -1287,7 +1296,7 @@ export default function RecepcionesTab({ mob }) {
       (recepcion.proveedor || "").toLowerCase().includes(q) ||
       (recepcion.placa || "").toLowerCase().includes(q)
     );
-  }, [recepciones, asignaciones, contenedorManualId, busquedaManualVerif]);
+  }, [recepcionesConocidas, asignaciones, contenedorManualId, busquedaManualVerif]);
 
   const seleccionarEstibaManual = (recepcion, estiba) => {
     setCantidadUsadaConfirmada(null);
@@ -1314,7 +1323,7 @@ export default function RecepcionesTab({ mob }) {
       ? (a) => a.contenedorId == null
       : (a) => a.contenedorId === Number(contenedorManualId);
     const filas = asignaciones.filter(match).map(a => {
-      const recepcion = recepciones.find(r => r.id === a.recepcionId) || null;
+      const recepcion = recepcionesConocidas.find(r => r.id === a.recepcionId) || null;
       const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba) || null;
       const uso = estiba ? calcularUsoEstiba(estiba, a.cantidadCanastillas) : null;
       return { ...a, recepcion, estiba, kgAsignados: uso ? uso.kgUsados : 0 };
@@ -1324,7 +1333,7 @@ export default function RecepcionesTab({ mob }) {
     const contenedorInfo = contenedorManualId === "reserva" ? null : contenedoresProduccion.find(c => c.id === Number(contenedorManualId));
     const fechaContenedor = contenedorInfo?.fecha || "";
     return { filas, totalCanastillas, totalKg, fechaContenedor, contenedorInfo };
-  }, [asignaciones, recepciones, contenedorManualId, contenedoresProduccion]);
+  }, [asignaciones, recepcionesConocidas, contenedorManualId, contenedoresProduccion]);
 
   // ══════════════ ASOCIAR CONTENEDOR (remisión completa → contenedor) ══════════════
   // Se asocia la remisión completa: cada estiba queda asignada al contenedor
@@ -1332,9 +1341,20 @@ export default function RecepcionesTab({ mob }) {
   // de Estibas) resulta que no se usó todo, ahí se ajusta y aparece el
   // sobrante para reasignar a otro contenedor o dejar en reserva.
   const [busquedaAsoc, setBusquedaAsoc]     = useState("");
-  const [limiteHistorialAsoc, setLimiteHistorialAsoc] = useState("15"); // mismo patrón que "Ver últimas" del listado principal
+  const [limiteHistorialAsoc, setLimiteHistorialAsoc] = useState("5"); // mismo patrón que "Ver últimas" del listado principal
   const [filtroDesdeAsoc, setFiltroDesdeAsoc] = useState("");
   const [filtroHastaAsoc, setFiltroHastaAsoc] = useState("");
+  // Lista propia de esta pestaña: se consulta en la base con su rango/búsqueda
+  // (y solo mientras la pestaña está abierta). Las asignaciones y las
+  // recepciones referenciadas las sigue trayendo la consulta principal.
+  const { recepciones: recepcionesAsoc, refrescando: refrescandoAsoc, errorCarga: errorCargaAsoc, recargar: recargarAsoc } = useRecepciones({
+    ultimas: Number(limiteHistorialAsoc), desde: filtroDesdeAsoc, hasta: filtroHastaAsoc, busqueda: busquedaAsoc,
+    conAsignaciones: false, activo: tabRec === 1,
+  });
+  // Recuerda las recepciones vistas aquí: una remisión seleccionada debe poder
+  // asociarse aunque después el filtro/búsqueda ya no la muestre.
+  const recepcionesAsocCache = useRef(new Map());
+  useEffect(() => { recepcionesAsoc.forEach(r => recepcionesAsocCache.current.set(r.id, r)); }, [recepcionesAsoc]);
   const [seleccionAsoc, setSeleccionAsoc]   = useState([]); // ids de recepciones elegidas
   const [contenedorAsocSel, setContenedorAsocSel] = useState("");
   const [guardandoAsociacion, setGuardandoAsociacion] = useState(false);
@@ -1388,13 +1408,13 @@ export default function RecepcionesTab({ mob }) {
     return asignaciones
       .filter(a => a.contenedorId == null)
       .map(a => {
-        const recepcion = recepciones.find(r => r.id === a.recepcionId) || null;
+        const recepcion = recepcionesConocidas.find(r => r.id === a.recepcionId) || null;
         const estiba = recepcion?.estibas.find(e => e.numero === a.numeroEstiba) || null;
         return { ...a, recepcion, estiba };
       })
       .filter(a => a.recepcion && a.estiba)
       .sort((a, b) => (a.recepcion.fecha || "").localeCompare(b.recepcion.fecha || ""));
-  }, [asignaciones, recepciones]);
+  }, [asignaciones, recepcionesConocidas]);
 
   const [reasignandoId, setReasignandoId] = useState(null); // id de la asignación en reserva que se está pasando a un contenedor
   const [contenedorReasignarSel, setContenedorReasignarSel] = useState("");
@@ -1424,20 +1444,16 @@ export default function RecepcionesTab({ mob }) {
 
   const recepcionesAsocFiltradas = useMemo(() => {
     const q = busquedaAsoc.trim().toLowerCase();
-    return recepciones.filter(r => {
+    return recepcionesAsoc.filter(r => {
       if (filtroDesdeAsoc && r.fecha < filtroDesdeAsoc) return false;
       if (filtroHastaAsoc && r.fecha > filtroHastaAsoc) return false;
       if (!q) return true;
       return [r.remision, r.proveedor, r.placa, r.lote].some(v => (v || "").toLowerCase().includes(q));
     });
-  }, [recepciones, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
+  }, [recepcionesAsoc, busquedaAsoc, filtroDesdeAsoc, filtroHastaAsoc]);
 
-  // Igual que recepcionesMostradas del listado principal — no renderiza todo
-  // el historial de una vez, salvo que se elija "Todas".
-  const recepcionesAsocMostradas = useMemo(() => {
-    if (limiteHistorialAsoc === "todas") return recepcionesAsocFiltradas;
-    return recepcionesAsocFiltradas.slice(0, Number(limiteHistorialAsoc));
-  }, [recepcionesAsocFiltradas, limiteHistorialAsoc]);
+  // Igual que el listado principal: la consulta ya trae solo lo pedido.
+  const recepcionesAsocMostradas = recepcionesAsocFiltradas;
 
   const estadoAsociacionRecepcion = (r) => {
     // Las estibas sin canastillas cargadas no cuentan: no hay nada que asociar.
@@ -1461,7 +1477,7 @@ export default function RecepcionesTab({ mob }) {
     setGuardandoAsociacion(true);
     let hechas = 0, fallidas = 0, primerError = null;
     for (const recepcionId of seleccionAsoc) {
-      const rec = recepciones.find(r => r.id === recepcionId);
+      const rec = recepcionesAsocCache.current.get(recepcionId) || recepcionesConocidas.find(r => r.id === recepcionId);
       if (!rec) continue;
       for (const e of rec.estibas) {
         if (asignacionesPorEstiba(recepcionId, e.numero).length > 0) continue;
@@ -1574,10 +1590,10 @@ export default function RecepcionesTab({ mob }) {
       {/* ── KPIs ── */}
       <div style={{ display:"grid", gridTemplateColumns: m ? "1fr 1fr" : "repeat(4,1fr)", gap:10 }}>
         {[
-          { l:"Recepciones", v:recepciones.length, c:"#00C9A7", i:"🍋" },
+          { l:"Recepciones cargadas", v:recepciones.length, c:"#00C9A7", i:"🍋" },
           { l:"Entradas",    v:recepciones.filter(r=>r.tipo==="entrada").length, c:"#845EF7", i:"⬇️" },
           { l:"Salidas",     v:recepciones.filter(r=>r.tipo==="salida").length,  c:"#F9A826", i:"⬆️" },
-          { l:"Kg netos totales", v:recepciones.reduce((a,r)=>a+num(r.total),0).toLocaleString("es-CO",{maximumFractionDigits:1}), c:"#6366F1", i:"⚖️" },
+          { l:"Kg netos (cargados)", v:recepciones.reduce((a,r)=>a+num(r.total),0).toLocaleString("es-CO",{maximumFractionDigits:1}), c:"#6366F1", i:"⚖️" },
         ].map((s,i)=>(
           <div key={i} style={{...cardS, display:"flex", alignItems:"center", gap:10}}>
             <div style={{ fontSize:20 }}>{s.i}</div>
@@ -1955,16 +1971,17 @@ export default function RecepcionesTab({ mob }) {
             <div style={lbl}>Hasta</div>
             <input type="date" style={inp} value={filtroHasta} onChange={e=>setFiltroHasta(e.target.value)} />
           </div>
-          <div style={{ flex: m ? "1 1 100%" : "0 1 150px" }}>
-            <div style={lbl}>Ver últimas</div>
-            <CustomSelect value={limiteHistorial} onChange={e=>setLimiteHistorial(e.target.value)} style={inp}>
-              <option value="15">15</option>
-              <option value="30">30</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="todas">Todas</option>
-            </CustomSelect>
-          </div>
+          {!(filtroDesde || filtroHasta) && (
+            <div style={{ flex: m ? "1 1 100%" : "0 1 170px" }}>
+              <div style={lbl}>Ver últimas (de cada tipo)</div>
+              <CustomSelect value={limiteHistorial} onChange={e=>setLimiteHistorial(e.target.value)} style={inp}>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </CustomSelect>
+            </div>
+          )}
           {(filtroDesde || filtroHasta) && (
             <button onClick={()=>{setFiltroDesde("");setFiltroHasta("");}} style={{ ...btnSecundario, padding:"0 14px", height: isLandscape?36:(m?44:32), display:"flex", alignItems:"center", justifyContent:"center" }}>
               ✕ Limpiar
@@ -1975,17 +1992,22 @@ export default function RecepcionesTab({ mob }) {
           </button>
         </div>
 
+        {errorCarga && (
+          <div style={{ fontSize:12, color:"#ff8a8a", background:"rgba(255,80,80,0.08)", border:"1px solid rgba(255,80,80,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:10, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+            <span>No se pudo cargar completo el historial ({errorCarga}). Lo que ves puede estar incompleto.</span>
+            <button onClick={recargar} style={btnSecundario}>↻ Reintentar</button>
+          </div>
+        )}
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>
+          {refrescando ? "Cargando… " : ""}{filtroDesde || filtroHasta ? "Mostrando el rango de fechas elegido." : `Mostrando las últimas ${limiteHistorial} de cada tipo — elige un rango de fechas para ver más.`}
+        </div>
+
         {recepcionesFiltradas.length === 0 ? (
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>
-            {recepciones.length === 0 ? "Sin recepciones registradas todavía." : `Ninguna ${tipoTab === "salida" ? "salida" : "entrada"} cae en el rango de fechas seleccionado.`}
+            {filtroDesde || filtroHasta ? `Ninguna ${tipoTab === "salida" ? "salida" : "entrada"} cae en el rango de fechas seleccionado.` : `Sin ${tipoTab === "salida" ? "salidas" : "entradas"} registradas todavía.`}
           </div>
         ) : (
           <div style={{ overflowX:"auto" }}>
-            {recepcionesMostradas.length < recepcionesFiltradas.length && (
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>
-                Mostrando {recepcionesMostradas.length} de {recepcionesFiltradas.length} — elige "Ver últimas: Todas" para verlas completas.
-              </div>
-            )}
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
               <thead>
                 <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>
@@ -2492,30 +2514,36 @@ export default function RecepcionesTab({ mob }) {
                   <div style={lbl}>Hasta</div>
                   <input type="date" style={inp} value={filtroHastaAsoc} onChange={e=>setFiltroHastaAsoc(e.target.value)} />
                 </div>
-                <div style={{ flex:"0 1 150px" }}>
-                  <div style={lbl}>Ver últimas</div>
-                  <CustomSelect value={limiteHistorialAsoc} onChange={e=>setLimiteHistorialAsoc(e.target.value)} style={inp}>
-                    <option value="15">15</option>
-                    <option value="30">30</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                    <option value="todas">Todas</option>
-                  </CustomSelect>
-                </div>
+                {!(filtroDesdeAsoc || filtroHastaAsoc || busquedaAsoc.trim()) && (
+                  <div style={{ flex:"0 1 170px" }}>
+                    <div style={lbl}>Ver últimas (de cada tipo)</div>
+                    <CustomSelect value={limiteHistorialAsoc} onChange={e=>setLimiteHistorialAsoc(e.target.value)} style={inp}>
+                      <option value="5">5</option>
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </CustomSelect>
+                  </div>
+                )}
                 {(filtroDesdeAsoc || filtroHastaAsoc) && (
                   <button onClick={()=>{setFiltroDesdeAsoc("");setFiltroHastaAsoc("");}} style={btnSecundario}>✕ Limpiar</button>
                 )}
               </div>
 
+              {errorCargaAsoc && (
+                <div style={{ fontSize:12, color:"#ff8a8a", background:"rgba(255,80,80,0.08)", border:"1px solid rgba(255,80,80,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:10, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  <span>No se pudo cargar completo el listado ({errorCargaAsoc}). Puede estar incompleto.</span>
+                  <button onClick={recargarAsoc} style={btnSecundario}>↻ Reintentar</button>
+                </div>
+              )}
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>
+                {refrescandoAsoc ? "Cargando… " : ""}{busquedaAsoc.trim() ? "Resultados de la búsqueda (hasta 50)." : filtroDesdeAsoc || filtroHastaAsoc ? "Mostrando el rango de fechas elegido." : `Mostrando las últimas ${limiteHistorialAsoc} de cada tipo — busca o elige un rango de fechas para ver más.`}
+              </div>
+
               {recepcionesAsocFiltradas.length === 0 ? (
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Sin recepciones registradas.</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>{refrescandoAsoc ? "Cargando…" : (busquedaAsoc.trim() || filtroDesdeAsoc || filtroHastaAsoc ? "Ninguna recepción coincide con lo buscado." : "Sin recepciones registradas.")}</div>
               ) : (
                 <div style={{ overflowX:"auto", marginBottom:14 }}>
-                  {recepcionesAsocMostradas.length < recepcionesAsocFiltradas.length && (
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>
-                      Mostrando {recepcionesAsocMostradas.length} de {recepcionesAsocFiltradas.length} — elige "Ver últimas: Todas" para verlas completas.
-                    </div>
-                  )}
                   <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                     <thead>
                       <tr style={{ color:"rgba(255,255,255,0.45)", textAlign:"left" }}>

@@ -311,14 +311,14 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // Contenedor) — así es imposible marcar por error un lote que nunca
   // llegó a este contenedor. "Ver todos los lotes" es la válvula de escape
   // manual si hace falta asignar antes de haber hecho esa asociación.
-  const { recepciones, asignaciones } = useRecepciones();
+  const { asignaciones, lotesPorRecepcion } = useRecepciones({ ultimas: 0, traerReferenciadas: false, conLotes: true });
   const [verTodosLotes, setVerTodosLotes] = useState(false);
-  const lotesDisponibles = [...new Set(recepciones.map(r => r.lote).filter(Boolean))].sort();
+  const lotesDisponibles = [...new Set(lotesPorRecepcion.map(r => r.lote).filter(Boolean))].sort();
   const recepcionIdsDelContenedor = new Set(
     asignaciones.filter(a => a.contenedorId === contenedor.id).map(a => a.recepcionId)
   );
   const lotesDelContenedor = [...new Set(
-    recepciones.filter(r => recepcionIdsDelContenedor.has(r.id) && r.lote).map(r => r.lote)
+    lotesPorRecepcion.filter(r => recepcionIdsDelContenedor.has(r.id) && r.lote).map(r => r.lote)
   )].sort();
   const lotesParaSelector = verTodosLotes ? lotesDisponibles : lotesDelContenedor;
   const claveRequerida = cfgSeguridad?.cfg_claves_acceso?.paso1_packing || "";
