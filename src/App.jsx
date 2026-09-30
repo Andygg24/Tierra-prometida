@@ -4792,7 +4792,12 @@ ${seccionesScoped.map((s, i) => `
                                   </div>
                                 ))}
                                 <label style={{ fontSize: 9, color: "#a5b4fc", cursor: subiendoFotoDevIdx === i ? "default" : "pointer", border: "1px dashed rgba(99,102,241,0.4)", borderRadius: 6, padding: "10px 9px", opacity: subiendoFotoDevIdx === i ? 0.5 : 1 }}>
-                                  {subiendoFotoDevIdx === i ? "Subiendo…" : "📷 + Foto"}
+                                  {subiendoFotoDevIdx === i ? "Subiendo…" : "📷 Tomar foto"}
+                                  <input type="file" accept="image/*" capture="environment" multiple disabled={subiendoFotoDevIdx === i}
+                                    onChange={e => onFotosDevolucionSeleccionadas(i, e)} style={{ display: "none" }} />
+                                </label>
+                                <label style={{ fontSize: 9, color: "#a5b4fc", cursor: subiendoFotoDevIdx === i ? "default" : "pointer", border: "1px dashed rgba(99,102,241,0.4)", borderRadius: 6, padding: "10px 9px", opacity: subiendoFotoDevIdx === i ? 0.5 : 1 }}>
+                                  {subiendoFotoDevIdx === i ? "Subiendo…" : "🖼 Subir archivo"}
                                   <input type="file" accept="image/*" multiple disabled={subiendoFotoDevIdx === i}
                                     onChange={e => onFotosDevolucionSeleccionadas(i, e)} style={{ display: "none" }} />
                                 </label>
