@@ -21,6 +21,7 @@ import MaquinaTab from "./components/MaquinaTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml, generarInformeRendimientoHtml,
+  TIPOS_DEVOLUCION,
 } from "./reportes/informesProceso.js";
 import { useLogistica, calcularAlertasLogistica, diasLibresRestantes } from "./hooks/useLogistica.js";
 import { useRecepciones } from "./hooks/useRecepciones.js";
@@ -2703,8 +2704,9 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const KG_DEL_MONTE = 16.8;
   const KG_PRINCESS  = 15.7;
   const OBS_OPCIONES = ["Plaga","Sucio","Quemado","Deshidratado","Verde / Inmaduro","Golpeado / Magullado","Pudrición","Tamaño irregular","Exceso de madurez"];
-  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, proveedor: "", kilosIngresados: "", kilosNoProcesados: "", kilosProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", pesoDelMonte: "16.8", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [] };
-  const calFormDef   = { nombre: "", tipo: "cajas", cantidad: "", marca: "Del Monte" };
+  const rendFormDef  = { contId: null, contNum: "", fecha: hoy, precioCompra: "", proveedor: "", kilosIngresados: "", kilosNoProcesados: "", kilosProcesados: "", kilosDevueltos: "", kilosPrimeraDevueltos: "", cajasDelMonte: "", pesoDelMonte: "16.8", cajasPrincess: "", observaciones: [], obsDetalle: "", calibres: [], devolucionesTipo: [] };
+  const calFormDef   = { nombre: "", tipo: "cajas", cantidad: "", marca: "Del Monte", precio: "" };
+  const devFormDef   = { tipo: "", kg: "" };
   const parseProveedores = (str) => {
     if (!str) return [];
     try { const p = JSON.parse(str); return Array.isArray(p) ? p.filter(Boolean) : [str]; }
@@ -2715,6 +2717,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const [editRendId,    setEditRendId]    = useState(null);
   const [formRend,      setFormRend]      = useState(rendFormDef);
   const [calForm,       setCalForm]       = useState(calFormDef);
+  const [devForm,       setDevForm]       = useState(devFormDef);
 
   const guardar = async () => {
     if (!form.numContenedor.trim()) return;
@@ -4360,13 +4363,14 @@ ${seccionesScoped.map((s, i) => `
 
         const abrirFormRend = (r = null) => {
           if (r) {
-            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, proveedor: r.proveedor || "", kilosIngresados: r.kilosIngresados || "", kilosNoProcesados: r.kilosNoProcesados || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, pesoDelMonte: String(r.pesoDelMonte || 16.8), cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [] });
+            setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, precioCompra: r.precioCompra || "", proveedor: r.proveedor || "", kilosIngresados: r.kilosIngresados || "", kilosNoProcesados: r.kilosNoProcesados || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, pesoDelMonte: String(r.pesoDelMonte || 16.8), cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [], devolucionesTipo: r.devolucionesTipo || [] });
             setEditRendId(r.id);
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
             setEditRendId(null);
           }
           setCalForm(calFormDef);
+          setDevForm(devFormDef);
           setShowFormRend(true);
         };
 
@@ -4377,11 +4381,11 @@ ${seccionesScoped.map((s, i) => `
           const procesados  = Math.max(ingresados - noProcesados, 0);
           let formAGuardar = { ...formRend, kilosProcesados: procesados };
           if (calForm.nombre.trim() && calForm.cantidad) {
-            formAGuardar = { ...formAGuardar, calibres: [...formRend.calibres, { ...calForm, cantidad: Number(calForm.cantidad) }] };
+            formAGuardar = { ...formAGuardar, calibres: [...formRend.calibres, { ...calForm, cantidad: Number(calForm.cantidad), precio: Number(calForm.precio) || 0 }] };
           }
           const ok = await guardarRendimientoSB(formAGuardar, editRendId);
           if (ok) {
-            setShowFormRend(false); setFormRend(rendFormDef); setCalForm(calFormDef); setEditRendId(null);
+            setShowFormRend(false); setFormRend(rendFormDef); setCalForm(calFormDef); setDevForm(devFormDef); setEditRendId(null);
             showToast("Camión registrado correctamente", true);
           } else {
             showToast("Error al guardar — verifica la conexión", false);
@@ -4520,9 +4524,13 @@ ${seccionesScoped.map((s, i) => `
                         <input type="date" value={formRend.fecha} onChange={e => setFormRend(f => ({ ...f, fecha: e.target.value }))} style={inp} />
                       </div>
                       <div>
-                        <div style={lbl}>Devolución del proceso <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(informativo)</span></div>
-                        <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={inp} />
+                        <div style={lbl}>Precio de compra ($/kg) <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(para el costo del informe)</span></div>
+                        <input type="number" min="0" step="0.01" value={formRend.precioCompra} onChange={e => setFormRend(f => ({ ...f, precioCompra: e.target.value }))} placeholder="ej. 3800" style={inp} />
                       </div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={lbl}>Devolución del proceso <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(informativo)</span></div>
+                      <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={{ ...inp, maxWidth: mob ? "100%" : "calc(50% - 4px)" }} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <div>
@@ -4672,11 +4680,13 @@ ${seccionesScoped.map((s, i) => `
                         <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                           {formRend.calibres.map((c, i) => {
                             const kg = c.tipo === "cajas" ? c.cantidad * (c.marca === "Del Monte" ? (Number(formRend.pesoDelMonte) || KG_DEL_MONTE) : KG_PRINCESS) : Number(c.cantidad);
+                            const precio = Number(c.precio) || Number(formRend.precioCompra) || 0;
                             return (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "5px 8px" }}>
                                 <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", minWidth: 40 }}>{c.nombre}</span>
                                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.58)", flex: 1 }}>
                                   {c.tipo === "cajas" ? `${c.cantidad} cajas ${c.marca}` : `${c.cantidad} kg`} → <strong style={{ color: "#00C9A7" }}>{kg.toFixed(1)} kg</strong>
+                                  {precio > 0 && <> · <strong style={{ color: "#a5b4fc" }}>${precio.toLocaleString("es-CO")}/kg</strong>{!Number(c.precio) && <span style={{ opacity: 0.5 }}> (auto)</span>} = ${(kg * precio).toLocaleString("es-CO", { maximumFractionDigits: 0 })}</>}
                                 </span>
                                 <button onClick={() => setFormRend(f => ({ ...f, calibres: f.calibres.filter((_, j) => j !== i) }))}
                                   style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>×</button>
@@ -4709,6 +4719,11 @@ ${seccionesScoped.map((s, i) => `
                           <input type="number" min="0" value={calForm.cantidad} onChange={e => setCalForm(f => ({ ...f, cantidad: e.target.value }))}
                             placeholder={calForm.tipo === "cajas" ? "ej. 300" : "ej. 4800"} style={{ ...inp, width: 90 }} />
                         </div>
+                        <div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Precio/kg <span style={{ opacity: 0.6 }}>(solo si es distinto)</span></div>
+                          <input type="number" min="0" step="0.01" value={calForm.precio} onChange={e => setCalForm(f => ({ ...f, precio: e.target.value }))}
+                            placeholder={formRend.precioCompra ? `auto: $${formRend.precioCompra}` : "ej. 3800"} style={{ ...inp, width: 90 }} />
+                        </div>
                         {calForm.tipo === "cajas" && (
                           <div>
                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Marca</div>
@@ -4721,8 +4736,59 @@ ${seccionesScoped.map((s, i) => `
                         <button
                           onClick={() => {
                             if (!calForm.nombre.trim() || !calForm.cantidad) return;
-                            setFormRend(f => ({ ...f, calibres: [...f.calibres, { ...calForm, cantidad: Number(calForm.cantidad) }] }));
+                            setFormRend(f => ({ ...f, calibres: [...f.calibres, { ...calForm, cantidad: Number(calForm.cantidad), precio: Number(calForm.precio) || 0 }] }));
                             setCalForm(calFormDef);
+                          }}
+                          style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 7, padding: "6px 14px", fontSize: 11, color: "#a5b4fc", cursor: "pointer", fontWeight: 700 }}>
+                          + Agregar
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ── Devolución por tipo (opcional) — para el análisis del informe ── */}
+                    <div style={{ marginBottom: 12, background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(129,140,248,0.9)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                        🔍 Devolución por tipo <span style={{ color: "rgba(255,255,255,0.38)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional — se usa en el análisis de devolución del informe)</span>
+                      </div>
+
+                      {formRend.devolucionesTipo.length > 0 && (
+                        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                          {formRend.devolucionesTipo.map((d, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "5px 8px" }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", flex: 1 }}>{d.tipo}</span>
+                              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.58)" }}>{Number(d.kg).toLocaleString("es-CO")} kg</span>
+                              <button onClick={() => setFormRend(f => ({ ...f, devolucionesTipo: f.devolucionesTipo.filter((_, j) => j !== i) }))}
+                                style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                        {TIPOS_DEVOLUCION.map(t => (
+                          <button key={t} onClick={() => setDevForm(f => ({ ...f, tipo: f.tipo === t ? "" : t }))}
+                            style={{ background: devForm.tipo === t ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.05)", border: `1px solid ${devForm.tipo === t ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.12)"}`, borderRadius: 20, padding: "4px 10px", fontSize: 10, color: devForm.tipo === t ? "#a5b4fc" : "rgba(255,255,255,0.5)", cursor: "pointer", fontWeight: devForm.tipo === t ? 700 : 400 }}>
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "flex-end" }}>
+                        <div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Tipo</div>
+                          <input type="text" value={devForm.tipo} onChange={e => setDevForm(f => ({ ...f, tipo: e.target.value }))}
+                            placeholder="ej. Cochinilla" style={{ ...inp, width: 140 }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Kg</div>
+                          <input type="number" min="0" step="0.1" value={devForm.kg} onChange={e => setDevForm(f => ({ ...f, kg: e.target.value }))}
+                            placeholder="ej. 120" style={{ ...inp, width: 90 }} />
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!devForm.tipo.trim() || !devForm.kg) return;
+                            setFormRend(f => ({ ...f, devolucionesTipo: [...f.devolucionesTipo, { tipo: devForm.tipo.trim(), kg: Number(devForm.kg) }] }));
+                            setDevForm(devFormDef);
                           }}
                           style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 7, padding: "6px 14px", fontSize: 11, color: "#a5b4fc", cursor: "pointer", fontWeight: 700 }}>
                           + Agregar
@@ -4734,7 +4800,7 @@ ${seccionesScoped.map((s, i) => `
                       <button onClick={guardarRend} style={{ flex: 1, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "8px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
                         {editRendId ? "Guardar cambios" : "Registrar camión"}
                       </button>
-                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); }} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.68)", cursor: "pointer" }}>
+                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); setDevForm(devFormDef); }} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.68)", cursor: "pointer" }}>
                         Cancelar
                       </button>
                     </div>

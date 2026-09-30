@@ -3,6 +3,14 @@
 // dependa de montar ese componente, y PackingListTab los importa de vuelta.
 export const CALIBRES = [110, 150, 175, 200, 230, 250];
 
+// Tipos de devolución — lista fija sugerida (basada en el molde de Cigramaluz
+// anexado en Moldes/) con opción de agregar un tipo nuevo desde el formulario.
+export const TIPOS_DEVOLUCION = ["Quemado", "Richi", "Plaga", "Bola", "Amarillo", "Industria", "Acaro", "Mercado Nacional"];
+
+// Colores para el análisis de devolución por tipo — se evita naranja/ámbar
+// (regla de marca), se usan tonos de la paleta morado/índigo/azul/teal.
+const DEV_COLORS = ["#6366F1", "#8B5CF6", "#38BDF8", "#00C9A7", "#A855F7", "#0EA5E9", "#C084FC", "#EC4899", "#64748B"];
+
 // Catálogo de predios/fincas registrados ante el ICA — compartido entre
 // Packing List (Grower List por calibre) y Recepciones (selector de lote,
 // ya que cada lote corresponde a un predio de origen).
@@ -92,6 +100,41 @@ async function cargarLogoBase64() {
       r.readAsDataURL(blob);
     });
   } catch { return ""; }
+}
+
+// TRM real (USD/COP) para el Informe Gerencial — mismo orden de fuentes que
+// TasaCambioWidget (App.jsx): TRM oficial primero, luego mercado global, y
+// como último recurso la última tasa real que el widget haya guardado en
+// localStorage. Si ninguna responde, devuelve null — nunca se inventa un
+// valor de cambio.
+export async function obtenerTRM() {
+  try {
+    const r = await fetch("https://www.datos.gov.co/resource/mcec-87by.json?$order=vigenciadesde%20DESC&$limit=1", { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      const v = Number(d?.[0]?.valor);
+      if (v > 500) return Math.round(v);
+    }
+  } catch { /* ignore */ }
+  try {
+    const r = await fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.result === "success" && d.rates?.COP > 500) return Math.round(d.rates.COP);
+    }
+  } catch { /* ignore */ }
+  try {
+    const r = await fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.usd?.cop > 500) return Math.round(d.usd.cop);
+    }
+  } catch { /* ignore */ }
+  try {
+    const cached = Number(localStorage.getItem("tp_tasa_usd"));
+    if (cached > 500) return cached;
+  } catch { /* ignore */ }
+  return null;
 }
 
 // ── Informe de Planta y de Cargue como funciones puras — extraídas de
@@ -707,6 +750,52 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     pctEmp: totales.kgEmp > 0 ? (kg / totales.kgEmp) * 100 : 0,
   }));
 
+  // ── Costo de compra y análisis de devolución — parte fija del informe ──
+  const trm = await obtenerTRM();
+
+  // Valor de compra por calibre — kg × precio/kg de cada entrada que
+  // tenga precio registrado (el precio se captura por calibre y por
+  // contenedor en el formulario, no es un valor único para todo el lote).
+  const valorPorCalibre = new Map();
+  let costoTotalCOP = 0;
+  let kgConPrecio = 0;
+  rendsDelCont.forEach(r => (r.calibres || []).forEach(cal => {
+    // El precio de un calibre es el que se haya escrito puntual para ese
+    // calibre; si no se tocó, hereda el "Precio de compra" que se ingresó
+    // una sola vez para todo el contenedor.
+    const precio = Number(cal.precio) || Number(r.precioCompra) || 0;
+    if (!precio) return;
+    const kg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (r.pesoDelMonte || KG_DEL_MONTE) : KG_PRINCESS) : Number(cal.cantidad);
+    const valor = kg * precio;
+    costoTotalCOP += valor;
+    kgConPrecio += kg;
+    const acc = valorPorCalibre.get(cal.nombre) || { kg: 0, valor: 0 };
+    acc.kg += kg; acc.valor += valor;
+    valorPorCalibre.set(cal.nombre, acc);
+  }));
+  const calibresValor = [...valorPorCalibre.entries()].map(([nombre, v]) => ({
+    nombre, kg: v.kg, valor: v.valor, precioProm: v.kg > 0 ? v.valor / v.kg : 0,
+  }));
+  const costoTotalUSD = trm ? costoTotalCOP / trm : null;
+  const costoPromKg   = kgConPrecio > 0 ? costoTotalCOP / kgConPrecio : 0;
+
+  // Análisis por tipo de devolución — suma el desglose que cada contenedor
+  // haya registrado; lo que no se haya tipificado se muestra aparte como
+  // "Sin clasificar" en vez de forzarlo a encajar en un tipo.
+  const devMap = new Map();
+  rendsDelCont.forEach(r => (r.devolucionesTipo || []).forEach(d => {
+    const kg = Number(d.kg) || 0;
+    if (!kg) return;
+    devMap.set(d.tipo, (devMap.get(d.tipo) || 0) + kg);
+  }));
+  const devTipificado    = [...devMap.values()].reduce((s, v) => s + v, 0);
+  const devSinClasificar = Math.max(totales.kilosDevueltos - devTipificado, 0);
+  const devolucionTipos  = [...devMap.entries()].map(([tipo, kg]) => ({ tipo, kg }));
+  if (devSinClasificar > 0.01) devolucionTipos.push({ tipo: "Sin clasificar", kg: devSinClasificar, sinClasificar: true });
+  const devolucionTotal = devTipificado + devSinClasificar;
+
+  const gerencialData = { trm, calibresValor, costoTotalCOP, costoTotalUSD, costoPromKg, devolucionTipos, devolucionTotal };
+
   const proveedoresCont = parseProveedoresRend(cont?.proveedor);
   // Si el contenedor tiene un solo proveedor, se usa como respaldo cuando el
   // registro de rendimiento de un camión no trae "proveedor" propio (queda
@@ -816,6 +905,87 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   </div>`;
   }).join("")}
 </div>` : "";
+
+  // ── Costo de compra en COP/USD ──────────────────────────────────
+  const costoSection = `
+<h2>💰 Costo de compra</h2>
+<div class="cards">
+  <div class="card" style="border-left-color:#6366f1;"><div class="lbl">Costo total (COP)</div><div class="val">$${gerencialData.costoTotalCOP.toLocaleString("es-CO",{maximumFractionDigits:0})}</div><div class="sub2">${gerencialData.calibresValor.length} calibre${gerencialData.calibresValor.length !== 1 ? "s" : ""} con precio registrado</div></div>
+  <div class="card" style="border-left-color:#38bdf8;"><div class="lbl">Costo total (USD)</div><div class="val">${gerencialData.costoTotalUSD != null ? `$${gerencialData.costoTotalUSD.toLocaleString("es-CO",{maximumFractionDigits:0})}` : "No disponible"}</div><div class="sub2">${gerencialData.trm ? `TRM: $${gerencialData.trm.toLocaleString("es-CO")} COP/USD` : "TRM no disponible en este momento"}</div></div>
+  <div class="card" style="border-left-color:#8b5cf6;"><div class="lbl">Costo promedio por kilo</div><div class="val">$${gerencialData.costoPromKg.toLocaleString("es-CO",{maximumFractionDigits:0})}</div><div class="sub2">sobre kg con precio registrado</div></div>
+</div>`;
+
+  // ── Valor de compra por calibre ─────────────────────────────────
+  const calibresValorSection = gerencialData.calibresValor.length > 0 ? `
+<h2>📐 Valor de compra por calibre</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:8px;">
+  ${gerencialData.calibresValor.map(c => `
+  <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 12px;">
+    <div style="font-size:15px;font-weight:800;color:#6d28d9;">${c.nombre}</div>
+    <div style="font-size:10px;color:#94a3b8;margin-bottom:5px;">${c.kg.toLocaleString("es-CO",{maximumFractionDigits:0})} kg</div>
+    <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;">Precio/kg</div>
+    <div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:4px;">$${c.precioProm.toLocaleString("es-CO",{maximumFractionDigits:0})}</div>
+    <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;">Valor total</div>
+    <div style="font-size:13px;font-weight:700;color:#15803d;">$${c.valor.toLocaleString("es-CO",{maximumFractionDigits:0})}</div>
+  </div>`).join("")}
+</div>` : "";
+
+  // ── Valor en pesos de la merma y la devolución — sobre el precio
+  // promedio pagado por kg (mismo costoPromKg del bloque de costo) ──
+  const valorMermaCOP      = gerencialData.costoPromKg > 0 ? mermaKgTotal * gerencialData.costoPromKg : null;
+  const valorDevolucionCOP = gerencialData.costoPromKg > 0 ? totales.kilosDevueltos * gerencialData.costoPromKg : null;
+  const fmtValor = (v) => v != null ? `$${v.toLocaleString("es-CO",{maximumFractionDigits:0})}` : "No disponible";
+
+  // ── Análisis por tipo de devolución — donut en CSS (conic-gradient,
+  // sin SVG, mismo criterio que el medidor de Rendimiento General) ──
+  let devolucionSection;
+  if (gerencialData.devolucionTotal > 0) {
+    let acc = 0;
+    const stops = gerencialData.devolucionTipos.map((d, i) => {
+      const color = d.sinClasificar ? "#cbd5e1" : DEV_COLORS[i % DEV_COLORS.length];
+      const desde = acc;
+      acc += (d.kg / gerencialData.devolucionTotal) * 100;
+      return `${color} ${desde.toFixed(2)}% ${acc.toFixed(2)}%`;
+    }).join(", ");
+
+    devolucionSection = `
+<h2>🔍 Análisis de devolución y merma</h2>
+<div class="summary-row" style="grid-template-columns:220px 1fr;">
+  <div class="gauge-box" style="padding:20px 14px;">
+    <div style="width:172px;height:172px;border-radius:50%;background:conic-gradient(${stops});margin:0 auto;position:relative;">
+      <div style="position:absolute;inset:22px;background:#f8fafc;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="font-size:19px;font-weight:900;color:#1e1b4b;line-height:1.1;">${gerencialData.devolucionTotal.toLocaleString("es-CO",{maximumFractionDigits:0})}</div>
+        <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">kg devueltos</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="cards" style="margin-bottom:14px;">
+      <div class="card" style="border-left-color:#b45309;"><div class="lbl">Valor de la devolución</div><div class="val" style="color:#b45309;">${fmtValor(valorDevolucionCOP)}</div><div class="sub2">${totales.kilosDevueltos.toLocaleString("es-CO")} kg sobre el precio promedio pagado</div></div>
+      <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Valor de la merma</div><div class="val" style="color:#dc2626;">${fmtValor(valorMermaCOP)}</div><div class="sub2">${mermaKgTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg sobre el precio promedio pagado</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Tipo</th><th>Kg</th><th>%</th><th>Valor</th></tr></thead>
+      <tbody>
+        ${gerencialData.devolucionTipos.map((d, i) => `<tr>
+          <td><span class="split-dot" style="background:${d.sinClasificar ? "#cbd5e1" : DEV_COLORS[i % DEV_COLORS.length]};"></span>${d.tipo}</td>
+          <td>${d.kg.toLocaleString("es-CO",{maximumFractionDigits:1})} kg</td>
+          <td style="font-weight:700;">${(d.kg / gerencialData.devolucionTotal * 100).toFixed(1)}%</td>
+          <td>${gerencialData.costoPromKg > 0 ? `$${(d.kg * gerencialData.costoPromKg).toLocaleString("es-CO",{maximumFractionDigits:0})}` : "—"}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>
+</div>`;
+  } else {
+    devolucionSection = `
+<h2>🔍 Análisis de devolución y merma</h2>
+<div class="cards" style="margin-bottom:14px;">
+  <div class="card" style="border-left-color:#b45309;"><div class="lbl">Valor de la devolución</div><div class="val" style="color:#b45309;">${fmtValor(valorDevolucionCOP)}</div><div class="sub2">${totales.kilosDevueltos.toLocaleString("es-CO")} kg sobre el precio promedio pagado</div></div>
+  <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Valor de la merma</div><div class="val" style="color:#dc2626;">${fmtValor(valorMermaCOP)}</div><div class="sub2">${mermaKgTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg sobre el precio promedio pagado</div></div>
+</div>
+<div class="chart-wrap"><span class="dim">No se registró desglose de devolución por tipo en ningún contenedor.</span></div>`;
+  }
 
   // ── Gráfico de barras por camión ─────────────────────────────
   const truckBars = rendsDelCont.map((r, i) => {
@@ -976,6 +1146,12 @@ ${(totales.cajasDelMonte > 0 && totales.cajasPrincess > 0) ? `
 ${providerSection}
 
 ${calibresSection}
+
+${costoSection}
+
+${calibresValorSection}
+
+${devolucionSection}
 
 <h2>📈 Rendimiento del proceso</h2>
 <div class="chart-wrap">
