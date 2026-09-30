@@ -60,6 +60,8 @@ const rowToRendimiento = (r) => ({
   observaciones:   Array.isArray(r.observaciones) ? r.observaciones : [],
   obsDetalle:      r.obs_detalle || "",
   calibres:        Array.isArray(r.calibres) ? r.calibres : [],
+  devolucionesTipo: Array.isArray(r.devoluciones_tipo) ? r.devoluciones_tipo : [],
+  precioCompra:    Number(r.precio_compra) || 0,
 });
 
 export function useContenedores() {
@@ -301,6 +303,8 @@ export function useContenedores() {
       observaciones:    form.observaciones   || [],
       obs_detalle:      form.obsDetalle      || null,
       calibres:         form.calibres        || [],
+      devoluciones_tipo: form.devolucionesTipo || [],
+      precio_compra:    Number(form.precioCompra) || 0,
     };
 
     const newRend = rowToRendimiento(row);
