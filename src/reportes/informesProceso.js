@@ -804,6 +804,12 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
 
   const gerencialData = { trm, calibresValor, costoTotalCOP, costoTotalUSD, costoPromKg, devolucionTipos, devolucionTotal, fotosPorTipoDevolucion };
 
+  // El informe solo muestra costo/valor por calibre/devolución cuando algún
+  // contenedor realmente activó "Agregar información gerencial" y cargó
+  // datos — si nadie lo activó, el informe se queda igual al clásico, sin
+  // mostrar esas secciones ni placeholders de "No disponible".
+  const hayGerencial = gerencialData.costoPromKg > 0 || devTipificado > 0 || gerencialData.fotosPorTipoDevolucion.length > 0;
+
   const proveedoresCont = parseProveedoresRend(cont?.proveedor);
   // Si el contenedor tiene un solo proveedor, se usa como respaldo cuando el
   // registro de rendimiento de un camión no trae "proveedor" propio (queda
@@ -1234,11 +1240,11 @@ ${providerSection}
 
 ${calibresSection}
 
-${costoSection}
+${hayGerencial ? costoSection : ""}
 
-${calibresValorSection}
+${hayGerencial ? calibresValorSection : ""}
 
-${devolucionSection}
+${hayGerencial ? devolucionSection : ""}
 
 <h2>📈 Rendimiento del proceso</h2>
 <div class="chart-wrap">

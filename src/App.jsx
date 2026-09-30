@@ -2720,6 +2720,7 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const [calForm,       setCalForm]       = useState(calFormDef);
   const [devForm,       setDevForm]       = useState(devFormDef);
   const [subiendoFotoDevIdx, setSubiendoFotoDevIdx] = useState(null);
+  const [gerencialActivo,   setGerencialActivo]   = useState(false);
 
   // Foto(s) de evidencia por tipo de devolución — mismo patrón de
   // comprimir + guardar base64 que ya usan Recepciones y Caja Menor.
@@ -4386,9 +4387,13 @@ ${seccionesScoped.map((s, i) => `
           if (r) {
             setFormRend({ contId: r.contId, contNum: r.contNum, fecha: r.fecha, precioCompra: r.precioCompra || "", proveedor: r.proveedor || "", kilosIngresados: r.kilosIngresados || "", kilosNoProcesados: r.kilosNoProcesados || "", kilosProcesados: r.kilosProcesados, kilosDevueltos: r.kilosDevueltos, kilosPrimeraDevueltos: r.kilosPrimeraDevueltos || "", cajasDelMonte: r.cajasDelMonte, pesoDelMonte: String(r.pesoDelMonte || 16.8), cajasPrincess: r.cajasPrincess, observaciones: r.observaciones, obsDetalle: r.obsDetalle, calibres: r.calibres || [], devolucionesTipo: r.devolucionesTipo || [] });
             setEditRendId(r.id);
+            // Si el registro ya trae precio de compra o devolución por tipo,
+            // el interruptor arranca activado para no esconder esos datos.
+            setGerencialActivo(!!(r.precioCompra || (r.devolucionesTipo || []).length > 0));
           } else {
             setFormRend({ ...rendFormDef, contId: selContRend, contNum: contSelRend?.numContenedor || "", fecha: hoy });
             setEditRendId(null);
+            setGerencialActivo(false);
           }
           setCalForm(calFormDef);
           setDevForm(devFormDef);
@@ -4406,7 +4411,7 @@ ${seccionesScoped.map((s, i) => `
           }
           const ok = await guardarRendimientoSB(formAGuardar, editRendId);
           if (ok) {
-            setShowFormRend(false); setFormRend(rendFormDef); setCalForm(calFormDef); setDevForm(devFormDef); setEditRendId(null);
+            setShowFormRend(false); setFormRend(rendFormDef); setCalForm(calFormDef); setDevForm(devFormDef); setEditRendId(null); setGerencialActivo(false);
             showToast("Camión registrado correctamente", true);
           } else {
             showToast("Error al guardar — verifica la conexión", false);
@@ -4545,10 +4550,23 @@ ${seccionesScoped.map((s, i) => `
                         <input type="date" value={formRend.fecha} onChange={e => setFormRend(f => ({ ...f, fecha: e.target.value }))} style={inp} />
                       </div>
                       <div>
-                        <div style={lbl}>Precio de compra ($/kg) <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(para el costo del informe)</span></div>
-                        <input type="number" min="0" step="0.01" value={formRend.precioCompra} onChange={e => setFormRend(f => ({ ...f, precioCompra: e.target.value }))} placeholder="ej. 3800" style={inp} />
+                        <div style={lbl}>¿Agregar información gerencial? <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(precio, valor por calibre, devolución por tipo)</span></div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {[{ v: true, t: "Sí" }, { v: false, t: "No" }].map(op => (
+                            <button key={op.t} onClick={() => setGerencialActivo(op.v)}
+                              style={{ flex: 1, background: gerencialActivo === op.v ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.05)", border: `1px solid ${gerencialActivo === op.v ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, padding: "7px", fontSize: 12, color: gerencialActivo === op.v ? "#a5b4fc" : "rgba(255,255,255,0.5)", cursor: "pointer", fontWeight: gerencialActivo === op.v ? 700 : 400 }}>
+                              {op.t}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
+                    {gerencialActivo && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={lbl}>Precio de compra ($/kg) <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(para el costo del informe)</span></div>
+                        <input type="number" min="0" step="0.01" value={formRend.precioCompra} onChange={e => setFormRend(f => ({ ...f, precioCompra: e.target.value }))} placeholder="ej. 3800" style={{ ...inp, maxWidth: mob ? "100%" : "calc(50% - 4px)" }} />
+                      </div>
+                    )}
                     <div style={{ marginBottom: 8 }}>
                       <div style={lbl}>Devolución del proceso <span style={{ color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>(informativo)</span></div>
                       <input type="number" min="0" step="0.1" value={formRend.kilosDevueltos} onChange={e => setFormRend(f => ({ ...f, kilosDevueltos: e.target.value }))} placeholder="ej. 500" style={{ ...inp, maxWidth: mob ? "100%" : "calc(50% - 4px)" }} />
@@ -4740,11 +4758,13 @@ ${seccionesScoped.map((s, i) => `
                           <input type="number" min="0" value={calForm.cantidad} onChange={e => setCalForm(f => ({ ...f, cantidad: e.target.value }))}
                             placeholder={calForm.tipo === "cajas" ? "ej. 300" : "ej. 4800"} style={{ ...inp, width: 90 }} />
                         </div>
-                        <div>
-                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Precio/kg <span style={{ opacity: 0.6 }}>(solo si es distinto)</span></div>
-                          <input type="number" min="0" step="0.01" value={calForm.precio} onChange={e => setCalForm(f => ({ ...f, precio: e.target.value }))}
-                            placeholder={formRend.precioCompra ? `auto: $${formRend.precioCompra}` : "ej. 3800"} style={{ ...inp, width: 90 }} />
-                        </div>
+                        {gerencialActivo && (
+                          <div>
+                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Precio/kg <span style={{ opacity: 0.6 }}>(solo si es distinto)</span></div>
+                            <input type="number" min="0" step="0.01" value={calForm.precio} onChange={e => setCalForm(f => ({ ...f, precio: e.target.value }))}
+                              placeholder={formRend.precioCompra ? `auto: $${formRend.precioCompra}` : "ej. 3800"} style={{ ...inp, width: 90 }} />
+                          </div>
+                        )}
                         {calForm.tipo === "cajas" && (
                           <div>
                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.42)", marginBottom: 3 }}>Marca</div>
@@ -4767,6 +4787,7 @@ ${seccionesScoped.map((s, i) => `
                     </div>
 
                     {/* ── Devolución por tipo (opcional) — para el análisis del informe ── */}
+                    {gerencialActivo && (
                     <div style={{ marginBottom: 12, background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(129,140,248,0.9)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
                         🔍 Devolución por tipo <span style={{ color: "rgba(255,255,255,0.38)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional — se usa en el análisis de devolución del informe)</span>
@@ -4838,12 +4859,13 @@ ${seccionesScoped.map((s, i) => `
                         </button>
                       </div>
                     </div>
+                    )}
 
                     <div style={{ display: "flex", gap: 8 }}>
                       <button onClick={guardarRend} style={{ flex: 1, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", border: "none", borderRadius: 8, padding: "8px", fontSize: 11, color: "white", cursor: "pointer", fontWeight: 700 }}>
                         {editRendId ? "Guardar cambios" : "Registrar camión"}
                       </button>
-                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); setDevForm(devFormDef); }} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.68)", cursor: "pointer" }}>
+                      <button onClick={() => { setShowFormRend(false); setEditRendId(null); setFormRend(rendFormDef); setDevForm(devFormDef); setGerencialActivo(false); }} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.68)", cursor: "pointer" }}>
                         Cancelar
                       </button>
                     </div>
