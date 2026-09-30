@@ -783,18 +783,26 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   // haya registrado; lo que no se haya tipificado se muestra aparte como
   // "Sin clasificar" en vez de forzarlo a encajar en un tipo.
   const devMap = new Map();
+  const devFotosMap = new Map();
   rendsDelCont.forEach(r => (r.devolucionesTipo || []).forEach(d => {
     const kg = Number(d.kg) || 0;
-    if (!kg) return;
-    devMap.set(d.tipo, (devMap.get(d.tipo) || 0) + kg);
+    if (kg > 0) devMap.set(d.tipo, (devMap.get(d.tipo) || 0) + kg);
+    if (Array.isArray(d.fotos) && d.fotos.length) {
+      devFotosMap.set(d.tipo, [...(devFotosMap.get(d.tipo) || []), ...d.fotos]);
+    }
   }));
   const devTipificado    = [...devMap.values()].reduce((s, v) => s + v, 0);
   const devSinClasificar = Math.max(totales.kilosDevueltos - devTipificado, 0);
-  const devolucionTipos  = [...devMap.entries()].map(([tipo, kg]) => ({ tipo, kg }));
+  // De mayor a menor kg, para que la dona y la leyenda se lean en orden de
+  // importancia — "Sin clasificar" siempre al final, es un residual.
+  const devolucionTipos  = [...devMap.entries()]
+    .map(([tipo, kg]) => ({ tipo, kg }))
+    .sort((a, b) => b.kg - a.kg);
   if (devSinClasificar > 0.01) devolucionTipos.push({ tipo: "Sin clasificar", kg: devSinClasificar, sinClasificar: true });
   const devolucionTotal = devTipificado + devSinClasificar;
+  const fotosPorTipoDevolucion = [...devFotosMap.entries()].map(([tipo, fotos]) => ({ tipo, fotos }));
 
-  const gerencialData = { trm, calibresValor, costoTotalCOP, costoTotalUSD, costoPromKg, devolucionTipos, devolucionTotal };
+  const gerencialData = { trm, calibresValor, costoTotalCOP, costoTotalUSD, costoPromKg, devolucionTipos, devolucionTotal, fotosPorTipoDevolucion };
 
   const proveedoresCont = parseProveedoresRend(cont?.proveedor);
   // Si el contenedor tiene un solo proveedor, se usa como respaldo cuando el
@@ -915,11 +923,42 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   <div class="card" style="border-left-color:#8b5cf6;"><div class="lbl">Costo promedio por kilo</div><div class="val">$${gerencialData.costoPromKg.toLocaleString("es-CO",{maximumFractionDigits:0})}</div><div class="sub2">sobre kg con precio registrado</div></div>
 </div>`;
 
-  // ── Valor de compra por calibre ─────────────────────────────────
-  const calibresValorSection = gerencialData.calibresValor.length > 0 ? `
+  // ── Valor de compra por calibre — barras por VALOR TOTAL en pesos
+  // (kg × precio), no por kilos — el kg queda solo como dato de apoyo
+  // chiquito debajo, igual que el precio/kg ── + tarjetas de detalle.
+  const calibresOrdenados = [...gerencialData.calibresValor].sort((a, b) => {
+    const na = parseFloat(a.nombre), nb = parseFloat(b.nombre);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.nombre.localeCompare(b.nombre);
+  });
+  const valorMaxCalibre = Math.max(...calibresOrdenados.map(c => c.valor), 0);
+
+  const calibresBarChart = calibresOrdenados.length > 1 ? `
+<div class="chart-wrap" style="padding:24px 24px 16px;">
+  <div style="display:flex;align-items:flex-end;gap:14px;height:150px;">
+    ${calibresOrdenados.map(c => {
+      const hPct = valorMaxCalibre > 0 ? Math.max((c.valor / valorMaxCalibre) * 100, 10) : 10;
+      return `
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+      <div style="font-size:13px;font-weight:800;color:#15803d;margin-bottom:5px;">$${c.valor.toLocaleString("es-CO",{maximumFractionDigits:0})}</div>
+      <div style="width:100%;max-width:52px;height:${hPct.toFixed(1)}%;background:linear-gradient(180deg,#34d399,#15803d);border-radius:9px 9px 3px 3px;box-shadow:0 6px 14px rgba(21,128,61,0.25);"></div>
+    </div>`;
+    }).join("")}
+  </div>
+  <div style="display:flex;gap:14px;margin-top:10px;border-top:1px solid #e2e8f0;padding-top:8px;">
+    ${calibresOrdenados.map(c => `
+    <div style="flex:1;text-align:center;">
+      <div style="font-size:13px;font-weight:800;color:#334155;">${c.nombre}</div>
+      <div style="font-size:9px;color:#94a3b8;">$${c.precioProm.toLocaleString("es-CO",{maximumFractionDigits:0})}/kg</div>
+    </div>`).join("")}
+  </div>
+</div>` : "";
+
+  const calibresValorSection = calibresOrdenados.length > 0 ? `
 <h2>📐 Valor de compra por calibre</h2>
+${calibresBarChart}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:8px;">
-  ${gerencialData.calibresValor.map(c => `
+  ${calibresOrdenados.map(c => `
   <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 12px;">
     <div style="font-size:15px;font-weight:800;color:#6d28d9;">${c.nombre}</div>
     <div style="font-size:10px;color:#94a3b8;margin-bottom:5px;">${c.kg.toLocaleString("es-CO",{maximumFractionDigits:0})} kg</div>
@@ -937,54 +976,98 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   const fmtValor = (v) => v != null ? `$${v.toLocaleString("es-CO",{maximumFractionDigits:0})}` : "No disponible";
 
   // ── Análisis por tipo de devolución — donut en CSS (conic-gradient,
-  // sin SVG, mismo criterio que el medidor de Rendimiento General) ──
+  // sin SVG, mismo criterio que el medidor de Rendimiento General) con
+  // leyenda de barras individuales, ordenada de mayor a menor kg ──
+  const valorCard = (color, lbl, val, sub) => `<div class="card" style="border-left-color:${color};"><div class="lbl">${lbl}</div><div class="val" style="color:${color};">${val}</div><div class="sub2">${sub}</div></div>`;
+  const cardsValorSection = `
+<div class="cards" style="margin-bottom:14px;">
+  ${valorCard("#b45309", "Valor de la devolución", fmtValor(valorDevolucionCOP), `${totales.kilosDevueltos.toLocaleString("es-CO")} kg sobre el precio promedio pagado`)}
+  ${valorCard("#dc2626", "Valor de la merma", fmtValor(valorMermaCOP), `${mermaKgTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg sobre el precio promedio pagado`)}
+</div>`;
+
+  // ── Registro fotográfico agrupado por tipo de devolución ────────
+  const fotosDevolucionSection = gerencialData.fotosPorTipoDevolucion.length > 0 ? `
+<div style="margin-top:22px;">
+  <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">📷 Registro fotográfico por tipo de devolución</div>
+  ${gerencialData.fotosPorTipoDevolucion.map(f => `
+  <div style="margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:8px;">${f.tipo} <span style="background:#ede9fe;color:#6d28d9;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700;margin-left:4px;">${f.fotos.length}</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      ${f.fotos.map(foto => `<img src="${foto}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;"/>`).join("")}
+    </div>
+  </div>`).join("")}
+</div>` : "";
+
   let devolucionSection;
   if (gerencialData.devolucionTotal > 0) {
+    // Construye los stops del conic-gradient y, de paso, la posición (en
+    // grados, 12 en punto = 0°, sentido horario) del punto medio de cada
+    // segmento — se usa después para las etiquetas de % flotantes sobre
+    // el anillo (solo en los segmentos grandes, para no saturar).
     let acc = 0;
-    const stops = gerencialData.devolucionTipos.map((d, i) => {
+    const segmentos = gerencialData.devolucionTipos.map((d, i) => {
       const color = d.sinClasificar ? "#cbd5e1" : DEV_COLORS[i % DEV_COLORS.length];
+      const pct   = (d.kg / gerencialData.devolucionTotal) * 100;
       const desde = acc;
-      acc += (d.kg / gerencialData.devolucionTotal) * 100;
-      return `${color} ${desde.toFixed(2)}% ${acc.toFixed(2)}%`;
-    }).join(", ");
+      acc += pct;
+      return { color, pct, desde, hasta: acc, medioDeg: ((desde + acc) / 2 / 100) * 360 };
+    });
+    const stops = segmentos.map(s => `${s.color} ${s.desde.toFixed(2)}% ${s.hasta.toFixed(2)}%`).join(", ");
+
+    // Anillo de 190px con grosor de 34px (deja un centro de 122px para el
+    // texto) — las etiquetas de % flotan a medio grosor del anillo.
+    const RING = 190, THICK = 34;
+    const R_OUT = RING / 2, R_IN = RING / 2 - THICK, R_LABEL = (R_OUT + R_IN) / 2;
+    const donutLabels = segmentos.filter(s => s.pct >= 7).map(s => {
+      const rad = (s.medioDeg * Math.PI) / 180;
+      const x = RING / 2 + R_LABEL * Math.sin(rad);
+      const y = RING / 2 - R_LABEL * Math.cos(rad);
+      const txtColor = s.color === "#cbd5e1" ? "#64748b" : s.color;
+      return `<div class="donut-label" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;color:${txtColor};">${s.pct.toFixed(0)}%</div>`;
+    }).join("");
+
+    const leyenda = gerencialData.devolucionTipos.map((d, i) => {
+      const color = d.sinClasificar ? "#cbd5e1" : DEV_COLORS[i % DEV_COLORS.length];
+      const pct   = d.kg / gerencialData.devolucionTotal * 100;
+      const valor = gerencialData.costoPromKg > 0 ? `$${(d.kg * gerencialData.costoPromKg).toLocaleString("es-CO",{maximumFractionDigits:0})}` : "—";
+      return `
+  <div style="display:flex;align-items:center;gap:10px;padding:8px 2px;${i < gerencialData.devolucionTipos.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}">
+    <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+    <span style="font-size:12px;font-weight:700;color:#334155;min-width:110px;">${d.tipo}</span>
+    <div style="flex:1;background:#f1f5f9;border-radius:4px;height:7px;overflow:hidden;min-width:40px;">
+      <div style="width:${pct.toFixed(1)}%;height:100%;background:${color};border-radius:4px;"></div>
+    </div>
+    <span style="font-size:12px;font-weight:800;color:${color === "#cbd5e1" ? "#94a3b8" : color};width:44px;text-align:right;">${pct.toFixed(1)}%</span>
+    <span style="font-size:10px;color:#94a3b8;width:64px;text-align:right;">${d.kg.toLocaleString("es-CO",{maximumFractionDigits:1})} kg</span>
+    <span style="font-size:11px;font-weight:700;color:#15803d;width:88px;text-align:right;">${valor}</span>
+  </div>`;
+    }).join("");
 
     devolucionSection = `
 <h2>🔍 Análisis de devolución y merma</h2>
-<div class="summary-row" style="grid-template-columns:220px 1fr;">
-  <div class="gauge-box" style="padding:20px 14px;">
-    <div style="width:172px;height:172px;border-radius:50%;background:conic-gradient(${stops});margin:0 auto;position:relative;">
-      <div style="position:absolute;inset:22px;background:#f8fafc;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-        <div style="font-size:19px;font-weight:900;color:#1e1b4b;line-height:1.1;">${gerencialData.devolucionTotal.toLocaleString("es-CO",{maximumFractionDigits:0})}</div>
-        <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">kg devueltos</div>
+${cardsValorSection}
+<div class="chart-wrap">
+  <div class="summary-row" style="grid-template-columns:${RING + 20}px 1fr;margin-bottom:0;align-items:center;">
+    <div style="text-align:center;">
+      <div class="donut-ring" style="width:${RING}px;height:${RING}px;background:conic-gradient(${stops});margin:0 auto;">
+        <div class="donut-center" style="inset:${THICK}px;">
+          <div style="font-size:21px;font-weight:900;color:#1e1b4b;line-height:1.1;">${gerencialData.devolucionTotal.toLocaleString("es-CO",{maximumFractionDigits:0})}</div>
+          <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-top:2px;">kg devueltos</div>
+          ${valorDevolucionCOP != null ? `<div style="font-size:11px;font-weight:800;color:#b45309;margin-top:6px;">${fmtValor(valorDevolucionCOP)}</div>` : ""}
+        </div>
+        ${donutLabels}
       </div>
     </div>
+    <div>${leyenda}</div>
   </div>
-  <div>
-    <div class="cards" style="margin-bottom:14px;">
-      <div class="card" style="border-left-color:#b45309;"><div class="lbl">Valor de la devolución</div><div class="val" style="color:#b45309;">${fmtValor(valorDevolucionCOP)}</div><div class="sub2">${totales.kilosDevueltos.toLocaleString("es-CO")} kg sobre el precio promedio pagado</div></div>
-      <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Valor de la merma</div><div class="val" style="color:#dc2626;">${fmtValor(valorMermaCOP)}</div><div class="sub2">${mermaKgTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg sobre el precio promedio pagado</div></div>
-    </div>
-    <table>
-      <thead><tr><th>Tipo</th><th>Kg</th><th>%</th><th>Valor</th></tr></thead>
-      <tbody>
-        ${gerencialData.devolucionTipos.map((d, i) => `<tr>
-          <td><span class="split-dot" style="background:${d.sinClasificar ? "#cbd5e1" : DEV_COLORS[i % DEV_COLORS.length]};"></span>${d.tipo}</td>
-          <td>${d.kg.toLocaleString("es-CO",{maximumFractionDigits:1})} kg</td>
-          <td style="font-weight:700;">${(d.kg / gerencialData.devolucionTotal * 100).toFixed(1)}%</td>
-          <td>${gerencialData.costoPromKg > 0 ? `$${(d.kg * gerencialData.costoPromKg).toLocaleString("es-CO",{maximumFractionDigits:0})}` : "—"}</td>
-        </tr>`).join("")}
-      </tbody>
-    </table>
-  </div>
-</div>`;
+</div>
+${fotosDevolucionSection}`;
   } else {
     devolucionSection = `
 <h2>🔍 Análisis de devolución y merma</h2>
-<div class="cards" style="margin-bottom:14px;">
-  <div class="card" style="border-left-color:#b45309;"><div class="lbl">Valor de la devolución</div><div class="val" style="color:#b45309;">${fmtValor(valorDevolucionCOP)}</div><div class="sub2">${totales.kilosDevueltos.toLocaleString("es-CO")} kg sobre el precio promedio pagado</div></div>
-  <div class="card" style="border-left-color:#dc2626;"><div class="lbl">Valor de la merma</div><div class="val" style="color:#dc2626;">${fmtValor(valorMermaCOP)}</div><div class="sub2">${mermaKgTotal.toLocaleString("es-CO",{maximumFractionDigits:1})} kg sobre el precio promedio pagado</div></div>
-</div>
-<div class="chart-wrap"><span class="dim">No se registró desglose de devolución por tipo en ningún contenedor.</span></div>`;
+${cardsValorSection}
+<div class="chart-wrap"><span class="dim">No se registró desglose de devolución por tipo en ningún contenedor.</span></div>
+${fotosDevolucionSection}`;
   }
 
   // ── Gráfico de barras por camión ─────────────────────────────
@@ -1081,6 +1164,10 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   .bar-bg { background:#f1f5f9; border-radius:4px; height:10px; width:70px; overflow:hidden; flex-shrink:0; }
   .bar-fill { height:100%; border-radius:4px; }
   .chart-wrap { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; margin-bottom:26px; }
+  .donut-ring { position:relative; border-radius:50%; box-shadow:0 10px 26px rgba(30,27,75,0.16), inset 0 0 0 1px rgba(255,255,255,0.5); }
+  .donut-ring::after { content:""; position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 30% 26%, rgba(255,255,255,0.4), rgba(255,255,255,0) 46%); pointer-events:none; }
+  .donut-center { position:absolute; background:#fff; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:inset 0 0 0 1px #f1f5f9, 0 1px 4px rgba(0,0,0,0.05); }
+  .donut-label { position:absolute; transform:translate(-50%,-50%); background:#fff; border-radius:10px; padding:2px 7px; font-size:10px; font-weight:800; box-shadow:0 3px 8px rgba(15,23,42,0.2); white-space:nowrap; }
   .footer { margin-top:36px; padding:18px 36px; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:10px; display:flex; justify-content:space-between; background:#f8fafc; }
   @media print {
     .hdr { -webkit-print-color-adjust:exact; print-color-adjust:exact; }

@@ -19,6 +19,7 @@ import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import AsistenciaTab from "./components/AsistenciaTab.jsx";
 import MaquinaTab from "./components/MaquinaTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
+import { comprimirImagen } from "./utils/imagenes.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml, generarInformeRendimientoHtml,
   TIPOS_DEVOLUCION,
@@ -2718,6 +2719,26 @@ function ContenedoresDemo({ logisticaBookings = [] }) {
   const [formRend,      setFormRend]      = useState(rendFormDef);
   const [calForm,       setCalForm]       = useState(calFormDef);
   const [devForm,       setDevForm]       = useState(devFormDef);
+  const [subiendoFotoDevIdx, setSubiendoFotoDevIdx] = useState(null);
+
+  // Foto(s) de evidencia por tipo de devolución — mismo patrón de
+  // comprimir + guardar base64 que ya usan Recepciones y Caja Menor.
+  const onFotosDevolucionSeleccionadas = async (idx, ev) => {
+    const files = Array.from(ev.target.files || []);
+    ev.target.value = "";
+    if (!files.length) return;
+    setSubiendoFotoDevIdx(idx);
+    try {
+      const nuevas = await Promise.all(files.map(comprimirImagen));
+      setFormRend(f => ({ ...f, devolucionesTipo: f.devolucionesTipo.map((d, i) => i === idx ? { ...d, fotos: [...(d.fotos || []), ...nuevas] } : d) }));
+    } catch {
+      showToast("No se pudo procesar una de las fotos — intenta con otra imagen", false);
+    }
+    setSubiendoFotoDevIdx(null);
+  };
+  const quitarFotoDevolucion = (idx, fotoIdx) => {
+    setFormRend(f => ({ ...f, devolucionesTipo: f.devolucionesTipo.map((d, i) => i === idx ? { ...d, fotos: d.fotos.filter((_, j) => j !== fotoIdx) } : d) }));
+  };
 
   const guardar = async () => {
     if (!form.numContenedor.trim()) return;
@@ -4752,13 +4773,30 @@ ${seccionesScoped.map((s, i) => `
                       </div>
 
                       {formRend.devolucionesTipo.length > 0 && (
-                        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                           {formRend.devolucionesTipo.map((d, i) => (
-                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "5px 8px" }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", flex: 1 }}>{d.tipo}</span>
-                              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.58)" }}>{Number(d.kg).toLocaleString("es-CO")} kg</span>
-                              <button onClick={() => setFormRend(f => ({ ...f, devolucionesTipo: f.devolucionesTipo.filter((_, j) => j !== i) }))}
-                                style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>×</button>
+                            <div key={i} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 7, padding: "6px 8px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "#a5b4fc", flex: 1 }}>{d.tipo}</span>
+                                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.58)" }}>{Number(d.kg).toLocaleString("es-CO")} kg</span>
+                                <button onClick={() => setFormRend(f => ({ ...f, devolucionesTipo: f.devolucionesTipo.filter((_, j) => j !== i) }))}
+                                  style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>×</button>
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 6 }}>
+                                {(d.fotos || []).map((foto, fi) => (
+                                  <div key={fi} style={{ position: "relative" }}>
+                                    <img src={foto} onClick={() => window.open(foto, "_blank")}
+                                      style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, cursor: "pointer", border: "1px solid rgba(255,255,255,0.15)", display: "block" }} />
+                                    <button onClick={() => quitarFotoDevolucion(i, fi)}
+                                      style={{ position: "absolute", top: -5, right: -5, width: 15, height: 15, background: "#f87171", color: "white", border: "none", borderRadius: "50%", fontSize: 9, lineHeight: "15px", cursor: "pointer", padding: 0 }}>×</button>
+                                  </div>
+                                ))}
+                                <label style={{ fontSize: 9, color: "#a5b4fc", cursor: subiendoFotoDevIdx === i ? "default" : "pointer", border: "1px dashed rgba(99,102,241,0.4)", borderRadius: 6, padding: "10px 9px", opacity: subiendoFotoDevIdx === i ? 0.5 : 1 }}>
+                                  {subiendoFotoDevIdx === i ? "Subiendo…" : "📷 + Foto"}
+                                  <input type="file" accept="image/*" multiple disabled={subiendoFotoDevIdx === i}
+                                    onChange={e => onFotosDevolucionSeleccionadas(i, e)} style={{ display: "none" }} />
+                                </label>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -4787,7 +4825,7 @@ ${seccionesScoped.map((s, i) => `
                         <button
                           onClick={() => {
                             if (!devForm.tipo.trim() || !devForm.kg) return;
-                            setFormRend(f => ({ ...f, devolucionesTipo: [...f.devolucionesTipo, { tipo: devForm.tipo.trim(), kg: Number(devForm.kg) }] }));
+                            setFormRend(f => ({ ...f, devolucionesTipo: [...f.devolucionesTipo, { tipo: devForm.tipo.trim(), kg: Number(devForm.kg), fotos: [] }] }));
                             setDevForm(devFormDef);
                           }}
                           style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 7, padding: "6px 14px", fontSize: 11, color: "#a5b4fc", cursor: "pointer", fontWeight: 700 }}>
