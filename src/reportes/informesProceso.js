@@ -90,7 +90,7 @@ function fmtDate(d) {
 
 // Logo de Tierra Prometida embebido como base64 — así los informes HTML
 // descargados muestran el logo aunque se abran después, sin servidor.
-async function cargarLogoBase64() {
+export async function cargarLogoBase64() {
   try {
     const res  = await fetch("/logo-tp.png");
     const blob = await res.blob();
