@@ -4,9 +4,13 @@ import { conReintentos } from "../utils/consultas.js";
 
 // La lista de facturas NO carga todo el historial: por defecto trae las
 // últimas N, y si el usuario elige un rango de fechas o busca algo, la
-// consulta se hace en la base con ese filtro. Se lee de a páginas chicas
-// porque cada factura trae sus fotos en base64 y una consulta grande se pasa
-// del timeout de Supabase (~3 s).
+// consulta se hace en la base con ese filtro. Se lee de a páginas chicas.
+//
+// La lista tampoco trae las fotos (base64, ~0.5 MB cada una): solo un aviso
+// de cuáles facturas tienen foto (`tieneFotos`). Las fotos de una factura se
+// piden aparte con `cargarFotos` al abrirla o al tocar "Imagen". Mientras no
+// se hayan cargado, `fotos` queda `undefined` y `guardarFactura` NO toca la
+// columna de fotos — así guardar sin haberlas cargado nunca las borra.
 //
 // El saldo de caja, el autocompletado de proveedores y la importación de
 // terceros SÍ necesitan todas las facturas, pero no sus fotos: eso sale de
@@ -20,6 +24,11 @@ const TAM_LOTE     = 1000; // límite de filas por respuesta de Supabase
 const limpiarBusqueda = (s) => String(s || "").replace(/[,()*%\\]/g, " ").replace(/\s+/g, " ").trim();
 const porFechaDesc = (a, b) => (b.fecha || "").localeCompare(a.fecha || "") || b.id - a.id;
 
+const COLS_LISTA = "id, fecha, nit, nombre, tipo_documento, numero_documento, concepto, monto, obs, registrado_por, created_at";
+
+// `fotos` (columna actual, arreglo) o `foto` (columna vieja, una sola).
+const fotosDeFila = (r) => Array.isArray(r.fotos) && r.fotos.length ? r.fotos : (r.foto ? [r.foto] : []);
+
 const rowToFactura = (r) => ({
   id:               r.id,
   fecha:            r.fecha             || "",
@@ -29,8 +38,9 @@ const rowToFactura = (r) => ({
   numeroDocumento:  r.numero_documento  || "",
   concepto:         r.concepto          || "",
   monto:            r.monto != null ? Number(r.monto) : 0,
-  fotos:            Array.isArray(r.fotos) && r.fotos.length ? r.fotos : (r.foto ? [r.foto] : []),
-  obs:              r.obs               || "",
+  fotos:            undefined, // sin cargar — ver `cargarFotos`
+  tieneFotos:       !!r.tiene_fotos,
+  obs:             r.obs               || "",
   registradoPor:    r.registrado_por    || "",
   createdAt:        r.created_at        || "",
 });
@@ -69,7 +79,7 @@ async function leerTodo(tabla, columnas) {
 }
 
 const paginaFacturas = ({ desde, hasta, busqueda }, cursor, n) => {
-  let q = supabase.from("caja_menor_facturas").select("*")
+  let q = supabase.from("caja_menor_facturas").select(COLS_LISTA)
     .order("fecha", { ascending: false, nullsFirst: false }).order("id", { ascending: false }).limit(n);
   if (desde) q = q.gte("fecha", desde);
   if (hasta) q = q.lte("fecha", hasta);
@@ -86,8 +96,22 @@ const paginaFacturas = ({ desde, hasta, busqueda }, cursor, n) => {
   return q;
 };
 
+// Marca `tiene_fotos` en una página de facturas con una consulta que solo
+// devuelve ids (el filtro sobre las fotos se resuelve en la base, sin
+// traerlas).
+async function marcarConFotos(filas) {
+  if (!filas.length) return { data: filas };
+  const { data, error } = await conReintentos(() =>
+    supabase.from("caja_menor_facturas").select("id")
+      .in("id", filas.map(f => f.id))
+      .or("fotos->0.not.is.null,foto.not.is.null"));
+  if (error) return { error };
+  const con = new Set((data || []).map(f => f.id));
+  return { data: filas.map(f => ({ ...f, tiene_fotos: con.has(f.id) })) };
+}
+
 // Opciones:
-//  ultimas    cuántas facturas traer cuando NO hay rango ni búsqueda
+//  ultimas   cuántas facturas traer cuando NO hay rango ni búsqueda
 //  desde/hasta rango de fechas (YYYY-MM-DD); si hay alguno, manda sobre `ultimas`
 //  busqueda   texto: concepto, nombre, NIT o N° de documento (se busca en toda la base)
 export function useCajaMenor(opciones = {}) {
@@ -137,12 +161,15 @@ export function useCajaMenor(opciones = {}) {
       let cursor = null;
       while (acumulado.length < max) {
         const tam = Math.min(TAM_PAGINA, max - acumulado.length);
-        const { data, error } = await conReintentos(() => paginaFacturas(filtros, cursor, tam));
+        const { data: pagina, error } = await conReintentos(() => paginaFacturas(filtros, cursor, tam));
         if (!vigente) return;
         if (error) { fallo = error.message; break; }
-        acumulado.push(...(data || []).map(rowToFactura));
+        const { data, error: errFotos } = await marcarConFotos(pagina || []);
+        if (!vigente) return;
+        if (errFotos) { fallo = errFotos.message; break; }
+        acumulado.push(...data.map(rowToFactura));
         if (progresivo) setFacturas([...acumulado].sort(porFechaDesc));
-        if ((data || []).length < tam) break;
+        if (data.length < tam) break;
         const ult = acumulado[acumulado.length - 1];
         cursor = { fecha: ult.fecha, id: ult.id };
       }
@@ -211,14 +238,18 @@ export function useCajaMenor(opciones = {}) {
       numero_documento: form.numeroDocumento  || null,
       concepto:         form.concepto         || "",
       monto:            form.monto !== "" && form.monto != null ? Number(form.monto) : 0,
-      fotos:            Array.isArray(form.fotos) ? form.fotos : (form.foto ? [form.foto] : []),
       obs:              form.obs              || null,
       registrado_por:   form.registradoPor    || null,
       updated_at:       new Date().toISOString(),
     };
+    // Fotos sin cargar (`undefined`) = no se tocan; un arreglo (aunque esté
+    // vacío) = el usuario las vio y esto es lo que quiere guardar.
+    const fotosCargadas = Array.isArray(form.fotos);
+    if (fotosCargadas) row.fotos = form.fotos;
+    const tieneFotos = fotosCargadas ? form.fotos.length > 0 : !!form.tieneFotos;
 
     if (id) {
-      setFacturas(prev => prev.map(f => f.id === id ? rowToFactura({ ...row, id }) : f));
+      setFacturas(prev => prev.map(f => f.id === id ? rowToFactura({ ...row, id, tiene_fotos: tieneFotos }) : f));
       setResumenFacturas(prev => prev.map(f => f.id === id ? rowToResumen({ ...row, id }) : f));
       const { error } = await supabase.from("caja_menor_facturas").update(row).eq("id", id);
       if (error) {
@@ -229,7 +260,8 @@ export function useCajaMenor(opciones = {}) {
       return { ok: true, id };
     } else {
       row.id = Date.now();
-      setFacturas(prev => [rowToFactura(row), ...prev]);
+      if (!fotosCargadas) row.fotos = [];
+      setFacturas(prev => [rowToFactura({ ...row, tiene_fotos: tieneFotos }), ...prev]);
       setResumenFacturas(prev => [rowToResumen(row), ...prev]);
       const { error } = await supabase.from("caja_menor_facturas").insert(row);
       if (error) {
@@ -239,6 +271,17 @@ export function useCajaMenor(opciones = {}) {
       }
       return { ok: true, id: row.id };
     }
+  }, []);
+
+  // Fotos de UNA factura — se piden al abrirla o al tocar "Imagen".
+  const cargarFotos = useCallback(async (id) => {
+    const { data, error } = await conReintentos(() =>
+      supabase.from("caja_menor_facturas").select("fotos, foto").eq("id", id).maybeSingle());
+    if (error || !data) {
+      console.error("[caja_menor_facturas fotos]", error?.message || "factura no encontrada");
+      return { ok: false, fotos: [] };
+    }
+    return { ok: true, fotos: fotosDeFila(data) };
   }, []);
 
   const eliminarFactura = useCallback(async (id) => {
@@ -291,6 +334,6 @@ export function useCajaMenor(opciones = {}) {
     errorCarga: errResumen || errAbonos || errVentana,
     saldoConfiable: !errResumen && !errAbonos, // false = el saldo puede estar incompleto
     recargar,
-    guardarFactura, eliminarFactura, guardarAbono, eliminarAbono,
+    guardarFactura, cargarFotos, eliminarFactura, guardarAbono, eliminarAbono,
   };
 }
