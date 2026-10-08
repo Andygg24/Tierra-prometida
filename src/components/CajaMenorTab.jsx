@@ -146,7 +146,7 @@ export default function CajaMenorTab({ mob }) {
   const [filtroHasta, setFiltroHasta] = useState("");
   const [limiteFacturas, setLimiteFacturas] = useState("15");
 
-  const { facturas, resumenFacturas, abonos, loading, refrescando, errorCarga, saldoConfiable, recargar, guardarFactura, eliminarFactura, guardarAbono, eliminarAbono } =
+  const { facturas, resumenFacturas, abonos, loading, refrescando, errorCarga, saldoConfiable, recargar, guardarFactura, cargarFotos, eliminarFactura, guardarAbono, eliminarAbono } =
     useCajaMenor({ ultimas: Number(limiteFacturas), desde: filtroDesde, hasta: filtroHasta, busqueda });
   const { terceros, loading: loadingTerceros, guardarTercero, toggleActivo, eliminarTercero } = useTerceros();
 
@@ -168,6 +168,16 @@ export default function CajaMenorTab({ mob }) {
   const [imagenAmpliada, setImagenAmpliada] = useState(null);
   const verImagen = (url) => { if (url) setImagenAmpliada(url); };
 
+  // La lista no trae las fotos: "👁 Imagen" las pide en ese momento.
+  const [cargandoImagenId, setCargandoImagenId] = useState(null);
+  const verImagenFactura = async (f) => {
+    setCargandoImagenId(f.id);
+    const { ok, fotos } = await cargarFotos(f.id);
+    setCargandoImagenId(null);
+    if (ok && fotos.length) verImagen(fotos[0]);
+    else window.alert("No se pudo cargar la foto. Revisa tu conexión e intenta de nuevo.");
+  };
+
   // ══════════════ FACTURAS: lista / detalle ══════════════
   const [facturaSel, setFacturaSel] = useState(null); // null = lista | "new" | id
   const [form, setForm]             = useState(facturaVacia);
@@ -175,6 +185,9 @@ export default function CajaMenorTab({ mob }) {
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState("");
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  // Fotos de la factura abierta: "cargando" | "error" | "" (listas o sin fotos).
+  const [estadoFotos, setEstadoFotos] = useState("");
+  const fotosListas = Array.isArray(form.fotos);
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
 
@@ -227,17 +240,34 @@ export default function CajaMenorTab({ mob }) {
     setForm(facturaVacia());
     setFacturaSel("new");
     setErrorGuardado("");
+    setEstadoFotos("");
     setGuardarComoTercero(false);
+  };
+  const fotosPedidasDe = useRef(null);
+  const traerFotosDe = async (id) => {
+    fotosPedidasDe.current = id;
+    setEstadoFotos("cargando");
+    const { ok, fotos } = await cargarFotos(id);
+    // Si mientras tanto se abrió otra factura, estas fotos ya no aplican.
+    if (fotosPedidasDe.current !== id) return;
+    if (ok) setForm(prev => (prev.id === id ? { ...prev, fotos } : prev));
+    setEstadoFotos(ok ? "" : "error");
   };
   const abrirFactura = (f) => {
-    setForm({ ...facturaVacia(), ...f });
+    // Sin fotos se sabe de entrada que el arreglo va vacío; con fotos se
+    // dejan `undefined` (sin cargar) hasta que lleguen.
+    setForm({ ...facturaVacia(), ...f, fotos: f.tieneFotos ? undefined : [] });
     setFacturaSel(f.id);
     setErrorGuardado("");
+    setEstadoFotos("");
     setGuardarComoTercero(false);
+    if (f.tieneFotos) traerFotosDe(f.id);
   };
   const volverLista = () => {
+    fotosPedidasDe.current = null;
     setFacturaSel(null);
     setForm(facturaVacia());
+    setEstadoFotos("");
   };
 
   // `crearOtra`: además de guardar, deja el formulario limpio y listo para
@@ -286,7 +316,8 @@ export default function CajaMenorTab({ mob }) {
   const onFotosSeleccionadas = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (!files.length) return;
+    // Agregar antes de que lleguen las fotos guardadas las reemplazaría.
+    if (!files.length || !fotosListas) return;
     setSubiendoFoto(true);
     try {
       const nuevas = await Promise.all(files.map(comprimirImagen));
@@ -572,11 +603,11 @@ export default function CajaMenorTab({ mob }) {
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }}>{fmtFechaCorta(f.fecha)}</td>
                         <td style={{ padding: "6px", color: "white", fontWeight: 600 }}>{f.nombre || "—"}</td>
                         <td style={{ padding: "6px" }}>{f.concepto || "—"}</td>
-                        <td style={{ padding: "6px", textAlign: "center" }}>{f.fotos?.length ? `📷 ${f.fotos.length}` : "—"}</td>
+                        <td style={{ padding: "6px", textAlign: "center" }}>{f.tieneFotos ? "📷" : "—"}</td>
                         <td style={{ padding: "6px", fontWeight: 700, color: "#F9A826" }}>{fmtCOP(f.monto)}</td>
                         <td style={{ padding: "6px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
                           <button onClick={() => abrirFactura(f)} style={btnTablaEditar}>Editar</button>
-                          {f.fotos?.length > 0 && <button onClick={() => verImagen(f.fotos[0])} style={btnTablaEditar}>👁 Imagen{f.fotos.length > 1 ? ` (${f.fotos.length})` : ""}</button>}
+                          {f.tieneFotos && <button onClick={() => verImagenFactura(f)} disabled={cargandoImagenId === f.id} style={btnTablaEditar}>{cargandoImagenId === f.id ? "Cargando…" : "👁 Imagen"}</button>}
                           <button onClick={() => eliminar(f)} style={btnTablaEliminar}>Eliminar</button>
                         </td>
                       </tr>
@@ -671,16 +702,27 @@ export default function CajaMenorTab({ mob }) {
                   ))}
                 </div>
               )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
-                  {subiendoFoto ? "Procesando..." : "📷 Tomar foto"}
-                  <input type="file" accept="image/*" capture="environment" onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
-                </label>
-                <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
-                  {subiendoFoto ? "Procesando..." : "+ Agregar imagen nueva"}
-                  <input type="file" accept="image/*" multiple onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
-                </label>
-              </div>
+              {estadoFotos === "cargando" && (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", padding: "8px 0" }}>Cargando fotos…</div>
+              )}
+              {estadoFotos === "error" && (
+                <div style={{ fontSize: 12, color: "#FF6B6B", padding: "8px 0" }}>
+                  No se pudieron cargar las fotos (siguen guardadas).{" "}
+                  <button onClick={() => traerFotosDe(facturaSel)} style={btnTablaEditar}>Reintentar</button>
+                </div>
+              )}
+              {fotosListas && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
+                    {subiendoFoto ? "Procesando..." : "📷 Tomar foto"}
+                    <input type="file" accept="image/*" capture="environment" onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
+                  </label>
+                  <label style={{ ...btnSecundario, display: "inline-block", cursor: subiendoFoto ? "wait" : "pointer", opacity: subiendoFoto ? 0.6 : 1 }}>
+                    {subiendoFoto ? "Procesando..." : "+ Agregar imagen nueva"}
+                    <input type="file" accept="image/*" multiple onChange={onFotosSeleccionadas} disabled={subiendoFoto} style={{ display: "none" }} />
+                  </label>
+                </div>
+              )}
             </div>
 
             {errorGuardado && (
