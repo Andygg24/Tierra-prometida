@@ -6281,12 +6281,12 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
 
       {/* ── Mensaje en Inicio (se escribe en Configuración → Empresa) ── */}
       {mensajeInicio.texto && (
-        <div style={{ background:"rgba(132,94,247,0.08)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:12, padding:"12px 14px", marginBottom:14, display:"flex", gap:10, alignItems:"flex-start" }}>
-          <span style={{ fontSize:18, flexShrink:0 }}>📢</span>
+        <div style={{ background:"rgba(132,94,247,0.08)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:14, padding: mob ? "14px 16px" : "18px 22px", marginBottom:14, display:"flex", gap:14, alignItems:"flex-start" }}>
+          <span style={{ fontSize: mob ? 24 : 30, flexShrink:0, lineHeight:1 }}>📢</span>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:13, color:"white", whiteSpace:"pre-wrap", wordBreak:"break-word", lineHeight:1.5 }}>{mensajeInicio.texto}</div>
+            <div style={{ fontSize: mob ? 16 : 19, fontWeight:600, color:"white", whiteSpace:"pre-wrap", wordBreak:"break-word", lineHeight:1.45 }}>{mensajeInicio.texto}</div>
             {(mensajeInicio.autor || mensajeInicio.fecha) && (
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:4 }}>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.48)", marginTop:6 }}>
                 {mensajeInicio.autor}{mensajeInicio.autor && mensajeInicio.fecha ? " · " : ""}
                 {mensajeInicio.fecha ? new Date(mensajeInicio.fecha).toLocaleString("es-CO", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : ""}
               </div>
