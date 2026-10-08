@@ -6086,6 +6086,10 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
   const { bookings: bookingsBienvenida }     = useLogistica();
   const { config: cfgBienvenida }            = useConfiguracion();
   const { cargarUltimoAutorizado }           = usePackingList();
+
+  // Mensaje para todos en Inicio — se escribe en Configuración → Empresa
+  // (clave "mensaje_inicio") y llega en tiempo real sin recargar.
+  const mensajeInicio = cfgBienvenida.mensaje_inicio || {};
   const [ultimoAutorizado, setUltimoAutorizado] = useState(undefined); // undefined = cargando, null = ninguno
   useEffect(() => {
     let cancelado = false;
@@ -6271,6 +6275,22 @@ function InicioDemo({ usuario, onNavigate, puedeAcceder }) {
           </div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.52)", marginTop:2 }}>
             Sistema en línea y listo para la operación. ¡Éxitos!
+          </div>
+        </div>
+      )}
+
+      {/* ── Mensaje en Inicio (se escribe en Configuración → Empresa) ── */}
+      {mensajeInicio.texto && (
+        <div style={{ background:"rgba(132,94,247,0.08)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:12, padding:"12px 14px", marginBottom:14, display:"flex", gap:10, alignItems:"flex-start" }}>
+          <span style={{ fontSize:18, flexShrink:0 }}>📢</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, color:"white", whiteSpace:"pre-wrap", wordBreak:"break-word", lineHeight:1.5 }}>{mensajeInicio.texto}</div>
+            {(mensajeInicio.autor || mensajeInicio.fecha) && (
+              <div style={{ fontSize:9, color:"rgba(255,255,255,0.42)", marginTop:4 }}>
+                {mensajeInicio.autor}{mensajeInicio.autor && mensajeInicio.fecha ? " · " : ""}
+                {mensajeInicio.fecha ? new Date(mensajeInicio.fecha).toLocaleString("es-CO", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : ""}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -6566,6 +6586,17 @@ function ConfigForm({ config, guardar, usuario }) {
   };
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
+  // Mensaje que ven todos en Inicio — vacío = no se muestra nada.
+  const mensajeInicioGuardado = config.mensaje_inicio || {};
+  const [textoMensajeInicio, setTextoMensajeInicio] = useState(() => mensajeInicioGuardado.texto || "");
+  const guardarMensajeInicio = (texto) => {
+    const limpio = texto.trim();
+    setTextoMensajeInicio(limpio);
+    save("mensaje_inicio",
+      limpio ? { texto: limpio, autor: usuario?.nombre || "", fecha: new Date().toISOString() } : { texto: "" },
+      limpio ? "Mensaje publicado en Inicio ✓" : "Mensaje quitado de Inicio ✓");
+  };
+
   // ── State por tab ──
   const [empresa, setEmpresa] = useState(() => load("cfg_empresa", {
     nombre:"Tierra Prometida Trading", nit:"", direccion:"Lebrija, Santander", ciudad:"Lebrija",
@@ -6705,6 +6736,32 @@ function ConfigForm({ config, guardar, usuario }) {
       {/* ── TAB 1: EMPRESA ── */}
       {tabIdx === 0 && (
         <div>
+          <div style={secS}>
+            <div style={secH}>📢 Mensaje en Inicio</div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.52)", marginBottom:10, lineHeight:1.5 }}>
+              Lo verán todos los usuarios arriba en la pantalla de Inicio. Déjalo vacío y guarda para quitarlo.
+            </div>
+            <textarea
+              value={textoMensajeInicio}
+              onChange={e => setTextoMensajeInicio(e.target.value)}
+              placeholder="Escribe el mensaje que verán todos al entrar..."
+              rows={3}
+              style={iS({ resize:"vertical" })}
+            />
+            {mensajeInicioGuardado.texto && (
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.42)", marginTop:6 }}>
+                Publicado{mensajeInicioGuardado.autor ? ` por ${mensajeInicioGuardado.autor}` : ""}
+                {mensajeInicioGuardado.fecha ? ` · ${new Date(mensajeInicioGuardado.fecha).toLocaleString("es-CO", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })}` : ""}
+              </div>
+            )}
+            <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end", flexWrap:"wrap" }}>
+              {mensajeInicioGuardado.texto && (
+                <button onClick={() => guardarMensajeInicio("")} style={{ background:"rgba(255,107,107,0.1)", border:"1px solid #FF6B6B50", borderRadius:8, padding:"8px 14px", fontSize:12, color:"#FF6B6B", cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>✕ Quitar mensaje</button>
+              )}
+              <button onClick={() => guardarMensajeInicio(textoMensajeInicio)} style={{ background:"#845EF7", border:"none", borderRadius:8, padding:"8px 16px", fontSize:12, color:"white", cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>📢 Publicar en Inicio</button>
+            </div>
+          </div>
+
           <div style={secS}>
             <div style={secH}>🖼️ Identidad Corporativa</div>
             <div style={{ display:"flex", gap:16, alignItems:"flex-start", flexWrap:"wrap" }}>
