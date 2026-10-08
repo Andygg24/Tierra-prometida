@@ -1838,7 +1838,10 @@ export default function RecepcionesTab({ mob }) {
                           <input type="file" accept="image/*" capture="environment" onChange={ev=>onFotoPesoSeleccionada(idx, ev)} disabled={subiendoFotoIdx===idx} style={{ display:"none" }} />
                         </label>
                         {e.fotoPesoBruto ? (
-                          <img src={e.fotoPesoBruto} alt="Evidencia peso bruto" onClick={()=>verImagenPeso(e.fotoPesoBruto)} style={{ width:26, height:26, objectFit:"cover", borderRadius:5, border:"1px solid rgba(0,201,167,0.5)", cursor:"pointer" }} />
+                          <div style={{ position:"relative" }}>
+                            <img src={e.fotoPesoBruto} alt="Evidencia peso bruto" onClick={()=>verImagenPeso(e.fotoPesoBruto)} style={{ width:26, height:26, objectFit:"cover", borderRadius:5, border:"1px solid rgba(0,201,167,0.5)", cursor:"pointer", display:"block" }} />
+                            <button onClick={()=>quitarFotoPeso(idx)} title="Quitar esta foto" style={{ position:"absolute", top:-6, right:-6, width:16, height:16, borderRadius:"50%", background:"#FF6B6B", border:"2px solid rgba(20,20,20,0.9)", color:"white", fontSize:9, lineHeight:"12px", cursor:"pointer", padding:0 }}>✕</button>
+                          </div>
                         ) : (
                           <span style={{ fontSize:12, color:"#F9A826" }} title="Falta foto de evidencia">⚠</span>
                         )}
