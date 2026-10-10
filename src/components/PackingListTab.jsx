@@ -9,7 +9,7 @@ import { useRecepciones } from "../hooks/useRecepciones.js";
 import { registrarActividad } from "../hooks/useActividad.js";
 import {
   generarInformePlantaHtml, generarInformeCargueHtml,
-  CALIBRES, COL_CAL, PREDIOS, CHECKLIST_CALIDAD_CARGUE, CHEQUEO_TOTAL_ITEMS,
+  CALIBRES, COL_CAL, PREDIOS, CHECKLIST_CALIDAD_CARGUE, CHEQUEO_TOTAL_ITEMS, INSPECCION_CAMION,
 } from "../reportes/informesProceso.js";
 
 const DESTINOS = ["Philadelphia", "Miami, FL", "Port Everglades, FL", "San Juan"];
@@ -23,7 +23,7 @@ const COL_CAL_VACIO = { bg:"#94a3b8", light:"rgba(148,163,184,0.12)", border:"rg
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
 const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral", "conteoCalibre"];
-const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "trailer", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "firmaConductor", "firmaSupervisor"];
+const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "trailer", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "inspeccionCamion", "firmaConductor", "firmaSupervisor"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
 function pick(obj, keys) {
@@ -109,6 +109,8 @@ async function buildTirillaPallet(p, admin, plId) {
   const pesoCaja  = parseFloat(PESO_STR) || 0;
   const pesoTotal = pesoCaja * sumaCajas;
   const qrTexto   = textoQrPallet(plId, p.id);
+  // Lote(s) de materia prima del pallet (uno por calibre; mixto puede traer varios).
+  const lotes     = [...new Set(p.calibres.map(c => c.lote).filter(Boolean))];
   const qrDataUrl = await QRCode.toDataURL(qrTexto, { errorCorrectionLevel: "M", margin: 1, width: 260 });
 
   const filasCalibres = p.calibres.map(c => `
@@ -135,6 +137,7 @@ async function buildTirillaPallet(p, admin, plId) {
   .brand img{width:6.5mm;height:6.5mm;object-fit:contain;flex-shrink:0}
   .brand .nom{font-size:3mm;font-weight:800;line-height:1.15}
   .brand .sub{font-size:2.2mm;color:#555;font-weight:600}
+  .brand .lote{font-size:2.4mm;color:#111;font-weight:800;line-height:1.15;margin-top:0.2mm}
   .pallet-no{text-align:right;flex-shrink:0}
   .pallet-no .lbl{font-size:2.2mm;color:#555;font-weight:800;letter-spacing:0.3mm}
   .pallet-no .num{font-size:10.5mm;font-weight:900;line-height:0.85}
@@ -164,6 +167,7 @@ async function buildTirillaPallet(p, admin, plId) {
           <div>
             <div class="nom">TIERRA PROMETIDA</div>
             <div class="sub">Limón Tahití · Cat 1</div>
+            ${lotes.length ? `<div class="lote">Lote: ${lotes.join(", ")}</div>` : ""}
           </div>
         </div>
         <div class="pallet-no">
@@ -313,14 +317,28 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   // manual si hace falta asignar antes de haber hecho esa asociación.
   const { asignaciones, lotesPorRecepcion } = useRecepciones({ ultimas: 0, traerReferenciadas: false, conLotes: true });
   const [verTodosLotes, setVerTodosLotes] = useState(false);
-  const lotesDisponibles = [...new Set(lotesPorRecepcion.map(r => r.lote).filter(Boolean))].sort();
+  // Cada recepción aporta su código de lote (MP-MEN01-AA-JJJ-NN, generado con
+  // "QR del lote" en Recepciones); las que aún no lo tienen siguen aportando
+  // el predio como antes, para no quedarse sin nada que elegir.
+  const opcionesLote = (recs) => {
+    const m = new Map();
+    recs.forEach(r => {
+      if (r.codigoLote) m.set(r.codigoLote, r.lote ? `${r.codigoLote} · ${r.lote}` : r.codigoLote);
+      else if (r.lote && !m.has(r.lote)) m.set(r.lote, `${r.lote} (sin código de lote)`);
+    });
+    return [...m.entries()].map(([value, label]) => ({ value, label }))
+      .sort((a, b) => b.value.localeCompare(a.value)); // códigos más recientes primero
+  };
+  const lotesDisponibles = opcionesLote(lotesPorRecepcion);
   const recepcionIdsDelContenedor = new Set(
     asignaciones.filter(a => a.contenedorId === contenedor.id).map(a => a.recepcionId)
   );
-  const lotesDelContenedor = [...new Set(
-    lotesPorRecepcion.filter(r => recepcionIdsDelContenedor.has(r.id) && r.lote).map(r => r.lote)
-  )].sort();
+  const lotesDelContenedor = opcionesLote(lotesPorRecepcion.filter(r => recepcionIdsDelContenedor.has(r.id)));
   const lotesParaSelector = verTodosLotes ? lotesDisponibles : lotesDelContenedor;
+  // El lote ya guardado en el pallet siempre debe verse en el selector,
+  // aunque no esté en la lista filtrada.
+  const opcionesLoteCon = (actual) => actual && !lotesParaSelector.some(o => o.value === actual)
+    ? [{ value: actual, label: actual }, ...lotesParaSelector] : lotesParaSelector;
   const claveRequerida = cfgSeguridad?.cfg_claves_acceso?.paso1_packing || "";
   const [paso1Ok,       setPaso1Ok]       = useState(false);
   const [claveInput,    setClaveInput]    = useState("");
@@ -415,6 +433,8 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     // ── Paso 2 — Camión: termoregistro, precinto, temperaturas y pallet(s) con ICA ──
     termoregistroCamion:"", termoregistroCamionPalletNo:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
     icaCamion:[{ ica:"", palletNo:"" }],
+    // Inspección del camión: { buenEstado:"si"|"no", buenEstadoObs, sanitaria, sanitariaObs, ... } — "<clave>Obs" solo se pide si es NO
+    inspeccionCamion:{},
     growerAssignments:{}, growerETA:"", growerBL:"", growerContainer:"",
     ispm15:"CO-68-009 HT",
     // ── Formato ID Pallet — campos sin fuente en otro paso ──
@@ -430,6 +450,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
   };
   const [admin, setAdmin] = useState(adminInicial);
   const sa = (k, v) => setAdmin(a => ({ ...a, [k]: v }));
+  const setInspeccion = (k, v) => setAdmin(a => ({ ...a, inspeccionCamion: { ...(a.inspeccionCamion || {}), [k]: v } }));
   // Conteo manual de 2 cajas por calibre (Paso 1) — dato pedido por la
   // directiva, aparte del total de cajas que ya arma cada pallet.
   const setConteoCalibre = (size, campo, valor) =>
@@ -2114,7 +2135,7 @@ p{text-align:justify;margin-bottom:14px}
                         <div><div style={lbl}>🏷️ Lote</div>
                           <SearchableSelect value={c.lote} onChange={e => setPF(selPalletIdx, ci, "lote", e.target.value)} placeholder="Buscar lote..." style={inp}>
                             <option value="">— Sin lote —</option>
-                            {lotesParaSelector.map(l => <option key={l} value={l}>{l}</option>)}
+                            {opcionesLoteCon(c.lote).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </SearchableSelect>
                         </div>
                         <div>{ci === 0
@@ -2137,7 +2158,7 @@ p{text-align:justify;margin-bottom:14px}
                         <div><div style={lbl}>🏷️ Lote</div>
                           <SearchableSelect value={c.lote} onChange={e => setPF(selPalletIdx, ci, "lote", e.target.value)} placeholder="Buscar lote..." style={inp}>
                             <option value="">— Sin lote —</option>
-                            {lotesParaSelector.map(l => <option key={l} value={l}>{l}</option>)}
+                            {opcionesLoteCon(c.lote).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </SearchableSelect>
                         </div>
                         <div style={{ paddingBottom:1 }}>{ci === 0
@@ -2294,6 +2315,46 @@ p{text-align:justify;margin-bottom:14px}
               ))}
             </div>
           </div>
+
+          {/* ── INSPECCIÓN DEL CAMIÓN ─────────────── */}
+          {(() => {
+            const insp      = admin.inspeccionCamion || {};
+            const marcados  = INSPECCION_CAMION.filter(([k]) => insp[k]).length;
+            const conNo     = INSPECCION_CAMION.filter(([k]) => insp[k] === "no").length;
+            const completo  = marcados === INSPECCION_CAMION.length;
+            return (
+              <div style={{ ...cardS, marginBottom: m ? 14 : 12 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: m ? 10 : 8, flexWrap:"wrap", gap:6 }}>
+                  <div style={{ fontSize: m ? 11 : 9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>🔍 INSPECCIÓN DEL CAMIÓN</div>
+                  <div style={{ fontSize: m ? 11 : 10, fontWeight:700, color: conNo > 0 ? "#EF4444" : completo ? "#00C9A7" : "rgba(255,255,255,0.4)" }}>
+                    {marcados}/{INSPECCION_CAMION.length} revisados{conNo > 0 ? ` · ${conNo} con NO ⚠️` : completo ? " · Todo cumple ✓" : ""}
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                  {INSPECCION_CAMION.map(([key, label]) => {
+                    const val = insp[key] || null;
+                    return (
+                      <div key={key}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding: m ? "8px 10px" : "6px 10px", gap:8 }}>
+                          <span style={{ fontSize: m ? 12 : 11, color:"rgba(255,255,255,0.8)", flex:1 }}>{label}</span>
+                          <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                            <button onClick={() => setInspeccion(key, "si")} style={{ background: val==="si" ? "rgba(0,201,167,0.25)" : "rgba(255,255,255,0.05)", border:`1px solid ${val==="si" ? "#00C9A7" : "rgba(255,255,255,0.15)"}`, borderRadius:6, padding: m ? "7px 14px" : "4px 10px", color: val==="si" ? "#00C9A7" : "rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:700, minWidth: m ? 48 : 32, fontFamily:"inherit" }}>{val==="si" ? "✓ Sí" : "Sí"}</button>
+                            <button onClick={() => setInspeccion(key, "no")} style={{ background: val==="no" ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.05)", border:`1px solid ${val==="no" ? "#EF4444" : "rgba(255,255,255,0.15)"}`, borderRadius:6, padding: m ? "7px 14px" : "4px 10px", color: val==="no" ? "#EF4444" : "rgba(255,255,255,0.4)", cursor:"pointer", fontSize: m ? 12 : 11, fontWeight:700, minWidth: m ? 48 : 32, fontFamily:"inherit" }}>{val==="no" ? "✓ No" : "No"}</button>
+                          </div>
+                        </div>
+                        {val === "no" && (
+                          <div style={{ marginTop:5 }}>
+                            <div style={lbl}>Observación</div>
+                            <textarea value={insp[`${key}Obs`] || ""} onChange={e => setInspeccion(`${key}Obs`, e.target.value)} rows={2} placeholder="Describe el problema..." style={{ ...inp, resize:"vertical", fontFamily:"inherit" }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ background:"rgba(249,115,22,0.07)", border:"1px solid rgba(249,115,22,0.25)", borderRadius:10, padding: m ? "10px 14px" : "8px 14px", marginBottom: m ? 12 : 10, fontSize: m ? 12 : 11, color:"rgba(249,115,22,0.9)" }}>
             🚛 Arrastra los pallets para reflejar cómo quedaron físicamente dentro del camión (fondo → puerta trasera).

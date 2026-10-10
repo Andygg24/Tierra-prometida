@@ -4,7 +4,7 @@ import CustomSelect from "./CustomSelect.jsx";
 import SearchableSelect from "./SearchableSelect.jsx";
 import LimonLoader from "./LimonLoader.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
-import { useRecepciones } from "../hooks/useRecepciones.js";
+import { useRecepciones, prefijoLoteHoy } from "../hooks/useRecepciones.js";
 import { useVerificacionesEstibas } from "../hooks/useVerificacionesEstibas.js";
 import { usePackingList } from "../hooks/usePackingList.js";
 import { useContenedores } from "../hooks/useContenedores.js";
@@ -648,6 +648,91 @@ async function buildTirillaEstibaWord(form, e, recepcionId) {
 </body></html>`;
 }
 
+// Tirilla del lote de materia prima (código MP-MEN01-AA-JJJ-NN). El QR lleva
+// el código tal cual, para que cualquier lector lo muestre legible.
+// formato: "rollo" (100x50mm térmica) | "word" (hoja carta, 1/6 página).
+async function buildTirillaLote(r, formato) {
+  const logoSrc   = await cargarLogoBase64();
+  const qrDataUrl = await QRCode.toDataURL(r.codigoLote, { errorCorrectionLevel: "M", margin: 1, width: 320 });
+  const fechaFmt  = r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-CO", { day:"2-digit", month:"2-digit", year:"numeric" }) : "—";
+  const filas = [
+    ["Fecha de ingreso", fechaFmt],
+    ["Remisión N°", r.remision || "—"],
+    ["Proveedor", r.proveedor || "—"],
+    ["Predio", r.lote || "—"],
+    ["Placa", r.placa || "—"],
+    ["Estibas", String(r.estibas.length)],
+    ["Peso Neto", `${kg(r.total)} kg`],
+  ];
+  const filasHtml = filas.map(([l, v]) => `<div class="frow"><span class="flbl">${esc(l)}</span><span class="fval">${esc(v)}</span></div>`).join("");
+  const word = formato === "word";
+  const etiqueta = `
+      <div class="top">
+        <div class="brand">
+          ${logoSrc ? `<img src="${logoSrc}"/>` : ""}
+          <div>
+            <div class="nom">TIERRA PROMETIDA</div>
+            <div class="sub">Lote materia prima</div>
+          </div>
+        </div>
+      </div>
+      <div class="codigo">${esc(r.codigoLote)}</div>
+      <div class="body-row">
+        <div class="info">${filasHtml}</div>
+        <div class="qrbox"><img src="${qrDataUrl}" alt="QR lote ${esc(r.codigoLote)}" /></div>
+      </div>`;
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Tirilla Lote ${esc(r.codigoLote)}${word ? " (hoja carta)" : ""}</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#111}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:${word ? "1px" : "0.5mm"} solid #111}
+  .brand{display:flex;align-items:center;min-width:0}
+  .brand img{object-fit:contain;flex-shrink:0}
+  .brand .nom{font-weight:800;line-height:1.15}
+  .brand .sub{color:#555;font-weight:600}
+  .codigo{font-weight:900;text-align:center;letter-spacing:0.02em;white-space:nowrap}
+  .body-row{flex:1;display:flex;min-height:0}
+  .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+  .frow{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #ddd}
+  .flbl{color:#555;font-weight:700}
+  .fval{font-weight:800;color:#111;text-align:right}
+  .qrbox{flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  ${word ? `
+  @page{size:letter;margin:0}
+  .page{width:8.5in;height:11in;display:grid;grid-template-columns:repeat(2,4.25in);grid-template-rows:repeat(3,3.6667in)}
+  .cell{padding:0.2in;overflow:hidden}
+  .label{width:100%;height:100%;border:1px solid #ccc;border-radius:0.08in;padding:0.16in;display:flex;flex-direction:column}
+  .top{padding-bottom:0.05in}
+  .brand{gap:0.08in} .brand img{width:0.35in;height:0.35in}
+  .brand .nom{font-size:13px} .brand .sub{font-size:10px}
+  .codigo{font-size:21px;margin:0.06in 0}
+  .body-row{gap:0.12in}
+  .frow{padding:0.03in 0} .flbl{font-size:10px} .fval{font-size:11.5px}
+  .qrbox{width:1.4in} .qrbox img{width:1.35in;height:1.35in}` : `
+  @page{size:100mm 50mm;margin:0}
+  body{width:100mm;height:50mm}
+  .label{width:100mm;height:50mm;padding:1.8mm;display:flex;flex-direction:column;overflow:hidden}
+  .top{padding-bottom:0.4mm}
+  .brand{gap:1.3mm} .brand img{width:6mm;height:6mm}
+  .brand .nom{font-size:2.8mm} .brand .sub{font-size:2mm}
+  .codigo{font-size:5.6mm;margin:0.8mm 0}
+  .body-row{gap:2.5mm}
+  .frow{padding:0.35mm 0;border-bottom-width:0.25mm} .flbl{font-size:2.3mm} .fval{font-size:2.7mm}
+  .qrbox{width:29mm} .qrbox img{width:28mm;height:28mm}`}
+  @media print{ body{padding:0} }
+</style></head>
+<body>
+  ${word
+    ? `<div class="page"><div class="cell"><div class="label">${etiqueta}</div></div>
+    <div class="cell"></div><div class="cell"></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div></div>`
+    : `<div class="label">${etiqueta}</div>`}
+</body></html>`;
+}
+
 export default function RecepcionesTab({ mob }) {
   // "Asociar Contenedor" y "Verificación de Estibas" apuntan al contenedor de
   // producción (el mismo que usa Packing List, Nómina y Asistencia QR) — no
@@ -684,7 +769,7 @@ export default function RecepcionesTab({ mob }) {
   const [filtroHasta, setFiltroHasta] = useState("");
   const [limiteHistorial, setLimiteHistorial] = useState("5"); // últimas N de cada tipo cuando no hay rango de fechas
 
-  const { recepciones, conocidas: recepcionesConocidas, asignaciones, loading, refrescando, errorCarga, recargar, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta, cargarRecepcionPorId } =
+  const { recepciones, conocidas: recepcionesConocidas, asignaciones, loading, refrescando, errorCarga, recargar, guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, generarCodigoLote, asignarCodigoLoteManual, eliminarCodigoLote, guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta, cargarRecepcionPorId } =
     useRecepciones({ ultimas: Number(limiteHistorial), desde: filtroDesde, hasta: filtroHasta });
   const { cargarPalletsPorContenedores } = usePackingList();
   const { verificaciones, guardarVerificacion, eliminarVerificacion } = useVerificacionesEstibas();
@@ -694,6 +779,7 @@ export default function RecepcionesTab({ mob }) {
   const [guardando,  setGuardando]  = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [preview,    setPreview]    = useState(null); // { url, filename }
+  const previewIframeRef = useRef(null); // para imprimir lo que se ve en la vista previa
   const [subiendoFotoIdx, setSubiendoFotoIdx] = useState(null); // idx de la estiba cuya foto de peso se está procesando
   const [imagenAmpliada, setImagenAmpliada]   = useState(null); // url de la foto de peso en vista ampliada
   const [subiendoFotoComparacion, setSubiendoFotoComparacion] = useState(false); // foto(s) del cuaderno del proveedor
@@ -979,6 +1065,83 @@ export default function RecepcionesTab({ mob }) {
     });
   };
 
+  // "Generar QR del lote" — al terminar la recepción del camión. La primera
+  // vez asigna el código (MP-MEN01-AA-JJJ-NN); después solo reimprime el mismo.
+  const [loteQr, setLoteQr] = useState(null); // recepción (con codigoLote) cuyo QR se va a imprimir
+  const [generandoLoteId, setGenerandoLoteId] = useState(null);
+  const [loteRecienGuardado, setLoteRecienGuardado] = useState(null); // aviso tras guardar una entrada
+  const generarQrLote = async (r) => {
+    let codigo = r.codigoLote;
+    if (!codigo) {
+      setGenerandoLoteId(r.id);
+      const res = await generarCodigoLote(r.id);
+      setGenerandoLoteId(null);
+      if (res.error) {
+        // Respaldo: que el usuario lo escriba a mano.
+        abrirLoteManual(r, `No se pudo generar el código automáticamente (${res.error}). Puedes escribirlo a mano:`);
+        return;
+      }
+      codigo = res.codigo;
+      const usuario = nombreUsuarioSesion();
+      registrarActividad({
+        usuario,
+        modulo: "Recepción",
+        accion: "generar_lote",
+        detalle: `${usuario || "Alguien"} generó el lote ${codigo}${r.remision ? ` para la remisión ${r.remision}` : ""}`,
+        referencia: codigo,
+      });
+    }
+    setLoteQr({ ...r, codigoLote: codigo });
+  };
+  // Código manual — si la generación automática falla, o si el usuario lo
+  // prefiere. Se sugiere el prefijo de hoy para que solo complete el consecutivo.
+  const [loteManual, setLoteManual] = useState(null); // { r, codigo, aviso, error, guardando }
+  const abrirLoteManual = (r, aviso = "") => setLoteManual({ r, codigo: prefijoLoteHoy(), aviso, error: "", guardando: false });
+  const guardarLoteManual = async () => {
+    if (!loteManual) return;
+    const { r, codigo } = loteManual;
+    setLoteManual(s => ({ ...s, guardando: true, error: "" }));
+    const res = await asignarCodigoLoteManual(r.id, codigo);
+    if (res.error) { setLoteManual(s => ({ ...s, guardando: false, error: res.error })); return; }
+    const usuario = nombreUsuarioSesion();
+    registrarActividad({
+      usuario,
+      modulo: "Recepción",
+      accion: "generar_lote",
+      detalle: `${usuario || "Alguien"} asignó a mano el lote ${res.codigo}${r.remision ? ` para la remisión ${r.remision}` : ""}`,
+      referencia: res.codigo,
+    });
+    setLoteManual(null);
+    setLoteQr({ ...r, codigoLote: res.codigo });
+  };
+
+  const borrarQrLote = async () => {
+    if (!loteQr) return;
+    const codigo = loteQr.codigoLote;
+    if (!window.confirm(`¿Eliminar el código de lote ${codigo}?\n\nLa recepción queda sin código (se puede generar uno nuevo después, con la fecha y consecutivo de ese momento). Los pallets que ya tengan este lote asignado lo conservan.`)) return;
+    const res = await eliminarCodigoLote(loteQr.id);
+    if (res.error) { alert(`No se pudo eliminar el código del lote.\n\n${res.error}`); return; }
+    const usuario = nombreUsuarioSesion();
+    registrarActividad({
+      usuario,
+      modulo: "Recepción",
+      accion: "eliminar_lote",
+      detalle: `${usuario || "Alguien"} eliminó el lote ${codigo}${loteQr.remision ? ` de la remisión ${loteQr.remision}` : ""}`,
+      referencia: codigo,
+    });
+    setLoteQr(null);
+  };
+  const imprimirTirillaLote = async (formato) => {
+    if (!loteQr) return;
+    const html = await buildTirillaLote(loteQr, formato);
+    const url  = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    setPreview(prev => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return { url, filename: `Tirilla-Lote-${loteQr.codigoLote}-${formato}.html`, titulo: `Lote ${loteQr.codigoLote} (${formato === "word" ? "hoja carta" : "rollo"})` };
+    });
+    setLoteQr(null);
+  };
+
   const descargarInforme = () => {
     if (!preview) return;
     const a = document.createElement("a");
@@ -1015,9 +1178,15 @@ export default function RecepcionesTab({ mob }) {
     }
     setGuardando(true);
     const estibasCalc = form.estibas.map(e => ({ ...e, descuentoEstiba: descuentoEstiba(e), pesoNeto: pesoNetoEstiba(e) }));
-    const ok = await guardarRecepcion({ ...form, estibas: estibasCalc, total: totalNeto }, editId);
+    const formGuardado = { ...form, estibas: estibasCalc, total: totalNeto };
+    const ok = await guardarRecepcion(formGuardado, editId);
     setGuardando(false);
     if (ok) {
+      // Recepción de camión terminada → se ofrece generar el QR del lote.
+      if (form.tipo === "entrada") {
+        const yaConCodigo = recepcionesConocidas.find(r => r.id === ok)?.codigoLote || "";
+        setLoteRecienGuardado({ ...formGuardado, id: ok, codigoLote: yaConCodigo });
+      }
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 2000);
       const usuario = nombreUsuarioSesion();
@@ -1375,7 +1544,7 @@ export default function RecepcionesTab({ mob }) {
   // cuenta que ya muestra el informe de planta, disponible aquí también
   // para que el supervisor la vea (o la corrija) al verificar.
   const calcularCajasLote = async (recepcion) => {
-    if (!recepcion.lote) return;
+    if (!recepcion.lote && !recepcion.codigoLote) return;
     const contenedorIds = contenedoresDeRecepcion(recepcion.id);
     if (!contenedorIds.length) {
       alert("Esta remisión todavía no está asociada a ningún contenedor — no hay cajas empacadas que sumar todavía.");
@@ -1387,7 +1556,8 @@ export default function RecepcionesTab({ mob }) {
       if (error) { alert("No se pudo calcular: " + error.message); return; }
       let total = 0;
       (data || []).forEach(pl => (pl.pallets || []).forEach(p => (p.calibres || []).forEach(c => {
-        if (c.lote === recepcion.lote) total += Number(c.cajas || 0);
+        // Pallets marcados con el código de lote, o con el predio (forma vieja).
+        if (c.lote && (c.lote === recepcion.codigoLote || c.lote === recepcion.lote)) total += Number(c.cajas || 0);
       })));
       setCajasLoteInput(String(total));
     } finally {
@@ -1934,6 +2104,23 @@ export default function RecepcionesTab({ mob }) {
               {guardadoOk ? "✓ Guardado" : guardando ? "Guardando..." : editId ? "Guardar cambios" : "Guardar recepción"}
             </button>
           </div>
+
+          {loteRecienGuardado && (
+            <div style={{ marginTop:12, background:"rgba(132,94,247,0.10)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:10, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+              <span style={{ flex:1, minWidth:180, fontSize:12, color:"rgba(255,255,255,0.85)" }}>
+                ✅ Recepción {loteRecienGuardado.remision ? `de la remisión ${loteRecienGuardado.remision} ` : ""}guardada.
+                {loteRecienGuardado.codigoLote ? <> Lote: <b style={{ color:"#c4b5fd" }}>{loteRecienGuardado.codigoLote}</b></> : " ¿Terminaste de recibir el camión?"}
+              </span>
+              <button onClick={async () => { const r = loteRecienGuardado; setLoteRecienGuardado(null); await generarQrLote(r); }} disabled={generandoLoteId != null}
+                style={{ background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, color:"white", padding:"9px 16px", fontSize:12, fontWeight:700, cursor:"pointer", opacity: generandoLoteId != null ? 0.6 : 1 }}>
+                {generandoLoteId != null ? "Generando..." : loteRecienGuardado.codigoLote ? "🏷️ Imprimir QR del lote" : "🏷️ Generar QR del lote"}
+              </button>
+              {!loteRecienGuardado.codigoLote && (
+                <button onClick={() => { const r = loteRecienGuardado; setLoteRecienGuardado(null); abrirLoteManual(r); }} style={btnSecundario}>✏️ Escribir código manual</button>
+              )}
+              <button onClick={() => setLoteRecienGuardado(null)} style={btnSecundario}>Ahora no</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2032,7 +2219,7 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px" }}>{r.fecha}</td>
                     <td style={{ padding:"6px" }}>{r.placa || "—"}</td>
                     <td style={{ padding:"6px" }}>{r.proveedor || "—"}</td>
-                    <td style={{ padding:"6px" }}>{r.lote || <span style={{ color:"rgba(255,255,255,0.3)" }}>sin lote</span>}</td>
+                    <td style={{ padding:"6px" }}>{r.lote || <span style={{ color:"rgba(255,255,255,0.3)" }}>sin lote</span>}{r.codigoLote && <div style={{ fontSize:10, color:"#c4b5fd", fontWeight:700, whiteSpace:"nowrap" }}>{r.codigoLote}</div>}</td>
                     <td style={{ padding:"6px" }}>{r.supervisor || "—"}</td>
                     <td style={{ padding:"6px", textAlign:"center" }}>
                       {r.estibas.filter(e => e.usada).length}/{r.estibas.length}
@@ -2040,6 +2227,18 @@ export default function RecepcionesTab({ mob }) {
                     <td style={{ padding:"6px", color:"#00C9A7", fontWeight:700 }}>{num(r.total).toLocaleString("es-CO",{maximumFractionDigits:2})} kg</td>
                     <td style={{ padding:"6px", whiteSpace:"nowrap" }}>
                       <button onClick={()=>verInforme(r)} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.3)", borderRadius:6, color:"#00C9A7", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>📄 Informe</button>
+                      {r.tipo === "entrada" && (
+                        <button onClick={()=>generarQrLote(r)} disabled={generandoLoteId === r.id} title={r.codigoLote ? `Reimprimir QR del lote ${r.codigoLote}` : "Generar código y QR del lote"}
+                          style={{ background:"rgba(132,94,247,0.12)", border:"1px solid rgba(132,94,247,0.35)", borderRadius:6, color:"#c4b5fd", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>
+                          {generandoLoteId === r.id ? "…" : r.codigoLote ? "🏷️ QR lote" : "🏷️ Generar QR lote"}
+                        </button>
+                      )}
+                      {r.tipo === "entrada" && !r.codigoLote && (
+                        <button onClick={()=>abrirLoteManual(r)} title="Escribir el código del lote a mano"
+                          style={{ background:"rgba(132,94,247,0.08)", border:"1px solid rgba(132,94,247,0.3)", borderRadius:6, color:"#c4b5fd", padding:"4px 8px", fontSize:11, cursor:"pointer", marginRight:6 }}>
+                          ✏️ Manual
+                        </button>
+                      )}
                       <button onClick={()=>editarRecepcion(r)} style={btnTablaEditar}>Editar</button>
                       <button onClick={()=>{ if (window.confirm(`¿Eliminar la recepción con remisión "${r.remision || r.id}"? Esta acción no se puede deshacer.`)) eliminarRecepcion(r.id); }} style={btnTablaEliminar}>Eliminar</button>
                     </td>
@@ -2263,9 +2462,9 @@ export default function RecepcionesTab({ mob }) {
                   <div><div style={lbl}>Peso Neto</div><div style={{ fontSize:14, color:"#00C9A7", fontWeight:800 }}>{kg(pesoNetoEstiba(estiba))} kg</div></div>
                 </div>
 
-                {recepcion.lote && (
+                {(recepcion.lote || recepcion.codigoLote) && (
                   <div style={{ background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:9, padding:"10px 12px", marginBottom:14 }}>
-                    <div style={{ fontSize:10, fontWeight:700, color:"#a5b4fc", textTransform:"uppercase", letterSpacing:0.4, marginBottom:8 }}>🏷️ Cajas empacadas — Lote {recepcion.lote}</div>
+                    <div style={{ fontSize:10, fontWeight:700, color:"#a5b4fc", textTransform:"uppercase", letterSpacing:0.4, marginBottom:8 }}>🏷️ Cajas empacadas — Lote {recepcion.codigoLote || recepcion.lote}</div>
                     <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
                       <input
                         type="number" min={0} value={cajasLoteInput}
@@ -2656,13 +2855,55 @@ export default function RecepcionesTab({ mob }) {
         </div>
       )}
 
+      {/* ── Código de lote escrito a mano ── */}
+      {loteManual && (
+        <div onClick={() => !loteManual.guardando && setLoteManual(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:"#1a1f2e", border:"1px solid rgba(132,94,247,0.4)", borderRadius:12, padding:20, maxWidth:380, width:"100%" }}>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", fontWeight:700, marginBottom:6 }}>✏️ CÓDIGO DE LOTE MANUAL{loteManual.r.remision ? ` — REMISIÓN ${loteManual.r.remision}` : ""}</div>
+            {loteManual.aviso && <div style={{ fontSize:12, color:"#fca5a5", marginBottom:8 }}>{loteManual.aviso}</div>}
+            <input autoFocus value={loteManual.codigo} onChange={e => setLoteManual(s => ({ ...s, codigo: e.target.value.toUpperCase(), error: "" }))}
+              onKeyDown={e => { if (e.key === "Enter") guardarLoteManual(); }}
+              placeholder="MP-MEN01-26-283-01" style={{ ...inp, fontSize:16, fontWeight:800, letterSpacing:0.5 }} />
+            <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.4)", marginTop:5 }}>Formato: MP-MEN01-año-día juliano-consecutivo (ej. {prefijoLoteHoy()}01)</div>
+            {loteManual.error && <div style={{ fontSize:12, color:"#fca5a5", marginTop:8 }}>⚠️ {loteManual.error}</div>}
+            <div style={{ display:"flex", gap:8, marginTop:12 }}>
+              <button onClick={guardarLoteManual} disabled={loteManual.guardando} style={{ flex:1, background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, color:"white", padding:"10px", fontSize:12, fontWeight:700, cursor:"pointer", opacity: loteManual.guardando ? 0.6 : 1 }}>
+                {loteManual.guardando ? "Guardando..." : "Guardar y ver QR"}
+              </button>
+              <button onClick={() => setLoteManual(null)} disabled={loteManual.guardando} style={{ flex:1, ...btnSecundario }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Elegir formato de la tirilla del lote ── */}
+      {loteQr && (
+        <div onClick={() => setLoteQr(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:"#1a1f2e", border:"1px solid rgba(132,94,247,0.4)", borderRadius:12, padding:20, maxWidth:360, width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", fontWeight:700, marginBottom:4 }}>🏷️ LOTE DE MATERIA PRIMA</div>
+            <div style={{ fontSize:20, fontWeight:900, color:"#c4b5fd", marginBottom:14, letterSpacing:0.5 }}>{loteQr.codigoLote}</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => imprimirTirillaLote("rollo")} style={{ flex:1, ...btnTablaEditar, padding:"10px" }}>🖨 Rollo</button>
+              <button onClick={() => imprimirTirillaLote("word")} style={{ flex:1, ...btnTablaEditar, padding:"10px" }}>📝 Hoja carta</button>
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:10 }}>
+              <button onClick={borrarQrLote} style={{ flex:1, ...btnTablaEliminar, padding:"10px" }}>🗑 Eliminar QR</button>
+              <button onClick={() => setLoteQr(null)} style={{ flex:1, ...btnSecundario }}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal vista previa del informe ── */}
       {preview && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", flexDirection:"column", padding: m ? 8 : 24 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <div style={{ color:"white", fontSize:13, fontWeight:700 }}>📄 {preview.titulo || "Vista previa — Informe de Recepción"}</div>
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={descargarInforme} style={{ background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, color:"white", padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+              <button onClick={() => previewIframeRef.current?.contentWindow?.print()} style={{ background:"linear-gradient(135deg,#845EF7,#6366F1)", border:"none", borderRadius:8, color:"white", padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                🖨 Imprimir
+              </button>
+              <button onClick={descargarInforme} style={{ background:"rgba(132,94,247,0.15)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:8, color:"#c4b5fd", padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
                 ⬇ Descargar
               </button>
               <button onClick={cerrarPreview} style={{ background:"rgba(255,255,255,0.10)", border:"1px solid rgba(255,255,255,0.20)", borderRadius:8, padding:"8px 14px", fontSize:12, color:"rgba(255,255,255,0.78)", cursor:"pointer" }}>
@@ -2670,7 +2911,7 @@ export default function RecepcionesTab({ mob }) {
               </button>
             </div>
           </div>
-          <iframe src={preview.url} style={{ flex:1, border:"none", borderRadius:10, background:"white" }} title="Vista previa del informe" />
+          <iframe ref={previewIframeRef} src={preview.url} style={{ flex:1, border:"none", borderRadius:10, background:"white" }} title="Vista previa del informe" />
         </div>
       )}
 

@@ -41,6 +41,7 @@ const rowToRecepcion = (r) => ({
   origen:     r.origen     || "",
   proveedor:  r.proveedor  || "",
   lote:       r.lote       || "",
+  codigoLote: r.codigo_lote || "",
   cajasLote:  r.cajas_lote != null ? Number(r.cajas_lote) : null,
   supervisor: r.supervisor || "",
   horaInicio: r.hora_inicio || "",
@@ -62,8 +63,16 @@ const rowToAsignacion = (r) => ({
   createdAt:           r.created_at      || "",
 });
 
+// Prefijo del código de lote de hoy: "MP-MEN01-AA-JJJ-" (AA = año, JJJ = día
+// juliano). El consecutivo NN se agrega al generar.
+export function prefijoLoteHoy() {
+  const ahora   = new Date();
+  const juliano = Math.round((new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()) - new Date(ahora.getFullYear(), 0, 0)) / 86400000);
+  return `MP-MEN01-${String(ahora.getFullYear()).slice(-2)}-${String(juliano).padStart(3, "0")}-`;
+}
+
 // Opciones:
-//  ultimas              cuántas de cada tipo traer cuando NO hay rango ni búsqueda (0 = ninguna)
+//  ultimas             cuántas de cada tipo traer cuando NO hay rango ni búsqueda (0 = ninguna)
 //  desde / hasta        rango de fechas (YYYY-MM-DD); si hay alguno, manda sobre `ultimas`
 //  busqueda             texto: remisión, proveedor, placa o lote (se busca en toda la base)
 //  conAsignaciones      también trae las asignaciones a contenedor
@@ -185,10 +194,13 @@ export function useRecepciones(opciones = {}) {
     if (!conLotes || !activo) return;
     let vigente = true;
     (async () => {
-      const { data, error } = await conReintentos(() => supabase.from("recepciones").select("id, lote").not("lote", "is", null));
+      let { data, error } = await conReintentos(() => supabase.from("recepciones").select("id, lote, codigo_lote").or("lote.not.is.null,codigo_lote.not.is.null"));
+      // Sin correr supabase-recepciones-codigo-lote-migration.sql la columna
+      // no existe — se sigue con los lotes por predio de siempre.
+      if (error) ({ data, error } = await conReintentos(() => supabase.from("recepciones").select("id, lote").not("lote", "is", null)));
       if (!vigente) return;
       if (error) { console.error("[recepciones lotes]", error.message); return; }
-      setLotesPorRecepcion((data || []).map(r => ({ id: Number(r.id), lote: r.lote || "" })).filter(r => r.lote));
+      setLotesPorRecepcion((data || []).map(r => ({ id: Number(r.id), lote: r.lote || "", codigoLote: r.codigo_lote || "" })).filter(r => r.lote || r.codigoLote));
     })();
     return () => { vigente = false; };
   }, [conLotes, activo, tickLotes]);
@@ -277,6 +289,7 @@ export function useRecepciones(opciones = {}) {
 
   // ── Mutaciones — recepciones ───────────────────────────────────
 
+  // Devuelve el id de la recepción si se guardó, false si falló.
   const guardarRecepcion = useCallback(async (form, id = null) => {
     const row = {
       remision:    form.remision    || null,
@@ -299,16 +312,17 @@ export function useRecepciones(opciones = {}) {
     };
 
     if (id) {
-      parchar(id, () => rowToRecepcion({ ...row, id }));
+      // codigo_lote no va en `row` (se genera aparte) — se conserva el que ya tenía.
+      parchar(id, r => ({ ...rowToRecepcion({ ...row, id }), codigoLote: r.codigoLote }));
       const { error } = await supabase.from("recepciones").update(row).eq("id", id);
       if (error) { setTickVentana(t => t + 1); refrescarExtras(); }
-      return !error;
+      return error ? false : id;
     } else {
       row.id = Date.now();
       setRecepciones(prev => [rowToRecepcion(row), ...prev]);
       const { error } = await supabase.from("recepciones").insert(row);
       if (error) setRecepciones(prev => prev.filter(r => r.id !== row.id));
-      return !error;
+      return error ? false : row.id; // id guardado (truthy) — para ofrecer el QR del lote
     }
   }, [parchar, refrescarExtras]);
 
@@ -352,6 +366,64 @@ export function useRecepciones(opciones = {}) {
       .update({ cajas_lote: cajasLote, updated_at: new Date().toISOString() }).eq("id", id);
     if (!error) parchar(id, r => ({ ...r, cajasLote }));
     return !error;
+  }, [parchar]);
+
+  // Código de lote MP-MEN01-AA-JJJ-NN (AA = año, JJJ = día juliano del
+  // momento en que se genera, NN = consecutivo del día). Si la recepción ya
+  // tiene uno se devuelve ese — nunca se cambia. El índice único en
+  // codigo_lote evita repetir consecutivo si dos personas generan a la vez:
+  // se reintenta con el siguiente número.
+  const generarCodigoLote = useCallback(async (id) => {
+    const { data: actual, error: errLeer } = await conReintentos(() =>
+      supabase.from("recepciones").select("codigo_lote").eq("id", id).single());
+    if (errLeer) return { error: errLeer.message };
+    if (actual?.codigo_lote) return { codigo: actual.codigo_lote };
+
+    const prefijo = prefijoLoteHoy();
+
+    for (let intento = 0; intento < 5; intento++) {
+      const { data: delDia, error: errDia } = await conReintentos(() =>
+        supabase.from("recepciones").select("codigo_lote").like("codigo_lote", `${prefijo}%`));
+      if (errDia) return { error: errDia.message };
+      const maxNum = (delDia || []).reduce((mx, r) => Math.max(mx, Number(String(r.codigo_lote).slice(prefijo.length)) || 0), 0);
+      const codigo = `${prefijo}${String(maxNum + 1).padStart(2, "0")}`;
+      const { data: upd, error } = await supabase.from("recepciones")
+        .update({ codigo_lote: codigo }).eq("id", id).is("codigo_lote", null).select("codigo_lote");
+      if (error?.code === "23505") continue; // otro lo tomó al mismo tiempo
+      if (error) return { error: error.message };
+      // 0 filas = alguien le generó código a esta recepción en paralelo — se usa ese.
+      if (!upd?.length) return generarCodigoLote(id);
+      parchar(id, r => ({ ...r, codigoLote: codigo }));
+      setTickLotes(t => t + 1);
+      return { codigo };
+    }
+    return { error: "No se pudo asignar un consecutivo libre. Intenta de nuevo." };
+  }, [parchar]);
+
+  // Código escrito a mano — respaldo por si la generación automática falla.
+  // Solo se asigna si la recepción aún no tiene código; el índice único
+  // impide repetir uno que ya use otra recepción.
+  const asignarCodigoLoteManual = useCallback(async (id, codigoRaw) => {
+    const codigo = String(codigoRaw || "").trim().toUpperCase();
+    if (!codigo) return { error: "Escribe el código del lote." };
+    const { data: upd, error } = await supabase.from("recepciones")
+      .update({ codigo_lote: codigo }).eq("id", id).is("codigo_lote", null).select("codigo_lote");
+    if (error?.code === "23505") return { error: `El código ${codigo} ya lo tiene otra recepción.` };
+    if (error) return { error: error.message };
+    if (!upd?.length) return { error: "Esta recepción ya tiene un código de lote. Elimínalo primero si quieres cambiarlo." };
+    parchar(id, r => ({ ...r, codigoLote: codigo }));
+    setTickLotes(t => t + 1);
+    return { codigo };
+  }, [parchar]);
+
+  // Quita el código de lote de la recepción (p. ej. generado por error). Los
+  // pallets que ya lo tenían asignado lo conservan tal cual.
+  const eliminarCodigoLote = useCallback(async (id) => {
+    const { error } = await supabase.from("recepciones").update({ codigo_lote: null }).eq("id", id);
+    if (error) return { error: error.message };
+    parchar(id, r => ({ ...r, codigoLote: "" }));
+    setTickLotes(t => t + 1);
+    return {};
   }, [parchar]);
 
   // ── Mutaciones — asignaciones a contenedor (Asociar Contenedor) ────────
@@ -398,7 +470,7 @@ export function useRecepciones(opciones = {}) {
   return {
     recepciones, conocidas, asignaciones, lotesPorRecepcion,
     loading, refrescando, errorCarga, recargar,
-    guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote,
+    guardarRecepcion, eliminarRecepcion, actualizarEstibas, actualizarCajasLote, generarCodigoLote, asignarCodigoLoteManual, eliminarCodigoLote,
     guardarAsignacion, eliminarAsignacion, obtenerRecepcionCompleta, cargarRecepcionPorId,
   };
 }

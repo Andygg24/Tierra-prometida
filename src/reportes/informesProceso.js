@@ -73,6 +73,16 @@ export const CHECKLIST_CALIDAD_CARGUE = [
 ];
 export const CHEQUEO_TOTAL_ITEMS = CHECKLIST_CALIDAD_CARGUE.reduce((s, g) => s + g.items.length, 0);
 
+// ── Inspección del camión (Paso 2 — Cargue) — respuestas "si"/"no" en
+// admin.inspeccionCamion; cada pregunta con NO guarda su observación en `${key}Obs`.
+export const INSPECCION_CAMION = [
+  ["buenEstado",      "¿El camión se encuentra en buen estado?"],
+  ["sanitaria",       "¿El camión se encuentra en buena condición sanitaria?"],
+  ["saludConductor",  "¿El conductor se encuentra en buen estado de salud?"],
+  ["termoking",       "¿El Termoking funciona correctamente?"],
+  ["puedeTransportar","¿El camión puede realizar su transporte?"],
+];
+
 export const COL_CAL = {
   110: { bg:"#3B82F6", light:"rgba(59,130,246,0.18)", border:"rgba(59,130,246,0.5)" },
   150: { bg:"#22C55E", light:"rgba(34,197,94,0.18)",  border:"rgba(34,197,94,0.5)"  },
@@ -577,6 +587,12 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
 .pchips{display:flex;flex-wrap:wrap;gap:4px}
 .pchip{border:1px solid;border-radius:6px;padding:2px 6px;font-size:8.5px;font-weight:600;background:rgba(255,255,255,0.04)}
 
+.insp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fbfaf9;border:1px solid #ede4d9;border-radius:10px;padding:9px 14px;margin-bottom:6px;break-inside:avoid}
+.insp-q{font-size:12px;color:#2b2013;font-weight:600}
+.insp-a{font-size:11px;font-weight:800;border-radius:8px;padding:3px 12px;color:#8a7c6f;background:#f1ece5;flex-shrink:0}
+.insp-a.si{color:#1D6F42;background:#e9f7ef}
+.insp-a.no{color:#b42318;background:#fdecea}
+
 .obs{background:#fbfaf9;border:1px solid #ede4d9;border-left:4px solid #e8862c;border-radius:10px;padding:12px 16px;font-size:11.5px;margin-top:4px;white-space:pre-wrap;color:#333}
 .firma-row{display:flex;gap:20px;margin-top:26px}
 .firma-box{flex:1}
@@ -646,6 +662,15 @@ h2::after{content:"";flex:1;height:1px;background:#ede4d9}
     <div class="info-grid">
       ${admin.icaCamion.filter(c => c.ica).map(c => `<div class="info-item"><div class="l">ICA${c.palletNo ? ` — Pallet #${c.palletNo}` : ""}</div><div class="v">${c.ica}</div></div>`).join("")}
     </div>` : ""}
+
+    <h2>🔍 Inspección del camión</h2>
+    ${INSPECCION_CAMION.map(([key, label]) => {
+      const val = admin.inspeccionCamion?.[key];
+      return `<div class="insp-row">
+      <span class="insp-q">${label}</span>
+      <span class="insp-a ${val === "si" ? "si" : val === "no" ? "no" : ""}">${val === "si" ? "✓ SÍ" : val === "no" ? "✗ NO" : "Sin responder"}</span>
+    </div>${val === "no" && admin.inspeccionCamion?.[`${key}Obs`] ? `<div class="obs" style="margin:0 0 6px">${admin.inspeccionCamion[`${key}Obs`]}</div>` : ""}`;
+    }).join("")}
 
     <h2>📊 Resumen de cajas por calibre</h2>
     <div class="cal-chips">${chipsCalibre}</div>
