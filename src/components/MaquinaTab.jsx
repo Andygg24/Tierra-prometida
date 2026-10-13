@@ -1671,7 +1671,7 @@ function ObjetoLibre({ obj, seleccionado, esNuevo, editando, onSeleccionar, onMo
     const dxSvg = p.x - d.sx, dySvg = p.y - d.sy;
     const rad = (-rot * Math.PI) / 180;
     const localDy = (dxSvg * Math.sin(rad) + dySvg * Math.cos(rad)) / escala;
-    const nuevoLargo = Math.min(140, Math.max(4, Math.round(d.largo0 + localDy)));
+    const nuevoLargo = Math.min(1000, Math.max(4, Math.round(d.largo0 + localDy)));
     onAjustar(obj.id, { largo: nuevoLargo });
   };
 
@@ -1704,8 +1704,8 @@ function ObjetoLibre({ obj, seleccionado, esNuevo, editando, onSeleccionar, onMo
     const rad = (-rot * Math.PI) / 180;
     const localDx = (dxSvg * Math.cos(rad) - dySvg * Math.sin(rad)) / escala;
     const localDy = (dxSvg * Math.sin(rad) + dySvg * Math.cos(rad)) / escala;
-    const nuevoAncho = Math.min(160, Math.max(8, Math.round(d.ancho0 + localDx * 2)));
-    const nuevoAlto  = Math.min(160, Math.max(8, Math.round(d.alto0 + localDy * 2)));
+    const nuevoAncho = Math.min(2000, Math.max(8, Math.round(d.ancho0 + localDx * 2)));
+    const nuevoAlto  = Math.min(2000, Math.max(8, Math.round(d.alto0 + localDy * 2)));
     onAjustar(obj.id, { ancho: nuevoAncho, alto: nuevoAlto });
   };
 
@@ -2973,9 +2973,9 @@ export default function MaquinaTab({ mob }) {
               )}
               <div style={{ display: "grid", gap: 10, gridTemplateColumns: mob ? "1fr" : "repeat(4, 1fr)" }}>
                 {[
-                  { key: "ancho", label: "Ancho", min: 8, max: 160, step: 1 },
-                  { key: "alto", label: "Alto", min: 8, max: 160, step: 1 },
-                  { key: "largo", label: "Largo", min: 4, max: 140, step: 1 },
+                  { key: "ancho", label: "Ancho", min: 8, max: 2000, step: 1 },
+                  { key: "alto", label: "Alto", min: 8, max: 2000, step: 1 },
+                  { key: "largo", label: "Largo", min: 4, max: 1000, step: 1 },
                   { key: "rot", label: "Rotación °", min: 0, max: 359, step: 1 },
                   { key: "escala", label: "Escala", min: 0.4, max: 2.5, step: 0.05 },
                 ].map(campo => {
