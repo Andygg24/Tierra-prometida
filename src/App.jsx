@@ -17,6 +17,9 @@ import CanastillasTab from "./components/CanastillasTab.jsx";
 import PedidosTab from "./components/PedidosTab.jsx";
 import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import AsistenciaTab from "./components/AsistenciaTab.jsx";
+import { RegistrarRostroModal } from "./components/AsistenciaRostro.jsx";
+import QrEmpleadoModal from "./components/QrEmpleadoModal.jsx";
+import { useRostros } from "./hooks/useRostros.js";
 import MaquinaTab from "./components/MaquinaTab.jsx";
 import OperacionesTab from "./components/OperacionesTab.jsx";
 import { usePackingList } from "./hooks/usePackingList.js";
@@ -196,6 +199,11 @@ function PersonalDemo() {
   const [editando, setEditando] = useState(null);
   const [editForm, setEditForm] = useState({});
   const pedir = (msg, fn) => setConfirm({ msg, fn });
+  // Biométrico: rostro y QR de cada empleado (los usa Asistencia → Biométrico)
+  const rostros = useRostros();
+  const conRostro = new Set(rostros.registrados.map(r => r.num));
+  const [rostroEmp, setRostroEmp] = useState(null);
+  const [qrEmp,     setQrEmp]     = useState(null);
 
   // ── Filtros por tab ──
   const [busqContrato,      setBusqContrato]      = useState("");
@@ -280,6 +288,8 @@ function PersonalDemo() {
   return (
     <div>
       {confirm && <ConfirmModal mensaje={confirm.msg} onConfirm={() => { confirm.fn(); setConfirm(null); }} onCancel={() => setConfirm(null)} />}
+      {rostroEmp && <RegistrarRostroModal emp={rostroEmp} rostros={rostros} empleados={empleados} onClose={() => setRostroEmp(null)} />}
+      {qrEmp && <QrEmpleadoModal emp={qrEmp} onClose={() => setQrEmp(null)} />}
 
       {/* ── Modal editar empleado ── */}
       {editando && (
@@ -517,6 +527,7 @@ function PersonalDemo() {
                         {seg?.eps && <span style={{ fontSize:8, background:"rgba(255,107,107,0.1)", color:"#FF6B6B", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🏥 {seg.eps}</span>}
                         {seg?.arl && <span style={{ fontSize:8, background:"rgba(249,168,38,0.1)", color:"#F9A826", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🦺 {seg.arl}</span>}
                         {nDocs>0 && <span style={{ fontSize:8, background:"rgba(99,102,241,0.1)", color:"#6366F1", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>📁 {nDocs}/{DOC_TIPOS_PERS.length} docs</span>}
+                        {conRostro.has(emp.num) && <span style={{ fontSize:8, background:"rgba(0,201,167,0.1)", color:"#00C9A7", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🙂 Rostro registrado</span>}
                       </div>
                     </div>
                     <span style={{ fontSize:10, background:`${docColor}20`, color:docColor, borderRadius:6, padding:"3px 8px", fontWeight:700, border:`1px solid ${docColor}30`, flexShrink:0 }}>{emp.doc}</span>
@@ -534,6 +545,14 @@ function PersonalDemo() {
                       <button onClick={()=>{setEditSeg(emp.num);setFormSeg(seguridad[emp.num]||{eps:"",fechaEPS:"",arl:"",fechaARL:"",estado:"Activo"});}}
                         style={{ flex:1, background:"rgba(255,107,107,0.04)", border:"none", borderRight:isExtra?"1px solid rgba(255,255,255,0.09)":"none", padding:"9px", fontSize:11, color:"rgba(255,107,107,0.7)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
                         🏥 EPS/ARL
+                      </button>
+                      <button onClick={e=>{e.stopPropagation();setRostroEmp(emp);}}
+                        style={{ flex:1, background:"rgba(0,201,167,0.04)", border:"none", borderLeft:isExtra?"none":"1px solid rgba(255,255,255,0.09)", padding:"9px", fontSize:11, color:"rgba(0,201,167,0.8)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                        🙂 Rostro
+                      </button>
+                      <button onClick={e=>{e.stopPropagation();setQrEmp(emp);}}
+                        style={{ flex:1, background:"rgba(132,94,247,0.04)", border:"none", borderLeft:"1px solid rgba(255,255,255,0.09)", borderRight:isExtra?"1px solid rgba(255,255,255,0.09)":"none", padding:"9px", fontSize:11, color:"rgba(165,180,252,0.85)", cursor:"pointer", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}>
+                        🔳 QR
                       </button>
                       {isExtra && (
                         <button onClick={e=>{e.stopPropagation();pedir(`¿Eliminar a "${emp.nombre}"?`,()=>eliminarEmpleado(emp.num));}}
