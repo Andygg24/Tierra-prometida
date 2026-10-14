@@ -32,7 +32,7 @@ export function useMaquinaDiseno() {
   }, []);
 
   useEffect(() => {
-    const ch = supabase.channel(`maquina-diseno-changes-${Date.now()}`)
+    const ch = supabase.channel(`maquina-diseno-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "maquina_diseno", filter: "id=eq.1" }, ({ new: row }) => {
         if (row) setDiseno(rowToDiseno(row));
       })

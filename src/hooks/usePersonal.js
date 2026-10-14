@@ -86,7 +86,7 @@ export function usePersonal() {
 
   // ── Suscripciones en tiempo real (sync con otros usuarios) ──
   useEffect(() => {
-    const ch = supabase.channel(`personal-changes-${Date.now()}`)
+    const ch = supabase.channel(`personal-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "empleados" }, () => {
         supabase.from("empleados").select("*").eq("activo", true).order("no")
           .then(({ data }) => data && setEmpleados(data.map(rowToEmp)));

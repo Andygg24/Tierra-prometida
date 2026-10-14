@@ -35,7 +35,7 @@ export function useSolicitudesPlanta() {
   // la fila todavía sin confirmar y pisar un cambio recién hecho (mismo bug
   // que ya se vio en Control Expo con las Declaraciones de Cambio).
   useEffect(() => {
-    const ch = supabase.channel(`solicitudes-planta-changes-${Date.now()}`)
+    const ch = supabase.channel(`solicitudes-planta-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes_planta" }, ({ new: row, old, eventType }) => {
         if (eventType === "DELETE") {
           setSolicitudes(prev => prev.filter(s => s.id !== old.id));

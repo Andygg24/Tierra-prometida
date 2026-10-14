@@ -150,7 +150,7 @@ export function useLogistica() {
       q.then(({ data }) => data && setter(data.map(mapper)));
     };
 
-    const ch = supabase.channel(`logistica-changes-${Date.now()}`)
+    const ch = supabase.channel(`logistica-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "logistica_bookings" },
           refetch("logistica_bookings", setBookings, rowToBooking, "created_at"))
       .on("postgres_changes", { event: "*", schema: "public", table: "logistica_transporte" },

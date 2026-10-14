@@ -21,7 +21,7 @@ export function useConfiguracion() {
 
   // ── Real-time
   useEffect(() => {
-    const ch = supabase.channel(`configuracion-changes-${Date.now()}`)
+    const ch = supabase.channel(`configuracion-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "configuracion" }, ({ new: row, old, eventType }) => {
         if (eventType === "DELETE") {
           setConfig(prev => { const c = { ...prev }; delete c[old.clave]; return c; });

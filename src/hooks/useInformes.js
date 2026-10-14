@@ -40,7 +40,7 @@ export function useInformes() {
   }, []);
 
   useEffect(() => {
-    const ch = supabase.channel(`informes-archivos-changes-${Date.now()}`)
+    const ch = supabase.channel(`informes-archivos-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "informes_archivos" }, recargar)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
