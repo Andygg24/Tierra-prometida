@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   cargarModelosRostro, detectarCara, detectarHuella,
-  identificar, distanciaHuellas, abrirCamaraFrontal, cerrarCamara, leerQrDeVideo, poseCara,
+  identificar, distanciaHuellas, abrirCamaraFrontal, cerrarCamara, leerQrDeVideo, poseCara, UMBRAL_RECONOCIMIENTO,
 } from "../utils/rostro.js";
 import { numDeQrAsistencia } from "../utils/qrAsistencia.js";
 import { btnPrimario, btnSecundario, btnTablaEliminar } from "./buttonStyles.js";
@@ -99,10 +99,25 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
   // Guardar al terminar el recorrido (ref para que el ciclo use lo último).
   const finalizarRef = useRef(null);
   const finalizar = async (muestras) => {
-    const otros = registrados.filter(r => r.num !== emp.num);
-    for (const m of muestras) {
-      const parecido = identificar(m, otros);
-      if (parecido) { setMsg({ ok:false, texto:`Esta cara ya está registrada como ${nombreDe(parecido.num)}. No se guardó.` }); return; }
+    // ¿Se parece a alguien ya registrado? Se compara solo con las muestras de
+    // frente (primera y última), las más confiables. Familiares (padre/hijo,
+    // hermanos) pueden quedar muy cerca — por eso no se bloquea: se pregunta.
+    const deFrente = [muestras[0], muestras[muestras.length - 1]];
+    let parecido = null;
+    for (const r of registrados) {
+      if (r.num === emp.num) continue;
+      let d = Infinity;
+      for (const m of deFrente) for (const x of r.descriptores) d = Math.min(d, distanciaHuellas(m, x));
+      if (d < UMBRAL_RECONOCIMIENTO && (!parecido || d < parecido.distancia)) parecido = { num: r.num, distancia: d };
+    }
+    if (parecido) {
+      const casiIgual = parecido.distancia < 0.35;
+      const ok = window.confirm(
+        `Esta cara se parece ${casiIgual ? "muchísimo" : "mucho"} a la de ${nombreDe(parecido.num)}` +
+        `${casiIgual ? " — podría ser la misma persona" : " (pueden ser familiares)"}.\n\n` +
+        `¿Confirmas que es ${emp.nombre}, una persona distinta?`
+      );
+      if (!ok) { setMsg({ ok:false, texto:"No se guardó." }); return; }
     }
     if (muestras.some(m => distanciaHuellas(muestras[0], m) > MAX_DIST_MISMA_PERSONA)) {
       setMsg({ ok:false, texto:"Parece que cambió la persona frente a la cámara a mitad del registro. Inténtalo de nuevo." });

@@ -4,28 +4,44 @@ import { supabase } from "../supabase.js";
 const inicioDelDia = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const fechaLocalISO = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const nombreUsuarioSesion = () => {
+  try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
+};
 
 const rowToEvento = (r) => ({
   id: r.id, sesionId: r.sesion_id || null, empNum: r.emp_num, tipo: r.tipo, hora: r.hora, via: r.via || "qr",
 });
 
-// Biométrico: registro de entradas/salidas del día por rostro, haya o no un
-// proceso abierto. Si hay sesión activa, el registro pasa por
+// Inicio de la jornada actual del Biométrico, guardado en `configuracion`
+// (clave/valor jsonb) para que todos los dispositivos usen el mismo corte.
+// "Cerrar día" lo mueve a ahora. Si nunca se ha cerrado un día, la jornada
+// arranca a la medianoche de hoy.
+const CLAVE_JORNADA = "biometrico_jornada";
+
+// Biométrico: registro de entradas/salidas de la jornada por rostro o QR,
+// haya o no un proceso abierto. Si hay sesión activa, el registro pasa por
 // `registrarEscaneo` de la sesión (para que cuente en el grupo y el pago del
-// contenedor); si no, queda como movimiento del día sin contenedor.
+// contenedor); si no, queda como movimiento de la jornada sin contenedor.
 export function useBiometrico({ asisQR }) {
   const [eventosHoy, setEventosHoy] = useState([]);
   const [sesionesHoy, setSesionesHoy] = useState({}); // id → { contenedorId, turno }
   const [error, setError] = useState("");
-  const [dia, setDia] = useState(() => fechaLocalISO());
-  const diaRef = useRef(dia);
+  const [inicioJornada, setInicioJornada] = useState(() => inicioDelDia().toISOString());
+  const inicioRef = useRef(inicioJornada);
+
+  const leerInicioJornada = async () => {
+    const { data } = await supabase.from("configuracion").select("valor").eq("clave", CLAVE_JORNADA).maybeSingle();
+    const inicio = data?.valor?.inicio || inicioDelDia().toISOString();
+    inicioRef.current = inicio;
+    setInicioJornada(inicio);
+    return inicio;
+  };
 
   const cargar = useCallback(async () => {
-    const hoy = fechaLocalISO();
-    if (hoy !== diaRef.current) { diaRef.current = hoy; setDia(hoy); }
+    const inicio = await leerInicioJornada();
     const { data, error: err } = await supabase.from("asistencia_eventos").select("*")
-      .gte("hora", inicioDelDia().toISOString()).order("hora", { ascending: true });
-    if (err) { setError(`No se pudieron cargar los movimientos de hoy: ${err.message}`); return; }
+      .gte("hora", inicio).order("hora", { ascending: true });
+    if (err) { setError(`No se pudieron cargar los movimientos: ${err.message}`); return; }
     const evs = (data || []).map(rowToEvento);
     setEventosHoy(evs);
     setError("");
@@ -40,10 +56,10 @@ export function useBiometrico({ asisQR }) {
     cargar();
     const ch = supabase.channel(`biometrico-eventos-${Date.now()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "asistencia_eventos" }, cargar)
+      // Si otro dispositivo cierra el día, este también arranca de cero.
+      .on("postgres_changes", { event: "*", schema: "public", table: "configuracion", filter: `clave=eq.${CLAVE_JORNADA}` }, cargar)
       .subscribe();
-    // Al pasar la medianoche la lista arranca de cero.
-    const t = setInterval(() => { if (fechaLocalISO() !== diaRef.current) cargar(); }, 60_000);
-    return () => { supabase.removeChannel(ch); clearInterval(t); };
+    return () => { supabase.removeChannel(ch); };
   }, [cargar]);
 
   const { sesionActiva, registrarEscaneo } = asisQR;
@@ -61,7 +77,7 @@ export function useBiometrico({ asisQR }) {
 
     const ahora = new Date();
     const { data: ultimo, error: errUlt } = await supabase.from("asistencia_eventos").select("tipo")
-      .eq("emp_num", num).gte("hora", inicioDelDia(ahora).toISOString())
+      .eq("emp_num", num).gte("hora", inicioRef.current)
       .order("hora", { ascending: false }).limit(1).maybeSingle();
     if (errUlt) return { ok: false, msg: errUlt.message };
     const esPrimeraVez = !ultimo;
@@ -74,7 +90,7 @@ export function useBiometrico({ asisQR }) {
     }
     setEventosHoy(prev => [...prev, rowToEvento(nuevo)]);
 
-    // Primera entrada del día → queda "Presente" en la Asistencia Manual.
+    // Primera entrada de la jornada → queda "Presente" en la Asistencia Manual.
     if (esPrimeraVez) {
       await supabase.from("asistencia").upsert({
         fecha: fechaLocalISO(ahora), emp_nombre: emp.nombre, estado: "P", hora_registro: ahora.toISOString(),
@@ -83,5 +99,20 @@ export function useBiometrico({ asisQR }) {
     return { ok: true, nombre: emp.nombre, hora: ahora, tipo, yaEstaba: !esPrimeraVez };
   }, [sesionActiva, registrarEscaneo, cargar]);
 
-  return { eventosHoy, sesionesHoy, dia, error, registrar, recargar: cargar };
+  // Cierra la jornada: desde ahora el Biométrico arranca un registro nuevo
+  // (lista vacía, y el próximo escaneo de cada persona vuelve a ser entrada).
+  const cerrarDia = useCallback(async () => {
+    const ahora = new Date().toISOString();
+    const { error: err } = await supabase.from("configuracion").upsert({
+      clave: CLAVE_JORNADA,
+      valor: { inicio: ahora, abiertaPor: nombreUsuarioSesion(), anterior: { inicio: inicioRef.current, cierre: ahora } },
+      updated_at: ahora,
+    }, { onConflict: "clave" });
+    if (err) return { ok: false, msg: err.message };
+    setSesionesHoy({});
+    await cargar();
+    return { ok: true };
+  }, [cargar]);
+
+  return { eventosHoy, sesionesHoy, inicioJornada, error, registrar, cerrarDia, recargar: cargar };
 }
