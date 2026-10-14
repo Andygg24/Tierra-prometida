@@ -4,6 +4,9 @@ import { useBiometrico } from "../hooks/useBiometrico.js";
 
 const card = { background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, padding:14, marginBottom:12 };
 const btnSecundarioDia = { background:"rgba(132,94,247,0.15)", border:"1px solid rgba(132,94,247,0.5)", borderRadius:8, color:"#c4b5fd", padding:"9px 16px", fontSize:12, fontWeight:700, cursor:"pointer" };
+const btnFiltro = { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"rgba(255,255,255,0.7)", padding:"6px 10px", fontSize:12, fontWeight:600, cursor:"pointer" };
+const btnFiltroActivo = { background:"rgba(132,94,247,0.2)", border:"1px solid rgba(132,94,247,0.6)", color:"white" };
+const btnAccion = { background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color:"#00C9A7", padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer" };
 const horaFmt = (iso) => new Date(iso).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" });
 const fechaHoraFmt = (iso) => new Date(iso).toLocaleString("es-CO", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
 const duracionFmt = (ms) => { const min = Math.round(ms / 60000); return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, "0")}m`; };
@@ -46,7 +49,8 @@ function resumirPorPersona(eventos) {
 }
 
 // `fin`: hora de cierre del día, o null si la jornada sigue abierta (vista previa).
-async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, contenedorDe }) {
+// `etiqueta`: si viene, reemplaza el aviso de jornada (vista de un día elegido).
+async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, contenedorDe, etiqueta }) {
   const logoSrc = await cargarLogoBase64();
   const personas = resumirPorPersona(eventos).sort((a, b) => nombreDe(a.num).localeCompare(nombreDe(b.num)));
   const adentro = personas.filter(p => p.sigueAdentro).length;
@@ -99,12 +103,12 @@ async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, c
     ${logoSrc ? `<img src="${logoSrc}"/>` : ""}
     <div class="htitle">TIERRA PROMETIDA TRADING</div>
     <div class="sub">Informe del Biométrico — Entradas y salidas de la jornada</div>
-    <div class="badge-curso">${fin ? "🌙 DÍA CERRADO" : `⏱ JORNADA EN CURSO — CORTE A LAS ${horaFmt(new Date().toISOString())}`}</div>
+    <div class="badge-curso">${etiqueta || (fin ? "🌙 DÍA CERRADO" : `⏱ JORNADA EN CURSO — CORTE A LAS ${horaFmt(new Date().toISOString())}`)}</div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="stl">Inicio de la jornada</div><div class="stv">${fechaHoraFmt(inicio)}</div></div>
-    <div class="stat"><div class="stl">Cierre</div><div class="stv">${fin ? fechaHoraFmt(fin) : "En curso"}</div></div>
+    <div class="stat"><div class="stl">Desde</div><div class="stv">${fechaHoraFmt(inicio)}</div></div>
+    <div class="stat"><div class="stl">Hasta</div><div class="stv">${fin ? fechaHoraFmt(fin) : "En curso"}</div></div>
     <div class="stat"><div class="stl">Personas que entraron</div><div class="stv">${personas.length}</div></div>
     <div class="stat"><div class="stl">Adentro ahora</div><div class="stv">${adentro}</div></div>
     <div class="stat"><div class="stl">Movimientos</div><div class="stv">${eventos.length}</div></div>
@@ -134,15 +138,47 @@ async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, c
 // apagada, para que en modo kiosco los trabajadores no vean los pagos.
 export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, verPrevia, playBeep, gestion }) {
   const bio = useBiometrico({ asisQR });
-  const [estadoCam, setEstadoCam] = useState("cargando");
+  // La cámara arranca apagada: se prende solo con "Activar reconocimiento".
+  const [estadoCam, setEstadoCam] = useState("apagada");
   const [feedback, setFeedback] = useState(null);
   const [generando, setGenerando] = useState(false);
+
+  // Vista de movimientos: "" = jornada actual (en vivo); "AAAA-MM-DD" = ese día.
+  const [fechaVista, setFechaVista] = useState("");
+  const [vistaDia,   setVistaDia]   = useState(null); // { eventos, sesiones, desde, hasta }
+  const [cargandoDia, setCargandoDia] = useState(false);
+  const [errorDia,   setErrorDia]   = useState("");
+  const elegirFecha = async (fecha) => {
+    setFechaVista(fecha); setErrorDia("");
+    if (!fecha) { setVistaDia(null); return; }
+    setCargandoDia(true);
+    const r = await bio.consultarDia(fecha);
+    setCargandoDia(false);
+    if (!r.ok) { setVistaDia(null); setErrorDia(`No se pudieron cargar los movimientos: ${r.msg}`); return; }
+    setVistaDia(r);
+  };
+  const eventosVista = fechaVista ? (vistaDia?.eventos || []) : bio.eventosHoy;
+
+  const [eliminando, setEliminando] = useState(false);
+  const eliminarDia = async () => {
+    const n = vistaDia?.eventos?.length || 0;
+    if (!n) return;
+    if (!window.confirm(`¿Eliminar los ${n} movimiento(s) del ${fechaLarga(fechaVista)}?
+
+También se quita el "Presente" que el biométrico marcó solo ese día. Lo marcado a mano en Asistencia Manual no se toca. Esto no se puede deshacer.`)) return;
+    setEliminando(true);
+    const r = await bio.eliminarDia(fechaVista);
+    setEliminando(false);
+    if (!r.ok) { setErrorDia(`No se pudo eliminar: ${r.msg}`); return; }
+    await elegirFecha(fechaVista);
+  };
+  const fechaLarga = (f) => new Date(f + "T12:00:00").toLocaleDateString("es-CO", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
 
   const nombreDe = (num) => empleados.find(e => e.num === num)?.nombre || num;
   const docDe    = (num) => num;
   const contenedorDe = (sesionId) => {
     if (!sesionId) return "—";
-    const s = bio.sesionesHoy[sesionId] || (asisQR.sesionActiva?.id === sesionId ? asisQR.sesionActiva : null);
+    const s = vistaDia?.sesiones?.[sesionId] || bio.sesionesHoy[sesionId] || (asisQR.sesionActiva?.id === sesionId ? asisQR.sesionActiva : null);
     if (!s) return "—";
     const c = procesos.find(p => p.id === s.contenedorId);
     return `${c?.numContenedor || `#${s.contenedorId}`} · ${s.turno}`;
@@ -156,13 +192,42 @@ export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, 
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const nombreArchivo = () => `Biometrico_${bio.inicioJornada.slice(0, 10)}.html`;
+  const nombreArchivo = (ext = "html") => `Biometrico_${fechaVista || bio.inicioJornada.slice(0, 10)}.${ext}`;
+
+  const informeVista = () => fechaVista
+    ? buildInformeBiometrico({ inicio: vistaDia.desde, fin: vistaDia.hasta, eventos: eventosVista, nombreDe, docDe, contenedorDe, etiqueta: `📅 MOVIMIENTOS DEL ${fechaLarga(fechaVista).toUpperCase()}` })
+    : buildInformeBiometrico({ inicio: bio.inicioJornada, fin: null, eventos: bio.eventosHoy, nombreDe, docDe, contenedorDe });
 
   const verInforme = async () => {
     setGenerando(true);
-    const html = await buildInformeBiometrico({ inicio: bio.inicioJornada, fin: null, eventos: bio.eventosHoy, nombreDe, docDe, contenedorDe });
+    const html = await informeVista();
     setGenerando(false);
     verPrevia(html, nombreArchivo());
+  };
+
+  const descargarHtml = async () => {
+    const html = await informeVista();
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = nombreArchivo(); a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const descargarExcel = async () => {
+    const XLSX = await import("xlsx");
+    const filas = [...eventosVista].sort((a, b) => new Date(a.hora) - new Date(b.hora)).map(e => ({
+      Fecha: new Date(e.hora).toLocaleDateString("es-CO"),
+      Hora: horaFmt(e.hora),
+      Nombre: nombreDe(e.empNum),
+      Documento: e.empNum,
+      Movimiento: e.tipo === "entrada" ? "Entrada" : "Salida",
+      Contenedor: contenedorDe(e.sesionId),
+      Vía: e.via === "rostro" ? "Rostro" : "QR",
+    }));
+    const ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{ Fecha: "", Hora: "", Nombre: "Sin movimientos", Documento: "", Movimiento: "", Contenedor: "", Vía: "" }]);
+    ws["!cols"] = [{ wch: 11 }, { wch: 9 }, { wch: 30 }, { wch: 14 }, { wch: 11 }, { wch: 20 }, { wch: 8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
+    XLSX.writeFile(wb, nombreArchivo("xlsx"));
   };
 
   const sesion = asisQR.sesionActiva;
@@ -187,9 +252,9 @@ export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, 
     if (!r.ok) { setFeedback({ ok:false, msg:`No se pudo cerrar el día: ${r.msg}` }); setTimeout(() => setFeedback(null), 5000); return; }
     verPrevia(html, nombreArchivo());
   };
-  const personas = resumirPorPersona(bio.eventosHoy);
+  const personas = resumirPorPersona(eventosVista);
   const adentro = personas.filter(p => p.sigueAdentro).length;
-  const recientes = [...bio.eventosHoy].sort((a, b) => new Date(b.hora) - new Date(a.hora));
+  const recientes = [...eventosVista].sort((a, b) => new Date(b.hora) - new Date(a.hora));
 
   return (
     <div>
@@ -201,7 +266,7 @@ export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, 
             : "Sin proceso abierto — se registran las entradas y salidas de la jornada."}
         </div>
 
-        <KioscoRostro empleados={empleados} rostros={rostros} registrarEscaneo={bio.registrar} onResultado={onResultado} autoIniciar onEstadoCamara={setEstadoCam} />
+        <KioscoRostro empleados={empleados} rostros={rostros} registrarEscaneo={bio.registrar} onResultado={onResultado} onEstadoCamara={setEstadoCam} />
 
         {feedback && (() => {
           const color = !feedback.ok ? "#FF6B6B" : feedback.tipo === "salida" ? "#a5b4fc" : "#00C9A7";
@@ -234,17 +299,34 @@ export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, 
       )}
 
       <div style={card}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
-          <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc" }}>
-            📋 Movimientos de la jornada <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.5)" }}>· desde {fechaHoraFmt(bio.inicioJornada)} · {personas.length} persona(s) · {adentro} adentro</span>
-          </div>
-          <button onClick={verInforme} disabled={generando} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color:"#00C9A7", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-            {generando ? "Generando…" : "📄 Vista previa"}
-          </button>
+        <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:8 }}>
+          📋 {fechaVista ? `Movimientos del ${fechaLarga(fechaVista)}` : "Movimientos de la jornada"}
+          <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.5)" }}>
+            {!fechaVista && <> · desde {fechaHoraFmt(bio.inicioJornada)}</>} · {personas.length} persona(s){!fechaVista && <> · {adentro} adentro</>}
+          </span>
         </div>
-        {bio.error && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:8 }}>{bio.error}</div>}
-        {recientes.length === 0 ? (
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Nadie ha pasado por el biométrico en esta jornada.</div>
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:10 }}>
+          <button onClick={() => elegirFecha("")} style={{ ...btnFiltro, ...(fechaVista ? {} : btnFiltroActivo) }}>En vivo (jornada)</button>
+          <input type="date" value={fechaVista} max={new Date().toLocaleDateString("en-CA")} onChange={e => elegirFecha(e.target.value)}
+            style={{ ...btnFiltro, ...(fechaVista ? btnFiltroActivo : {}), colorScheme:"dark", fontFamily:"inherit" }} />
+          <span style={{ flex:1 }} />
+          <button onClick={verInforme} disabled={generando || cargandoDia} style={btnAccion}>{generando ? "Generando…" : "📄 Vista previa"}</button>
+          <button onClick={descargarHtml} disabled={cargandoDia} style={btnAccion}>📥 Informe</button>
+          <button onClick={descargarExcel} disabled={cargandoDia} style={btnAccion}>📊 Excel</button>
+        </div>
+        {fechaVista && recientes.length > 0 && !cargandoDia && (
+          <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
+            <button onClick={eliminarDia} disabled={eliminando} style={{ background:"rgba(255,107,107,0.1)", border:"1px solid rgba(255,107,107,0.4)", borderRadius:8, color:"#FF6B6B", padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer", opacity: eliminando ? 0.6 : 1 }}>
+              {eliminando ? "Eliminando…" : `🗑 Eliminar movimientos de este día (${recientes.length})`}
+            </button>
+          </div>
+        )}
+        {bio.error && !fechaVista && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:8 }}>{bio.error}</div>}
+        {errorDia && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:8 }}>{errorDia}</div>}
+        {cargandoDia ? (
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Cargando movimientos…</div>
+        ) : recientes.length === 0 ? (
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>{fechaVista ? "No hubo movimientos ese día." : "Nadie ha pasado por el biométrico en esta jornada."}</div>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:5, maxHeight:360, overflowY:"auto" }}>
             {recientes.map(e => (

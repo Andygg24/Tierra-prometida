@@ -51,7 +51,7 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
   }, []);
 
   useEffect(() => {
-    const ch = supabase.channel(`asistencia-sesiones-${Date.now()}`)
+    const ch = supabase.channel(`asistencia-sesiones-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "asistencia_sesiones" }, ({ new: row, old, eventType }) => {
         if (eventType === "DELETE") {
           setSesionActiva(prev => (prev?.id === old?.id ? null : prev));
@@ -74,7 +74,7 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
       .eq("contenedor_id", sesionActiva.contenedorId).order("created_at", { ascending: true })
       .then(({ data }) => { if (!cancelled) setAjustes((data || []).map(rowToAjuste)); });
     cargar();
-    const ch = supabase.channel(`contenedor-ajustes-${sesionActiva.contenedorId}-${Date.now()}`)
+    const ch = supabase.channel(`contenedor-ajustes-${sesionActiva.contenedorId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "contenedor_ajustes", filter: `contenedor_id=eq.${sesionActiva.contenedorId}` }, cargar)
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
@@ -88,7 +88,7 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
       .eq("sesion_id", sesionActiva.id).order("hora", { ascending: true })
       .then(({ data }) => { if (!cancelled) setEventos((data || []).map(rowToEvento)); });
     cargar();
-    const ch = supabase.channel(`asistencia-eventos-${sesionActiva.id}-${Date.now()}`)
+    const ch = supabase.channel(`asistencia-eventos-${sesionActiva.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "asistencia_eventos", filter: `sesion_id=eq.${sesionActiva.id}` }, cargar)
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(ch); };
@@ -268,7 +268,10 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     return !error;
   }, [ajustes]);
 
-  // ── Cálculo de pago: base repartida + ajustes de contenedor + ajustes propios ──
+  // ── Cálculo de pago: cada persona gana el valor base completo (igual que
+  // "Pago por Contenedor" en Nómina: valor × contenedores, por persona), más
+  // su parte de los ajustes generales del contenedor (se reparten entre
+  // todos) y sus ajustes propios ──
   const calcularPago = useCallback((contenedorId) => {
     const contenedor = procesos.find(p => p.id === contenedorId);
     if (!contenedor) return null;
@@ -278,16 +281,17 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
 
     const valorBase = (sesionActiva?.contenedorId === contenedorId) ? sesionActiva.valorBase : 180000;
     const ajustesContenedor = ajustes.filter(a => !a.empNum).reduce((s, a) => s + a.monto, 0);
-    const totalBase = valorBase + ajustesContenedor;
     const n = miembros.length || 1;
-    const porPersonaBase = totalBase / n;
+    const ajusteGeneralPorPersona = ajustesContenedor / n;
+    const porPersonaBase = valorBase + ajusteGeneralPorPersona;
+    const totalBase = valorBase * miembros.length + ajustesContenedor;
 
     const detalle = miembros.map(num => {
       const propios = ajustes.filter(a => a.empNum === num).reduce((s, a) => s + a.monto, 0);
       return { num, base: porPersonaBase, ajustesPropios: propios, total: porPersonaBase + propios };
     });
 
-    return { contenedor, miembros, valorBase, ajustesContenedor, totalBase, porPersonaBase, detalle };
+    return { contenedor, miembros, valorBase, ajustesContenedor, ajusteGeneralPorPersona, totalBase, porPersonaBase, detalle };
   }, [procesos, grupos, ajustes, sesionActiva]);
 
   return {

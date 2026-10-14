@@ -1144,7 +1144,7 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
               </CustomSelect>
             </div>
             <div style={{ flex:1 }}>
-              <div style={lbl}>Valor base del contenedor</div>
+              <div style={lbl}>Valor por persona (cada uno gana esto por el contenedor)</div>
               <input type="number" value={valorBaseInput} onChange={e => setValorBaseInput(e.target.value)} style={inp} />
             </div>
           </div>
@@ -1161,7 +1161,7 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
                 <button onClick={onCerrarSesion} style={{ ...btnTablaEliminar, padding:"6px 12px", fontSize:11 }}>🏁 Cerrar y ver informe</button>
               </div>
             </div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>Valor base: {fmtCOP(sesionActiva.valorBase)} · Abierta por {sesionActiva.abiertaPor || "—"}</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>Valor por persona: {fmtCOP(sesionActiva.valorBase)} · Abierta por {sesionActiva.abiertaPor || "—"}</div>
           </div>
 
           <div style={card}>
@@ -1261,7 +1261,9 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
             <div style={card}>
               <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:10 }}>💰 Resumen de pago</div>
               <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:10 }}>
-                Base {fmtCOP(pago.valorBase)} {pago.ajustesContenedor !== 0 && <>({pago.ajustesContenedor >= 0 ? "+" : ""}{fmtCOP(pago.ajustesContenedor)} ajustes)</>} ÷ {pago.miembros.length || 1} persona(s) = {fmtCOP(pago.porPersonaBase)} c/u
+                {fmtCOP(pago.valorBase)} por persona
+                {pago.ajustesContenedor !== 0 && <> {pago.ajustesContenedor >= 0 ? "+" : "−"} ajustes generales {fmtCOP(Math.abs(pago.ajustesContenedor))} ÷ {pago.miembros.length || 1} = {pago.ajusteGeneralPorPersona >= 0 ? "+" : "−"}{fmtCOP(Math.abs(pago.ajusteGeneralPorPersona))} c/u</>}
+                {" "}· {pago.miembros.length} persona(s)
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:12 }}>
                 {pago.detalle.map(d => (

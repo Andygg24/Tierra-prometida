@@ -54,7 +54,7 @@ export function useBiometrico({ asisQR }) {
 
   useEffect(() => {
     cargar();
-    const ch = supabase.channel(`biometrico-eventos-${Date.now()}`)
+    const ch = supabase.channel(`biometrico-eventos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "asistencia_eventos" }, cargar)
       // Si otro dispositivo cierra el día, este también arranca de cero.
       .on("postgres_changes", { event: "*", schema: "public", table: "configuracion", filter: `clave=eq.${CLAVE_JORNADA}` }, cargar)
@@ -114,5 +114,39 @@ export function useBiometrico({ asisQR }) {
     return { ok: true };
   }, [cargar]);
 
-  return { eventosHoy, sesionesHoy, inicioJornada, error, registrar, cerrarDia, recargar: cargar };
+  // Movimientos de un día calendario cualquiera (fecha "AAAA-MM-DD", hora local)
+  // — para consultar y descargar días anteriores.
+  const consultarDia = useCallback(async (fecha) => {
+    const [y, m, d] = fecha.split("-").map(Number);
+    const desde = new Date(y, m - 1, d), hasta = new Date(y, m - 1, d + 1);
+    const { data, error: err } = await supabase.from("asistencia_eventos").select("*")
+      .gte("hora", desde.toISOString()).lt("hora", hasta.toISOString()).order("hora", { ascending: true });
+    if (err) return { ok: false, msg: err.message };
+    const eventos = (data || []).map(rowToEvento);
+    const ids = [...new Set(eventos.map(e => e.sesionId).filter(Boolean))];
+    let sesiones = {};
+    if (ids.length) {
+      const { data: ses } = await supabase.from("asistencia_sesiones").select("id,contenedor_id,turno").in("id", ids);
+      sesiones = Object.fromEntries((ses || []).map(x => [x.id, { contenedorId: x.contenedor_id, turno: x.turno }]));
+    }
+    return { ok: true, eventos, sesiones, desde: desde.toISOString(), hasta: hasta.toISOString() };
+  }, []);
+
+  // Borra todos los movimientos de un día (p. ej. un día de pruebas) y el
+  // "Presente" que el escaneo marcó solo ese día. Lo marcado a mano en
+  // Asistencia Manual no se toca (no tiene hora_registro).
+  const eliminarDia = useCallback(async (fecha) => {
+    const [y, m, d] = fecha.split("-").map(Number);
+    const desde = new Date(y, m - 1, d), hasta = new Date(y, m - 1, d + 1);
+    const { error: errEv } = await supabase.from("asistencia_eventos").delete()
+      .gte("hora", desde.toISOString()).lt("hora", hasta.toISOString());
+    if (errEv) return { ok: false, msg: errEv.message };
+    const { error: errAs } = await supabase.from("asistencia").delete()
+      .eq("fecha", fecha).not("hora_registro", "is", null);
+    if (errAs) return { ok: false, msg: `Se borraron los movimientos, pero no el "Presente" automático: ${errAs.message}` };
+    await cargar();
+    return { ok: true };
+  }, [cargar]);
+
+  return { eventosHoy, sesionesHoy, inicioJornada, error, registrar, cerrarDia, consultarDia, eliminarDia, recargar: cargar };
 }
