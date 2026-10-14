@@ -139,3 +139,26 @@ export async function leerQrDeVideo(video, canvas) {
   const img = ctx.getImageData(0, 0, w, h);
   return jsQR(img.data, w, h, { inversionAttempts: "dontInvert" })?.data || null;
 }
+
+// ── Hacia dónde mira la cabeza (para el registro guiado) ────────
+// Aproximación con los 68 puntos, sin 3D:
+// - yaw (giro a los lados): qué tan corrida está la punta de la nariz (30)
+//   respecto al centro entre los bordes de la mandíbula (0 y 16),
+//   normalizado por el ancho de la cara. ~0 de frente.
+// - pitch (arriba/abajo): dónde cae la punta de la nariz entre la línea de
+//   los ojos y la barbilla (8). Cambia al subir o bajar la cabeza.
+// No importa el signo exacto: el registro compara contra la postura de
+// frente de esa misma persona.
+export function poseCara(landmarks) {
+  const p = landmarks.positions;
+  const nariz = p[30], mandIzq = p[0], mandDer = p[16], barbilla = p[8];
+  let ojoY = 0;
+  for (let i = 36; i <= 47; i++) ojoY += p[i].y;
+  ojoY /= 12;
+  const ancho = mandDer.x - mandIzq.x || 1;
+  const alto  = barbilla.y - ojoY || 1;
+  return {
+    yaw:   (nariz.x - (mandIzq.x + mandDer.x) / 2) / ancho,
+    pitch: (nariz.y - ojoY) / alto,
+  };
+}

@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import {
   cargarModelosRostro, detectarCara, detectarHuella, aperturaOjos, crearDetectorParpadeo,
-  identificar, distanciaHuellas, abrirCamaraFrontal, cerrarCamara, leerQrDeVideo,
+  identificar, distanciaHuellas, abrirCamaraFrontal, cerrarCamara, leerQrDeVideo, poseCara,
 } from "../utils/rostro.js";
 import { numDeQrAsistencia } from "../utils/qrAsistencia.js";
 import { btnPrimario, btnSecundario, btnTablaEliminar } from "./buttonStyles.js";
 
-const MUESTRAS_POR_EMPLEADO = 3;
 // Tras marcar a alguien, esa misma persona se ignora este tiempo — si se
 // queda frente a la cámara no debe marcarse la salida justo después de la entrada.
 const ESPERA_MISMA_PERSONA_MS = 60_000;
@@ -53,16 +52,40 @@ function useCamaraRostro() {
 const estiloVideo = { width:"100%", maxWidth:420, borderRadius:14, transform:"scaleX(-1)", background:"#000", display:"block", margin:"0 auto" };
 
 // ═══════════════════════════════════════════════════════════════
-// REGISTRO DE ROSTRO — ventana que se abre desde Personal, para un empleado
+// REGISTRO DE ROSTRO — ventana que se abre desde Personal, para un empleado.
+// Registro guiado tipo Nequi / Face ID: la cámara sigue la cara en vivo
+// dentro de un óvalo, va pidiendo posiciones y toma cada muestra sola
+// cuando la cara está quieta en la posición pedida.
 // ═══════════════════════════════════════════════════════════════
+const PASOS = [
+  { id:"frente",  texto:"Mira de frente a la cámara" },
+  { id:"lado1",   texto:"Gira despacio la cabeza hacia un lado" },
+  { id:"lado2",   texto:"Ahora hacia el otro lado" },
+  { id:"vert1",   texto:"Sube o baja un poco la cabeza" },
+  { id:"vert2",   texto:"Ahora al revés" },
+  { id:"frente2", texto:"De frente otra vez" },
+];
+const UMBRAL_GIRO  = 0.09;  // cuánto debe girar a los lados (ver poseCara)
+const UMBRAL_VERT  = 0.05;  // cuánto debe subir/bajar
+const CUADROS_QUIETO = 3;   // cuadros seguidos en posición antes de tomar la muestra
+const MS_AYUDA_MANUAL = 12_000; // si un paso no avanza, se ofrece tomarla a mano
+// Las muestras de lado se alejan más de la de frente que dos fotos de frente;
+// por encima de esto ya no parece la misma persona.
+const MAX_DIST_MISMA_PERSONA = 0.65;
+
 export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
   const { registrados, error: errorRostros, guardarRostro, borrarRostro } = rostros;
   const cam = useCamaraRostro();
-  const { videoRef, faceapiRef, iniciar, detener } = cam;
-  const [muestras,  setMuestras]  = useState([]);
-  const [tomando,   setTomando]   = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [msg,       setMsg]       = useState(null); // { ok, texto }
+  const { videoRef, faceapiRef, iniciar, detener, estado: estadoCam } = cam;
+  const [paso,        setPaso]        = useState(0);      // PASOS.length = terminado
+  const [aviso,       setAviso]       = useState("");
+  const [enPosicion,  setEnPosicion]  = useState(false);
+  const [ayudaManual, setAyudaManual] = useState(false);
+  const [guardando,   setGuardando]   = useState(false);
+  const [msg,         setMsg]         = useState(null);   // { ok, texto }
+  const [dim,         setDim]         = useState({ w: 640, h: 480 });
+  const [intento,     setIntento]     = useState(0);      // reinicia el recorrido
+  const manualRef = useRef(false);
 
   const yaTiene  = registrados.some(r => r.num === emp.num);
   const nombreDe = (num) => empleados.find(e => e.num === num)?.nombre || num;
@@ -71,41 +94,102 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
   const yaIniciado = useRef(false);
   useEffect(() => { if (!yaIniciado.current) { yaIniciado.current = true; iniciar(); } }, [iniciar]);
 
-  const tomarMuestra = async () => {
-    if (!faceapiRef.current || tomando) return;
-    setTomando(true); setMsg(null);
-    try {
-      const r = await detectarHuella(faceapiRef.current, videoRef.current);
-      if (!r) { setMsg({ ok:false, texto:"No se ve ninguna cara. Acércate y mira a la cámara." }); return; }
-      if (r.varias) { setMsg({ ok:false, texto:"Hay más de una cara en la cámara — que quede solo la persona." }); return; }
-      if (r.detection.score < 0.7) { setMsg({ ok:false, texto:"La cara no se ve clara. Busca mejor luz." }); return; }
-      setMuestras(m => [...m, r.descriptor]);
-    } finally {
-      setTomando(false);
-    }
-  };
-
-  const guardar = async () => {
-    if (muestras.length < MUESTRAS_POR_EMPLEADO) return;
-    // Evita registrar la cara de alguien bajo el nombre de otra persona.
+  // Guardar al terminar el recorrido (ref para que el ciclo use lo último).
+  const finalizarRef = useRef(null);
+  const finalizar = async (muestras) => {
     const otros = registrados.filter(r => r.num !== emp.num);
     for (const m of muestras) {
       const parecido = identificar(m, otros);
       if (parecido) { setMsg({ ok:false, texto:`Esta cara ya está registrada como ${nombreDe(parecido.num)}. No se guardó.` }); return; }
     }
-    // Las muestras deben ser de la misma persona entre sí.
-    for (let i = 1; i < muestras.length; i++) {
-      if (distanciaHuellas(muestras[0], muestras[i]) > 0.55) {
-        setMsg({ ok:false, texto:"Las fotos no parecen ser de la misma persona. Vuelve a tomarlas." });
-        setMuestras([]);
-        return;
-      }
+    if (muestras.some(m => distanciaHuellas(muestras[0], m) > MAX_DIST_MISMA_PERSONA)) {
+      setMsg({ ok:false, texto:"Parece que cambió la persona frente a la cámara a mitad del registro. Inténtalo de nuevo." });
+      return;
     }
     setGuardando(true);
     const r = await guardarRostro(emp.num, muestras);
     setGuardando(false);
-    if (r.ok) { setMuestras([]); setMsg({ ok:true, texto:"Rostro guardado. El Biométrico ya reconoce a esta persona." }); }
-    else setMsg({ ok:false, texto:`No se pudo guardar: ${r.msg}` });
+    setMsg(r.ok
+      ? { ok:true, texto:"Rostro registrado. El Biométrico ya reconoce a esta persona." }
+      : { ok:false, texto:`No se pudo guardar: ${r.msg}` });
+  };
+  useEffect(() => { finalizarRef.current = finalizar; });
+
+  useEffect(() => {
+    if (estadoCam !== "lista") return;
+    let vivo = true;
+    const faceapi = faceapiRef.current;
+    const video   = videoRef.current;
+    const muestras = [];
+    let pasoActual = 0, base = null, signoGiro = 1, signoVert = 1, quieto = 0, inicioPaso = Date.now();
+
+    const cumple = (pose) => {
+      const dy = base ? pose.yaw - base.yaw : 0;
+      const dp = base ? pose.pitch - base.pitch : 0;
+      switch (PASOS[pasoActual].id) {
+        case "frente":  return Math.abs(pose.yaw) < 0.08;
+        case "lado1":   return Math.abs(dy) > UMBRAL_GIRO;
+        case "lado2":   return dy * signoGiro < -UMBRAL_GIRO;
+        case "vert1":   return Math.abs(dp) > UMBRAL_VERT && Math.abs(dy) < UMBRAL_GIRO;
+        case "vert2":   return dp * signoVert < -UMBRAL_VERT && Math.abs(dy) < UMBRAL_GIRO;
+        case "frente2": return Math.abs(dy) < 0.05 && Math.abs(dp) < 0.03;
+        default:        return false;
+      }
+    };
+
+    // Toma la muestra del paso actual (huella completa del cuadro de ahora).
+    const tomar = async () => {
+      const r = await detectarHuella(faceapi, video);
+      if (!r || r.varias || r.detection.score < 0.6) return;
+      const pose = poseCara(r.landmarks);
+      const id = PASOS[pasoActual].id;
+      if (id === "frente") base = pose;
+      if (id === "lado1")  signoGiro = Math.sign(pose.yaw - base.yaw) || 1;
+      if (id === "vert1")  signoVert = Math.sign(pose.pitch - base.pitch) || 1;
+      muestras.push(r.descriptor);
+      pasoActual++; quieto = 0; inicioPaso = Date.now();
+      setPaso(pasoActual); setEnPosicion(false); setAyudaManual(false);
+    };
+
+    const ciclo = async () => {
+      if (!vivo) return;
+      try {
+        if (pasoActual >= PASOS.length) { vivo = false; await finalizarRef.current(muestras); return; }
+        if (manualRef.current) { manualRef.current = false; await tomar(); return; }
+
+        const r = await detectarCara(faceapi, video);
+        if (!r)       { quieto = 0; setEnPosicion(false); setAviso("Pon tu cara dentro del óvalo"); return; }
+        if (r.varias) { quieto = 0; setEnPosicion(false); setAviso("Solo una persona frente a la cámara"); return; }
+        const box = r.detection.box, vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+        const tam = box.width / vw;
+        const cx = (box.x + box.width / 2) / vw, cy = (box.y + box.height / 2) / vh;
+        let problema = "";
+        if (tam < 0.2)       problema = "Acércate un poco";
+        else if (tam > 0.75) problema = "Aléjate un poco";
+        else if (Math.abs(cx - 0.5) > 0.15 || Math.abs(cy - 0.5) > 0.2) problema = "Centra tu cara en el óvalo";
+        setAviso(problema);
+        if (problema) { quieto = 0; setEnPosicion(false); return; }
+
+        if (cumple(poseCara(r.landmarks))) {
+          setEnPosicion(true);
+          if (++quieto >= CUADROS_QUIETO) await tomar();
+        } else {
+          quieto = 0; setEnPosicion(false);
+          if (Date.now() - inicioPaso > MS_AYUDA_MANUAL) setAyudaManual(true);
+        }
+      } catch (err) {
+        console.error("[Registro rostro]", err);
+      } finally {
+        if (vivo) setTimeout(ciclo, 80);
+      }
+    };
+    ciclo();
+    return () => { vivo = false; };
+  }, [estadoCam, intento, faceapiRef, videoRef]);
+
+  const repetir = () => {
+    setMsg(null); setPaso(0); setAviso(""); setEnPosicion(false); setAyudaManual(false);
+    setIntento(i => i + 1);
   };
 
   const borrar = async () => {
@@ -116,48 +200,61 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
 
   const cerrar = () => { detener(); onClose(); };
 
+  const terminado = paso >= PASOS.length;
+  const { w, h } = dim;
+  const rx = w * 0.24, ry = h * 0.40;
+  const progreso = (paso / PASOS.length) * 100;
+  const colorAnillo = msg && !msg.ok ? "#FF6B6B" : terminado || enPosicion ? "#00C9A7" : "#845EF7";
+  const instruccion = msg ? "" : terminado ? (guardando ? "Guardando…" : "") : (aviso || PASOS[paso].texto);
+
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ background:"#1a1a2e", border:"1px solid rgba(132,94,247,0.35)", borderRadius:16, padding:20, maxWidth:440, width:"100%", maxHeight:"calc(100vh - 32px)", overflowY:"auto" }}>
         <div style={{ fontSize:14, fontWeight:800, color:"#a5b4fc", marginBottom:2 }}>🙂 Registrar rostro</div>
         <div style={{ fontSize:13, color:"white", fontWeight:700 }}>{emp.nombre}</div>
         <div style={{ fontSize:11, color: yaTiene ? "#00C9A7" : "rgba(255,255,255,0.45)", marginBottom:10 }}>
-          {yaTiene ? "✓ Ya tiene rostro registrado — si tomas fotos nuevas, se reemplaza." : "Todavía no tiene rostro registrado."}
-        </div>
-        <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", marginBottom:10 }}>
-          Toma {MUESTRAS_POR_EMPLEADO} fotos: de frente, un poco de lado y otra vez de frente. Sin gorra ni tapabocas, con buena luz.
+          {yaTiene ? "✓ Ya tiene rostro registrado — al terminar se reemplaza." : "Todavía no tiene rostro registrado."}
         </div>
 
         {errorRostros && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:10 }}>{errorRostros}</div>}
-        {cam.estado === "cargando" && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:10 }}>Cargando cámara y reconocimiento… (la primera vez tarda un poco)</div>}
+        {estadoCam === "cargando" && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:10 }}>Cargando cámara y reconocimiento… (la primera vez tarda un poco)</div>}
         {cam.error && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:10 }}>{cam.error}</div>}
-        <video ref={videoRef} style={{ ...estiloVideo, display: cam.estado === "lista" ? "block" : "none" }} />
 
-        {cam.estado === "lista" && (
-          <div style={{ display:"flex", gap:6, justifyContent:"center", marginTop:10 }}>
-            {Array.from({ length: MUESTRAS_POR_EMPLEADO }, (_, i) => (
-              <span key={i} style={{ width:12, height:12, borderRadius:99, background: i < muestras.length ? "#00C9A7" : "rgba(255,255,255,0.15)" }} />
-            ))}
+        <div style={{ position:"relative", maxWidth:420, margin:"0 auto", display: estadoCam === "lista" ? "block" : "none" }}>
+          <video ref={videoRef} onLoadedMetadata={e => setDim({ w: e.target.videoWidth || 640, h: e.target.videoHeight || 480 })} style={estiloVideo} />
+          <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ position:"absolute", inset:0, width:"100%", height:"100%", borderRadius:14, pointerEvents:"none" }}>
+            <defs>
+              <mask id="mascara-ovalo-rostro">
+                <rect width={w} height={h} fill="white" />
+                <ellipse cx={w/2} cy={h/2} rx={rx} ry={ry} fill="black" />
+              </mask>
+            </defs>
+            <rect width={w} height={h} fill="rgba(12,12,30,0.62)" mask="url(#mascara-ovalo-rostro)" />
+            <ellipse cx={w/2} cy={h/2} rx={rx + 8} ry={ry + 8} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={7} />
+            {/* Anillo de progreso: arranca arriba (elipse con radios cruzados, rotada -90°) */}
+            <ellipse cx={w/2} cy={h/2} rx={ry + 8} ry={rx + 8} fill="none" stroke={colorAnillo} strokeWidth={9}
+              strokeLinecap="round" pathLength={100} strokeDasharray={`${progreso} 100`}
+              transform={`rotate(-90 ${w/2} ${h/2})`} style={{ transition:"stroke-dasharray 0.35s ease, stroke 0.2s" }} />
+          </svg>
+        </div>
+
+        {estadoCam === "lista" && (
+          <div style={{ textAlign:"center", marginTop:12, minHeight:44 }}>
+            {instruccion && <div style={{ fontSize:16, fontWeight:800, color: enPosicion ? "#00C9A7" : "white" }}>{instruccion}</div>}
+            {!terminado && !msg && <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:3 }}>Paso {paso + 1} de {PASOS.length} · sin gorra ni tapabocas, con buena luz</div>}
           </div>
         )}
 
-        {msg && <div style={{ fontSize:12, marginTop:10, color: msg.ok ? "#00C9A7" : "#FF6B6B" }}>{msg.texto}</div>}
+        {msg && <div style={{ fontSize:13, fontWeight:700, textAlign:"center", marginTop:10, color: msg.ok ? "#00C9A7" : "#FF6B6B" }}>{msg.ok ? "✓ " : ""}{msg.texto}</div>}
 
         <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
-          {cam.estado === "apagada" && <button onClick={iniciar} style={btnPrimario(false,false)}>📷 Activar cámara</button>}
-          {cam.estado === "lista" && muestras.length < MUESTRAS_POR_EMPLEADO && (
-            <button onClick={tomarMuestra} disabled={tomando} style={btnPrimario(false, tomando)}>
-              {tomando ? "Analizando…" : `📸 Tomar foto ${muestras.length + 1} de ${MUESTRAS_POR_EMPLEADO}`}
-            </button>
+          {estadoCam === "apagada" && <button onClick={iniciar} style={btnPrimario(false,false)}>📷 Activar cámara</button>}
+          {ayudaManual && !terminado && !msg && (
+            <button onClick={() => { manualRef.current = true; }} style={btnSecundario}>📸 No avanza — tomar esta foto</button>
           )}
-          {muestras.length >= MUESTRAS_POR_EMPLEADO && (
-            <button onClick={guardar} disabled={guardando} style={btnPrimario(false, guardando)}>
-              {guardando ? "Guardando…" : "💾 Guardar rostro"}
-            </button>
-          )}
-          {muestras.length > 0 && <button onClick={() => setMuestras([])} style={btnSecundario}>Repetir fotos</button>}
+          {msg && estadoCam === "lista" && <button onClick={repetir} style={btnSecundario}>🔄 {msg.ok ? "Registrar de nuevo" : "Intentar de nuevo"}</button>}
           {yaTiene && <button onClick={borrar} style={{ ...btnTablaEliminar, padding:"7px 12px" }}>🗑 Borrar rostro</button>}
-          <button onClick={cerrar} style={{ ...btnSecundario, marginLeft:"auto" }}>Cerrar</button>
+          <button onClick={cerrar} style={{ ...btnSecundario, marginLeft:"auto" }}>{msg?.ok ? "Listo" : "Cerrar"}</button>
         </div>
       </div>
     </div>
