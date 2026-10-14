@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  cargarModelosRostro, detectarCara, detectarHuella, aperturaOjos, crearDetectorParpadeo,
+  cargarModelosRostro, detectarCara, detectarHuella,
   identificar, distanciaHuellas, abrirCamaraFrontal, cerrarCamara, leerQrDeVideo, poseCara,
 } from "../utils/rostro.js";
 import { numDeQrAsistencia } from "../utils/qrAsistencia.js";
@@ -9,6 +9,8 @@ import { btnPrimario, btnSecundario, btnTablaEliminar } from "./buttonStyles.js"
 // Tras marcar a alguien, esa misma persona se ignora este tiempo — si se
 // queda frente a la cámara no debe marcarse la salida justo después de la entrada.
 const ESPERA_MISMA_PERSONA_MS = 60_000;
+// Identificaciones seguidas de la misma persona antes de marcarla.
+const COINCIDENCIAS_PARA_MARCAR = 3;
 
 
 function mensajeErrorCamaraFrontal(err) {
@@ -262,18 +264,18 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// KIOSCO POR ROSTRO — reconoce, pide parpadear y marca entrada/salida
+// KIOSCO POR ROSTRO — reconoce la cara (o el QR) y marca entrada/salida
 // ═══════════════════════════════════════════════════════════════
-export function KioscoRostro({ empleados, rostros, registrarEscaneo, onResultado, autoIniciar = false }) {
+export function KioscoRostro({ empleados, rostros, registrarEscaneo, onResultado, autoIniciar = false, onEstadoCamara }) {
   const cam = useCamaraRostro();
   const { videoRef, faceapiRef, estado: estadoCam, iniciar } = cam;
+  useEffect(() => { onEstadoCamara?.(estadoCam); }, [estadoCam, onEstadoCamara]);
   // El Biométrico prende la cámara apenas se abre, como un aparato de pared.
   const yaAutoIniciado = useRef(false);
   useEffect(() => {
     if (autoIniciar && !yaAutoIniciado.current) { yaAutoIniciado.current = true; iniciar(); }
   }, [autoIniciar, iniciar]);
   const [aviso, setAviso] = useState("");       // instrucción en pantalla
-  const [candidato, setCandidato] = useState(null); // { num, nombre }
 
   // Refs para que el ciclo de detección siempre vea lo último sin reiniciarse.
   const registradosRef = useRef([]);
@@ -293,16 +295,11 @@ export function KioscoRostro({ empleados, rostros, registrarEscaneo, onResultado
     let vivo = true;
     const faceapi = faceapiRef.current;
     const video   = videoRef.current;
-    const parpadeo = crearDetectorParpadeo();
     const canvasQr = document.createElement("canvas");
     const ultimaMarca = new Map(); // num → hora en que se marcó
-    let actual = null;          // { num, nombre } identificado y siguiendo
     let previoNum = null;       // última identificación, aún sin confirmar
     let coincidencias = 0;      // identificaciones seguidas de la misma persona
-    let sinCara = 0;
     let pausaHasta = 0;
-
-    const soltar = () => { actual = null; previoNum = null; coincidencias = 0; parpadeo.reiniciar(); setCandidato(null); };
 
     const marcar = async (num, via) => {
       pausaHasta = Date.now() + 2500;
@@ -317,64 +314,39 @@ export function KioscoRostro({ empleados, rostros, registrarEscaneo, onResultado
       try {
         if (Date.now() < pausaHasta || video.readyState < 2) return;
 
-        // Primero se busca un QR de asistencia en el cuadro (no necesita
-        // parpadeo: el QR ya identifica a la persona).
-        if (!actual) {
-          const texto = await leerQrDeVideo(video, canvasQr);
-          if (texto) {
-            const num = numDeQrAsistencia(texto);
-            if (!num) { setAviso("Ese QR no es de asistencia"); pausaHasta = Date.now() + 1500; return; }
-            const espera = ultimaMarca.get(num);
-            if (espera && Date.now() - espera < ESPERA_MISMA_PERSONA_MS) { setAviso("Ya quedaste marcado hace un momento"); return; }
-            await marcar(num, "qr");
-            return;
-          }
-        }
-
-        if (!actual) {
-          const r = await detectarHuella(faceapi, video);
-          if (!r) { previoNum = null; setAviso("Mira a la cámara o muestra tu QR"); return; }
-          if (r.varias) { previoNum = null; setAviso("Solo una persona a la vez"); return; }
-          const id = identificar(r.descriptor, registradosRef.current);
-          if (!id) { previoNum = null; setAviso("No te reconozco — usa tu QR o pide que registren tu rostro"); return; }
-          const espera = ultimaMarca.get(id.num);
-          if (espera && Date.now() - espera < ESPERA_MISMA_PERSONA_MS) {
-            setAviso("Ya quedaste marcado hace un momento");
-            return;
-          }
-          // Se exigen 2 identificaciones seguidas de la misma persona.
-          coincidencias = previoNum === id.num ? coincidencias + 1 : 1;
-          previoNum = id.num;
-          if (coincidencias < 2) return;
-          const nombre = empleadosRef.current.find(e => e.num === id.num)?.nombre || id.num;
-          actual = { num: id.num, nombre };
-          parpadeo.reiniciar();
-          setCandidato(actual);
-          setAviso("Parpadea para confirmar");
+        // Primero se busca un QR de asistencia en el cuadro.
+        const texto = await leerQrDeVideo(video, canvasQr);
+        if (texto) {
+          const num = numDeQrAsistencia(texto);
+          if (!num) { setAviso("Ese QR no es de asistencia"); pausaHasta = Date.now() + 1500; return; }
+          const espera = ultimaMarca.get(num);
+          if (espera && Date.now() - espera < ESPERA_MISMA_PERSONA_MS) { setAviso("Ya quedaste marcado hace un momento"); return; }
+          await marcar(num, "qr");
           return;
         }
 
-        // Ya identificada: se sigue la cara (rápido) esperando el parpadeo.
-        const r = await detectarCara(faceapi, video);
-        if (!r || r.varias) {
-          if (++sinCara > 4) { sinCara = 0; soltar(); }
+        const r = await detectarHuella(faceapi, video);
+        if (!r) { previoNum = null; setAviso("Mira a la cámara o muestra tu QR"); return; }
+        if (r.varias) { previoNum = null; setAviso("Solo una persona a la vez"); return; }
+        const id = identificar(r.descriptor, registradosRef.current);
+        if (!id) { previoNum = null; setAviso("No te reconozco — usa tu QR o pide que registren tu rostro"); return; }
+        const espera = ultimaMarca.get(id.num);
+        if (espera && Date.now() - espera < ESPERA_MISMA_PERSONA_MS) {
+          setAviso("Ya quedaste marcado hace un momento");
           return;
         }
-        sinCara = 0;
-        if (!parpadeo.actualizar(aperturaOjos(r.landmarks))) return;
-
-        // Antes de marcar se confirma que sigue siendo la misma persona.
-        const confirma = await detectarHuella(faceapi, video);
-        const id2 = confirma && !confirma.varias ? identificar(confirma.descriptor, registradosRef.current) : null;
-        if (!id2 || id2.num !== actual.num) { soltar(); return; }
-
-        const marcado = actual;
-        soltar();
-        await marcar(marcado.num, "rostro");
+        // Se marca apenas la misma persona sale reconocida varias veces
+        // seguidas (menos de un segundo) — así un cuadro borroso o una cara
+        // de paso no marca a nadie por error.
+        coincidencias = previoNum === id.num ? coincidencias + 1 : 1;
+        previoNum = id.num;
+        if (coincidencias < COINCIDENCIAS_PARA_MARCAR) { setAviso("Reconociendo…"); return; }
+        previoNum = null; coincidencias = 0;
+        await marcar(id.num, "rostro");
       } catch (err) {
         console.error("[Asistencia rostro]", err);
       } finally {
-        if (vivo) setTimeout(paso, actual ? 60 : 250);
+        if (vivo) setTimeout(paso, previoNum ? 60 : 200);
       }
     };
     paso();
@@ -402,9 +374,7 @@ export function KioscoRostro({ empleados, rostros, registrarEscaneo, onResultado
       <video ref={videoRef} style={{ ...estiloVideo, display: cam.estado === "lista" ? "block" : "none" }} />
 
       {cam.estado === "lista" && (
-        <div style={{ marginTop:12, fontSize:15, fontWeight:800, color: candidato ? "#00C9A7" : "rgba(255,255,255,0.75)" }}>
-          {candidato ? `👋 ${candidato.nombre} — parpadea para confirmar` : aviso}
-        </div>
+        <div style={{ marginTop:12, fontSize:15, fontWeight:800, color:"rgba(255,255,255,0.75)" }}>{aviso}</div>
       )}
     </div>
   );

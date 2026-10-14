@@ -151,7 +151,7 @@ export default function AsistenciaTab() {
   const asisQR = useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContenedor });
   const rostros = useRostros();
 
-  const [modo, setModo]   = useState("manual"); // manual | sesion | biometrico | escanear
+  const [modo, setModo]   = useState("manual"); // manual | biometrico | escanear (el proceso y los pagos viven dentro de Biométrico)
   const [toast, setToast] = useState(null);
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
 
@@ -164,7 +164,6 @@ export default function AsistenciaTab() {
 
   const MODOS = [
     { id: "manual",   icon: "📋", label: "Manual" },
-    { id: "sesion",   icon: "📦", label: "Sesión / Pagos" },
     { id: "biometrico", icon: "🧬", label: "Biométrico" },
     { id: "escanear", icon: "📷", label: "Escanear QR" },
   ];
@@ -216,21 +215,22 @@ export default function AsistenciaTab() {
         />
       )}
 
-      {modo === "sesion" && (
-        <SesionPanel
-          asisQR={asisQR} procesos={procesos} grupos={grupos} empleados={empleados}
-          guardarContenedor={guardarContenedor}
-          agregarLiquidacion={agregarLiquidacion}
-          verPrevia={verPrevia} showToast={showToast}
-        />
-      )}
-
       {modo === "escanear" && (
         <EscanearPanel asisQR={asisQR} procesos={procesos} />
       )}
 
       {modo === "biometrico" && (
-        <BiometricoPanel asisQR={asisQR} procesos={procesos} empleados={empleados} rostros={rostros} verPrevia={verPrevia} playBeep={playBeep} />
+        <BiometricoPanel
+          asisQR={asisQR} procesos={procesos} empleados={empleados} rostros={rostros} verPrevia={verPrevia} playBeep={playBeep}
+          gestion={
+            <SesionPanel
+              asisQR={asisQR} procesos={procesos} grupos={grupos} empleados={empleados}
+              guardarContenedor={guardarContenedor}
+              agregarLiquidacion={agregarLiquidacion}
+              verPrevia={verPrevia} showToast={showToast}
+            />
+          }
+        />
       )}
     </div>
   );
@@ -1352,7 +1352,7 @@ function EscanearPanel({ asisQR, procesos }) {
       <div style={{ textAlign:"center", padding:"40px 20px", background:"rgba(255,255,255,0.04)", borderRadius:14 }}>
         <div style={{ fontSize:36, marginBottom:10 }}>⏸️</div>
         <div style={{ fontSize:14, fontWeight:700, color:"white", marginBottom:6 }}>No hay proceso abierto</div>
-        <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Pide al encargado que inicie la sesión en la pestaña "Sesión / Pagos".</div>
+        <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Pide al encargado que abra el proceso en Biométrico (con la cámara apagada).</div>
       </div>
     );
   }
