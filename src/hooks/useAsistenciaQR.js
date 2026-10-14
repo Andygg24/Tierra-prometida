@@ -22,6 +22,7 @@ const rowToAjuste = (r) => ({
 
 const rowToEvento = (r) => ({
   id: r.id, sesionId: r.sesion_id, empNum: r.emp_num, tipo: r.tipo, hora: r.hora,
+  via: r.via || "qr",
 });
 
 // Puentea el check-in por QR con la tubería de pago que ya existe
@@ -132,7 +133,9 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
   // ── Registrar un escaneo válido (empleado ya existente) — el mismo QR
   // alterna entre entrada y salida según el último evento de esa persona
   // en esta sesión, para poder reconstruir idas y vueltas durante el proceso ─
-  const registrarEscaneo = useCallback(async (num) => {
+  // `via`: "qr" (por defecto) o "rostro" — queda en el evento para saber
+  // cómo se marcó cada entrada/salida.
+  const registrarEscaneo = useCallback(async (num, via = "qr") => {
     if (!sesionActiva) return { ok: false, msg: "No hay proceso abierto" };
 
     const { data: emp } = await supabase.from("empleados").select("num,nombre,activo").eq("num", num).maybeSingle();
@@ -147,6 +150,9 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     const ahora = new Date();
 
     const nuevoEvento = { id: Date.now(), sesion_id: sesionActiva.id, emp_num: num, tipo, hora: ahora.toISOString() };
+    // Solo se manda `via` cuando no es QR, para que el QR siga funcionando
+    // aunque la migración de rostros todavía no se haya corrido.
+    if (via !== "qr") nuevoEvento.via = via;
     const { error: errorEvento } = await supabase.from("asistencia_eventos").insert(nuevoEvento);
     if (errorEvento) {
       return { ok: false, msg: `No se pudo guardar el movimiento (¿corriste la migración SQL más reciente?): ${errorEvento.message}` };
