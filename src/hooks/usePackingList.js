@@ -6,7 +6,7 @@ export function usePackingList() {
 
   // Real-time: notifica cuando alguien guarda un packing list
   useEffect(() => {
-    const ch = supabase.channel(`packing-lists-changes-${Date.now()}`)
+    const ch = supabase.channel(`packing-lists-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "packing_lists" }, ({ new: row }) => {
         setUltimaActualizacion(row?.updated_at || new Date().toISOString());
       })

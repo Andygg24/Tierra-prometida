@@ -112,7 +112,7 @@ export function useContenedores() {
       q.then(({ data }) => data && setter(data.map(mapper)));
     };
 
-    const ch = supabase.channel(`contenedores-changes-${Date.now()}`)
+    const ch = supabase.channel(`contenedores-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "contenedores" },
           refetch("contenedores", setProcesos, rowToCont))
       .on("postgres_changes", { event: "*", schema: "public", table: "grupos_trabajo" },

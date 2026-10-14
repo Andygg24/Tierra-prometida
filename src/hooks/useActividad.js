@@ -40,7 +40,7 @@ export function useActividad() {
   }, []);
 
   useEffect(() => {
-    const ch = supabase.channel(`actividad-log-changes-${Date.now()}`)
+    const ch = supabase.channel(`actividad-log-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "actividad_log" }, ({ new: row, old, eventType }) => {
         if (eventType === "DELETE") {
           setActividad(prev => prev.filter(a => a.id !== old.id));

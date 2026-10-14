@@ -33,7 +33,7 @@ export function useVerificacionesEstibas() {
   }, []);
 
   useEffect(() => {
-    const ch = supabase.channel(`verificaciones-estibas-changes-${Date.now()}`)
+    const ch = supabase.channel(`verificaciones-estibas-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "verificaciones_estibas" }, () => {
         supabase.from("verificaciones_estibas").select("*")
           .order("fecha", { ascending: false }).order("id", { ascending: false })

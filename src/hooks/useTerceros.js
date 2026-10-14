@@ -34,7 +34,7 @@ export function useTerceros() {
   }, []);
 
   useEffect(() => {
-    const ch = supabase.channel(`caja-menor-terceros-changes-${Date.now()}`)
+    const ch = supabase.channel(`caja-menor-terceros-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "caja_menor_terceros" }, () => {
         supabase.from("caja_menor_terceros").select("*").order("nombre")
           .then(({ data }) => data && setTerceros(data.map(rowToTercero)));

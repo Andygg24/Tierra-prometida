@@ -41,7 +41,7 @@ export function useMaquina() {
 
   useEffect(() => {
     const hoy = hoyISO();
-    const ch = supabase.channel(`maquina-changes-${Date.now()}`)
+    const ch = supabase.channel(`maquina-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "maquina_areas" }, () => {
         supabase.from("maquina_areas").select("*").eq("activo", true).order("orden")
           .then(({ data }) => data && setAreas(data.map(rowToArea)));

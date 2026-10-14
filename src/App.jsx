@@ -7658,7 +7658,7 @@ export default function App() {
   const tituloOriginalRef = useRef(typeof document !== "undefined" ? document.title : "");
   useEffect(() => {
     if (!usuario) return;
-    const ch = supabase.channel(`alerta-pedidos-${Date.now()}`)
+    const ch = supabase.channel(`alerta-pedidos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "solicitudes_planta" }, ({ new: row }) => {
         if (row.solicitado_por && row.solicitado_por === usuario.nombre) return; // no avisar del propio pedido
         const item = Array.isArray(row.items) && row.items[0]?.item;

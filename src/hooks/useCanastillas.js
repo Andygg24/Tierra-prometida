@@ -125,7 +125,7 @@ export function useCanastillas() {
       flushTimerRef.current = setTimeout(flush, 180);
     };
 
-    const ch = supabase.channel(`canastillas-changes-${Date.now()}`)
+    const ch = supabase.channel(`canastillas-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "canastillas" }, ({ new: row, old, eventType }) => {
         schedule({ eventType, row, oldId: old?.id });
       })

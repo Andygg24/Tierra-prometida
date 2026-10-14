@@ -89,7 +89,7 @@ export function useControlExpo() {
   };
 
   useEffect(() => {
-    const ch = supabase.channel(`control-expo-changes-${Date.now()}`)
+    const ch = supabase.channel(`control-expo-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "control_expo" }, aplicarEvento(setRegistros, rowToDex))
       .on("postgres_changes", { event: "*", schema: "public", table: "control_expo_pagos" }, aplicarEvento(setPagos, rowToPago))
       .on("postgres_changes", { event: "*", schema: "public", table: "declaraciones_cambio" }, aplicarEvento(setDeclaraciones, rowToDeclaracion))

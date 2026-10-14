@@ -32,7 +32,7 @@ export function useRostros() {
 
   useEffect(() => {
     cargar();
-    const ch = supabase.channel(`empleados-rostros-${Date.now()}`)
+    const ch = supabase.channel(`empleados-rostros-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "empleados_rostros" }, cargar)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
