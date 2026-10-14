@@ -126,8 +126,12 @@ async function buildInformeBiometrico({ dia, eventos, nombreDe, docDe, contenedo
 </body></html>`;
 }
 
-export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, verPrevia, playBeep }) {
+// `gestion`: los controles del proceso (contenedor, asignados, ajustes y
+// pagos — el mismo panel de Sesión/Pagos). Solo se muestran con la cámara
+// apagada, para que en modo kiosco los trabajadores no vean los pagos.
+export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, verPrevia, playBeep, gestion }) {
   const bio = useBiometrico({ asisQR });
+  const [estadoCam, setEstadoCam] = useState("cargando");
   const [feedback, setFeedback] = useState(null);
   const [generando, setGenerando] = useState(false);
 
@@ -172,7 +176,7 @@ export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, 
             : "Sin proceso abierto — se registran las entradas y salidas del día."}
         </div>
 
-        <KioscoRostro empleados={empleados} rostros={rostros} registrarEscaneo={bio.registrar} onResultado={onResultado} autoIniciar />
+        <KioscoRostro empleados={empleados} rostros={rostros} registrarEscaneo={bio.registrar} onResultado={onResultado} autoIniciar onEstadoCamara={setEstadoCam} />
 
         {feedback && (() => {
           const color = !feedback.ok ? "#FF6B6B" : feedback.tipo === "salida" ? "#a5b4fc" : "#00C9A7";
@@ -184,6 +188,15 @@ export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, 
           );
         })()}
       </div>
+
+      {estadoCam === "apagada" && gestion && (
+        <>
+          <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", margin:"4px 2px 10px" }}>
+            ⚙️ Proceso, asignación y pagos <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.45)" }}>· visible solo con la cámara apagada</span>
+          </div>
+          {gestion}
+        </>
+      )}
 
       <div style={card}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>

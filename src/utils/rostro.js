@@ -28,8 +28,7 @@ export function cargarModelosRostro() {
 const opcionesDetector = (faceapi) =>
   new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
 
-// Solo cara + puntos (rápido) — se usa en cada cuadro para seguir la cara y
-// detectar el parpadeo. Devuelve null si no hay exactamente una cara clara.
+// Solo cara + puntos (rápido) — se usa en cada cuadro del registro guiado. Devuelve null si no hay exactamente una cara clara.
 export async function detectarCara(faceapi, video) {
   const caras = await faceapi.detectAllFaces(video, opcionesDetector(faceapi)).withFaceLandmarks();
   if (caras.length !== 1) return caras.length > 1 ? { varias: true } : null;
@@ -41,32 +40,6 @@ export async function detectarHuella(faceapi, video) {
   const caras = await faceapi.detectAllFaces(video, opcionesDetector(faceapi)).withFaceLandmarks().withFaceDescriptors();
   if (caras.length !== 1) return caras.length > 1 ? { varias: true } : null;
   return caras[0];
-}
-
-// ── Parpadeo ────────────────────────────────────────────────────
-// "Eye aspect ratio": alto del ojo / ancho del ojo. Con el ojo abierto ronda
-// 0.25–0.35 y al cerrarlo cae cerca de 0.1. Se usa relativo al máximo visto
-// para esa persona, porque cada cara y cada cámara dan valores distintos.
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-const earOjo = (p) => (dist(p[1], p[5]) + dist(p[2], p[4])) / (2 * dist(p[0], p[3]));
-export const aperturaOjos = (landmarks) =>
-  (earOjo(landmarks.getLeftEye()) + earOjo(landmarks.getRightEye())) / 2;
-
-// Detector de parpadeo: ojos abiertos → cerrados → abiertos otra vez.
-export function crearDetectorParpadeo() {
-  let maxAbierto = 0;
-  let cerrado = false;
-  return {
-    reiniciar() { maxAbierto = 0; cerrado = false; },
-    // Devuelve true en el cuadro en que se completa un parpadeo.
-    actualizar(ear) {
-      maxAbierto = Math.max(maxAbierto * 0.995, ear);
-      if (maxAbierto < 0.18) return false; // todavía no se ha visto el ojo bien abierto
-      if (!cerrado && ear < maxAbierto * 0.7) { cerrado = true; return false; }
-      if (cerrado && ear > maxAbierto * 0.85) { cerrado = false; return true; }
-      return false;
-    },
-  };
 }
 
 // ── Comparar huellas ────────────────────────────────────────────
