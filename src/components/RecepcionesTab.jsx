@@ -992,7 +992,15 @@ export default function RecepcionesTab({ mob }) {
     }
   };
 
-  const cancelarEdicion = () => { setForm(formVacio()); setEditId(null); };
+  // Lo que había en el formulario justo antes de darle "Editar" (p. ej. una
+  // recepción nueva a medio llenar). Cancelar la edición vuelve a eso en vez
+  // de dejar el formulario en blanco — cancelar nunca toca la base de datos.
+  const formAntesDeEditar = useRef(null);
+  const salirDeRecepcion = () => {
+    setForm(formAntesDeEditar.current || formVacio());
+    formAntesDeEditar.current = null;
+    setEditId(null);
+  };
 
   const editarRecepcion = async (r) => {
     // La lista carga sin fotos (para no repetir el timeout de Recepciones);
@@ -1005,7 +1013,8 @@ export default function RecepcionesTab({ mob }) {
       return;
     }
     const src = completa;
-    setForm({
+    if (!editId) formAntesDeEditar.current = form;
+    const formCargado = {
       remision: src.remision, fecha: src.fecha, tipo: src.tipo,
       placa: src.placa, conductor: src.conductor, cedulaConductor: src.cedulaConductor || "", origen: src.origen || "",
       proveedor: src.proveedor, lote: src.lote || "", supervisor: src.supervisor,
@@ -1018,7 +1027,8 @@ export default function RecepcionesTab({ mob }) {
             usada: !!e.usada, usadaPor: e.usadaPor || "", usadaEn: e.usadaEn || "",
           }))
         : [nuevaEstiba(1)],
-    });
+    };
+    setForm(formCargado);
     setEditId(r.id);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1197,7 +1207,7 @@ export default function RecepcionesTab({ mob }) {
         detalle: `${usuario || "Alguien"} ${esNueva ? "registró" : "editó"} la recepción${form.remision ? ` de la remisión ${form.remision}` : ""}${form.proveedor ? ` (${form.proveedor})` : ""} — ${kg(totalNeto)} kg netos`,
         referencia: form.remision || "",
       });
-      cancelarEdicion();
+      salirDeRecepcion();
     }
   };
 
@@ -2093,8 +2103,8 @@ export default function RecepcionesTab({ mob }) {
           </div>
           <div style={{ display:"flex", gap:8 }}>
             {editId && (
-              <button onClick={cancelarEdicion} style={btnSecundario}>
-                Cancelar
+              <button onClick={salirDeRecepcion} style={btnSecundario} title="Cerrar esta recepción sin guardar los cambios">
+                Salir de la recepción
               </button>
             )}
             <button onClick={()=>verInforme({ ...form, id: editId || "preview", total: totalNeto })} style={{ background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color:"#00C9A7", padding:"9px 16px", fontSize:12, fontWeight:700, cursor:"pointer" }}>
