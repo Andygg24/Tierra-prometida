@@ -79,13 +79,27 @@ const MAX_DIST_MISMA_PERSONA = 0.65;
 
 // Foto pequeña de la cara (JPEG) para que quien aprueba un registro en línea
 // vea quién es. Se recorta al cuadro de la cara con algo de margen.
+// Primero se copia el cuadro completo y luego se recorta de esa copia: en
+// algunos celulares (iPhone) recortar directo del video da una imagen negra.
+// Si aun así sale negra se devuelve null y se intenta en otra muestra.
 function fotoDeCara(video, box) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const completo = document.createElement("canvas");
+  completo.width = vw; completo.height = vh;
+  completo.getContext("2d").drawImage(video, 0, 0, vw, vh);
   const m = box.width * 0.35;
-  const x = Math.max(0, box.x - m), y = Math.max(0, box.y - m * 1.3);
-  const lw = Math.min(video.videoWidth - x, box.width + m * 2), lh = Math.min(video.videoHeight - y, box.height + m * 2.3);
+  const x = Math.max(0, Math.round(box.x - m)), y = Math.max(0, Math.round(box.y - m * 1.3));
+  const lw = Math.round(Math.min(vw - x, box.width + m * 2)), lh = Math.round(Math.min(vh - y, box.height + m * 2.3));
+  if (lw < 10 || lh < 10) return null;
   const c = document.createElement("canvas");
   c.width = 200; c.height = Math.round(200 * lh / lw);
-  c.getContext("2d").drawImage(video, x, y, lw, lh, 0, 0, c.width, c.height);
+  const ctx = c.getContext("2d");
+  ctx.drawImage(completo, x, y, lw, lh, 0, 0, c.width, c.height);
+  const px = ctx.getImageData(0, 0, c.width, c.height).data;
+  let suma = 0;
+  for (let i = 0; i < px.length; i += 16) suma += px[i] + px[i + 1] + px[i + 2];
+  if (suma / (px.length / 16) / 3 < 10) return null; // negra
   return c.toDataURL("image/jpeg", 0.75);
 }
 
@@ -179,7 +193,9 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose, publico
       if (!r || r.varias || r.detection.score < 0.6) return;
       const pose = poseCara(r.landmarks);
       const id = PASOS[pasoActual].id;
-      if (id === "frente") { base = pose; try { fotoRef.current = fotoDeCara(video, r.detection.box); } catch { fotoRef.current = null; } }
+      if (id === "frente") base = pose;
+      // Foto para quien aprueba: en la primera muestra que salga bien.
+      if (publico && !fotoRef.current) { try { fotoRef.current = fotoDeCara(video, r.detection.box); } catch { /* sin foto */ } }
       if (id === "lado1")  signoGiro = Math.sign(pose.yaw - base.yaw) || 1;
       if (id === "vert1")  signoVert = Math.sign(pose.pitch - base.pitch) || 1;
       muestras.push(r.descriptor);
@@ -224,6 +240,7 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose, publico
   }, [estadoCam, intento, faceapiRef, videoRef]);
 
   const repetir = () => {
+    fotoRef.current = null;
     setMsg(null); setPaso(0); setAviso(""); setEnPosicion(false); setAyudaManual(false);
     setIntento(i => i + 1);
   };

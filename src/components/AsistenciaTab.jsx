@@ -145,11 +145,19 @@ export default function AsistenciaTab() {
     setEmpField: setEmpFieldSB, toggleEstado: toggleEstadoSB,
     setMetaField: setMetaFieldSB, marcarTodos: marcarTodosSB, limpiarDia,
   } = useAsistencia();
-  const { empleados, loading: loadingPersonal } = usePersonal();
+  const { empleados, loading: loadingPersonal, recargarEmpleados } = usePersonal();
   const { procesos, grupos, guardarGrupo, guardarContenedor, loading: loadingCont } = useContenedores();
   const { agregarLiquidacion } = useLiquidaciones();
   const asisQR = useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContenedor });
   const rostros = useRostros();
+
+  // Si alguien con rostro o con movimientos no está en la lista de Personal de
+  // esta pantalla (p. ej. aprobado en línea después de abrirla), se recarga la
+  // lista para que salga con su nombre en los informes.
+  const numsSinNombre = loadingPersonal ? "" : [...new Set([
+    ...rostros.registrados.map(r => r.num), ...asisQR.eventos.map(e => e.empNum),
+  ])].filter(n => !empleados.some(e => e.num === n)).sort().join(",");
+  useEffect(() => { if (numsSinNombre) recargarEmpleados(); }, [numsSinNombre, recargarEmpleados]);
 
   const [modo, setModo]   = useState("manual"); // manual | biometrico | escanear (el proceso y los pagos viven dentro de Biométrico)
   const [toast, setToast] = useState(null);
@@ -1078,7 +1086,12 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
 
   const contenedorActivo = sesionActiva ? procesos.find(p => p.id === sesionActiva.contenedorId) : null;
   const grupoActivo       = sesionActiva ? grupos.find(g => g.id === sesionActiva.grupoTrabajoId) : null;
-  const miembrosActivos   = grupoActivo?.miembros || [];
+  // Miembros del grupo + quien marcó entrada en este proceso (por si la copia
+  // local del grupo no se ha actualizado todavía).
+  const miembrosActivos   = sesionActiva ? Array.from(new Set([
+    ...(grupoActivo?.miembros || []),
+    ...eventos.filter(e => e.sesionId === sesionActiva.id && e.tipo === "entrada").map(e => e.empNum),
+  ])) : [];
   const personasContenedor = sesionActiva ? Array.from(new Set([...sesionActiva.asignados, ...miembrosActivos])) : [];
   const pago = sesionActiva ? calcularPago(sesionActiva.contenedorId) : null;
   const fecha = hoyISO();
