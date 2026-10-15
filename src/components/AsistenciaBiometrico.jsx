@@ -55,6 +55,9 @@ async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, c
   const personas = resumirPorPersona(eventos).sort((a, b) => nombreDe(a.num).localeCompare(nombreDe(b.num)));
   const adentro = personas.filter(p => p.sigueAdentro).length;
 
+  // Contenedores en los que marcó cada persona (y todos los del periodo).
+  const contsDe = (evs) => [...new Set(evs.filter(e => e.sesionId).map(e => contenedorDe(e.sesionId)))];
+  const contenedores = contsDe(eventos);
   const filas = personas.map(p => {
     const movimientos = p.eventos.map(e =>
       `<span style="color:${e.tipo === "entrada" ? "#1D6F42" : "#e53935"}">${e.tipo === "entrada" ? "↳" : "↰"} ${horaFmt(e.hora)}</span>`
@@ -62,6 +65,7 @@ async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, c
     return `<tr>
       <td><strong>${nombreDe(p.num)}</strong></td>
       <td style="color:#666">${docDe(p.num)}</td>
+      <td style="white-space:nowrap">${contsDe(p.eventos).join("<br>") || "—"}</td>
       <td style="text-align:center;font-weight:700;white-space:nowrap;color:${p.sigueAdentro ? "#1D6F42" : "#e53935"}">${p.sigueAdentro ? "🟢 Adentro" : "🔴 Salió"}</td>
       <td style="white-space:nowrap">${p.primeraEntrada ? horaFmt(p.primeraEntrada) : "—"}</td>
       <td style="white-space:nowrap">${p.ultimaSalida && !p.sigueAdentro ? horaFmt(p.ultimaSalida) : "—"}</td>
@@ -113,12 +117,15 @@ async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, c
     <div class="stat"><div class="stl">Adentro ahora</div><div class="stv">${adentro}</div></div>
     <div class="stat"><div class="stl">Movimientos</div><div class="stv">${eventos.length}</div></div>
   </div>
+  <div class="stats">
+    <div class="stat"><div class="stl">Contenedor${contenedores.length > 1 ? "es" : ""} procesado${contenedores.length > 1 ? "s" : ""}</div><div class="stv">${contenedores.length ? contenedores.join("<br>") : "Sin proceso de contenedor"}</div></div>
+  </div>
 
   <div class="sec">Resumen por persona</div>
   <p style="font-size:9px;color:#999;margin-bottom:8px;font-style:italic">↳ entrada · ↰ salida — "Tiempo adentro" suma cada tramo entre una entrada y su salida.</p>
   <table>
-    <thead><tr><th>Nombre</th><th>Documento</th><th style="text-align:center">Estado actual</th><th>Primera entrada</th><th>Última salida</th><th>Tiempo adentro</th><th>Movimientos</th></tr></thead>
-    <tbody>${filas || `<tr><td colspan="7" style="text-align:center;color:#999;padding:16px">Nadie ha pasado por el biométrico en esta jornada.</td></tr>`}</tbody>
+    <thead><tr><th>Nombre</th><th>Documento</th><th>Contenedor</th><th style="text-align:center">Estado actual</th><th>Primera entrada</th><th>Última salida</th><th>Tiempo adentro</th><th>Movimientos</th></tr></thead>
+    <tbody>${filas || `<tr><td colspan="8" style="text-align:center;color:#999;padding:16px">Nadie ha pasado por el biométrico en esta jornada.</td></tr>`}</tbody>
   </table>
 
   ${filasMov ? `<div class="sec">Todos los movimientos en orden</div>
