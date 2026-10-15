@@ -35,9 +35,9 @@ export async function crearSolicitudNuevo({ nombre, doc, num, tel, banco, cuenta
 }
 
 // Persona que estuvo y está inactiva: pide volver (se aprueba en Personal).
-export async function crearSolicitudReingreso(num, tel, { banco, cuenta }) {
+export async function crearSolicitudReingreso(num, tel, { doc, banco, cuenta }) {
   const { error } = await supabase.from("empleados").update({
-    solicitud_registro: "reingreso", solicitud_fecha: new Date().toISOString(), tel, banco, cuenta,
+    solicitud_registro: "reingreso", solicitud_fecha: new Date().toISOString(), doc, tel, banco, cuenta,
   }).eq("num", num).eq("activo", false);
   if (error) return { ok: false, msg: esFaltaColumna(error) ? FALTA_SQL : error.message };
   return { ok: true };
