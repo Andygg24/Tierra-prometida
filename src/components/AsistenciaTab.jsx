@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { cargarLogoBase64, QR_ASIS_PREFIX, buildTirillaEmpleado, compartirQR } from "../utils/qrAsistencia.js";
 import { supabase } from "../supabase.js";
 import { useAsistencia } from "../hooks/useAsistencia.js";
@@ -157,7 +157,18 @@ export default function AsistenciaTab() {
   const numsSinNombre = loadingPersonal ? "" : [...new Set([
     ...rostros.registrados.map(r => r.num), ...asisQR.eventos.map(e => e.empNum),
   ])].filter(n => !empleados.some(e => e.num === n)).sort().join(",");
-  useEffect(() => { if (numsSinNombre) recargarEmpleados(); }, [numsSinNombre, recargarEmpleados]);
+  const [nombresExtra, setNombresExtra] = useState([]);
+  useEffect(() => {
+    if (!numsSinNombre) return;
+    recargarEmpleados();
+    // Inactivos (p. ej. alguien que ya no trabaja pero tiene movimientos): solo el nombre, para los informes.
+    supabase.from("empleados").select("num,nombre").in("num", numsSinNombre.split(","))
+      .then(({ data }) => data && setNombresExtra(data));
+  }, [numsSinNombre, recargarEmpleados]);
+  const empleadosInformes = useMemo(() => [
+    ...empleados,
+    ...nombresExtra.filter(x => !empleados.some(e => e.num === x.num)).map(x => ({ num: x.num, nombre: x.nombre, fueraDeLista: true })),
+  ], [empleados, nombresExtra]);
 
   const [modo, setModo]   = useState("manual"); // manual | biometrico | escanear (el proceso y los pagos viven dentro de Biométrico)
   const [toast, setToast] = useState(null);
@@ -229,10 +240,10 @@ export default function AsistenciaTab() {
 
       {modo === "biometrico" && (
         <BiometricoPanel
-          asisQR={asisQR} procesos={procesos} empleados={empleados} rostros={rostros} verPrevia={verPrevia} playBeep={playBeep}
+          asisQR={asisQR} procesos={procesos} empleados={empleadosInformes} rostros={rostros} verPrevia={verPrevia} playBeep={playBeep}
           gestion={
             <SesionPanel
-              asisQR={asisQR} procesos={procesos} grupos={grupos} empleados={empleados}
+              asisQR={asisQR} procesos={procesos} grupos={grupos} empleados={empleadosInformes}
               guardarContenedor={guardarContenedor}
               agregarLiquidacion={agregarLiquidacion}
               verPrevia={verPrevia} showToast={showToast}
@@ -1086,12 +1097,11 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
 
   const contenedorActivo = sesionActiva ? procesos.find(p => p.id === sesionActiva.contenedorId) : null;
   const grupoActivo       = sesionActiva ? grupos.find(g => g.id === sesionActiva.grupoTrabajoId) : null;
-  // Miembros del grupo + quien marcó entrada en este proceso (por si la copia
-  // local del grupo no se ha actualizado todavía).
-  const miembrosActivos   = sesionActiva ? Array.from(new Set([
-    ...(grupoActivo?.miembros || []),
-    ...eventos.filter(e => e.sesionId === sesionActiva.id && e.tipo === "entrada").map(e => e.empNum),
-  ])) : [];
+  // Asistieron = quienes marcaron entrada en ESTE proceso. (El grupo del
+  // contenedor acumula a los de días anteriores si se procesa varios días.)
+  const miembrosActivos   = sesionActiva ? Array.from(new Set(
+    eventos.filter(e => e.sesionId === sesionActiva.id && e.tipo === "entrada").map(e => e.empNum)
+  )) : [];
   const personasContenedor = sesionActiva ? Array.from(new Set([...sesionActiva.asignados, ...miembrosActivos])) : [];
   const pago = sesionActiva ? calcularPago(sesionActiva.contenedorId) : null;
   const fecha = hoyISO();
@@ -1184,7 +1194,7 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
             <div style={{ display:"flex", gap:8, marginBottom:10 }}>
               <SearchableSelect value={asignarNum} onChange={e => setAsignarNum(e.target.value)} placeholder="Escribe el nombre..." style={{ ...inp, flex:1 }}>
                 <option value="">Buscar personal fijo...</option>
-                {empleados.filter(e => !e.esTemporal && !personasContenedor.includes(e.num)).map(e => <option key={e.num} value={e.num}>{e.nombre}</option>)}
+                {empleados.filter(e => !e.esTemporal && !e.fueraDeLista && !personasContenedor.includes(e.num)).map(e => <option key={e.num} value={e.num}>{e.nombre}</option>)}
               </SearchableSelect>
               <button onClick={onAsignar} style={btnSecundario}>+ Agregar</button>
             </div>
