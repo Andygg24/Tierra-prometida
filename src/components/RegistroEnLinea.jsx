@@ -18,6 +18,9 @@ const nombreParcial = (n) => {
 };
 const primerNombre = (n) => (n || "").trim().split(/\s+/)[0] || "";
 
+const TIPOS_DOC = [["CC Nacional", "Cédula colombiana"], ["CC Venezuela", "Cédula venezolana"], ["PPT", "PPT"]];
+const tipoDoc = (v) => TIPOS_DOC.find(t => t[0] === v)?.[1] || v;
+
 const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, padding:"12px 14px", color:"white", fontSize:16, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
 const etiqueta = { fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:5, display:"block" };
 const btnGrande = (extra) => ({ ...btnPrimario(false, false), width:"100%", padding:"13px 18px", fontSize:15, ...extra });
@@ -31,7 +34,8 @@ export default function RegistroEnLinea() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
-  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm({ nombre:"", doc:"CC Nacional", tel:"" }); };
+  // Vuelve a la búsqueda conservando el tipo de documento elegido.
+  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, tel:"" })); };
 
   const buscar = async (e) => {
     e?.preventDefault();
@@ -89,8 +93,12 @@ export default function RegistroEnLinea() {
           {paso === "buscar" && (
             <form onSubmit={buscar}>
               <div style={{ fontSize:14, color:"rgba(255,255,255,0.8)", marginBottom:14, lineHeight:1.45 }}>
-                Registra tu cara para marcar la entrada y la salida en la planta. Escribe tu número de documento para empezar.
+                Registra tu cara para marcar la entrada y la salida en la planta. Para empezar, escoge tu tipo de documento y escribe el número.
               </div>
+              <label style={etiqueta}>Tipo de documento</label>
+              <select value={form.doc} onChange={e => setForm(f => ({ ...f, doc: e.target.value }))} style={{ ...inp, marginBottom:12, colorScheme:"dark" }}>
+                {TIPOS_DOC.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
               <label style={etiqueta}>Número de documento</label>
               <input value={doc} onChange={e => setDoc(e.target.value)} inputMode="numeric" autoComplete="off" placeholder="Ej: 1045678901" style={inp} autoFocus />
               <button type="submit" disabled={cargando} style={btnGrande({ marginTop:14, opacity: cargando ? 0.6 : 1 })}>
@@ -134,18 +142,13 @@ export default function RegistroEnLinea() {
 
           {paso === "nuevo" && (
             <form onSubmit={enviarNuevo}>
-              <div style={{ fontSize:16, fontWeight:800, color:"white", marginBottom:4 }}>No encontramos el documento {doc}</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)" }}>{tipoDoc(form.doc)} {doc}</div>
+              <div style={{ fontSize:16, fontWeight:800, color:"white", margin:"4px 0" }}>No encontramos tu documento</div>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.7)", marginBottom:14, lineHeight:1.45 }}>
                 Si eres nuevo, llena tus datos y registra tu rostro. Tu ingreso queda pendiente de aprobación. Si te equivocaste de número, vuelve atrás.
               </div>
               <label style={etiqueta}>Nombre completo</label>
               <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoComplete="name" placeholder="Nombres y apellidos" style={{ ...inp, marginBottom:12 }} />
-              <label style={etiqueta}>Tipo de documento</label>
-              <select value={form.doc} onChange={e => setForm(f => ({ ...f, doc: e.target.value }))} style={{ ...inp, marginBottom:12, colorScheme:"dark" }}>
-                <option value="CC Nacional">Cédula colombiana</option>
-                <option value="CC Venezuela">Cédula venezolana</option>
-                <option value="PPT">PPT</option>
-              </select>
               <label style={etiqueta}>Celular</label>
               <input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} inputMode="tel" autoComplete="tel" placeholder="Ej: 3001234567" style={inp} />
               <button type="submit" disabled={cargando} style={btnGrande({ marginTop:14, opacity: cargando ? 0.6 : 1 })}>
