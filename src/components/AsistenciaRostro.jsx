@@ -61,10 +61,12 @@ const estiloVideo = { width:"100%", maxWidth:420, borderRadius:14, transform:"sc
 // ═══════════════════════════════════════════════════════════════
 const PASOS = [
   { id:"frente",  texto:"Mira de frente a la cámara" },
-  { id:"lado1",   texto:"Gira despacio la cabeza hacia un lado" },
-  { id:"lado2",   texto:"Ahora hacia el otro lado" },
-  { id:"vert1",   texto:"Sube o baja un poco la cabeza" },
-  { id:"vert2",   texto:"Ahora al revés" },
+  // Los pasos 2 y 4 aceptan cualquier dirección; el 3 y el 5 piden la
+  // contraria. Con el texto se guía a una dirección concreta para que sea claro.
+  { id:"lado1",   texto:"Gira despacio la cabeza hacia tu derecha" },
+  { id:"lado2",   texto:"Ahora gírala hacia tu izquierda" },
+  { id:"vert1",   texto:"Sube un poco la cabeza, mira hacia arriba" },
+  { id:"vert2",   texto:"Ahora baja la cabeza, mira hacia abajo" },
   { id:"frente2", texto:"De frente otra vez" },
 ];
 const UMBRAL_GIRO  = 0.09;  // cuánto debe girar a los lados (ver poseCara)
