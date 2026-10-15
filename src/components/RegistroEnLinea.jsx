@@ -29,12 +29,12 @@ export default function RegistroEnLinea() {
   const [paso, setPaso] = useState("buscar");
   const [doc,  setDoc]  = useState("");
   const [emp,  setEmp]  = useState(null);
-  const [form, setForm] = useState({ nombre:"", doc:"CC Nacional", num:"", tel:"", banco:"Nequi", cuenta:"" });
+  const [form, setForm] = useState({ nombre:"", doc:"CC Nacional", num:"", tel:"", banco:"Nequi", cuenta:"", propia:true, titNombre:"", titDoc:"CC Nacional", titNum:"" });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
   // Vuelve a la búsqueda conservando el tipo de documento elegido.
-  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, num:"", tel:"", banco:"Nequi", cuenta:"" })); };
+  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, num:"", tel:"", banco:"Nequi", cuenta:"", propia:true, titNombre:"", titDoc:"CC Nacional", titNum:"" })); };
 
   const buscar = async (e) => {
     e?.preventDefault();
@@ -55,7 +55,13 @@ export default function RegistroEnLinea() {
     const cuenta = form.cuenta.replace(/\D/g, "");
     if (form.banco === "Nequi" && cuenta.length !== 10) { setError("El número de Nequi es el celular de tu Nequi (10 dígitos)."); return null; }
     if (form.banco === "Bancolombia" && (cuenta.length < 10 || cuenta.length > 16)) { setError("Escribe tu número de cuenta Bancolombia completo."); return null; }
-    return { banco: form.banco, cuenta };
+    // Cuenta de otra persona (familiar, pareja…): se guarda quién es el titular.
+    if (form.propia) return { banco: form.banco, cuenta, titularNombre: "", titularDoc: "", titularDocNum: "" };
+    const titularNombre = form.titNombre.trim().replace(/\s+/g, " ").toUpperCase();
+    const titularDocNum = limpiarDocumento(form.titNum);
+    if (titularNombre.split(" ").length < 2) { setError("Escribe el nombre completo de la persona dueña de la cuenta."); return null; }
+    if (titularDocNum.length < 5) { setError("Escribe el número de documento de la persona dueña de la cuenta."); return null; }
+    return { banco: form.banco, cuenta, titularNombre, titularDoc: form.titDoc, titularDocNum };
   };
   const camposCuenta = (
     <>
@@ -77,6 +83,29 @@ export default function RegistroEnLinea() {
           style={{ background:"none", border:"none", color:"#a5b4fc", fontSize:12, padding:"6px 0 0", cursor:"pointer", fontFamily:"inherit" }}>
           Es el mismo número de celular
         </button>
+      )}
+      <label style={{ ...etiqueta, marginTop:12 }}>¿La cuenta está a tu nombre?</label>
+      <div style={{ display:"flex", gap:8 }}>
+        {[[true, "Sí, es mía"], [false, "No, es de otra persona"]].map(([v, l]) => (
+          <button key={l} type="button" onClick={() => setForm(f => ({ ...f, propia: v }))}
+            style={{ ...inp, flex:1, cursor:"pointer", fontWeight:700, textAlign:"center", fontSize:14, padding:"11px 8px",
+              ...(form.propia === v ? { background:"rgba(132,94,247,0.25)", border:"1px solid #845EF7" } : {}) }}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {!form.propia && (
+        <div style={{ background:"rgba(132,94,247,0.07)", border:"1px solid rgba(132,94,247,0.25)", borderRadius:12, padding:12, marginTop:10 }}>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", marginBottom:10 }}>Datos de la persona dueña de la cuenta:</div>
+          <label style={etiqueta}>Nombre completo</label>
+          <input value={form.titNombre} onChange={e => setForm(f => ({ ...f, titNombre: e.target.value }))} autoComplete="off" placeholder="Nombres y apellidos" style={{ ...inp, marginBottom:12 }} />
+          <label style={etiqueta}>Tipo de documento</label>
+          <select value={form.titDoc} onChange={e => setForm(f => ({ ...f, titDoc: e.target.value }))} style={{ ...inp, background:"#1f1f33", marginBottom:12, colorScheme:"dark" }}>
+            {TIPOS_DOC.map(([v, l]) => <option key={v} value={v} style={{ background:"#1a1a2e", color:"white" }}>{l}</option>)}
+          </select>
+          <label style={etiqueta}>Número de documento</label>
+          <input value={form.titNum} onChange={e => setForm(f => ({ ...f, titNum: e.target.value }))} inputMode="numeric" autoComplete="off" style={inp} />
+        </div>
       )}
     </>
   );
