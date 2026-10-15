@@ -129,8 +129,8 @@ export default function RegistroEnLinea() {
                 Registra tu cara para marcar la entrada y la salida en la planta. Para empezar, escoge tu tipo de documento y escribe el número.
               </div>
               <label style={etiqueta}>Tipo de documento</label>
-              <select value={form.doc} onChange={e => setForm(f => ({ ...f, doc: e.target.value }))} style={{ ...inp, marginBottom:12, colorScheme:"dark" }}>
-                {TIPOS_DOC.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              <select value={form.doc} onChange={e => setForm(f => ({ ...f, doc: e.target.value }))} style={{ ...inp, background:"#1f1f33", marginBottom:12, colorScheme:"dark" }}>
+                {TIPOS_DOC.map(([v, l]) => <option key={v} value={v} style={{ background:"#1a1a2e", color:"white" }}>{l}</option>)}
               </select>
               <label style={etiqueta}>Número de documento</label>
               <input value={doc} onChange={e => setDoc(e.target.value)} inputMode="numeric" autoComplete="off" placeholder="Ej: 1045678901" style={inp} autoFocus />
