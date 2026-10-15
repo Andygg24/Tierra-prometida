@@ -7,6 +7,20 @@ const btnSecundarioDia = { background:"rgba(132,94,247,0.15)", border:"1px solid
 const btnFiltro = { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"rgba(255,255,255,0.7)", padding:"6px 10px", fontSize:12, fontWeight:600, cursor:"pointer" };
 const btnFiltroActivo = { background:"rgba(132,94,247,0.2)", border:"1px solid rgba(132,94,247,0.6)", color:"white" };
 const btnAccion = { background:"rgba(0,201,167,0.12)", border:"1px solid rgba(0,201,167,0.35)", borderRadius:8, color:"#00C9A7", padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer" };
+// Título de cada paso del Biométrico (número, o ✓ si ya se hizo).
+export function PasoTitulo({ n, titulo, sub, hecho = false }) {
+  return (
+    <div style={{ marginBottom:10 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <span style={{ width:22, height:22, borderRadius:99, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800,
+          background: hecho ? "#00C9A7" : "#845EF7", color:"white" }}>{hecho ? "✓" : n}</span>
+        <span style={{ fontSize:14, fontWeight:800, color:"white" }}>Paso {n} · {titulo}</span>
+      </div>
+      {sub && <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginTop:4, marginLeft:30, lineHeight:1.45 }}>{sub}</div>}
+    </div>
+  );
+}
+
 const horaFmt = (iso) => new Date(iso).toLocaleTimeString("es-CO", { hour:"2-digit", minute:"2-digit" });
 const fechaHoraFmt = (iso) => new Date(iso).toLocaleString("es-CO", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
 const duracionFmt = (ms) => { const min = Math.round(ms / 60000); return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, "0")}m`; };
@@ -140,9 +154,12 @@ async function buildInformeBiometrico({ inicio, fin, eventos, nombreDe, docDe, c
 </body></html>`;
 }
 
-// `gestion`: los controles del proceso (contenedor, asignados, ajustes y
-// pagos — el mismo panel de Sesión/Pagos). Solo se muestran con la cámara
-// apagada, para que en modo kiosco los trabajadores no vean los pagos.
+// Orden de uso: 1 abrir el proceso → 2 marcar (cámara) → 3 revisar quién
+// vino → 4 pagar y cerrar el proceso → 5 cerrar el día.
+// `gestion(seccion)`: los controles del proceso ("inicio" = paso 1,
+// "resto" = pasos 3 y 4). Solo se muestran con la cámara apagada, para que
+// en modo kiosco los trabajadores no vean los pagos. La cámara siempre queda
+// en el mismo lugar del árbol para que no se reinicie al mostrar u ocultar.
 export default function BiometricoPanel({ asisQR, procesos, empleados, rostros, verPrevia, playBeep, gestion }) {
   const bio = useBiometrico({ asisQR });
   // La cámara arranca apagada: se prende solo con "Activar reconocimiento".
@@ -263,14 +280,47 @@ También se quita el "Presente" que el biométrico marcó solo ese día. Lo marc
   const adentro = personas.filter(p => p.sigueAdentro).length;
   const recientes = [...eventosVista].sort((a, b) => new Date(b.hora) - new Date(a.hora));
 
+  const camaraPrendida = estadoCam !== "apagada";
+  const marcoAlguien = sesion ? asisQR.eventos.length > 0 : false;
+  const pasos = [
+    { n:1, t:"Abrir el proceso", hecho: !!sesion },
+    { n:2, t:"Activar el reconocimiento", hecho: marcoAlguien },
+    { n:3, t:"Revisar quién vino" },
+    { n:4, t:"Pagar y cerrar el proceso" },
+    { n:5, t:"Cerrar el día" },
+  ];
+  const actual = !sesion ? 1 : !marcoAlguien ? 2 : 3;
+
   return (
     <div>
+      {!camaraPrendida && (
+        <div style={{ ...card, padding:"10px 12px" }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)", marginBottom:8 }}>CÓMO SE USA</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {pasos.map(p => {
+              const activo = p.n === actual;
+              const color = p.hecho ? "#00C9A7" : activo ? "#c4b5fd" : "rgba(255,255,255,0.45)";
+              return (
+                <div key={p.n} style={{ flex:"1 1 130px", display:"flex", alignItems:"center", gap:7, padding:"7px 9px", borderRadius:9,
+                  background: activo ? "rgba(132,94,247,0.18)" : "rgba(255,255,255,0.03)", border:`1px solid ${activo ? "rgba(132,94,247,0.55)" : "rgba(255,255,255,0.07)"}` }}>
+                  <span style={{ width:20, height:20, borderRadius:99, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800,
+                    background: p.hecho ? "#00C9A7" : activo ? "#845EF7" : "rgba(255,255,255,0.1)", color: p.hecho || activo ? "white" : "rgba(255,255,255,0.6)" }}>{p.hecho ? "✓" : p.n}</span>
+                  <span style={{ fontSize:11, fontWeight:700, color }}>{p.t}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!camaraPrendida && gestion?.("inicio")}
+
       <div style={{ ...card, textAlign:"center" }}>
-        <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:4 }}>🧬 Biométrico</div>
-        <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:12 }}>
-          {sesion
-            ? <>Proceso abierto: <strong style={{ color:"#00C9A7" }}>{contSesion?.numContenedor || `#${sesion.contenedorId}`} · {sesion.turno}</strong> — las entradas también cuentan para ese contenedor.</>
-            : "Sin proceso abierto — se registran las entradas y salidas de la jornada."}
+        <div style={{ textAlign:"left" }}>
+          <PasoTitulo n={2} hecho={marcoAlguien} titulo="Marcar entrada y salida"
+            sub={sesion
+              ? <>Activa la cámara y deja el equipo frente a la entrada. Cada marcación cuenta para <strong style={{ color:"#00C9A7" }}>{contSesion?.numContenedor || `#${sesion.contenedorId}`} · {sesion.turno}</strong>. Para ver los pagos, apaga la cámara.</>
+              : "Sin proceso abierto la gente igual puede marcar: después, al abrir el proceso, las pasas a ese contenedor."} />
         </div>
 
         <KioscoRostro empleados={empleados} rostros={rostros} registrarEscaneo={bio.registrar} onResultado={onResultado} onEstadoCamara={setEstadoCam} />
@@ -286,28 +336,21 @@ También se quita el "Presente" que el biométrico marcó solo ese día. Lo marc
         })()}
       </div>
 
-      {estadoCam === "apagada" && gestion && (
-        <>
-          <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", margin:"4px 2px 10px" }}>
-            ⚙️ Proceso, asignación y pagos <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.45)" }}>· visible solo con la cámara apagada</span>
-          </div>
-          {gestion}
-          <div style={{ ...card, border:"1px solid rgba(132,94,247,0.3)" }}>
-            <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:4 }}>🌙 Cerrar día</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:10 }}>
-              Termina la jornada que va desde <strong style={{ color:"white" }}>{fechaHoraFmt(bio.inicioJornada)}</strong>: abre el informe final y el Biométrico empieza un registro nuevo para el siguiente contenedor.
-              {sesion && <> Primero cierra el proceso del contenedor abierto.</>}
-            </div>
-            <button onClick={onCerrarDia} disabled={cerrandoDia} style={{ ...btnSecundarioDia, opacity: cerrandoDia ? 0.6 : 1 }}>
-              {cerrandoDia ? "Cerrando…" : "🌙 Cerrar día"}
-            </button>
-          </div>
-        </>
+      {!camaraPrendida && gestion?.("resto")}
+
+      {!camaraPrendida && (
+        <div style={card}>
+          <PasoTitulo n={5} titulo="Cerrar el día"
+            sub={<>Al final de la jornada (va desde <strong style={{ color:"white" }}>{fechaHoraFmt(bio.inicioJornada)}</strong>): sale el informe del día y mañana el Biométrico arranca limpio.{sesion && <> Primero cierra el proceso (paso 4).</>}</>} />
+          <button onClick={onCerrarDia} disabled={cerrandoDia} style={{ ...btnSecundarioDia, opacity: cerrandoDia ? 0.6 : 1 }}>
+            {cerrandoDia ? "Cerrando…" : "🌙 Cerrar día"}
+          </button>
+        </div>
       )}
 
       <div style={card}>
         <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:8 }}>
-          📋 {fechaVista ? `Movimientos del ${fechaLarga(fechaVista)}` : "Movimientos de la jornada"}
+          📋 {fechaVista ? `Movimientos del ${fechaLarga(fechaVista)}` : "Movimientos e informes de la jornada"}
           <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.5)" }}>
             {!fechaVista && <> · desde {fechaHoraFmt(bio.inicioJornada)}</>} · {personas.length} persona(s){!fechaVista && <> · {adentro} adentro</>}
           </span>

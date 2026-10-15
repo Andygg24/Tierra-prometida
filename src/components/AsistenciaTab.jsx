@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { cargarLogoBase64, QR_ASIS_PREFIX, buildTirillaEmpleado, compartirQR } from "../utils/qrAsistencia.js";
+import { cargarLogoBase64, buildTirillaEmpleado, compartirQR } from "../utils/qrAsistencia.js";
 import { supabase } from "../supabase.js";
 import { useAsistencia } from "../hooks/useAsistencia.js";
 import { usePersonal } from "../hooks/usePersonal.js";
@@ -7,7 +7,7 @@ import { useContenedores } from "../hooks/useContenedores.js";
 import { useLiquidaciones } from "../hooks/useLiquidaciones.js";
 import { useAsistenciaQR } from "../hooks/useAsistenciaQR.js";
 import { useRostros } from "../hooks/useRostros.js";
-import BiometricoPanel from "./AsistenciaBiometrico.jsx";
+import BiometricoPanel, { PasoTitulo } from "./AsistenciaBiometrico.jsx";
 import { comprimirImagen } from "../utils/imagenes.js";
 import CustomSelect from "./CustomSelect.jsx";
 import SearchableSelect from "./SearchableSelect.jsx";
@@ -16,23 +16,6 @@ import { btnPrimario, btnSecundario, btnTablaEliminar } from "./buttonStyles.js"
 
 const fmtCOP = (v) => `$ ${Math.round(v || 0).toLocaleString("es-CO")}`;
 const hoyISO = () => new Date().toISOString().split("T")[0];
-
-function mensajeErrorCamara(err) {
-  if (!window.isSecureContext) {
-    return "El navegador solo permite usar la cámara en sitios seguros (https://). Esta página se está abriendo sin HTTPS.";
-  }
-  const nombre = err?.name || "";
-  if (nombre === "NotAllowedError" || nombre === "PermissionDeniedError") {
-    return "El navegador bloqueó el permiso de cámara. Revisa los permisos del sitio y vuelve a intentar.";
-  }
-  if (nombre === "NotFoundError" || nombre === "OverconstrainedError") {
-    return "No se encontró una cámara trasera en este dispositivo.";
-  }
-  if (nombre === "NotReadableError" || nombre === "TrackStartError") {
-    return "La cámara está siendo usada por otra app o pestaña. Ciérrala e intenta de nuevo.";
-  }
-  return "No se pudo acceder a la cámara.";
-}
 
 function playBeep() {
   try {
@@ -170,7 +153,7 @@ export default function AsistenciaTab() {
     ...nombresExtra.filter(x => !empleados.some(e => e.num === x.num)).map(x => ({ num: x.num, nombre: x.nombre, fueraDeLista: true })),
   ], [empleados, nombresExtra]);
 
-  const [modo, setModo]   = useState("manual"); // manual | biometrico | escanear (el proceso y los pagos viven dentro de Biométrico)
+  const [modo, setModo]   = useState("manual"); // manual | biometrico (el proceso y los pagos viven dentro de Biométrico)
   const [toast, setToast] = useState(null);
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
 
@@ -184,7 +167,6 @@ export default function AsistenciaTab() {
   const MODOS = [
     { id: "manual",   icon: "📋", label: "Manual" },
     { id: "biometrico", icon: "🧬", label: "Biométrico" },
-    { id: "escanear", icon: "📷", label: "Escanear QR" },
   ];
 
   return (
@@ -218,9 +200,6 @@ export default function AsistenciaTab() {
             padding:"9px 6px", fontSize:12, fontWeight:700, color: modo === m.id ? "white" : "rgba(255,255,255,0.6)", cursor:"pointer",
           }}>
             {m.icon} {m.label}
-            {m.id === "escanear" && asisQR.sesionActiva && modo !== "escanear" && (
-              <span style={{ marginLeft:4, width:7, height:7, borderRadius:99, background:"#00C9A7", display:"inline-block" }} />
-            )}
           </button>
         ))}
       </div>
@@ -234,21 +213,18 @@ export default function AsistenciaTab() {
         />
       )}
 
-      {modo === "escanear" && (
-        <EscanearPanel asisQR={asisQR} procesos={procesos} />
-      )}
-
       {modo === "biometrico" && (
         <BiometricoPanel
           asisQR={asisQR} procesos={procesos} empleados={empleadosInformes} rostros={rostros} verPrevia={verPrevia} playBeep={playBeep}
-          gestion={
+          gestion={(seccion) => (
             <SesionPanel
+              seccion={seccion}
               asisQR={asisQR} procesos={procesos} grupos={grupos} empleados={empleadosInformes}
               guardarContenedor={guardarContenedor}
               agregarLiquidacion={agregarLiquidacion}
               verPrevia={verPrevia} showToast={showToast}
             />
-          }
+          )}
         />
       )}
     </div>
@@ -969,9 +945,13 @@ ${seccionObs}
 // MODO SESIÓN / PAGOS — encargado: abre/cierra el proceso, registra
 // temporales, ajustes de pago y evidencia fotográfica
 // ═══════════════════════════════════════════════════════════════
-function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, agregarLiquidacion, verPrevia, showToast }) {
+// El Biométrico lo muestra en dos partes alrededor de la cámara:
+// seccion="inicio" → paso 1 (abrir el proceso / su estado);
+// seccion="resto"  → pasos 3 y 4 (revisar quién vino, pagar y cerrar).
+function SesionPanel({ seccion, asisQR, procesos, grupos, empleados, guardarContenedor, agregarLiquidacion, verPrevia, showToast }) {
   const {
     sesionActiva, ajustes, eventos, abrirSesion, cerrarSesion, registrarTemporal,
+    cambiarContenedor, movimientosSinContenedor, asignarSinContenedor,
     asignarPersona, quitarAsignado, subirFoto, agregarAjuste, eliminarAjuste, calcularPago,
   } = asisQR;
 
@@ -1023,7 +1003,43 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
     if (!contenedorSel) { showToast("Selecciona o crea un contenedor primero", false); return; }
     const r = await abrirSesion({ contenedorId: Number(contenedorSel), turno: turnoSel, valorBase: Number(valorBaseInput) || 180000 });
     if (!r.ok) showToast(r.msg || "No se pudo abrir la sesión", false);
-    else showToast("Proceso iniciado — ya puedes asignar personas");
+    else showToast("Proceso abierto — ahora activa el reconocimiento");
+  };
+
+  // Cambiar el contenedor del proceso abierto (p. ej. uno provisional).
+  const [editandoCont, setEditandoCont] = useState(false);
+  const [guardandoCont, setGuardandoCont] = useState(false);
+  const abrirEdicionContenedor = () => { setContenedorSel(String(sesionActiva.contenedorId)); setMostrarNuevo(false); setEditandoCont(true); };
+  const onCambiarContenedor = async () => {
+    const nuevoId = Number(contenedorSel);
+    if (!nuevoId) { showToast("Selecciona o crea el contenedor", false); return; }
+    if (nuevoId === sesionActiva.contenedorId) { setEditandoCont(false); return; }
+    const nuevo = procesos.find(p => p.id === nuevoId);
+    if (!window.confirm(`¿Cambiar el contenedor de este proceso a ${nuevo?.numContenedor || `#${nuevoId}`}? Quienes ya marcaron, los ajustes y el pago pasan a ese contenedor.`)) return;
+    setGuardandoCont(true);
+    const r = await cambiarContenedor(nuevoId);
+    setGuardandoCont(false);
+    if (!r.ok) { showToast(r.msg || "No se pudo cambiar el contenedor", false); return; }
+    setEditandoCont(false);
+    showToast(`Contenedor cambiado a ${nuevo?.numContenedor || `#${nuevoId}`}`);
+  };
+
+  // Movimientos de hoy hechos sin proceso abierto: se pueden pasar a este.
+  const [sinContenedor, setSinContenedor] = useState([]);
+  const [asignandoSin, setAsignandoSin] = useState(false);
+  useEffect(() => {
+    if (!sesionActiva || seccion !== "inicio") { setSinContenedor([]); return; }
+    let vivo = true;
+    movimientosSinContenedor().then(evs => { if (vivo) setSinContenedor(evs); });
+    return () => { vivo = false; };
+  }, [sesionActiva?.id, eventos.length, movimientosSinContenedor, seccion]);
+  const onAsignarSinContenedor = async () => {
+    setAsignandoSin(true);
+    const r = await asignarSinContenedor();
+    setAsignandoSin(false);
+    if (!r.ok) { showToast(r.msg || "No se pudieron asignar", false); return; }
+    setSinContenedor([]);
+    showToast(`${r.personas} persona(s) asignada(s) al contenedor`);
   };
 
   const onVerVistaPrevia = async () => {
@@ -1126,123 +1142,183 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
     showToast(`${pago.detalle.length} liquidaciones generadas`);
   };
 
-  return (
-    <div>
-      {!sesionActiva ? (
-        <div style={card}>
-          <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:4 }}>📦 Iniciar proceso</div>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginBottom:10 }}>Elige o crea el contenedor de hoy. Después de iniciar podrás asignar personas y ahí mismo generar y enviar el QR de cada una.</div>
+  // Elegir un contenedor existente o crear uno (también uno provisional).
+  const selectorContenedor = !mostrarNuevo ? (
+    <>
+      <div style={lbl}>Contenedor</div>
+      <CustomSelect value={contenedorSel} onChange={e => setContenedorSel(e.target.value)} style={{ ...inp, marginBottom:8 }}>
+        <option value="" style={{background:"#1a1a2e"}}>Selecciona un contenedor...</option>
+        {procesos.slice(0, 60).map(p => (
+          <option key={p.id} value={p.id} style={{background:"#1a1a2e"}}>
+            {p.numContenedor || `#${p.id}`} — {p.fecha} — {p.estado}
+          </option>
+        ))}
+      </CustomSelect>
+      <button onClick={() => setMostrarNuevo(true)} style={{ ...btnSecundario, marginBottom:12 }}>+ Nuevo contenedor de hoy</button>
+    </>
+  ) : (
+    <div style={{ marginBottom:12 }}>
+      <div style={lbl}>Número de contenedor</div>
+      <input value={numNuevo} onChange={e => setNumNuevo(e.target.value)} placeholder="Ej. TCLU1234567 o PROVISIONAL" style={{ ...inp, marginBottom:8 }} />
+      <div style={lbl}>Fecha</div>
+      <input type="date" value={fechaNuevo} onChange={e => setFechaNuevo(e.target.value)} style={{ ...inp, marginBottom:8 }} />
+      <div style={{ display:"flex", gap:8 }}>
+        <button onClick={crearContenedorRapido} style={btnPrimario(false,false)}>Crear</button>
+        <button onClick={() => setMostrarNuevo(false)} style={btnSecundario}>Cancelar</button>
+      </div>
+    </div>
+  );
 
-          {!mostrarNuevo ? (
-            <>
-              <div style={lbl}>Contenedor</div>
-              <CustomSelect value={contenedorSel} onChange={e => setContenedorSel(e.target.value)} style={{ ...inp, marginBottom:8 }}>
-                <option value="" style={{background:"#1a1a2e"}}>Selecciona un contenedor...</option>
-                {procesos.slice(0, 60).map(p => (
-                  <option key={p.id} value={p.id} style={{background:"#1a1a2e"}}>
-                    {p.numContenedor || `#${p.id}`} — {p.fecha} — {p.estado}
-                  </option>
-                ))}
-              </CustomSelect>
-              <button onClick={() => setMostrarNuevo(true)} style={{ ...btnSecundario, marginBottom:12 }}>+ Nuevo contenedor de hoy</button>
-            </>
-          ) : (
-            <div style={{ marginBottom:12 }}>
-              <div style={lbl}>Número de contenedor</div>
-              <input value={numNuevo} onChange={e => setNumNuevo(e.target.value)} placeholder="Ej. TCLU1234567" style={{ ...inp, marginBottom:8 }} />
-              <div style={lbl}>Fecha</div>
-              <input type="date" value={fechaNuevo} onChange={e => setFechaNuevo(e.target.value)} style={{ ...inp, marginBottom:8 }} />
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={crearContenedorRapido} style={btnPrimario(false,false)}>Crear</button>
-                <button onClick={() => setMostrarNuevo(false)} style={btnSecundario}>Cancelar</button>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-            <div style={{ flex:1 }}>
-              <div style={lbl}>Turno</div>
-              <CustomSelect value={turnoSel} onChange={e => setTurnoSel(e.target.value)} style={inp}>
-                {["Día","Noche"].map(t => <option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
-              </CustomSelect>
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={lbl}>Valor por persona (cada uno gana esto por el contenedor)</div>
-              <input type="number" value={valorBaseInput} onChange={e => setValorBaseInput(e.target.value)} style={inp} />
-            </div>
+  // ── Paso 1: abrir el proceso (o, si ya está abierto, su estado) ──
+  if (seccion === "inicio") {
+    if (!sesionActiva) return (
+      <div style={card}>
+        <PasoTitulo n={1} titulo="Abrir el proceso del contenedor"
+          sub="Elige el contenedor de hoy. ¿Todavía no sabes cuál es? Crea uno PROVISIONAL y lo cambias después." />
+        {selectorContenedor}
+        <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+          <div style={{ flex:"1 1 120px" }}>
+            <div style={lbl}>Turno</div>
+            <CustomSelect value={turnoSel} onChange={e => setTurnoSel(e.target.value)} style={inp}>
+              {["Día","Noche"].map(t => <option key={t} style={{background:"#1a1a2e"}}>{t}</option>)}
+            </CustomSelect>
           </div>
-
-          <button onClick={onAbrirSesion} style={{ ...btnPrimario(false,false), width:"100%", padding:"11px", fontSize:13 }}>▶ Iniciar sesión de escaneo</button>
+          <div style={{ flex:"1 1 160px" }}>
+            <div style={lbl}>Pago por persona</div>
+            <input type="number" value={valorBaseInput} onChange={e => setValorBaseInput(e.target.value)} style={inp} />
+          </div>
         </div>
-      ) : (
-        <>
-          <div style={{ ...card, border:"1px solid rgba(0,201,167,0.35)", background:"rgba(0,201,167,0.06)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, flexWrap:"wrap", gap:6 }}>
-              <div style={{ fontSize:14, fontWeight:800, color:"#00C9A7" }}>🟢 Proceso abierto — {contenedorActivo?.numContenedor || `#${sesionActiva.contenedorId}`} · {sesionActiva.turno}</div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={onVerVistaPrevia} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.4)", borderRadius:8, color:"#a5b4fc", padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>👁 Vista previa</button>
-                <button onClick={onCerrarSesion} style={{ ...btnTablaEliminar, padding:"6px 12px", fontSize:11 }}>🏁 Cerrar y ver informe</button>
-              </div>
-            </div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>Valor por persona: {fmtCOP(sesionActiva.valorBase)} · Abierta por {sesionActiva.abiertaPor || "—"}</div>
+        <button onClick={onAbrirSesion} style={{ ...btnPrimario(false,false), width:"100%", padding:"11px", fontSize:13 }}>▶ Abrir proceso</button>
+      </div>
+    );
+    return (
+      <div style={{ ...card, border:"1px solid rgba(0,201,167,0.35)", background:"rgba(0,201,167,0.06)" }}>
+        <PasoTitulo n={1} hecho titulo="Proceso abierto" />
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <div>
+            <div style={{ fontSize:16, fontWeight:800, color:"#00C9A7" }}>📦 {contenedorActivo?.numContenedor || `#${sesionActiva.contenedorId}`} · {sesionActiva.turno}</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>{fmtCOP(sesionActiva.valorBase)} por persona · abierto por {sesionActiva.abiertaPor || "—"}</div>
           </div>
+          {!editandoCont && <button onClick={abrirEdicionContenedor} style={btnSecundario}>✏️ Cambiar contenedor</button>}
+        </div>
 
-          <div style={card}>
-            <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:4 }}>1️⃣ Asignar personas y generar su QR</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginBottom:10 }}>Primero agrégalos aquí abajo (buscando o registrando uno nuevo) — cada persona que agregues aparece en la lista con sus propios botones para generar su QR y enviárselo por WhatsApp.</div>
+        {editandoCont && (
+          <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{ fontSize:12, fontWeight:800, color:"#c4b5fd", marginBottom:6 }}>✏️ Cambiar el contenedor de este proceso</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:10 }}>Elige el contenedor correcto o crea uno nuevo. Quienes ya marcaron, los ajustes y el pago pasan al nuevo contenedor.</div>
+            {selectorContenedor}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={onCambiarContenedor} disabled={guardandoCont || mostrarNuevo} style={{ ...btnPrimario(false, guardandoCont), opacity: mostrarNuevo ? 0.5 : 1 }}>{guardandoCont ? "Guardando…" : "Guardar cambio"}</button>
+              <button onClick={() => { setEditandoCont(false); setMostrarNuevo(false); }} style={btnSecundario}>Cancelar</button>
+            </div>
+          </div>
+        )}
 
-            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-              <SearchableSelect value={asignarNum} onChange={e => setAsignarNum(e.target.value)} placeholder="Escribe el nombre..." style={{ ...inp, flex:1 }}>
-                <option value="">Buscar personal fijo...</option>
+        {sinContenedor.length > 0 && (
+          <div style={{ marginTop:12, padding:10, borderRadius:10, background:"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.35)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+            <div style={{ flex:"1 1 220px", fontSize:12, color:"rgba(255,255,255,0.8)" }}>
+              📎 Hoy marcaron <strong style={{ color:"white" }}>{new Set(sinContenedor.map(e => e.empNum)).size} persona(s)</strong> antes de abrir el proceso.
+            </div>
+            <button onClick={onAsignarSinContenedor} disabled={asignandoSin} style={btnPrimario(false, asignandoSin)}>
+              {asignandoSin ? "Asignando…" : `Pasarlas a ${contenedorActivo?.numContenedor || "este contenedor"}`}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Pasos 3 y 4: solo con un proceso abierto ──
+  if (!sesionActiva) return null;
+  const totalPago = pago ? pago.detalle.reduce((s,d)=>s+d.total,0) : 0;
+
+  return (
+    <>
+      <div style={card}>
+        <PasoTitulo n={3} titulo="Revisar quién vino"
+          sub="Quien marca con su cara aparece aquí solo. Agrega a alguien a mano solo si no tiene rostro registrado (marca con QR)." />
+
+        {personasContenedor.length === 0 ? (
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", textAlign:"center", padding:"14px 10px", background:"rgba(255,255,255,0.03)", borderRadius:8, marginBottom:10 }}>
+            Todavía nadie ha marcado en este proceso.
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:320, overflowY:"auto", marginBottom:10 }}>
+            {personasContenedor.map(num => {
+              const emp = empleados.find(e => e.num === num);
+              const asistio = miembrosActivos.includes(num);
+              const propios = eventos.filter(ev => ev.empNum === num);
+              const ultimo = propios[propios.length - 1];
+              let estadoTexto, estadoColor;
+              if (!ultimo) { estadoTexto = "⏳ Agregado a mano, todavía no marca"; estadoColor = "rgba(255,255,255,0.4)"; }
+              else if (ultimo.tipo === "entrada") { estadoTexto = `🟢 Adentro desde ${new Date(ultimo.hora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}`; estadoColor = "#00C9A7"; }
+              else { estadoTexto = `🔴 Salió a las ${new Date(ultimo.hora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}`; estadoColor = "#FF6B6B"; }
+              const vueltas = propios.filter(ev => ev.tipo === "entrada").length;
+              return (
+                <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, fontSize:12, color:"white", background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"9px 10px" }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:700 }}>{nombreDe(num)}</div>
+                    <div style={{ fontSize:10, color: estadoColor, fontWeight:700 }}>
+                      {estadoTexto}{vueltas > 1 ? ` · ${vueltas}ª entrada` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexShrink:0, flexWrap:"wrap" }}>
+                    {emp && !asistio && <button onClick={() => onGenerarQR(emp)} style={{ ...btnSecundario, padding:"5px 9px", fontSize:11 }}>📇 QR</button>}
+                    {emp && !asistio && <button onClick={() => onCompartirWhatsApp(emp)} style={{ background:"rgba(37,211,102,0.15)", border:"1px solid rgba(37,211,102,0.4)", borderRadius:8, color:"#4ade80", padding:"5px 9px", fontSize:11, fontWeight:700, cursor:"pointer" }}>💬 Enviar QR</button>}
+                    {!asistio && <button onClick={() => quitarAsignado(num)} title="Quitar de la lista" style={{ ...btnTablaEliminar, padding:"5px 9px" }}>✕</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <details style={{ background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
+          <summary style={{ fontSize:12, fontWeight:700, color:"#c4b5fd", cursor:"pointer" }}>➕ Agregar a alguien a mano (sin rostro registrado)</summary>
+          <div style={{ marginTop:10 }}>
+            <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+              <SearchableSelect value={asignarNum} onChange={e => setAsignarNum(e.target.value)} placeholder="Buscar en Personal..." style={{ ...inp, flex:"1 1 200px" }}>
+                <option value="">Buscar en Personal...</option>
                 {empleados.filter(e => !e.esTemporal && !e.fueraDeLista && !personasContenedor.includes(e.num)).map(e => <option key={e.num} value={e.num}>{e.nombre}</option>)}
               </SearchableSelect>
-              <button onClick={onAsignar} style={btnSecundario}>+ Agregar</button>
+              <button onClick={onAsignar} style={btnSecundario}>Agregar</button>
             </div>
-
-            <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-              <input value={nombreTemp} onChange={e => setNombreTemp(e.target.value)} placeholder="Nombre (persona nueva)" style={{ ...inp, flex:2, minWidth:140 }} />
-              <input value={docTemp} onChange={e => setDocTemp(e.target.value)} placeholder="Documento" style={{ ...inp, flex:1, minWidth:100 }} />
-              <button onClick={onRegistroRapido} style={btnPrimario(false,false)}>➕ Registrar nuevo</button>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)", marginBottom:6 }}>¿No está en Personal? Regístralo rápido (queda como temporal):</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <input value={nombreTemp} onChange={e => setNombreTemp(e.target.value)} placeholder="Nombre" style={{ ...inp, flex:"2 1 140px" }} />
+              <input value={docTemp} onChange={e => setDocTemp(e.target.value)} placeholder="Documento" style={{ ...inp, flex:"1 1 100px" }} />
+              <button onClick={onRegistroRapido} style={btnSecundario}>Registrar</button>
             </div>
-
-            {personasContenedor.length === 0 ? (
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", textAlign:"center", padding:"14px 10px", background:"rgba(255,255,255,0.03)", borderRadius:8 }}>
-                👆 Agrega a alguien arriba — ahí mismo te van a aparecer los botones para generar y enviar su QR.
-              </div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:320, overflowY:"auto" }}>
-                {personasContenedor.map(num => {
-                  const emp = empleados.find(e => e.num === num);
-                  const asistio = miembrosActivos.includes(num);
-                  const propios = eventos.filter(ev => ev.empNum === num);
-                  const ultimo = propios[propios.length - 1];
-                  let estadoTexto, estadoColor;
-                  if (!ultimo) { estadoTexto = "⏳ Asignado, falta escanear"; estadoColor = "rgba(255,255,255,0.4)"; }
-                  else if (ultimo.tipo === "entrada") { estadoTexto = `🟢 Adentro desde ${new Date(ultimo.hora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}`; estadoColor = "#00C9A7"; }
-                  else { estadoTexto = `🔴 Salió a las ${new Date(ultimo.hora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}`; estadoColor = "#FF6B6B"; }
-                  const vueltas = propios.filter(ev => ev.tipo === "entrada").length;
-                  return (
-                    <div key={num} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, fontSize:12, color:"white", background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px" }}>
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ fontWeight:700 }}>{nombreDe(num)}</div>
-                        <div style={{ fontSize:10, color: estadoColor, fontWeight:700 }}>
-                          {estadoTexto}{vueltas > 1 ? ` · ${vueltas}ª entrada` : ""}
-                        </div>
-                      </div>
-                      <div style={{ display:"flex", gap:6, flexShrink:0, flexWrap:"wrap" }}>
-                        {emp && <button onClick={() => onGenerarQR(emp)} style={{ ...btnPrimario(false,false), padding:"6px 10px", fontSize:11, whiteSpace:"nowrap" }}>📇 Generar QR</button>}
-                        {emp && <button onClick={() => onCompartirWhatsApp(emp)} style={{ background:"rgba(37,211,102,0.15)", border:"1px solid rgba(37,211,102,0.4)", borderRadius:8, color:"#4ade80", padding:"6px 10px", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>💬 WhatsApp</button>}
-                        {!asistio && <button onClick={() => quitarAsignado(num)} title="Quitar de la lista" style={{ ...btnTablaEliminar, padding:"6px 9px" }}>✕</button>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
+        </details>
 
-          <div style={card}>
-            <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:10 }}>2️⃣ Foto de evidencia</div>
+        <details style={{ background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
+          <summary style={{ fontSize:12, fontWeight:700, color:"#c4b5fd", cursor:"pointer" }}>💵 Ajustes de pago {ajustes.length > 0 && `(${ajustes.length})`}</summary>
+          <div style={{ marginTop:10 }}>
+            <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+              <CustomSelect value={ajusteEmpNum} onChange={e => setAjusteEmpNum(e.target.value)} style={{ ...inp, flex:"1 1 160px" }}>
+                <option value="" style={{background:"#1a1a2e"}}>General (se reparte entre todos)</option>
+                {miembrosActivos.map(num => <option key={num} value={num} style={{background:"#1a1a2e"}}>{nombreDe(num)}</option>)}
+              </CustomSelect>
+              <input value={ajusteConcepto} onChange={e => setAjusteConcepto(e.target.value)} placeholder="Concepto (ej. bono, descuento)" style={{ ...inp, flex:"1 1 160px" }} />
+              <input type="number" value={ajusteMonto} onChange={e => setAjusteMonto(e.target.value)} placeholder="Monto (+/-)" style={{ ...inp, flex:"0 1 120px" }} />
+              <button onClick={onAgregarAjuste} style={btnSecundario}>Agregar</button>
+            </div>
+            {ajustes.map(a => (
+              <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, background:"rgba(255,255,255,0.04)", borderRadius:7, padding:"6px 10px", marginTop:5 }}>
+                <span style={{ color:"white" }}>{a.concepto} <span style={{ color:"rgba(255,255,255,0.4)" }}>({a.empNum ? nombreDe(a.empNum) : "General"})</span></span>
+                <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ color: a.monto >= 0 ? "#00C9A7" : "#FF6B6B", fontWeight:700 }}>{a.monto >= 0 ? "+" : ""}{fmtCOP(a.monto)}</span>
+                  <button onClick={() => eliminarAjuste(a.id)} style={{ ...btnTablaEliminar, padding:"2px 7px" }}>✕</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <details style={{ background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 10px" }}>
+          <summary style={{ fontSize:12, fontWeight:700, color:"#c4b5fd", cursor:"pointer" }}>📷 Foto de evidencia del grupo {sesionActiva.fotos.length > 0 && `(${sesionActiva.fotos.length})`}</summary>
+          <div style={{ marginTop:10 }}>
             <input type="file" accept="image/*" capture="environment" onChange={onFoto} disabled={subiendoFoto} style={{ fontSize:11, color:"rgba(255,255,255,0.6)", marginBottom:10 }} />
             {sesionActiva.fotos.length > 0 && (
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -1252,166 +1328,43 @@ function SesionPanel({ asisQR, procesos, grupos, empleados, guardarContenedor, a
               </div>
             )}
           </div>
-
-          <div style={card}>
-            <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:10 }}>3️⃣ Ajustes de pago — {contenedorActivo?.numContenedor}</div>
-            <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap" }}>
-              <CustomSelect value={ajusteEmpNum} onChange={e => setAjusteEmpNum(e.target.value)} style={{ ...inp, flex:1, minWidth:140 }}>
-                <option value="" style={{background:"#1a1a2e"}}>General del contenedor (se reparte)</option>
-                {miembrosActivos.map(num => <option key={num} value={num} style={{background:"#1a1a2e"}}>{nombreDe(num)}</option>)}
-              </CustomSelect>
-              <input value={ajusteConcepto} onChange={e => setAjusteConcepto(e.target.value)} placeholder="Concepto (ej. bono, descuento)" style={{ ...inp, flex:1, minWidth:140 }} />
-              <input type="number" value={ajusteMonto} onChange={e => setAjusteMonto(e.target.value)} placeholder="Monto (+/-)" style={{ ...inp, width:120 }} />
-            </div>
-            <button onClick={onAgregarAjuste} style={btnSecundario}>+ Agregar ajuste</button>
-
-            {ajustes.length > 0 && (
-              <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:5 }}>
-                {ajustes.map(a => (
-                  <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, background:"rgba(255,255,255,0.04)", borderRadius:7, padding:"6px 10px" }}>
-                    <span style={{ color:"white" }}>{a.concepto} <span style={{ color:"rgba(255,255,255,0.4)" }}>({a.empNum ? nombreDe(a.empNum) : "General"})</span></span>
-                    <span style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <span style={{ color: a.monto >= 0 ? "#00C9A7" : "#FF6B6B", fontWeight:700 }}>{a.monto >= 0 ? "+" : ""}{fmtCOP(a.monto)}</span>
-                      <button onClick={() => eliminarAjuste(a.id)} style={{ ...btnTablaEliminar, padding:"2px 7px" }}>✕</button>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {pago && (
-            <div style={card}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#a5b4fc", marginBottom:10 }}>💰 Resumen de pago</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:10 }}>
-                {fmtCOP(pago.valorBase)} por persona
-                {pago.ajustesContenedor !== 0 && <> {pago.ajustesContenedor >= 0 ? "+" : "−"} ajustes generales {fmtCOP(Math.abs(pago.ajustesContenedor))} ÷ {pago.miembros.length || 1} = {pago.ajusteGeneralPorPersona >= 0 ? "+" : "−"}{fmtCOP(Math.abs(pago.ajusteGeneralPorPersona))} c/u</>}
-                {" "}· {pago.miembros.length} persona(s)
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:12 }}>
-                {pago.detalle.map(d => (
-                  <div key={d.num} style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"white" }}>
-                    <span>{nombreDe(d.num)}</span>
-                    <span style={{ fontWeight:700 }}>{fmtCOP(d.total)}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, fontWeight:800, color:"#00C9A7", borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:8, marginBottom:12 }}>
-                <span>Total contenedor</span>
-                <span>{fmtCOP(pago.detalle.reduce((s,d)=>s+d.total,0))}</span>
-              </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <CustomSelect value={metodoPago} onChange={e => setMetodoPago(e.target.value)} style={{ ...inp, flex:1 }}>
-                  {["Nequi","Bancolombia","Efectivo"].map(m => <option key={m} style={{background:"#1a1a2e"}}>{m}</option>)}
-                </CustomSelect>
-                <button onClick={generarLiquidacionesContenedor} style={{ ...btnPrimario(false,false), whiteSpace:"nowrap" }}>💾 Generar liquidaciones</button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MODO ESCANEAR — pantalla de kiosco con cámara siempre activa
-// ═══════════════════════════════════════════════════════════════
-function EscanearPanel({ asisQR, procesos }) {
-  const { sesionActiva, registrarEscaneo } = asisQR;
-  const [camActiva, setCamActiva] = useState(false);
-  const [camError,  setCamError]  = useState("");
-  const [feedback,  setFeedback]  = useState(null);
-
-  const html5QrRef      = useRef(null);
-  const procesandoRef   = useRef(false);
-  const registrarRef    = useRef(registrarEscaneo);
-  useEffect(() => { registrarRef.current = registrarEscaneo; }, [registrarEscaneo]);
-  const READER_ID = "qr-reader-asistencia";
-
-  const onScan = async (decodedText) => {
-    if (procesandoRef.current) return;
-    procesandoRef.current = true;
-    playBeep();
-    try {
-      const linea  = (decodedText || "").split("\n")[0].trim();
-      const partes = linea.split("|");
-      if (partes[0] !== QR_ASIS_PREFIX || partes.length < 3) {
-        setFeedback({ ok:false, msg:"Ese QR no es de asistencia (¿es de otro módulo?)" });
-        return;
-      }
-      const r = await registrarRef.current(partes[2]);
-      setFeedback(r.ok
-        ? { ok:true, nombre:r.nombre, tipo:r.tipo, msg: r.tipo === "entrada" ? "Entrada registrada" : "Salida registrada" }
-        : { ok:false, msg:r.msg });
-    } catch (err) {
-      setFeedback({ ok:false, msg: err?.message || "Error al registrar el escaneo" });
-    } finally {
-      setTimeout(() => { setFeedback(null); procesandoRef.current = false; }, 1800);
-    }
-  };
-
-  const iniciarCamara = async () => {
-    setCamError("");
-    try {
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const inst = new Html5Qrcode(READER_ID);
-      html5QrRef.current = inst;
-      await inst.start({ facingMode: "environment" }, { fps: 10, qrbox: 260 }, onScan, () => {});
-      setCamActiva(true);
-    } catch (err) {
-      setCamError(mensajeErrorCamara(err));
-    }
-  };
-
-  const detenerCamara = async () => {
-    try { await html5QrRef.current?.stop(); html5QrRef.current?.clear(); } catch {}
-    html5QrRef.current = null;
-    setCamActiva(false);
-  };
-
-  useEffect(() => () => { html5QrRef.current?.stop().then(() => html5QrRef.current?.clear()).catch(() => {}); }, []);
-
-  if (!sesionActiva) {
-    return (
-      <div style={{ textAlign:"center", padding:"40px 20px", background:"rgba(255,255,255,0.04)", borderRadius:14 }}>
-        <div style={{ fontSize:36, marginBottom:10 }}>⏸️</div>
-        <div style={{ fontSize:14, fontWeight:700, color:"white", marginBottom:6 }}>No hay proceso abierto</div>
-        <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Pide al encargado que abra el proceso en Biométrico (con la cámara apagada).</div>
-      </div>
-    );
-  }
-
-  const contenedor = procesos.find(p => p.id === sesionActiva.contenedorId);
-
-  return (
-    <div style={{ textAlign:"center" }}>
-      <div style={{ fontSize:13, fontWeight:800, color:"#00C9A7", marginBottom:12 }}>
-        📦 {contenedor?.numContenedor || `#${sesionActiva.contenedorId}`} · {sesionActiva.turno}
+        </details>
       </div>
 
-      {!camActiva ? (
-        <button onClick={iniciarCamara} style={{ ...btnPrimario(false,false), padding:"14px 24px", fontSize:14, marginBottom:12 }}>📷 Activar cámara</button>
-      ) : (
-        <button onClick={detenerCamara} style={{ ...btnSecundario, marginBottom:12 }}>Detener cámara</button>
-      )}
-
-      {camError && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:12, padding:"0 10px" }}>{camError}</div>}
-
-      <div id={READER_ID} style={{ width:"100%", maxWidth:420, margin:"0 auto", borderRadius:14, overflow:"hidden" }} />
-
-      {feedback && (() => {
-        const color = !feedback.ok ? "#FF6B6B" : feedback.tipo === "salida" ? "#a5b4fc" : "#00C9A7";
-        return (
-          <div style={{
-            marginTop:16, padding:"18px 14px", borderRadius:14, fontSize:16, fontWeight:800,
-            background: `${color}22`, border: `1px solid ${color}66`, color,
-          }}>
-            {feedback.ok ? `${feedback.tipo === "salida" ? "🚪" : "✅"} ${feedback.nombre}` : `❌ ${feedback.msg}`}
-            {feedback.ok && <div style={{ fontSize:11, fontWeight:600, marginTop:4, opacity:0.8 }}>{feedback.msg}</div>}
+      <div style={card}>
+        <PasoTitulo n={4} titulo="Pagar y cerrar el proceso"
+          sub="Al terminar el contenedor: revisa el pago, genera las liquidaciones y cierra el proceso (ahí sale el informe final)." />
+        {pago && (
+          <>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:8 }}>
+              {pago.miembros.length} persona(s) × {fmtCOP(pago.valorBase)}
+              {pago.ajustesContenedor !== 0 && <> {pago.ajustesContenedor >= 0 ? "+" : "−"} ajustes generales {fmtCOP(Math.abs(pago.ajustesContenedor))}</>}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:10 }}>
+              {pago.detalle.map(d => (
+                <div key={d.num} style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"white" }}>
+                  <span>{nombreDe(d.num)}</span>
+                  <span style={{ fontWeight:700 }}>{fmtCOP(d.total)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, fontWeight:800, color:"#00C9A7", borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:8, marginBottom:12 }}>
+              <span>Total del contenedor</span>
+              <span>{fmtCOP(totalPago)}</span>
+            </div>
+          </>
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <button onClick={onVerVistaPrevia} style={{ ...btnSecundario, textAlign:"left" }}>a) 👁 Ver el informe antes de cerrar</button>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            <CustomSelect value={metodoPago} onChange={e => setMetodoPago(e.target.value)} style={{ ...inp, flex:"0 1 150px" }}>
+              {["Nequi","Bancolombia","Efectivo"].map(m => <option key={m} style={{background:"#1a1a2e"}}>{m}</option>)}
+            </CustomSelect>
+            <button onClick={generarLiquidacionesContenedor} style={{ ...btnSecundario, flex:"1 1 200px", textAlign:"left" }}>b) 💾 Generar liquidaciones (Nómina)</button>
           </div>
-        );
-      })()}
-    </div>
+          <button onClick={onCerrarSesion} style={{ ...btnPrimario(false,false), padding:"11px", fontSize:13 }}>c) 🏁 Cerrar el proceso y ver el informe final</button>
+        </div>
+      </div>
+    </>
   );
 }
