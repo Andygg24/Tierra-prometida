@@ -220,7 +220,7 @@ function PersonalDemo() {
     empleados,
     contratos,  docs,     desempeno, seguridad,
     loading:    loadingPersonal,
-    agregarEmpleado, editarEmpleado, eliminarEmpleado,
+    agregarEmpleado, editarEmpleado, eliminarEmpleado, recargarEmpleados,
     upsertContrato,
     toggleDoc:  toggleDocSB, agregarEval: agregarEvalSB, eliminarEval: eliminarEvalSB, upsertSeguridad,
   } = usePersonal();
@@ -444,7 +444,7 @@ function PersonalDemo() {
             <button onClick={()=>{setShowForm(!showForm);setShowBroadcast(false);}} style={{ background:showForm?"rgba(132,94,247,0.25)":"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>➕ Nuevo empleado</button>
             <button onClick={()=>{setShowBroadcast(!showBroadcast);setShowForm(false);}} style={{ background:showBroadcast?"rgba(37,211,102,0.25)":"rgba(37,211,102,0.1)", border:"1px solid rgba(37,211,102,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#25D366", cursor:"pointer", fontWeight:700 }}>📢 Broadcast {selected.length>0?`(${selected.length})`:""}</button>
           </div>
-          <SolicitudesRegistro empleados={empleados} rostros={rostros} />
+          <SolicitudesRegistro empleados={empleados} rostros={rostros} onCambio={recargarEmpleados} />
           {showForm && (
             <div style={{ background:"rgba(132,94,247,0.06)", border:"1px solid rgba(132,94,247,0.2)", borderRadius:12, padding:14, marginBottom:10 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#845EF7", marginBottom:10 }}>👤 Nuevo empleado</div>

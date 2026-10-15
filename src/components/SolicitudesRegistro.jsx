@@ -22,7 +22,8 @@ const distanciaA = (descs, huellas) => {
 
 const fechaFmt = (iso) => iso ? new Date(iso).toLocaleString("es-CO", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }) : "";
 
-export default function SolicitudesRegistro({ empleados, rostros }) {
+// `onCambio`: recarga la lista de Personal después de aprobar.
+export default function SolicitudesRegistro({ empleados, rostros, onCambio }) {
   const { solicitudes, error, aprobar, rechazar } = useSolicitudesRegistro();
   const [ocupado, setOcupado] = useState(null);
   const [msg, setMsg] = useState(null);
@@ -61,8 +62,9 @@ export default function SolicitudesRegistro({ empleados, rostros }) {
       ? `¿Aprobar el rostro nuevo de ${sol.nombre}? Reemplaza al que tenía.`
       : `¿Aprobar el ${TIPOS[sol.tipo].l.toLowerCase()} de ${sol.nombre}? Queda activo en Personal${sol.descriptores.length ? " y el Biométrico ya lo reconoce" : ""}.`)) return;
     setOcupado(sol.num);
-    const r = await aprobar(sol, empleados.length + 1);
+    const r = await aprobar(sol);
     setOcupado(null);
+    if (r.ok) onCambio?.();
     setMsg(r.ok ? { ok:true, t:`✓ ${sol.nombre} aprobado.` } : { ok:false, t:`No se pudo aprobar: ${r.msg}` });
     setTimeout(() => setMsg(null), 4000);
   };
