@@ -94,23 +94,43 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [sesionActiva?.id]);
 
+  // Grupo de trabajo del contenedor para ese turno (lo crea si no existe).
+  const grupoDeContenedor = useCallback(async (contenedor, turno) => {
+    const campoGrupo    = turno === "Noche" ? "grupoNoche" : "grupoDia";
+    const nombreActual  = contenedor[campoGrupo];
+    const grupo = nombreActual ? grupos.find(g => g.nombre === nombreActual) : null;
+    if (grupo) return grupo;
+    const nombreGrupo = `C${contenedor.numContenedor || contenedor.id}-${turno}`;
+    let { data } = await supabase.from("grupos_trabajo").select("*").eq("nombre", nombreGrupo).maybeSingle();
+    if (!data) {
+      await guardarGrupo({ nombre: nombreGrupo, turno, miembros: [] });
+      ({ data } = await supabase.from("grupos_trabajo").select("*").eq("nombre", nombreGrupo).maybeSingle());
+    }
+    if (!data) return null;
+    await guardarContenedor({ ...contenedor, [campoGrupo]: nombreGrupo }, contenedor.id);
+    return { id: data.id, nombre: data.nombre, turno: data.turno, miembros: data.miembros || [] };
+  }, [grupos, guardarGrupo, guardarContenedor]);
+
+  const agregarAlGrupo = async (grupoId, nums) => {
+    if (!grupoId || !nums.length) return;
+    const { data } = await supabase.from("grupos_trabajo").select("miembros").eq("id", grupoId).maybeSingle();
+    const actuales = Array.isArray(data?.miembros) ? data.miembros : [];
+    const nuevos = Array.from(new Set([...actuales, ...nums]));
+    if (nuevos.length !== actuales.length) await supabase.from("grupos_trabajo").update({ miembros: nuevos }).eq("id", grupoId);
+  };
+
+  const recargarEventos = async (sesionId) => {
+    const { data } = await supabase.from("asistencia_eventos").select("*").eq("sesion_id", sesionId).order("hora", { ascending: true });
+    setEventos((data || []).map(rowToEvento));
+  };
+
   // ── Abrir sesión de escaneo ──────────────────────────────────
   const abrirSesion = useCallback(async ({ contenedorId, turno, valorBase }) => {
     const contenedor = procesos.find(p => p.id === contenedorId);
     if (!contenedor) return { ok: false, msg: "Contenedor no encontrado" };
 
-    const campoGrupo    = turno === "Noche" ? "grupoNoche" : "grupoDia";
-    const nombreActual  = contenedor[campoGrupo];
-    let grupo = nombreActual ? grupos.find(g => g.nombre === nombreActual) : null;
-
-    if (!grupo) {
-      const nombreGrupo = `C${contenedor.numContenedor || contenedor.id}-${turno}`;
-      await guardarGrupo({ nombre: nombreGrupo, turno, miembros: [] });
-      const { data } = await supabase.from("grupos_trabajo").select("*").eq("nombre", nombreGrupo).maybeSingle();
-      if (!data) return { ok: false, msg: "No se pudo crear el grupo de trabajo" };
-      grupo = { id: data.id, nombre: data.nombre, turno: data.turno, miembros: data.miembros || [] };
-      await guardarContenedor({ ...contenedor, [campoGrupo]: nombreGrupo }, contenedorId);
-    }
+    const grupo = await grupoDeContenedor(contenedor, turno);
+    if (!grupo) return { ok: false, msg: "No se pudo crear el grupo de trabajo" };
 
     const row = {
       id: Date.now(),
@@ -128,7 +148,86 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     const { error } = await supabase.from("asistencia_sesiones").insert(row);
     if (error) { setSesionActiva(null); return { ok: false, msg: error.message }; }
     return { ok: true };
-  }, [procesos, grupos, guardarGrupo, guardarContenedor]);
+  }, [procesos, grupoDeContenedor]);
+
+  // ── Cambiar el contenedor del proceso abierto (p. ej. se abrió con uno
+  // provisional). Se mueve todo lo del proceso: quienes marcaron pasan al
+  // grupo del nuevo contenedor, los ajustes hechos en este proceso y el
+  // contenedor que aparece en la Asistencia Manual. ──
+  const cambiarContenedor = useCallback(async (nuevoId) => {
+    if (!sesionActiva) return { ok: false, msg: "No hay proceso abierto" };
+    if (nuevoId === sesionActiva.contenedorId) return { ok: true };
+    const nuevo = procesos.find(p => p.id === nuevoId);
+    if (!nuevo) return { ok: false, msg: "Contenedor no encontrado" };
+    const grupo = await grupoDeContenedor(nuevo, sesionActiva.turno);
+    if (!grupo) return { ok: false, msg: "No se pudo crear el grupo de trabajo del contenedor" };
+
+    const { data: evs } = await supabase.from("asistencia_eventos").select("emp_num").eq("sesion_id", sesionActiva.id).eq("tipo", "entrada");
+    const entrantes = [...new Set((evs || []).map(e => e.emp_num))];
+    await agregarAlGrupo(grupo.id, entrantes);
+
+    // Del grupo anterior se sacan solo los que entraron por este proceso (no
+    // los que trabajaron ese contenedor otros días).
+    if (sesionActiva.grupoTrabajoId && sesionActiva.grupoTrabajoId !== grupo.id && entrantes.length) {
+      const { data: otras } = await supabase.from("asistencia_sesiones").select("id")
+        .eq("grupo_trabajo_id", sesionActiva.grupoTrabajoId).neq("id", sesionActiva.id);
+      let mantener = new Set();
+      if (otras?.length) {
+        const { data: ev2 } = await supabase.from("asistencia_eventos").select("emp_num")
+          .in("sesion_id", otras.map(o => o.id)).eq("tipo", "entrada");
+        mantener = new Set((ev2 || []).map(e => e.emp_num));
+      }
+      const { data: gViejo } = await supabase.from("grupos_trabajo").select("miembros").eq("id", sesionActiva.grupoTrabajoId).maybeSingle();
+      const viejos = Array.isArray(gViejo?.miembros) ? gViejo.miembros : [];
+      await supabase.from("grupos_trabajo").update({ miembros: viejos.filter(n => !entrantes.includes(n) || mantener.has(n)) }).eq("id", sesionActiva.grupoTrabajoId);
+    }
+
+    await supabase.from("contenedor_ajustes").update({ contenedor_id: nuevoId })
+      .eq("contenedor_id", sesionActiva.contenedorId).gte("created_at", sesionActiva.abiertaEn);
+    await supabase.from("asistencia").update({ contenedor: nuevo.numContenedor || null }).eq("sesion_id", sesionActiva.id);
+
+    const { error } = await supabase.from("asistencia_sesiones")
+      .update({ contenedor_id: nuevoId, grupo_trabajo_id: grupo.id }).eq("id", sesionActiva.id);
+    if (error) return { ok: false, msg: error.message };
+    setSesionActiva(prev => prev ? { ...prev, contenedorId: nuevoId, grupoTrabajoId: grupo.id } : prev);
+    return { ok: true };
+  }, [sesionActiva, procesos, grupoDeContenedor]);
+
+  // ── Movimientos de hoy marcados sin proceso abierto (sin contenedor).
+  // Desde el inicio de la jornada del Biométrico, pero nunca antes de hoy. ──
+  const movimientosSinContenedor = useCallback(async () => {
+    const { data: cfg } = await supabase.from("configuracion").select("valor").eq("clave", "biometrico_jornada").maybeSingle();
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const inicio = cfg?.valor?.inicio && new Date(cfg.valor.inicio) > hoy ? cfg.valor.inicio : hoy.toISOString();
+    const { data, error } = await supabase.from("asistencia_eventos").select("*")
+      .is("sesion_id", null).gte("hora", inicio).order("hora", { ascending: true });
+    if (error) return [];
+    return (data || []).map(rowToEvento);
+  }, []);
+
+  // Asigna esos movimientos al proceso abierto: cuentan para su asistencia y pago.
+  const asignarSinContenedor = useCallback(async () => {
+    if (!sesionActiva) return { ok: false, msg: "No hay proceso abierto" };
+    const evs = await movimientosSinContenedor();
+    if (!evs.length) return { ok: true, n: 0, personas: 0 };
+    const { error } = await supabase.from("asistencia_eventos").update({ sesion_id: sesionActiva.id }).in("id", evs.map(e => e.id));
+    if (error) return { ok: false, msg: error.message };
+    const entrantes = [...new Set(evs.filter(e => e.tipo === "entrada").map(e => e.empNum))];
+    await agregarAlGrupo(sesionActiva.grupoTrabajoId, entrantes);
+    const contenedor = procesos.find(p => p.id === sesionActiva.contenedorId);
+    if (entrantes.length) {
+      const { data: emps } = await supabase.from("empleados").select("nombre").in("num", entrantes);
+      const nombres = (emps || []).map(e => e.nombre);
+      const hoy = new Date();
+      const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+      if (nombres.length) {
+        await supabase.from("asistencia").update({ contenedor: contenedor?.numContenedor || null, sesion_id: sesionActiva.id })
+          .eq("fecha", fecha).in("emp_nombre", nombres).not("hora_registro", "is", null);
+      }
+    }
+    await recargarEventos(sesionActiva.id);
+    return { ok: true, n: evs.length, personas: new Set(evs.map(e => e.empNum)).size };
+  }, [sesionActiva, procesos, movimientosSinContenedor]);
 
   // ── Registrar un escaneo válido (empleado ya existente) — el mismo QR
   // alterna entre entrada y salida según el último evento de esa persona
@@ -304,6 +403,7 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
   return {
     sesionActiva, ajustes, eventos, loading,
     abrirSesion, cerrarSesion, registrarEscaneo, registrarTemporal,
+    cambiarContenedor, movimientosSinContenedor, asignarSinContenedor,
     asignarPersona, quitarAsignado,
     subirFoto, agregarAjuste, eliminarAjuste, calcularPago,
   };
