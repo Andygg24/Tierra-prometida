@@ -30,12 +30,12 @@ export default function RegistroEnLinea() {
   const [paso, setPaso] = useState("buscar");
   const [doc,  setDoc]  = useState("");
   const [emp,  setEmp]  = useState(null);
-  const [form, setForm] = useState({ nombre:"", doc:"CC Nacional", tel:"" });
+  const [form, setForm] = useState({ nombre:"", doc:"CC Nacional", tel:"", banco:"Nequi", cuenta:"" });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
   // Vuelve a la búsqueda conservando el tipo de documento elegido.
-  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, tel:"" })); };
+  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, tel:"", banco:"Nequi", cuenta:"" })); };
 
   const buscar = async (e) => {
     e?.preventDefault();
@@ -51,14 +51,46 @@ export default function RegistroEnLinea() {
     setPaso(r.emp.activo || r.emp.solicitud ? "encontrado" : "inactivo");
   };
 
+  // Cuenta donde se le paga: Nequi (número de celular, 10 dígitos) o Bancolombia.
+  const validarCuenta = () => {
+    const cuenta = form.cuenta.replace(/\D/g, "");
+    if (form.banco === "Nequi" && cuenta.length !== 10) { setError("El número de Nequi es el celular de tu Nequi (10 dígitos)."); return null; }
+    if (form.banco === "Bancolombia" && (cuenta.length < 10 || cuenta.length > 16)) { setError("Escribe tu número de cuenta Bancolombia completo."); return null; }
+    return { banco: form.banco, cuenta };
+  };
+  const camposCuenta = (
+    <>
+      <label style={{ ...etiqueta, marginTop:12 }}>¿Dónde te pagamos?</label>
+      <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+        {["Nequi", "Bancolombia"].map(bco => (
+          <button key={bco} type="button" onClick={() => setForm(f => ({ ...f, banco: bco }))}
+            style={{ ...inp, flex:1, cursor:"pointer", fontWeight:700, textAlign:"center",
+              ...(form.banco === bco ? { background:"rgba(132,94,247,0.25)", border:"1px solid #845EF7" } : {}) }}>
+            {bco}
+          </button>
+        ))}
+      </div>
+      <label style={etiqueta}>{form.banco === "Nequi" ? "Número de Nequi (celular)" : "Número de cuenta Bancolombia"}</label>
+      <input value={form.cuenta} onChange={e => setForm(f => ({ ...f, cuenta: e.target.value }))} inputMode="numeric" autoComplete="off"
+        placeholder={form.banco === "Nequi" ? "Ej: 3001234567" : "Ej: 12345678901"} style={inp} />
+      {form.banco === "Nequi" && form.tel && !form.cuenta && (
+        <button type="button" onClick={() => setForm(f => ({ ...f, cuenta: f.tel }))}
+          style={{ background:"none", border:"none", color:"#a5b4fc", fontSize:12, padding:"6px 0 0", cursor:"pointer", fontFamily:"inherit" }}>
+          Es el mismo número de celular
+        </button>
+      )}
+    </>
+  );
+
   const enviarNuevo = async (e) => {
     e.preventDefault();
     const nombre = form.nombre.trim().replace(/\s+/g, " ").toUpperCase();
     const tel = form.tel.replace(/\D/g, "");
     if (nombre.split(" ").length < 2) { setError("Escribe tu nombre completo (nombre y apellido)."); return; }
     if (tel.length < 10) { setError("Escribe tu número de celular completo (10 dígitos)."); return; }
+    const cuenta = validarCuenta(); if (!cuenta) return;
     setError(""); setCargando(true);
-    const r = await crearSolicitudNuevo({ nombre, doc: form.doc, num: doc, tel });
+    const r = await crearSolicitudNuevo({ nombre, doc: form.doc, num: doc, tel, ...cuenta });
     setCargando(false);
     if (!r.ok) { setError(r.msg); return; }
     setEmp({ num: doc, nombre, activo: false, solicitud: "nuevo", propio: true });
@@ -69,8 +101,9 @@ export default function RegistroEnLinea() {
     e.preventDefault();
     const tel = form.tel.replace(/\D/g, "");
     if (tel.length < 10) { setError("Escribe tu número de celular completo (10 dígitos)."); return; }
+    const cuenta = validarCuenta(); if (!cuenta) return;
     setError(""); setCargando(true);
-    const r = await crearSolicitudReingreso(emp.num, tel);
+    const r = await crearSolicitudReingreso(emp.num, tel, cuenta);
     setCargando(false);
     if (!r.ok) { setError(r.msg); return; }
     setEmp(p => ({ ...p, solicitud: "reingreso" }));
@@ -129,10 +162,11 @@ export default function RegistroEnLinea() {
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)" }}>Documento {doc}</div>
               <div style={{ fontSize:18, fontWeight:800, color:"white", margin:"4px 0 10px" }}>¡Hola de nuevo, {primerNombre(emp.nombre)}!</div>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.7)", marginBottom:14, lineHeight:1.45 }}>
-                Ya trabajaste con nosotros. Si vas a volver, confirma tu celular y registra tu rostro. Tu regreso queda pendiente de aprobación.
+                Ya trabajaste con nosotros. Si vas a volver, confirma tu celular y tu cuenta, y registra tu rostro. Tu regreso queda pendiente de aprobación.
               </div>
               <label style={etiqueta}>Celular</label>
               <input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} inputMode="tel" placeholder="Ej: 3001234567" style={inp} />
+              {camposCuenta}
               <button type="submit" disabled={cargando} style={btnGrande({ marginTop:14, opacity: cargando ? 0.6 : 1 })}>
                 {cargando ? "Enviando…" : "Continuar"}
               </button>
@@ -151,6 +185,7 @@ export default function RegistroEnLinea() {
               <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoComplete="name" placeholder="Nombres y apellidos" style={{ ...inp, marginBottom:12 }} />
               <label style={etiqueta}>Celular</label>
               <input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} inputMode="tel" autoComplete="tel" placeholder="Ej: 3001234567" style={inp} />
+              {camposCuenta}
               <button type="submit" disabled={cargando} style={btnGrande({ marginTop:14, opacity: cargando ? 0.6 : 1 })}>
                 {cargando ? "Enviando…" : "Continuar"}
               </button>
