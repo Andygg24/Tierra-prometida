@@ -5,15 +5,17 @@ const nombreUsuarioSesion = () => {
   try { return JSON.parse(localStorage.getItem("tp_session"))?.nombre || ""; } catch { return ""; }
 };
 
-// Huellas faciales registradas (tabla empleados_rostros), agrupadas por
-// empleado: [{ num, descriptores: [number[]] }].
+// Huellas faciales registradas y aprobadas (tabla empleados_rostros),
+// agrupadas por empleado: [{ num, descriptores: [number[]] }].
 export function useRostros() {
   const [registrados, setRegistrados] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState("");
 
   const cargar = useCallback(async () => {
-    const { data, error: err } = await supabase.from("empleados_rostros").select("emp_num,descriptor");
+    // "*" y no columnas sueltas: así sigue funcionando aunque aún no exista
+    // `aprobado` (supabase-registro-en-linea-migration.sql).
+    const { data, error: err } = await supabase.from("empleados_rostros").select("*");
     if (err) {
       setError(`No se pudieron cargar los rostros (¿corriste supabase-asistencia-rostros-migration.sql?): ${err.message}`);
       setLoading(false);
@@ -21,6 +23,7 @@ export function useRostros() {
     }
     const porEmp = new Map();
     (data || []).forEach(r => {
+      if (r.aprobado === false) return; // registrado en línea, falta aprobarlo en Personal
       if (!Array.isArray(r.descriptor) || r.descriptor.length !== 128) return;
       if (!porEmp.has(r.emp_num)) porEmp.set(r.emp_num, []);
       porEmp.get(r.emp_num).push(r.descriptor);
