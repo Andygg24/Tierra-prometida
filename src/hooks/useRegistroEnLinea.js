@@ -22,9 +22,10 @@ export async function buscarDocumento(num) {
 }
 
 // Persona que no está en Personal: queda inactiva con solicitud 'nuevo'.
-export async function crearSolicitudNuevo({ nombre, doc, num, tel, banco, cuenta }) {
+export async function crearSolicitudNuevo({ nombre, doc, num, tel, banco, cuenta, titularNombre, titularDoc, titularDocNum }) {
   const { error } = await supabase.from("empleados").insert({
     nombre, doc, num, tel, area: "", banco, cuenta,
+    titular_nombre: titularNombre || null, titular_doc: titularDoc || null, titular_doc_num: titularDocNum || null,
     activo: false, solicitud_registro: "nuevo", solicitud_fecha: new Date().toISOString(),
   });
   if (error) {
@@ -35,9 +36,10 @@ export async function crearSolicitudNuevo({ nombre, doc, num, tel, banco, cuenta
 }
 
 // Persona que estuvo y está inactiva: pide volver (se aprueba en Personal).
-export async function crearSolicitudReingreso(num, tel, { doc, banco, cuenta }) {
+export async function crearSolicitudReingreso(num, tel, { doc, banco, cuenta, titularNombre, titularDoc, titularDocNum }) {
   const { error } = await supabase.from("empleados").update({
     solicitud_registro: "reingreso", solicitud_fecha: new Date().toISOString(), doc, tel, banco, cuenta,
+    titular_nombre: titularNombre || null, titular_doc: titularDoc || null, titular_doc_num: titularDocNum || null,
   }).eq("num", num).eq("activo", false);
   if (error) return { ok: false, msg: esFaltaColumna(error) ? FALTA_SQL : error.message };
   return { ok: true };
@@ -72,7 +74,7 @@ export function useSolicitudesRegistro() {
 
   const cargar = useCallback(async () => {
     const [{ data: emps, error: e1 }, { data: ros, error: e2 }] = await Promise.all([
-      supabase.from("empleados").select("num,nombre,doc,tel,banco,cuenta,solicitud_registro,solicitud_fecha").not("solicitud_registro", "is", null),
+      supabase.from("empleados").select("num,nombre,doc,tel,banco,cuenta,titular_nombre,titular_doc,titular_doc_num,solicitud_registro,solicitud_fecha").not("solicitud_registro", "is", null),
       supabase.from("empleados_rostros").select("id,emp_num,descriptor,foto,created_at").eq("aprobado", false).order("id"),
     ]);
     const err = e1 || e2;
@@ -81,7 +83,8 @@ export function useSolicitudesRegistro() {
       setSolicitudes([]); setError(esFaltaColumna(err) ? "" : err.message); return;
     }
     const porNum = new Map((emps || []).map(e => [e.num, {
-      num: e.num, nombre: e.nombre, doc: e.doc, tel: e.tel, banco: e.banco, cuenta: e.cuenta, tipo: e.solicitud_registro, fecha: e.solicitud_fecha, foto: null, descriptores: [],
+      num: e.num, nombre: e.nombre, doc: e.doc, tel: e.tel, banco: e.banco, cuenta: e.cuenta,
+      titular: e.titular_nombre ? `${e.titular_nombre} (${e.titular_doc || "doc."} ${e.titular_doc_num || ""})` : "", tipo: e.solicitud_registro, fecha: e.solicitud_fecha, foto: null, descriptores: [],
     }]));
     const faltan = [...new Set((ros || []).map(r => r.emp_num).filter(n => !porNum.has(n)))];
     if (faltan.length) {
