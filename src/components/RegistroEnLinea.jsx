@@ -19,7 +19,6 @@ const nombreParcial = (n) => {
 const primerNombre = (n) => (n || "").trim().split(/\s+/)[0] || "";
 
 const TIPOS_DOC = [["CC Nacional", "Cédula colombiana"], ["CC Venezuela", "Cédula venezolana"], ["PPT", "PPT"]];
-const tipoDoc = (v) => TIPOS_DOC.find(t => t[0] === v)?.[1] || v;
 
 const inp = { background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, padding:"12px 14px", color:"white", fontSize:16, fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
 const etiqueta = { fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:5, display:"block" };
@@ -30,12 +29,12 @@ export default function RegistroEnLinea() {
   const [paso, setPaso] = useState("buscar");
   const [doc,  setDoc]  = useState("");
   const [emp,  setEmp]  = useState(null);
-  const [form, setForm] = useState({ nombre:"", doc:"CC Nacional", tel:"", banco:"Nequi", cuenta:"" });
+  const [form, setForm] = useState({ nombre:"", doc:"CC Nacional", num:"", tel:"", banco:"Nequi", cuenta:"" });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
   // Vuelve a la búsqueda conservando el tipo de documento elegido.
-  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, tel:"", banco:"Nequi", cuenta:"" })); };
+  const reiniciar = () => { setPaso("buscar"); setEmp(null); setError(""); setForm(f => ({ nombre:"", doc: f.doc, num:"", tel:"", banco:"Nequi", cuenta:"" })); };
 
   const buscar = async (e) => {
     e?.preventDefault();
@@ -45,7 +44,7 @@ export default function RegistroEnLinea() {
     const r = await buscarDocumento(num);
     setCargando(false);
     if (!r.ok) { setError(r.msg); return; }
-    setDoc(num);
+    setDoc(num); setForm(f => ({ ...f, num }));
     if (!r.emp) { setPaso("nuevo"); return; }
     setEmp(r.emp);
     setPaso(r.emp.activo || r.emp.solicitud ? "encontrado" : "inactivo");
@@ -82,18 +81,35 @@ export default function RegistroEnLinea() {
     </>
   );
 
+  // Tipo y número de documento, antes del celular y la cuenta. En un
+  // reingreso el número es el de su ficha y no se cambia.
+  const camposDocumento = (numFijo) => (
+    <>
+      <label style={etiqueta}>Tipo de documento</label>
+      <select value={form.doc} onChange={e => setForm(f => ({ ...f, doc: e.target.value }))} style={{ ...inp, background:"#1f1f33", marginBottom:12, colorScheme:"dark" }}>
+        {TIPOS_DOC.map(([v, l]) => <option key={v} value={v} style={{ background:"#1a1a2e", color:"white" }}>{l}</option>)}
+      </select>
+      <label style={etiqueta}>Número de documento</label>
+      <input value={numFijo ? doc : form.num} readOnly={numFijo} onChange={e => setForm(f => ({ ...f, num: e.target.value }))} inputMode="numeric" autoComplete="off"
+        style={{ ...inp, marginBottom:12, ...(numFijo ? { opacity:0.6 } : {}) }} />
+    </>
+  );
+
   const enviarNuevo = async (e) => {
     e.preventDefault();
     const nombre = form.nombre.trim().replace(/\s+/g, " ").toUpperCase();
     const tel = form.tel.replace(/\D/g, "");
     if (nombre.split(" ").length < 2) { setError("Escribe tu nombre completo (nombre y apellido)."); return; }
+    const num = limpiarDocumento(form.num);
+    if (num.length < 5) { setError("Escribe tu número de documento completo."); return; }
     if (tel.length < 10) { setError("Escribe tu número de celular completo (10 dígitos)."); return; }
     const cuenta = validarCuenta(); if (!cuenta) return;
     setError(""); setCargando(true);
-    const r = await crearSolicitudNuevo({ nombre, doc: form.doc, num: doc, tel, ...cuenta });
+    const r = await crearSolicitudNuevo({ nombre, doc: form.doc, num, tel, ...cuenta });
     setCargando(false);
     if (!r.ok) { setError(r.msg); return; }
-    setEmp({ num: doc, nombre, activo: false, solicitud: "nuevo", propio: true });
+    setDoc(num);
+    setEmp({ num, nombre, activo: false, solicitud: "nuevo", propio: true });
     setPaso("rostro");
   };
 
@@ -103,7 +119,7 @@ export default function RegistroEnLinea() {
     if (tel.length < 10) { setError("Escribe tu número de celular completo (10 dígitos)."); return; }
     const cuenta = validarCuenta(); if (!cuenta) return;
     setError(""); setCargando(true);
-    const r = await crearSolicitudReingreso(emp.num, tel, cuenta);
+    const r = await crearSolicitudReingreso(emp.num, tel, { doc: form.doc, ...cuenta });
     setCargando(false);
     if (!r.ok) { setError(r.msg); return; }
     setEmp(p => ({ ...p, solicitud: "reingreso" }));
@@ -162,8 +178,9 @@ export default function RegistroEnLinea() {
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)" }}>Documento {doc}</div>
               <div style={{ fontSize:18, fontWeight:800, color:"white", margin:"4px 0 10px" }}>¡Hola de nuevo, {primerNombre(emp.nombre)}!</div>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.7)", marginBottom:14, lineHeight:1.45 }}>
-                Ya trabajaste con nosotros. Si vas a volver, confirma tu celular y tu cuenta, y registra tu rostro. Tu regreso queda pendiente de aprobación.
+                Ya trabajaste con nosotros. Si vas a volver, confirma tus datos y registra tu rostro. Tu regreso queda pendiente de aprobación.
               </div>
+              {camposDocumento(true)}
               <label style={etiqueta}>Celular</label>
               <input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} inputMode="tel" placeholder="Ej: 3001234567" style={inp} />
               {camposCuenta}
@@ -176,13 +193,13 @@ export default function RegistroEnLinea() {
 
           {paso === "nuevo" && (
             <form onSubmit={enviarNuevo}>
-              <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)" }}>{tipoDoc(form.doc)} {doc}</div>
               <div style={{ fontSize:16, fontWeight:800, color:"white", margin:"4px 0" }}>No encontramos tu documento</div>
               <div style={{ fontSize:13, color:"rgba(255,255,255,0.7)", marginBottom:14, lineHeight:1.45 }}>
-                Si eres nuevo, llena tus datos y registra tu rostro. Tu ingreso queda pendiente de aprobación. Si te equivocaste de número, vuelve atrás.
+                Si eres nuevo, llena tus datos y registra tu rostro. Tu ingreso queda pendiente de aprobación.
               </div>
               <label style={etiqueta}>Nombre completo</label>
               <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoComplete="name" placeholder="Nombres y apellidos" style={{ ...inp, marginBottom:12 }} />
+              {camposDocumento(false)}
               <label style={etiqueta}>Celular</label>
               <input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} inputMode="tel" autoComplete="tel" placeholder="Ej: 3001234567" style={inp} />
               {camposCuenta}
