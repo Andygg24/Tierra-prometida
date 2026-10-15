@@ -19,6 +19,7 @@ import PalletVerificationTab from "./components/PalletVerificationTab.jsx";
 import AsistenciaTab from "./components/AsistenciaTab.jsx";
 import { RegistrarRostroModal } from "./components/AsistenciaRostro.jsx";
 import QrEmpleadoModal from "./components/QrEmpleadoModal.jsx";
+import SolicitudesRegistro from "./components/SolicitudesRegistro.jsx";
 import { useRostros } from "./hooks/useRostros.js";
 import MaquinaTab from "./components/MaquinaTab.jsx";
 import OperacionesTab from "./components/OperacionesTab.jsx";
@@ -443,6 +444,7 @@ function PersonalDemo() {
             <button onClick={()=>{setShowForm(!showForm);setShowBroadcast(false);}} style={{ background:showForm?"rgba(132,94,247,0.25)":"rgba(132,94,247,0.1)", border:"1px solid rgba(132,94,247,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#845EF7", cursor:"pointer", fontWeight:700 }}>➕ Nuevo empleado</button>
             <button onClick={()=>{setShowBroadcast(!showBroadcast);setShowForm(false);}} style={{ background:showBroadcast?"rgba(37,211,102,0.25)":"rgba(37,211,102,0.1)", border:"1px solid rgba(37,211,102,0.4)", borderRadius:8, padding:"5px 11px", fontSize:11, color:"#25D366", cursor:"pointer", fontWeight:700 }}>📢 Broadcast {selected.length>0?`(${selected.length})`:""}</button>
           </div>
+          <SolicitudesRegistro empleados={empleados} rostros={rostros} />
           {showForm && (
             <div style={{ background:"rgba(132,94,247,0.06)", border:"1px solid rgba(132,94,247,0.2)", borderRadius:12, padding:14, marginBottom:10 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#845EF7", marginBottom:10 }}>👤 Nuevo empleado</div>

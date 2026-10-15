@@ -75,8 +75,25 @@ const MS_AYUDA_MANUAL = 12_000; // si un paso no avanza, se ofrece tomarla a man
 // por encima de esto ya no parece la misma persona.
 const MAX_DIST_MISMA_PERSONA = 0.65;
 
-export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
+// Foto pequeña de la cara (JPEG) para que quien aprueba un registro en línea
+// vea quién es. Se recorta al cuadro de la cara con algo de margen.
+function fotoDeCara(video, box) {
+  const m = box.width * 0.35;
+  const x = Math.max(0, box.x - m), y = Math.max(0, box.y - m * 1.3);
+  const lw = Math.min(video.videoWidth - x, box.width + m * 2), lh = Math.min(video.videoHeight - y, box.height + m * 2.3);
+  const c = document.createElement("canvas");
+  c.width = 200; c.height = Math.round(200 * lh / lw);
+  c.getContext("2d").drawImage(video, x, y, lw, lh, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.75);
+}
+
+// `publico`: modo de la página /registro (el propio trabajador desde su
+// celular). No compara con otros rostros (no se muestran nombres de otras
+// personas) y guarda con `guardar(muestras, foto)`, que deja el registro
+// pendiente de aprobación.
+export function RegistrarRostroModal({ emp, rostros, empleados, onClose, publico = false, guardar }) {
   const { registrados, error: errorRostros, guardarRostro, borrarRostro } = rostros;
+  const fotoRef = useRef(null);
   const cam = useCamaraRostro();
   const { videoRef, faceapiRef, iniciar, detener, estado: estadoCam } = cam;
   const [paso,        setPaso]        = useState(0);      // PASOS.length = terminado
@@ -89,7 +106,7 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
   const [intento,     setIntento]     = useState(0);      // reinicia el recorrido
   const manualRef = useRef(false);
 
-  const yaTiene  = registrados.some(r => r.num === emp.num);
+  const yaTiene  = !publico && registrados.some(r => r.num === emp.num);
   const nombreDe = (num) => empleados.find(e => e.num === num)?.nombre || num;
 
   // La cámara se prende sola al abrir la ventana.
@@ -104,7 +121,7 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
     // hermanos) pueden quedar muy cerca — por eso no se bloquea: se pregunta.
     const deFrente = [muestras[0], muestras[muestras.length - 1]];
     let parecido = null;
-    for (const r of registrados) {
+    if (!publico) for (const r of registrados) {
       if (r.num === emp.num) continue;
       let d = Infinity;
       for (const m of deFrente) for (const x of r.descriptores) d = Math.min(d, distanciaHuellas(m, x));
@@ -124,10 +141,10 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
       return;
     }
     setGuardando(true);
-    const r = await guardarRostro(emp.num, muestras);
+    const r = publico ? await guardar(muestras, fotoRef.current) : await guardarRostro(emp.num, muestras);
     setGuardando(false);
     setMsg(r.ok
-      ? { ok:true, texto:"Rostro registrado. El Biométrico ya reconoce a esta persona." }
+      ? { ok:true, texto: publico ? "¡Rostro registrado!" : "Rostro registrado. El Biométrico ya reconoce a esta persona." }
       : { ok:false, texto:`No se pudo guardar: ${r.msg}` });
   };
   useEffect(() => { finalizarRef.current = finalizar; });
@@ -160,7 +177,7 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
       if (!r || r.varias || r.detection.score < 0.6) return;
       const pose = poseCara(r.landmarks);
       const id = PASOS[pasoActual].id;
-      if (id === "frente") base = pose;
+      if (id === "frente") { base = pose; try { fotoRef.current = fotoDeCara(video, r.detection.box); } catch { fotoRef.current = null; } }
       if (id === "lado1")  signoGiro = Math.sign(pose.yaw - base.yaw) || 1;
       if (id === "vert1")  signoVert = Math.sign(pose.pitch - base.pitch) || 1;
       muestras.push(r.descriptor);
@@ -215,7 +232,7 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
     setMsg(r.ok ? { ok:true, texto:"Rostro borrado." } : { ok:false, texto:`No se pudo borrar: ${r.msg}` });
   };
 
-  const cerrar = () => { detener(); onClose(); };
+  const cerrar = () => { detener(); onClose(!!msg?.ok); };
 
   const terminado = paso >= PASOS.length;
   const { w, h } = dim;
@@ -230,7 +247,8 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
         <div style={{ fontSize:14, fontWeight:800, color:"#a5b4fc", marginBottom:2 }}>🙂 Registrar rostro</div>
         <div style={{ fontSize:13, color:"white", fontWeight:700 }}>{emp.nombre}</div>
         <div style={{ fontSize:11, color: yaTiene ? "#00C9A7" : "rgba(255,255,255,0.45)", marginBottom:10 }}>
-          {yaTiene ? "✓ Ya tiene rostro registrado — al terminar se reemplaza." : "Todavía no tiene rostro registrado."}
+          {publico ? "Sigue las instrucciones: la cámara toma las fotos sola."
+            : yaTiene ? "✓ Ya tiene rostro registrado — al terminar se reemplaza." : "Todavía no tiene rostro registrado."}
         </div>
 
         {errorRostros && <div style={{ fontSize:12, color:"#FF6B6B", marginBottom:10 }}>{errorRostros}</div>}
@@ -269,9 +287,9 @@ export function RegistrarRostroModal({ emp, rostros, empleados, onClose }) {
           {ayudaManual && !terminado && !msg && (
             <button onClick={() => { manualRef.current = true; }} style={btnSecundario}>📸 No avanza — tomar esta foto</button>
           )}
-          {msg && estadoCam === "lista" && <button onClick={repetir} style={btnSecundario}>🔄 {msg.ok ? "Registrar de nuevo" : "Intentar de nuevo"}</button>}
+          {msg && estadoCam === "lista" && !(publico && msg.ok) && <button onClick={repetir} style={btnSecundario}>🔄 {msg.ok ? "Registrar de nuevo" : "Intentar de nuevo"}</button>}
           {yaTiene && <button onClick={borrar} style={{ ...btnTablaEliminar, padding:"7px 12px" }}>🗑 Borrar rostro</button>}
-          <button onClick={cerrar} style={{ ...btnSecundario, marginLeft:"auto" }}>{msg?.ok ? "Listo" : "Cerrar"}</button>
+          <button onClick={cerrar} style={{ ...btnSecundario, marginLeft:"auto" }}>{msg?.ok ? "Listo" : publico ? "Volver" : "Cerrar"}</button>
         </div>
       </div>
     </div>
