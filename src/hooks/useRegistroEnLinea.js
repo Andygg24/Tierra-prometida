@@ -112,8 +112,7 @@ export function useSolicitudesRegistro() {
   }, [cargar]);
 
   // Aprobar: la persona queda activa y su rostro nuevo reemplaza al anterior.
-  // `no`: número de orden en Personal para quien entra (nuevo o reingreso).
-  const aprobar = useCallback(async (sol, no) => {
+  const aprobar = useCallback(async (sol) => {
     if (sol.descriptores.length) {
       const { error: e1 } = await supabase.from("empleados_rostros").delete().eq("emp_num", sol.num).eq("aprobado", true);
       if (e1) return { ok: false, msg: e1.message };
@@ -123,6 +122,10 @@ export function useSolicitudesRegistro() {
       if (e2) return { ok: false, msg: e2.message };
     }
     if (sol.tipo !== "rostro") {
+      // Número de orden en Personal: el siguiente al más alto que exista.
+      const { data: ult } = await supabase.from("empleados").select("no").not("no", "is", null)
+        .order("no", { ascending: false }).limit(1).maybeSingle();
+      const no = (ult?.no || 0) + 1;
       const { error: e3 } = await supabase.from("empleados").update({
         activo: true, es_temporal: false, solicitud_registro: null, solicitud_fecha: null, no,
       }).eq("num", sol.num);

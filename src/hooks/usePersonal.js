@@ -273,8 +273,15 @@ export function usePersonal() {
     return !error;
   }, []);
 
+  // Vuelve a leer la lista de empleados (p. ej. tras aprobar un registro en
+  // línea, sin depender de que llegue el aviso en tiempo real).
+  const recargarEmpleados = useCallback(async () => {
+    const { data } = await supabase.from("empleados").select("*").eq("activo", true).order("no");
+    if (data) setEmpleados(data.map(rowToEmp));
+  }, []);
+
   return {
-    empleados, contratos, pagosHist, docs, desempeno, seguridad,
+    empleados, contratos, pagosHist, docs, desempeno, seguridad, recargarEmpleados,
     loading, error,
     agregarEmpleado, editarEmpleado, eliminarEmpleado,
     upsertContrato, agregarPago, eliminarPago,
