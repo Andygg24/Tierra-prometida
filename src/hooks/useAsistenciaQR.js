@@ -277,7 +277,11 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     if (!contenedor) return null;
     const gDia   = grupos.find(g => g.nombre === contenedor.grupoDia);
     const gNoche = grupos.find(g => g.nombre === contenedor.grupoNoche);
-    const miembros = Array.from(new Set([...(gDia?.miembros || []), ...(gNoche?.miembros || [])]));
+    // Quien marcó entrada en el proceso abierto cuenta aunque la copia local
+    // del grupo aún no se haya actualizado (el aviso en tiempo real puede no llegar).
+    const deEventos = (sesionActiva?.contenedorId === contenedorId)
+      ? eventos.filter(e => e.sesionId === sesionActiva.id && e.tipo === "entrada").map(e => e.empNum) : [];
+    const miembros = Array.from(new Set([...(gDia?.miembros || []), ...(gNoche?.miembros || []), ...deEventos]));
 
     const valorBase = (sesionActiva?.contenedorId === contenedorId) ? sesionActiva.valorBase : 180000;
     const ajustesContenedor = ajustes.filter(a => !a.empNum).reduce((s, a) => s + a.monto, 0);
@@ -292,7 +296,7 @@ export function useAsistenciaQR({ procesos, grupos, guardarGrupo, guardarContene
     });
 
     return { contenedor, miembros, valorBase, ajustesContenedor, ajusteGeneralPorPersona, totalBase, porPersonaBase, detalle };
-  }, [procesos, grupos, ajustes, sesionActiva]);
+  }, [procesos, grupos, ajustes, sesionActiva, eventos]);
 
   return {
     sesionActiva, ajustes, eventos, loading,
