@@ -101,7 +101,7 @@ export default function SolicitudesRegistro({ empleados, rostros }) {
               : <div style={{ width:52, height:60, borderRadius:8, background:"rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>👤</div>}
             <div style={{ flex:"1 1 160px", minWidth:0 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"white" }}>{sol.nombre}</div>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>{sol.doc} {sol.num}{sol.tel && sol.tel !== "-" ? ` · 📞 ${sol.tel}` : ""}</div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>{sol.doc} {sol.num}{sol.tel && sol.tel !== "-" ? ` · 📞 ${sol.tel}` : ""}{sol.cuenta ? ` · 🏦 ${sol.banco} ${sol.cuenta}` : ""}</div>
               <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:3, flexWrap:"wrap" }}>
                 <span style={{ fontSize:9, fontWeight:700, color:t.c, background:`${t.c}1f`, borderRadius:4, padding:"1px 6px" }}>{t.l}</span>
                 <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>{fechaFmt(sol.fecha)}</span>
