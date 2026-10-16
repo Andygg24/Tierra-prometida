@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import LimonLoader from "./LimonLoader.jsx";
+import FirmaPad from "./FirmaPad.jsx";
+import InspeccionPreopTab from "./InspeccionPreopTab.jsx";
 import CustomSelect from "./CustomSelect.jsx";
 import { btnSecundario, btnPrimario, btnTablaEditar, btnTablaEliminar } from "./buttonStyles.js";
 import { useIncidentes } from "../hooks/useIncidentes.js";
@@ -52,89 +54,6 @@ function fmtFechaCorta(f) {
   return f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 }
 
-// Firma dibujada con el dedo o el mouse. Se guarda sola al terminar cada
-// trazo (sin botón de "confirmar firma" que se pueda olvidar); el formulario
-// la persiste al darle Guardar incidente.
-function FirmaPad({ value, onChange, m }) {
-  const canvasRef  = useRef(null);
-  const dibujando  = useRef(false);
-  const huboTrazo  = useRef(false);
-
-  // Al montar: fondo blanco y, si ya había firma guardada, se pinta encima.
-  useEffect(() => {
-    const c = canvasRef.current;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, c.width, c.height);
-    if (value) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, c.width, c.height);
-      img.src = value;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const pos = (e) => {
-    const c = canvasRef.current;
-    const r = c.getBoundingClientRect();
-    return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
-  };
-  const iniciar = (e) => {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    dibujando.current = true;
-    const ctx = canvasRef.current.getContext("2d");
-    const { x, y } = pos(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-  const mover = (e) => {
-    if (!dibujando.current) return;
-    e.preventDefault();
-    const ctx = canvasRef.current.getContext("2d");
-    const { x, y } = pos(e);
-    ctx.strokeStyle = "#1a1a1a";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    huboTrazo.current = true;
-  };
-  const soltar = () => {
-    if (!dibujando.current) return;
-    dibujando.current = false;
-    if (huboTrazo.current) onChange(canvasRef.current.toDataURL("image/png"));
-    huboTrazo.current = false;
-  };
-  const borrar = () => {
-    const c = canvasRef.current;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, c.width, c.height);
-    onChange("");
-  };
-
-  return (
-    <div>
-      <canvas
-        ref={canvasRef}
-        width={400} height={160}
-        style={{ width: "100%", height: m ? 130 : 110, background: "#fff", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", touchAction: "none", cursor: "crosshair", display: "block" }}
-        onPointerDown={iniciar} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar} onPointerLeave={soltar}
-      />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 5, gap: 6 }}>
-        <span style={{ fontSize: m ? 10 : 9, color: value ? "#00C9A7" : "rgba(255,255,255,0.3)", fontWeight: value ? 700 : 400 }}>
-          {value ? "✓ Firmado" : "Firma aquí con el dedo o el mouse"}
-        </span>
-        {value && (
-          <button onClick={borrar} style={{ background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 6, color: "#FF6B6B", padding: m ? "6px 10px" : "3px 8px", fontSize: 10.5, cursor: "pointer", fontFamily: "inherit" }}>🧹 Borrar</button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 const estaCerrado = (inc) => !!inc.verificacionFecha;
 const textoTipos  = (inc) => inc.tipos.map(t => t === "Otro" && inc.tipoOtro ? `Otro: ${inc.tipoOtro}` : t).join(", ");
 
@@ -150,7 +69,7 @@ export default function OperacionesTab({ mob }) {
   const m = mob || isMobLocal;
 
   const [tabOp, setTabOp] = useState(0);
-  const TAB_OP = ["⚠️ Incidentes Inusuales"];
+  const TAB_OP = ["⚠️ Incidentes Inusuales", "🧹 Inspección Pre-Operacional"];
 
   const { incidentes, loading, errorCarga, recargar, guardarIncidente, cargarFirmas, eliminarIncidente } = useIncidentes();
 
@@ -283,8 +202,6 @@ export default function OperacionesTab({ mob }) {
     }
   };
 
-  if (loading) return <LimonLoader texto="Cargando incidentes" />;
-
   const chipEstado = (cerrado) => (
     <span style={{
       fontSize: 10, fontWeight: 800, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap",
@@ -306,7 +223,7 @@ export default function OperacionesTab({ mob }) {
               <button onClick={() => setPreview(null)} style={{ background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", borderRadius: 8, padding: "7px 14px", fontSize: 12, color: "rgba(255,255,255,0.78)", cursor: "pointer" }}>✕ Cerrar</button>
             </div>
           </div>
-          <iframe ref={iframeRef} src={preview.url} style={{ flex: 1, border: "none", background: "white" }} title="Vista previa del informe NUOCA" />
+          <iframe ref={iframeRef} src={preview.url} style={{ flex: 1, border: "none", background: "white" }} title="Vista previa del informe" />
         </div>
       )}
 
@@ -325,15 +242,21 @@ export default function OperacionesTab({ mob }) {
         ))}
       </div>
 
-      {errorCarga && (
+      {tabOp === 0 && errorCarga && (
         <div style={{ fontSize: 12, color: "#ff8a8a", background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.3)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span>No se pudieron cargar los incidentes ({errorCarga}).</span>
           <button onClick={recargar} style={btnSecundario}>↻ Reintentar</button>
         </div>
       )}
 
+      {/* ═══ INSPECCIÓN PRE-OPERACIONAL ═══ */}
+      {tabOp === 1 && (
+        <InspeccionPreopTab m={m} COLOR={COLOR} onPreview={setPreview} estilos={{ inp, area, lbl, cardS, seccion, ayuda }} />
+      )}
+
       {/* ═══ INCIDENTES INUSUALES ═══ */}
       {tabOp === 0 && (
+        loading ? <LimonLoader texto="Cargando incidentes" /> :
         sel === null ? (
           /* ── Lista ── */
           <div style={cardS}>
