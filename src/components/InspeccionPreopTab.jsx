@@ -48,8 +48,13 @@ export default function InspeccionPreopTab({ m, estilos, COLOR, onPreview }) {
   // estén en "ok" no se deja guardar, para no pisar las firmas con vacío.
   const [firmasEstado, setFirmasEstado] = useState("ok");
   const selRef = useRef(null);
-  // Día que se está diligenciando en celular (0 = Lun).
+  // Día que se está diligenciando en la vista "Por día" (0 = Lun).
   const [diaMovil, setDiaMovil] = useState(() => (new Date().getDay() + 6) % 7);
+  // En escritorio se puede elegir planilla de la semana completa o un día a la
+  // vez; en celular siempre es por día.
+  const [vista, setVista] = useState(() => { try { return localStorage.getItem("tp_preop_vista") || "semana"; } catch { return "semana"; } });
+  const cambiarVista = (v) => { setVista(v); try { localStorage.setItem("tp_preop_vista", v); } catch { /* sin almacenamiento */ } };
+  const porDia = m || vista === "dia";
   const [generando, setGenerando] = useState(false);
 
   const setCampo = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
@@ -234,7 +239,7 @@ export default function InspeccionPreopTab({ m, estilos, COLOR, onPreview }) {
 
   /* ── Formulario ── */
   const btnMarca = (on, color) => ({
-    flex: 1, minHeight: 40, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontWeight: 900, fontSize: 16,
+    flex: 1, minHeight: m ? 40 : 30, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontWeight: 900, fontSize: 16,
     background: on ? `${color}26` : "rgba(255,255,255,0.04)",
     border: `1px solid ${on ? color : "rgba(255,255,255,0.12)"}`,
     color: on ? color : "rgba(255,255,255,0.35)",
@@ -269,16 +274,30 @@ export default function InspeccionPreopTab({ m, estilos, COLOR, onPreview }) {
           </div>
         </div>
 
-        <div style={seccion}>INSPECCIÓN POR ÁREA</div>
+        <div style={{ ...seccion, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span>INSPECCIÓN POR ÁREA</span>
+          {!m && (
+            <div style={{ display: "flex", gap: 4 }}>
+              {[["semana", "📋 Semana completa"], ["dia", "📅 Por día"]].map(([k, t]) => (
+                <button key={k} onClick={() => cambiarVista(k)} style={{
+                  borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, letterSpacing: 0,
+                  background: vista === k ? `${COLOR}26` : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${vista === k ? COLOR : "rgba(255,255,255,0.1)"}`,
+                  color: vista === k ? "white" : "rgba(255,255,255,0.55)",
+                }}>{t}</button>
+              ))}
+            </div>
+          )}
+        </div>
         <div style={ayuda}>
           <b style={{ color: VERDE }}>✓</b> Cumple · <b style={{ color: ROJO }}>✗</b> No cumple · casilla vacía = no se inspeccionó ese día.
-          {!m && " Toca una casilla para cambiarla."}
+          {!porDia && " Toca una casilla para cambiarla."}
           {" "}{resumen.noCumple > 0 && <b style={{ color: ROJO }}>{resumen.noCumple} no cumple{resumen.noCumple === 1 ? "" : "n"} — anota en Observaciones la acción tomada.</b>}
         </div>
 
-        {m ? (
+        {porDia ? (
           <>
-            {/* Celular: se llena un día a la vez */}
+            {/* Por día (siempre en celular): se llena un día a la vez */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, margin: "8px 0 10px" }}>
               {DIAS_PREOP.map((d, i) => {
                 const on = diaMovil === i;
@@ -297,16 +316,16 @@ export default function InspeccionPreopTab({ m, estilos, COLOR, onPreview }) {
                 );
               })}
             </div>
-            <button onClick={() => marcarDiaCumple(diaMovil)} style={{ ...btnSecundario, width: "100%", marginBottom: 10 }}>✓ Marcar los pendientes del {DIAS_PREOP[diaMovil]} como Cumple</button>
+            <button onClick={() => marcarDiaCumple(diaMovil)} style={{ ...btnSecundario, width: m ? "100%" : "auto", marginBottom: 10 }}>✓ Marcar los pendientes del {DIAS_PREOP[diaMovil]} como Cumple</button>
             {AREAS_PREOP.map(a => (
               <div key={a.area} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: COLOR, margin: "6px 0" }}>{a.area}</div>
                 {a.items.map(([id, texto]) => {
                   const v = marca(id, diaMovil);
                   return (
-                    <div key={id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "8px 0" }}>
-                      <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.85)", marginBottom: 6, lineHeight: 1.35 }}>{texto}</div>
-                      <div style={{ display: "flex", gap: 8 }}>
+                    <div key={id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: m ? "8px 0" : "5px 0", ...(m ? {} : { display: "flex", alignItems: "center", gap: 12 }) }}>
+                      <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.85)", marginBottom: m ? 6 : 0, lineHeight: 1.35, flex: 1 }}>{texto}</div>
+                      <div style={{ display: "flex", gap: 8, ...(m ? {} : { width: 150, flexShrink: 0 }) }}>
                         <button onClick={() => setMarca(id, diaMovil, v === "C" ? "" : "C")} style={btnMarca(v === "C", VERDE)}>✓</button>
                         <button onClick={() => setMarca(id, diaMovil, v === "NC" ? "" : "NC")} style={btnMarca(v === "NC", ROJO)}>✗</button>
                       </div>
@@ -316,7 +335,7 @@ export default function InspeccionPreopTab({ m, estilos, COLOR, onPreview }) {
               </div>
             ))}
             <div style={lbl}>Iniciales del encargado — {DIAS_PREOP[diaMovil]} {diaCorto(fechas[diaMovil])}</div>
-            <input style={inp} maxLength={8} value={form.iniciales?.[diaMovil] || ""} onChange={e => setInicial(diaMovil, e.target.value.toUpperCase())} />
+            <input style={{ ...inp, ...(m ? {} : { maxWidth: 220 }) }} maxLength={8} value={form.iniciales?.[diaMovil] || ""} onChange={e => setInicial(diaMovil, e.target.value.toUpperCase())} />
           </>
         ) : (
           /* Escritorio: la planilla completa como en el formato */
