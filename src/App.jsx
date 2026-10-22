@@ -4621,6 +4621,7 @@ ${seccionesScoped.map((s, i) => `
                           <CustomSelect value={formRend.pesoDelMonte} onChange={e => setFormRend(f => ({ ...f, pesoDelMonte: e.target.value }))} style={{ ...inp, width: 92, flexShrink: 0 }}>
                             <option value="16.8">16.8 kg</option>
                             <option value="16.5">16.5 kg</option>
+                            <option value="16.2">16.2 kg</option>
                           </CustomSelect>
                         </div>
                       </div>
