@@ -354,9 +354,12 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .cal-pallet-count{font-size:11px;color:#333;font-weight:600}
 .cal-pallet-count b{font-size:13px;color:#173d1a;font-weight:800}
 
-/* ── Pallets: grid de tarjetas ── */
-.pallet-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.pallet-card{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:9px 11px;background:#fbfdfb;break-inside:avoid}
+/* ── Pallets: grid de tarjetas ──
+   minmax(0,1fr) y no 1fr: con 1fr una observación larga de un pallet ensanchaba
+   su columna y la grilla se salía de la hoja — en el Informe General (que
+   recorta lo que sobresale) la 4.ª columna desaparecía y la 3.ª salía partida. */
+.pallet-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.pallet-card{min-width:0;border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:9px 11px;background:#fbfdfb;break-inside:avoid}
 .pallet-card.warn{border-left-color:#e08a1e;background:#fffaf2}
 .pallet-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .pid{font-weight:800;font-size:11px;color:#173d1a}
@@ -364,9 +367,9 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
 .pallet-card.warn .pflag{color:#c9720e}
 .pchips{display:flex;flex-wrap:wrap;gap:4px}
 .pchip{border:1px solid;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:600}
-.ppredio{margin-top:6px;font-size:9px;color:#222;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pica{margin-top:3px;font-size:9px;color:#2d8a2d;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.plote{margin-top:3px;font-size:9px;color:#6366F1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppredio{margin-top:6px;font-size:9px;color:#222;font-weight:600;overflow-wrap:anywhere}
+.pica{margin-top:3px;font-size:9px;color:#2d8a2d;font-weight:700;overflow-wrap:anywhere}
+.plote{margin-top:3px;font-size:9px;color:#6366F1;font-weight:700;overflow-wrap:anywhere}
 
 /* ── Checklist ── */
 .chk-cat{border:1px solid #dfe8df;border-left:4px solid #2d8a2d;border-radius:10px;padding:12px 16px;margin-bottom:10px;break-inside:avoid}
