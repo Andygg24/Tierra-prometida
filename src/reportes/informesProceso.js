@@ -726,7 +726,7 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   // Merma = (kilos procesados − kg empacados − kg devueltos) / kilos procesados.
   const calcRend = (r) => {
     const kgDM  = r.cajasDelMonte * (r.pesoDelMonte || KG_DEL_MONTE);
-    const kgPri = r.cajasPrincess * KG_PRINCESS;
+    const kgPri = r.cajasPrincess * (r.pesoPrincess || KG_PRINCESS);
     const kgEmp = kgDM + kgPri;
     const proc  = r.kilosProcesados;
     const rendGen = proc > 0 ? (kgEmp / proc) * 100 : 0;
@@ -766,7 +766,7 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
   // ── Desglose por calibre (agregado de todos los camiones del contenedor) ──
   const calibreKgPorNombre = new Map();
   rendsDelCont.forEach(r => (r.calibres || []).forEach(cal => {
-    const kg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (r.pesoDelMonte || KG_DEL_MONTE) : KG_PRINCESS) : Number(cal.cantidad);
+    const kg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (r.pesoDelMonte || KG_DEL_MONTE) : (r.pesoPrincess || KG_PRINCESS)) : Number(cal.cantidad);
     calibreKgPorNombre.set(cal.nombre, (calibreKgPorNombre.get(cal.nombre) || 0) + kg);
   }));
   const calibresAgg = [...calibreKgPorNombre.entries()].map(([nombre, kg]) => ({
@@ -790,7 +790,7 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     // una sola vez para todo el contenedor.
     const precio = Number(cal.precio) || Number(r.precioCompra) || 0;
     if (!precio) return;
-    const kg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (r.pesoDelMonte || KG_DEL_MONTE) : KG_PRINCESS) : Number(cal.cantidad);
+    const kg = cal.tipo === "cajas" ? cal.cantidad * (cal.marca === "Del Monte" ? (r.pesoDelMonte || KG_DEL_MONTE) : (r.pesoPrincess || KG_PRINCESS)) : Number(cal.cantidad);
     const valor = kg * precio;
     costoTotalCOP += valor;
     kgConPrecio += kg;
@@ -847,7 +847,7 @@ export async function generarInformeRendimientoHtml({ cont, rendsDelCont }) {
     const kgProc = recs.reduce((s,r) => s + r.kilosProcesados, 0);
     const kgDev  = recs.reduce((s,r) => s + r.kilosDevueltos,  0);
     const kgDM   = recs.reduce((s,r) => s + r.cajasDelMonte * (r.pesoDelMonte || KG_DEL_MONTE), 0);
-    const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * KG_PRINCESS,  0);
+    const kgPri  = recs.reduce((s,r) => s + r.cajasPrincess * (r.pesoPrincess || KG_PRINCESS), 0);
     const kgEmp  = kgDM + kgPri;
     const rdto    = kgProc > 0 ? (kgEmp / kgProc) * 100 : 0;
     const mermaKg = kgProc - kgEmp - kgDev;
