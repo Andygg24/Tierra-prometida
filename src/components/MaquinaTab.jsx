@@ -2002,21 +2002,67 @@ export default function MaquinaTab({ mob }) {
   // guarda un desplazamiento (dx,dy) respecto a su posición automática, no
   // una coordenada absoluta, para que siga viendose bien aunque cambie de
   // estación después.
+  // Soltarla sobre OTRA estación = moverla a esa área (igual que el menú
+  // "Mover a..."); soltarla en su misma estación solo la acomoda (modo
+  // edición) o la regresa a su sitio. El pointer capture se toma recién
+  // cuando hay movimiento real, para que un clic normal siga abriendo el menú.
   const [posPersonas, setPosPersonas] = useState({});
+  const [arrastrandoNum, setArrastrandoNum] = useState(null);
   const personaDragRef = useRef(null);
-  const onPersonaPointerDown = (e, empNum, offActual) => {
-    if (!editando) return;
-    e.stopPropagation();
-    personaDragRef.current = { empNum, sx: e.clientX, sy: e.clientY, ox: offActual.dx, oy: offActual.dy };
-    e.currentTarget.setPointerCapture(e.pointerId);
+  const ignorarClicRef = useRef(false);
+  const onPersonaPointerDown = (e, emp, offActual, areaActual) => {
+    if (e.button != null && e.button !== 0) return;
+    e.stopPropagation(); // que el plano no se panee mientras se arrastra a alguien
+    personaDragRef.current = {
+      emp, areaActual, sx: e.clientX, sy: e.clientY, ox: offActual.dx, oy: offActual.dy,
+      pointerId: e.pointerId, el: e.currentTarget, movido: false,
+    };
   };
   const onPersonaPointerMove = (e) => {
     const d = personaDragRef.current;
     if (!d) return;
+    if (!d.movido) {
+      if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return;
+      d.movido = true;
+      try { d.el.setPointerCapture(d.pointerId); } catch { /* el puntero ya se soltó */ }
+      setMenuAbierto(null);
+      setArrastrandoNum(d.emp.num);
+    }
     const dx = (e.clientX - d.sx) / zoom, dy = (e.clientY - d.sy) / zoom;
-    setPosPersonas(prev => ({ ...prev, [d.empNum]: { dx: d.ox + dx, dy: d.oy + dy } }));
+    setPosPersonas(prev => ({ ...prev, [d.emp.num]: { dx: d.ox + dx, dy: d.oy + dy } }));
   };
-  const onPersonaPointerUp = () => { personaDragRef.current = null; };
+  // Estación de tipo área bajo el punto donde se soltó: la zona de cada una
+  // es su plataforma más el bloque de personas que flota encima.
+  const areaEnPunto = (p) => {
+    let mejor = null, mejorDist = Infinity;
+    STAGES.forEach((s, i) => {
+      if (s.tipo !== "area") return;
+      const areaDb = areaPorNombre[s.nombre];
+      if (!areaDb) return;
+      const c = puntos[i];
+      if (Math.abs(p.x - c.x) > 75 || p.y < c.y - 150 || p.y > c.y + PLAT_H / 2 + 10) return;
+      const dist = Math.hypot(p.x - c.x, p.y - (c.y - 40));
+      if (dist < mejorDist) { mejorDist = dist; mejor = areaDb; }
+    });
+    return mejor;
+  };
+  const onPersonaPointerUp = (e) => {
+    const d = personaDragRef.current;
+    personaDragRef.current = null;
+    if (!d?.movido) return;
+    ignorarClicRef.current = true; // el clic que dispara el navegador al soltar no debe abrir el menú
+    setTimeout(() => { ignorarClicRef.current = false; }, 0);
+    setArrastrandoNum(null);
+    const p = posEnPlano(e);
+    const destino = p ? areaEnPunto(p) : null;
+    if (destino && destino.id !== d.areaActual?.id) {
+      // Cambia de estación: arranca en su posición automática en la nueva.
+      setPosPersonas(prev => { const n = { ...prev }; delete n[d.emp.num]; return n; });
+      mover(d.emp, destino);
+    } else if (!editando) {
+      setPosPersonas(prev => ({ ...prev, [d.emp.num]: { dx: d.ox, dy: d.oy } }));
+    }
+  };
   const restablecerPosPersonas = () => setPosPersonas({});
 
   // Rutas de caminata (solo visual): cada persona puede tener una lista de
@@ -2411,15 +2457,19 @@ export default function MaquinaTab({ mob }) {
         style={{
           position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
           transform: (off.dx || off.dy) ? `translate(${off.dx}px, ${off.dy}px)` : undefined,
-          cursor: editando ? "grab" : "default", touchAction: editando ? "none" : "auto",
+          cursor: arrastrandoNum === emp.num ? "grabbing" : "grab", touchAction: "none",
+          zIndex: arrastrandoNum === emp.num ? 30 : undefined,
+          opacity: arrastrandoNum === emp.num ? 0.85 : 1,
         }}
         onMouseEnter={() => setHoverNum(emp.num)}
         onMouseLeave={() => setHoverNum(v => (v === emp.num ? null : v))}
-        onPointerDown={(e) => onPersonaPointerDown(e, emp.num, off)}
+        onPointerDown={(e) => onPersonaPointerDown(e, emp, off, areaActual)}
         onPointerMove={onPersonaPointerMove}
         onPointerUp={onPersonaPointerUp}
+        onPointerCancel={onPersonaPointerUp}
+        onClickCapture={(e) => { if (ignorarClicRef.current) { ignorarClicRef.current = false; e.stopPropagation(); } }}
       >
-        {hoverNum === emp.num && menuAbierto !== emp.num && (
+        {hoverNum === emp.num && menuAbierto !== emp.num && arrastrandoNum !== emp.num && (
           <div style={{
             position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)", marginBottom: 6, zIndex: 15,
             background: "#1b1b26", border: `1px solid ${areaActual ? areaActual.color : "#666"}55`, borderRadius: 10,
