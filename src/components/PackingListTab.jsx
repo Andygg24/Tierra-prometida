@@ -22,7 +22,7 @@ const COL_CAL_VACIO = { bg:"#94a3b8", light:"rgba(148,163,184,0.12)", border:"rg
 // ── Guardado por paso — cada paso solo escribe sus propios campos de
 // admin_data, así dos personas en pasos distintos del mismo contenedor
 // no se borran el trabajo entre sí. ──
-const PASO1_ADMIN_KEYS = ["packingDate", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral", "conteoCalibre"];
+const PASO1_ADMIN_KEYS = ["packingDate", "horaFinPaletizacion", "checklistPlanta", "checklistCalidad", "checklistResponsable", "checklistCargo", "checklistObs", "icaGeneral", "conteoCalibre"];
 const PASO2_ADMIN_KEYS = ["empresaTransporte", "placa", "trailer", "conductor", "cedulaConductor", "supervisorCargue", "horaCargue", "horaSalida", "fechaCargue", "termoregistroCamion", "termoregistroCamionPalletNo", "precintoCamion", "tempLlegadaCamion", "tempSalidaCamion", "icaCamion", "inspeccionCamion", "firmaConductor", "firmaSupervisor"];
 const PASO3_ADMIN_KEYS = ["consecutivo", "plNo", "container", "vessel", "finalStamps", "destino", "fechaCargue", "palletCerts", "tempRecorder", "tempRecorderPalletNo", "ispm15", "port", "puertoManual", "moviad", "temperatura", "growerETA", "growerBL", "growerContainer", "growerAssignments"];
 
@@ -428,7 +428,7 @@ export default function PackingListTab({ mob, contenedor, onClose }) {
     plNo:"", consecutivo:"", fechaCargue:hoy, container:"", destino:"Philadelphia",
     vessel:"", palletCerts:[{ ica:"", palletNo:"" }],
     tempRecorder:"", tempRecorderPalletNo:"", finalStamps:"",
-    packingDate:hoy, empresaTransporte:"", placa:"", trailer:"",
+    packingDate:hoy, horaFinPaletizacion:"", empresaTransporte:"", placa:"", trailer:"",
     conductor:"", cedulaConductor:"", firmaConductor:"", horaCargue:"", horaSalida:"", supervisorCargue:"", firmaSupervisor:"",
     // ── Paso 2 — Camión: termoregistro, precinto, temperaturas y pallet(s) con ICA ──
     termoregistroCamion:"", termoregistroCamionPalletNo:"", precintoCamion:"", tempLlegadaCamion:"", tempSalidaCamion:"",
@@ -1965,6 +1965,10 @@ p{text-align:justify;margin-bottom:14px}
               <div>
                 <div style={lbl}>Packing Date</div>
                 <input type="date" value={admin.packingDate} onChange={e => sa("packingDate", e.target.value)} style={inp} />
+              </div>
+              <div>
+                <div style={lbl}>Hora final de paletización</div>
+                <input type="time" value={admin.horaFinPaletizacion || ""} onChange={e => sa("horaFinPaletizacion", e.target.value)} style={inp} />
               </div>
               <div>
                 <div style={lbl}>ICA general (todos los pallets)</div>
