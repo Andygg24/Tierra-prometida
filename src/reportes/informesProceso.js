@@ -415,6 +415,7 @@ h2::after{content:"";flex:1;height:1px;background:#dfe8df}
     <div class="chips">
       <span class="chip">🚢 ${admin.container || contenedor?.numContenedor || "—"}</span>
       <span class="chip">📅 ${fmtDate(admin.packingDate) || new Date().toLocaleDateString("es-CO")}</span>
+      <span class="chip">⏱️ Fin paletización: ${admin.horaFinPaletizacion || "—"}</span>
       <span class="chip">🏭 ${admin.checklistPlanta || "Planta sin especificar"}</span>
       <span class="chip">🍋 ${contenedor?.producto || "Producto sin especificar"}</span>
       <span class="chip">➡️ ${admin.destino || "—"}</span>
